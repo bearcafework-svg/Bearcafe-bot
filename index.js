@@ -4,22 +4,23 @@ const axios = require("axios");
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildVoiceStates
+    GatewayIntentBits.GuildVoiceStates // จำเป็นต้องใช้เพื่อดักฟังเสียง
   ]
 });
 
 const WEBHOOK_URL = process.env.WEBHOOK_URL;
 
+// ส่วนที่แก้ปัญหา: สแกนคนที่มีอยู่แล้วทันทีที่บอทตื่น (Ready)
 client.once("ready", async () => {
   console.log(`Bot logged in as ${client.user.tag}`);
 
-  // 🚀 สแกนคนที่อยู่ในห้องเสียงอยู่แล้วตอนบอทเริ่มทำงาน (แก้ปัญหาไม่ต้องออกเข้าใหม่)
   for (const guild of client.guilds.cache.values()) {
     const voiceStates = guild.voiceStates.cache;
     for (const [memberId, voiceState] of voiceStates) {
       if (voiceState.channelId) {
         console.log(`[Sync] User ${memberId} is already in ${voiceState.channelId}`);
         try {
+          // ส่งค่าบอก Database ว่าคนนี้สิงอยู่ในห้องนี้อยู่แล้วนะ
           await axios.post(WEBHOOK_URL, {
             event: "VOICE_STATE_UPDATE",
             data: {
@@ -38,12 +39,9 @@ client.once("ready", async () => {
 });
 
 client.on("voiceStateUpdate", async (oldState, newState) => {
-  // กรองกรณีที่ไม่ได้ย้ายห้อง (เช่น Mute/Deafen)
   if (oldState.channelId === newState.channelId) return;
 
   try {
-    console.log(`User ${newState.id} changed voice state: ${oldState.channelId} -> ${newState.channelId}`);
-    
     await axios.post(WEBHOOK_URL, {
       event: "VOICE_STATE_UPDATE",
       data: {
@@ -58,4 +56,4 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
   }
 });
 
-client.login(process.env.BOT_TOKEN);
+client.login(process.env.BOT_TOKEN); //

@@ -10,8 +10,31 @@ const client = new Client({
 
 const WEBHOOK_URL = process.env.WEBHOOK_URL;
 
-client.once("clientReady", () => {
+client.once("ready", async () => {
   console.log(`Bot logged in as ${client.user.tag}`);
+
+  // 🚀 สแกนคนที่อยู่ในห้องเสียงอยู่แล้วตอนบอทเริ่มทำงาน (แก้ปัญหาไม่ต้องออกเข้าใหม่)
+  for (const guild of client.guilds.cache.values()) {
+    const voiceStates = guild.voiceStates.cache;
+    for (const [memberId, voiceState] of voiceStates) {
+      if (voiceState.channelId) {
+        console.log(`[Sync] User ${memberId} is already in ${voiceState.channelId}`);
+        try {
+          await axios.post(WEBHOOK_URL, {
+            event: "VOICE_STATE_UPDATE",
+            data: {
+              user_id: memberId,
+              channel_id: voiceState.channelId,
+              channel_name: voiceState.channel?.name ?? null,
+              guild_id: guild.id
+            }
+          });
+        } catch (err) {
+          console.error(`Sync error for ${memberId}:`, err.message);
+        }
+      }
+    }
+  }
 });
 
 client.on("voiceStateUpdate", async (oldState, newState) => {
@@ -21,11 +44,10 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
   try {
     console.log(`User ${newState.id} changed voice state: ${oldState.channelId} -> ${newState.channelId}`);
     
-    await axios.post(process.env.WEBHOOK_URL, {
+    await axios.post(WEBHOOK_URL, {
       event: "VOICE_STATE_UPDATE",
       data: {
         user_id: newState.id,
-        // ใช้ || null เพื่อกันเหนียว กรณี newState.channelId เป็น undefined จะได้ส่ง null ไปแน่นอน
         channel_id: newState.channelId || null, 
         channel_name: newState.channel?.name ?? null,
         guild_id: newState.guild.id

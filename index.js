@@ -1,5 +1,12 @@
 const { Client, GatewayIntentBits } = require("discord.js");
 const axios = require("axios");
+const http = require("http"); // เพิ่มตัวนี้เข้ามา (เป็นตัวมาตรฐานของ Node.js ไม่ต้องลงเพิ่ม)
+
+// 🌟 ส่วนที่เพิ่มเข้ามาเพื่อหลอก Health Check ของ Koyeb
+http.createServer((req, res) => {
+  res.writeHead(200);
+  res.end("I am alive!");
+}).listen(process.env.PORT || 8000); 
 
 const client = new Client({
   intents: [
@@ -10,7 +17,6 @@ const client = new Client({
 
 const WEBHOOK_URL = process.env.WEBHOOK_URL;
 
-// แก้จาก ready เป็น clientReady ตามคำแนะนำของ logs
 client.once("clientReady", async () => {
   console.log(`Bot logged in as ${client.user.tag}`);
 
@@ -41,6 +47,8 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
   if (oldState.channelId === newState.channelId) return;
 
   try {
+    console.log(`User ${newState.id} changed voice state: ${oldState.channelId} -> ${newState.channelId}`);
+    
     await axios.post(WEBHOOK_URL, {
       event: "VOICE_STATE_UPDATE",
       data: {

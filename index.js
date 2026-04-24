@@ -3,18 +3,16 @@ const axios = require("axios");
 const http = require("http");
 const crypto = require("crypto");
 
-// 🌟 Health Check
+// Health Check
 http.createServer((req, res) => {
   res.writeHead(200);
   res.end("Bear Cafe Voice Sensor is Active!");
 }).listen(process.env.PORT || 8000);
 
-const WEBHOOK_URL      = process.env.WEBHOOK_URL;
-const VOICE_POINTS_URL = process.env.VOICE_POINTS_URL;
-// เพิ่ม env นี้ใน Koyeb:
-// VOICE_POINTS_URL = https://orbxyyjpvpbqwfssnyeq.supabase.co/functions/v1/voice-activity-points
+const WEBHOOK_URL          = process.env.WEBHOOK_URL;
+const VOICE_POINTS_URL     = process.env.VOICE_POINTS_URL;
+const EXCLUDED_CATEGORY_ID = "1145057060686397611"; // ไม่นับแต้มห้องหมวดนี้
 
-// Track เวลาที่ user เข้าห้อง
 const voiceJoinTimes = new Map();
 
 const client = new Client({
@@ -24,7 +22,6 @@ const client = new Client({
   ]
 });
 
-// นับ user จริงในห้อง (ไม่นับบอท)
 function getUserCountInChannel(guild, channelId) {
   if (!channelId) return 0;
   return guild.voiceStates.cache.filter(
@@ -32,9 +29,12 @@ function getUserCountInChannel(guild, channelId) {
   ).size;
 }
 
-// เรียก voice-activity-points function
-async function awardVoicePoints(userId, durationSeconds, userCount) {
+async function awardVoicePoints(userId, durationSeconds, userCount, parentId) {
   if (!VOICE_POINTS_URL) return;
+  if (parentId === EXCLUDED_CATEGORY_ID) {
+    console.log(`[points] ${userId} skipped — excluded category`);
+    return;
+  }
   const eventId = `voice-${userId}-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`;
   try {
     const res = await axios.post(
@@ -56,17 +56,14 @@ async function awardVoicePoints(userId, durationSeconds, userCount) {
 client.once("clientReady", async () => {
   console.log(`Bot logged in as ${client.user.tag}`);
 
-  // Sync คนที่อยู่ในห้องอยู่แล้ว
   for (const guild of client.guilds.cache.values()) {
     for (const [memberId, voiceState] of guild.voiceStates.cache) {
       if (voiceState.channelId && !voiceState.member?.user?.bot) {
-        // บันทึกเวลาเข้าห้อง
         voiceJoinTimes.set(memberId, {
           joinedAt: Date.now(),
           channelId: voiceState.channelId,
+          parentId: voiceState.channel?.parentId ?? null,
         });
-
-        // ส่ง webhook เดิม
         try {
           await axios.post(WEBHOOK_URL, {
             event: "VOICE_STATE_UPDATE",
@@ -91,42 +88,46 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
   const userId = newState.id;
   const isBot  = newState.member?.user?.bot ?? false;
 
-  // ── ออกจากห้อง ──────────────────────────────────────────────────────────
+  // ออกจากห้อง
   if (oldState.channelId && !newState.channelId && !isBot) {
     const session = voiceJoinTimes.get(userId);
     if (session) {
       const durationSeconds = Math.floor((Date.now() - session.joinedAt) / 1000);
       const userCount = getUserCountInChannel(oldState.guild, oldState.channelId) + 1;
-      console.log(`[voice] ${userId} left after ${durationSeconds}s (${userCount} users)`);
-      awardVoicePoints(userId, durationSeconds, userCount); // fire-and-forget
+      const parentId  = oldState.channel?.parentId ?? null;
+      console.log(`[voice] ${userId} left after ${durationSeconds}s (cat: ${parentId})`);
+      awardVoicePoints(userId, durationSeconds, userCount, parentId);
     }
     voiceJoinTimes.delete(userId);
   }
 
-  // ── เข้าห้อง ─────────────────────────────────────────────────────────────
+  // เข้าห้อง
   if (newState.channelId && !oldState.channelId && !isBot) {
     voiceJoinTimes.set(userId, {
       joinedAt: Date.now(),
       channelId: newState.channelId,
+      parentId: newState.channel?.parentId ?? null,
     });
   }
 
-  // ── ย้ายห้อง ─────────────────────────────────────────────────────────────
+  // ย้ายห้อง
   if (oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId && !isBot) {
     const session = voiceJoinTimes.get(userId);
     if (session) {
       const durationSeconds = Math.floor((Date.now() - session.joinedAt) / 1000);
       const userCount = getUserCountInChannel(oldState.guild, oldState.channelId) + 1;
-      console.log(`[voice] ${userId} moved after ${durationSeconds}s`);
-      awardVoicePoints(userId, durationSeconds, userCount);
+      const parentId  = oldState.channel?.parentId ?? null;
+      console.log(`[voice] ${userId} moved after ${durationSeconds}s (cat: ${parentId})`);
+      awardVoicePoints(userId, durationSeconds, userCount, parentId);
     }
     voiceJoinTimes.set(userId, {
       joinedAt: Date.now(),
       channelId: newState.channelId,
+      parentId: newState.channel?.parentId ?? null,
     });
   }
 
-  // ── ส่ง webhook เดิม (ไม่เปลี่ยน) ──────────────────────────────────────
+  // Webhook เดิม (ไม่เปลี่ยน)
   try {
     console.log(`User ${userId} changed: ${oldState.channelId} -> ${newState.channelId}`);
     await axios.post(WEBHOOK_URL, {

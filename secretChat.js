@@ -13,18 +13,6 @@ const ws = require("ws");
 const http = require("http"); // สำหรับ Koyeb Health Check
 
 // ============================================================================
-// KOYEB KEEP-ALIVE: HTTP Health Check Server
-// ป้องกัน Koyeb หยุด process กลางคัน ทำให้ timer ดับ
-// ============================================================================
-const PORT = process.env.PORT || 8000;
-http.createServer((req, res) => {
-  res.writeHead(200);
-  res.end("OK");
-}).listen(PORT, () => {
-  console.log(`[secret-chat] Health check server listening on port ${PORT}`);
-});
-
-// ============================================================================
 // SYSTEM CONFIGURATION & CONSTANTS
 // ============================================================================
 const SECRET_CHAT_CATEGORY_ID = process.env.SECRET_CHAT_CATEGORY_ID;

@@ -14,7 +14,7 @@ const {
 } = require("discord.js");
 
 const crypto = require("crypto");
-const { createClient } = require("@supabase/supabase-js");
+const axios  = require("axios");
 
 // ── Global error guards ───────────────────────────────────────
 process.on("unhandledRejection", (reason) => {
@@ -24,25 +24,22 @@ process.on("uncaughtException", (error) => {
   console.error("[secret-chat] Uncaught exception:", error);
 });
 
-// ── Supabase client (service role, realtime disabled) ─────────
-// Realtime/WebSocket is intentionally disabled — this bot only
-// uses Supabase for insert/update (no subscriptions needed).
-// Disabling prevents the "Node.js 20 without native WebSocket"
-// crash on Koyeb.
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY,
-  {
-    realtime: {
-      enabled: false
-    },
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-      detectSessionInUrl: false
-    }
-  }
-);
+// ── Supabase REST helpers (no SDK — avoids WebSocket crash on Node 20) ───────
+// We use plain axios calls to the Supabase PostgREST API.
+// @supabase/supabase-js is NOT used here because its constructor
+// unconditionally initialises RealtimeClient which requires WebSocket,
+// crashing on Node.js 20 without the "ws" package.
+const SUPABASE_URL      = process.env.SUPABASE_URL;
+const SUPABASE_KEY      = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+function supabaseHeaders() {
+  return {
+    "apikey":        SUPABASE_KEY,
+    "Authorization": `Bearer ${SUPABASE_KEY}`,
+    "Content-Type":  "application/json",
+    "Prefer":        "return=representation"
+  };
+}
 
 // ── Config ────────────────────────────────────────────────────
 const SECRET_CHAT_CATEGORY_ID = process.env.SECRET_CHAT_CATEGORY_ID || "1494308739220770888";
@@ -191,85 +188,76 @@ async function safeReply(interaction, options) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// Supabase helpers (metadata only — no message content ever)
+// Supabase REST helpers (metadata only — no message content ever)
+// Plain axios → PostgREST. No SDK, no WebSocket, no realtime.
 // ═══════════════════════════════════════════════════════════════
 
 /** Insert a new session row and return its id */
 async function dbCreateSession(userAId, userBId, channelId) {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return null;
   try {
-    const { data, error } = await supabase
-      .from("discord_secret_sessions")
-      .insert({
+    const res = await axios.post(
+      `${SUPABASE_URL}/rest/v1/discord_secret_sessions`,
+      {
         user_id_a: userAId,
         user_id_b: userBId,
         channel_id: channelId,
         started_at: new Date().toISOString(),
         created_by_matchmaking: true
-      })
-      .select("id")
-      .single();
-
-    if (error) {
-      console.error("[secret-chat] dbCreateSession error:", error.message);
-      return null;
-    }
-    return data.id;
+      },
+      { headers: supabaseHeaders(), timeout: 8000 }
+    );
+    return res.data?.[0]?.id ?? null;
   } catch (err) {
-    console.error("[secret-chat] dbCreateSession exception:", err.message);
+    console.error("[secret-chat] dbCreateSession error:", err.response?.data ?? err.message);
     return null;
   }
 }
 
 /** Mark a session as ended */
 async function dbEndSession(sessionId, leaveReason) {
-  if (!sessionId) return;
+  if (!sessionId || !SUPABASE_URL || !SUPABASE_KEY) return;
   try {
-    const { error } = await supabase
-      .from("discord_secret_sessions")
-      .update({
+    await axios.patch(
+      `${SUPABASE_URL}/rest/v1/discord_secret_sessions?id=eq.${sessionId}`,
+      {
         ended_at: new Date().toISOString(),
         leave_reason: leaveReason
-      })
-      .eq("id", sessionId);
-
-    if (error) console.error("[secret-chat] dbEndSession error:", error.message);
+      },
+      { headers: { ...supabaseHeaders(), "Prefer": "return=minimal" }, timeout: 8000 }
+    );
   } catch (err) {
-    console.error("[secret-chat] dbEndSession exception:", err.message);
+    console.error("[secret-chat] dbEndSession error:", err.response?.data ?? err.message);
   }
 }
 
 /** Insert a report row (metadata only, no message content) */
 async function dbInsertReport(sessionId, reporterId, reportedId) {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return { error: true };
   try {
     // Check for duplicate report in this session
-    const { data: existing } = await supabase
-      .from("discord_secret_reports")
-      .select("id")
-      .eq("session_id", sessionId)
-      .eq("reporter_id", reporterId)
-      .maybeSingle();
+    const check = await axios.get(
+      `${SUPABASE_URL}/rest/v1/discord_secret_reports?session_id=eq.${sessionId}&reporter_id=eq.${reporterId}&select=id`,
+      { headers: { ...supabaseHeaders(), "Prefer": "return=representation" }, timeout: 8000 }
+    );
+    if (check.data?.length > 0) return { duplicate: true };
 
-    if (existing) return { duplicate: true };
+    await axios.post(
+      `${SUPABASE_URL}/rest/v1/discord_secret_reports`,
+      { session_id: sessionId, reporter_id: reporterId, reported_id: reportedId },
+      { headers: { ...supabaseHeaders(), "Prefer": "return=minimal" }, timeout: 8000 }
+    );
 
-    const { error } = await supabase
-      .from("discord_secret_reports")
-      .insert({
-        session_id: sessionId,
-        reporter_id: reporterId,
-        reported_id: reportedId
-      });
-
-    if (error) {
-      console.error("[secret-chat] dbInsertReport error:", error.message);
-      return { error: true };
-    }
-
-    // Increment strike counter on the reported user
-    await supabase.rpc("increment_discord_strike", { p_user_id: reportedId });
+    // Increment strike counter via RPC
+    await axios.post(
+      `${SUPABASE_URL}/rest/v1/rpc/increment_discord_strike`,
+      { p_user_id: reportedId },
+      { headers: { ...supabaseHeaders(), "Prefer": "return=minimal" }, timeout: 8000 }
+    );
 
     return { ok: true };
   } catch (err) {
-    console.error("[secret-chat] dbInsertReport exception:", err.message);
+    console.error("[secret-chat] dbInsertReport error:", err.response?.data ?? err.message);
     return { error: true };
   }
 }

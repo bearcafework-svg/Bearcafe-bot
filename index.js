@@ -1,4 +1,5 @@
 const { Client, GatewayIntentBits } = require("discord.js");
+const { setupSecretChat } = require("./secretChat"); // ✅ เพิ่ม
 const axios = require("axios");
 const http = require("http");
 const crypto = require("crypto");
@@ -18,9 +19,16 @@ const voiceJoinTimes = new Map();
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildVoiceStates
+    GatewayIntentBits.GuildVoiceStates,
+
+    // ✅ เพิ่ม intents สำหรับ secretChat
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent
   ]
 });
+
+// ✅ เชื่อม secretChat module
+setupSecretChat(client);
 
 function getUserCountInChannel(guild, channelId) {
   if (!channelId) return 0;
@@ -63,9 +71,10 @@ client.once("clientReady", async () => {
         voiceJoinTimes.set(memberId, {
           joinedAt: Date.now(),
           channelId: voiceState.channelId,
-          channelName: voiceState.channel?.name ?? null, // ✅ เพิ่ม channelName
+          channelName: voiceState.channel?.name ?? null,
           parentId: voiceState.channel?.parentId ?? null,
         });
+
         try {
           await axios.post(WEBHOOK_URL, {
             event: "VOICE_STATE_UPDATE",
@@ -85,16 +94,15 @@ client.once("clientReady", async () => {
 });
 
 // ── Voice count heartbeat ─────────────────────────────────────────────────────
-// Re-upserts all currently connected voice states every 15 minutes so the
-// frontend count (which filters by updated_at recency) stays accurate even
-// when users sit in a channel without moving.
-const HEARTBEAT_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
+const HEARTBEAT_INTERVAL_MS = 15 * 60 * 1000;
 
 async function sendVoiceHeartbeat() {
   let total = 0;
+
   for (const guild of client.guilds.cache.values()) {
     for (const [memberId, voiceState] of guild.voiceStates.cache) {
       if (!voiceState.channelId || voiceState.member?.user?.bot) continue;
+
       try {
         await axios.post(WEBHOOK_URL, {
           event: "VOICE_STATE_UPDATE",
@@ -105,12 +113,14 @@ async function sendVoiceHeartbeat() {
             guild_id: guild.id
           }
         });
+
         total++;
       } catch (err) {
         console.error(`[heartbeat] Error for ${memberId}:`, err.message);
       }
     }
   }
+
   console.log(`[heartbeat] Refreshed ${total} voice state(s)`);
 }
 
@@ -128,14 +138,18 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
   // ออกจากห้อง
   if (oldState.channelId && !newState.channelId && !isBot) {
     const session = voiceJoinTimes.get(userId);
+
     if (session) {
       const durationSeconds = Math.floor((Date.now() - session.joinedAt) / 1000);
       const userCount   = getUserCountInChannel(oldState.guild, oldState.channelId) + 1;
-      const channelName = oldState.channel?.name ?? "ห้องพูดคุย"; // ✅
+      const channelName = oldState.channel?.name ?? "ห้องพูดคุย";
       const parentId    = oldState.channel?.parentId ?? null;
+
       console.log(`[voice] ${userId} left after ${durationSeconds}s (cat: ${parentId})`);
-      awardVoicePoints(userId, durationSeconds, userCount, channelName, parentId); // ✅
+
+      awardVoicePoints(userId, durationSeconds, userCount, channelName, parentId);
     }
+
     voiceJoinTimes.delete(userId);
   }
 
@@ -144,33 +158,43 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
     voiceJoinTimes.set(userId, {
       joinedAt: Date.now(),
       channelId: newState.channelId,
-      channelName: newState.channel?.name ?? null, // ✅ เพิ่ม channelName
+      channelName: newState.channel?.name ?? null,
       parentId: newState.channel?.parentId ?? null,
     });
   }
 
   // ย้ายห้อง
-  if (oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId && !isBot) {
+  if (
+    oldState.channelId &&
+    newState.channelId &&
+    oldState.channelId !== newState.channelId &&
+    !isBot
+  ) {
     const session = voiceJoinTimes.get(userId);
+
     if (session) {
       const durationSeconds = Math.floor((Date.now() - session.joinedAt) / 1000);
       const userCount   = getUserCountInChannel(oldState.guild, oldState.channelId) + 1;
-      const channelName = oldState.channel?.name ?? "ห้องพูดคุย"; // ✅
+      const channelName = oldState.channel?.name ?? "ห้องพูดคุย";
       const parentId    = oldState.channel?.parentId ?? null;
+
       console.log(`[voice] ${userId} moved after ${durationSeconds}s (cat: ${parentId})`);
-      awardVoicePoints(userId, durationSeconds, userCount, channelName, parentId); // ✅
+
+      awardVoicePoints(userId, durationSeconds, userCount, channelName, parentId);
     }
+
     voiceJoinTimes.set(userId, {
       joinedAt: Date.now(),
       channelId: newState.channelId,
-      channelName: newState.channel?.name ?? null, // ✅ เพิ่ม channelName
+      channelName: newState.channel?.name ?? null,
       parentId: newState.channel?.parentId ?? null,
     });
   }
 
-  // Webhook เดิม (ไม่เปลี่ยน)
+  // Webhook เดิม
   try {
     console.log(`User ${userId} changed: ${oldState.channelId} -> ${newState.channelId}`);
+
     await axios.post(WEBHOOK_URL, {
       event: "VOICE_STATE_UPDATE",
       data: {

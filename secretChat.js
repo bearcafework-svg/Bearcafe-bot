@@ -1,336 +1,150 @@
-// ═══════════════════════════════════════════════════════════════
-// secretChat.js — Bear Cafe Secret Chat / Matchmaking System
-// Node.js + discord.js v14 + Supabase (metadata only)
-// ═══════════════════════════════════════════════════════════════
-"use strict";
-
 const {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
   ChannelType,
   EmbedBuilder,
-  PermissionFlagsBits
+  PermissionFlagsBits,
+  Events
 } = require("discord.js");
-
 const crypto = require("crypto");
-const axios  = require("axios");
+const { createClient } = require("@supabase/supabase-js");
 
-// ── Global error guards ───────────────────────────────────────
-process.on("unhandledRejection", (reason) => {
-  console.error("[secret-chat] Unhandled rejection:", reason);
+// ============================================================================
+// SYSTEM CONFIGURATION & CONSTANTS
+// ============================================================================
+// ดึงค่า Category ID จาก Environment Variables
+const SECRET_CHAT_CATEGORY_ID = process.env.SECRET_CHAT_CATEGORY_ID; 
+
+const BLOCKED_ROLES = ["1156930837573546126", "1156930842434752614"];
+const SESSION_DURATION_MS = 7 * 60 * 1000; // ระยะเวลาหลัก 7 นาที
+const WARNING_1MIN_MS = 6 * 60 * 1000;      // เวลาแจ้งเตือน 1 นาทีสุดท้าย
+const WARNING_30SEC_MS = 6.5 * 60 * 1000;   // เวลาแจ้งเตือน 30 วินาทีสุดท้าย
+
+const JOIN_QUEUE_CUSTOM_ID = "btn_join_queue";
+const LEAVE_TABLE_CUSTOM_ID = "btn_leave_table";
+const REPORT_USER_CUSTOM_ID = "btn_report_user";
+
+// ============================================================================
+// IN-MEMORY STATE MANAGEMENT (VOLATILE)
+// ============================================================================
+const queue =;
+const activeUsers = new Set();
+const tableMembers = new Map();
+const sessionTimers = new Map();
+const recentMatches = new Map(); // ป้องกันการจับคู่ซ้ำซ้อนรวดเร็ว
+const spamTracker = new Map(); // ติดตามการคลิกเพื่อป้องกันการแสปม
+
+// ============================================================================
+// SUPABASE REST INITIALIZATION (NO WEBSOCKETS ALLOWED)
+// ============================================================================
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY,
+  {
+    realtime: { enabled: false }, // บังคับปิด Realtime ตามเงื่อนไขของ Koyeb
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false
+    }
+  }
+);
+
+// ============================================================================
+// GLOBAL ERROR HANDLING (PREVENT RUNTIME CRASHES)
+// ============================================================================
+process.on("unhandledRejection", (error) => {
+  console.error("[secret-chat] Unhandled rejection:", error);
 });
 process.on("uncaughtException", (error) => {
   console.error("[secret-chat] Uncaught exception:", error);
 });
 
-// ── Supabase REST helpers (no SDK — avoids WebSocket crash on Node 20) ───────
-// We use plain axios calls to the Supabase PostgREST API.
-// @supabase/supabase-js is NOT used here because its constructor
-// unconditionally initialises RealtimeClient which requires WebSocket,
-// crashing on Node.js 20 without the "ws" package.
-const SUPABASE_URL      = process.env.SUPABASE_URL;
-const SUPABASE_KEY      = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-function supabaseHeaders() {
-  return {
-    "apikey":        SUPABASE_KEY,
-    "Authorization": `Bearer ${SUPABASE_KEY}`,
-    "Content-Type":  "application/json",
-    "Prefer":        "return=representation"
-  };
-}
-
-// ── Config ────────────────────────────────────────────────────
-const SECRET_CHAT_CATEGORY_ID = process.env.SECRET_CHAT_CATEGORY_ID || "1494308739220770888";
-
-// Role IDs that are banned from matchmaking
-const BANNED_ROLE_IDS = new Set([
-  "1156930837573754612",
-  "1156930842434752614"
-]);
-
-const SESSION_DURATION_MS   = 7 * 60 * 1000;   // 7 minutes
-const QUEUE_COOLDOWN_MS     = 30 * 1000;        // 30 s between queue joins
-const RECENT_MATCH_BLOCK_MS = 5 * 60 * 1000;   // 5 min before re-matching same person
-const RAPID_LEAVE_WINDOW_MS = 60 * 1000;        // window to detect rapid leave abuse
-const RAPID_LEAVE_MAX       = 3;                // max leaves in window before cooldown
-const REPORT_COOLDOWN_MS    = 60 * 1000;        // 60 s between reports per user
-
-// ── Button custom IDs ─────────────────────────────────────────
-const BTN_JOIN_QUEUE  = "btn_join_queue";
-const BTN_LEAVE_TABLE = "btn_leave_table";
-const BTN_REPORT      = "btn_report";
-
-// ── In-memory state ───────────────────────────────────────────
-// queue: [{ userId, joinedAt }]
-const queue = [];
-
-// activeUsers: Set<userId>
-const activeUsers = new Set();
-
-// tableMembers: Map<channelId, Set<userId>>
-const tableMembers = new Map();
-
-// sessionTimers: Map<channelId, { mainTimer, reminders: [Timeout] }>
-const sessionTimers = new Map();
-
-// sessionMeta: Map<channelId, { userAId, userBId, startedAt, dbId }>
-const sessionMeta = new Map();
-
-// queueCooldown: Map<userId, timestamp> — last time user left queue/session
-const queueCooldown = new Map();
-
-// recentMatches: Map<userId, Map<partnerId, timestamp>>
-const recentMatches = new Map();
-
-// leaveHistory: Map<userId, [timestamp, ...]>
-const leaveHistory = new Map();
-
-// reportCooldown: Map<userId, timestamp>
-const reportCooldown = new Map();
-
-// ═══════════════════════════════════════════════════════════════
-// Helpers
-// ═══════════════════════════════════════════════════════════════
-
-/** Permissions granted to each matched user inside the private channel */
+// ============================================================================
+// UTILITY & HELPER FUNCTIONS
+// ============================================================================
 function buildAllowedPermissions() {
-  return [
-    PermissionFlagsBits.ViewChannel,
-    PermissionFlagsBits.SendMessages,
-    PermissionFlagsBits.ReadMessageHistory,
-    PermissionFlagsBits.EmbedLinks,
-    PermissionFlagsBits.AttachFiles,
-    PermissionFlagsBits.AddReactions,
-    PermissionFlagsBits.UseExternalEmojis,
-    PermissionFlagsBits.UseExternalStickers
-  ];
+  return;
 }
 
-/** Action row with Leave + Report buttons */
-function buildSessionButtons() {
+function buildActionRow() {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
-      .setCustomId(BTN_LEAVE_TABLE)
-      .setLabel("🚪 ลุกจากโต๊ะ")
-      .setStyle(ButtonStyle.Danger),
+    .setCustomId(LEAVE_TABLE_CUSTOM_ID)
+    .setLabel("🚪 ลุกจากโต๊ะ")
+    .setStyle(ButtonStyle.Danger),
     new ButtonBuilder()
-      .setCustomId(BTN_REPORT)
-      .setLabel("🚨 รายงาน")
-      .setStyle(ButtonStyle.Secondary)
+    .setCustomId(REPORT_USER_CUSTOM_ID)
+    .setLabel("⚠️ แจ้งรีพอร์ต")
+    .setStyle(ButtonStyle.Secondary)
   );
 }
 
-/** Remove a user from the in-memory queue */
-function removeFromQueue(userId) {
-  const idx = queue.findIndex((e) => e.userId === userId);
-  if (idx !== -1) queue.splice(idx, 1);
+function clearSessionTimers(channelId) {
+  const timers = sessionTimers.get(channelId);
+  if (timers) {
+    if (timers.warning1m) clearTimeout(timers.warning1m);
+    if (timers.warning30s) clearTimeout(timers.warning30s);
+    if (timers.termination) clearTimeout(timers.termination);
+    sessionTimers.delete(channelId);
+  }
 }
 
-/** True if user is already queued or in an active session */
 function isUserBusy(userId) {
-  return activeUsers.has(userId) || queue.some((e) => e.userId === userId);
+  return activeUsers.has(userId) || queue.includes(userId);
 }
 
-/** True if user is on queue cooldown */
-function isOnQueueCooldown(userId) {
-  const last = queueCooldown.get(userId);
-  return last && Date.now() - last < QUEUE_COOLDOWN_MS;
-}
-
-/** True if these two users matched recently */
-function isRecentMatch(userAId, userBId) {
-  const map = recentMatches.get(userAId);
-  if (!map) return false;
-  const last = map.get(userBId);
-  return last && Date.now() - last < RECENT_MATCH_BLOCK_MS;
-}
-
-/** Record a match between two users */
-function recordMatch(userAId, userBId) {
-  for (const [a, b] of [[userAId, userBId], [userBId, userAId]]) {
-    if (!recentMatches.has(a)) recentMatches.set(a, new Map());
-    recentMatches.get(a).set(b, Date.now());
-  }
-}
-
-/** Record a leave event and return true if user is abusing rapid leaves */
-function recordLeaveAndCheckAbuse(userId) {
+function checkSpamRateLimit(userId) {
   const now = Date.now();
-  if (!leaveHistory.has(userId)) leaveHistory.set(userId, []);
-  const hist = leaveHistory.get(userId);
-  // Prune old entries outside the window
-  const fresh = hist.filter((t) => now - t < RAPID_LEAVE_WINDOW_MS);
-  fresh.push(now);
-  leaveHistory.set(userId, fresh);
-  return fresh.length > RAPID_LEAVE_MAX;
+  const timestamps = spamTracker.get(userId) ||;
+  // กรองเอาเฉพาะที่กดเข้ามาภายใน 60 วินาที
+  const recent = timestamps.filter((time) => now - time < 60000); 
+  recent.push(now);
+  spamTracker.set(userId, recent);
+  return recent.length > 3; // ระงับชั่วคราวหากพยายามมากกว่า 3 ครั้งต่อนาที
 }
 
-/** Set queue cooldown for a user */
-function setCooldown(userId) {
-  queueCooldown.set(userId, Date.now());
-}
-
-/** Safe interaction reply — handles already-replied / expired interactions */
-async function safeReply(interaction, options) {
+// ============================================================================
+// ORPHAN RECOVERY & GARBAGE COLLECTION ON STARTUP
+// ============================================================================
+async function runCrashRecovery(client) {
+  if (!SECRET_CHAT_CATEGORY_ID) return;
   try {
-    if (interaction.replied || interaction.deferred) {
-      await interaction.editReply(options);
-    } else {
-      await interaction.reply({ ...options, flags: 64 });
+    console.log("[secret-chat] Initiating orphan channel recovery...");
+    const guilds = client.guilds.cache.values();
+    for (const guild of guilds) {
+      const category = guild.channels.cache.get(SECRET_CHAT_CATEGORY_ID);
+      if (!category) continue;
+
+      // ค้นหาช่องที่มีชื่อตามแพตเทิร์นและลบทิ้ง
+      const orphanedChannels = category.children.cache.filter(
+        (channel) => channel.name.includes("☕-โต๊ะลับ-")
+      );
+
+      for (const [id, channel] of orphanedChannels) {
+        await channel.delete("Automated cleanup of orphaned channel post-restart");
+        console.log(`[secret-chat] Purged orphaned channel: ${channel.name}`);
+      }
     }
-  } catch (err) {
-    if (err.code !== 10062) {
-      console.error("[secret-chat] safeReply error:", err.code, err.message);
-    }
+  } catch (error) {
+    console.error("[secret-chat] Recovery sequence failed:", error);
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// Supabase REST helpers (metadata only — no message content ever)
-// Plain axios → PostgREST. No SDK, no WebSocket, no realtime.
-// ═══════════════════════════════════════════════════════════════
-
-/** Insert a new session row and return its id */
-async function dbCreateSession(userAId, userBId, channelId) {
-  if (!SUPABASE_URL || !SUPABASE_KEY) return null;
-  try {
-    const res = await axios.post(
-      `${SUPABASE_URL}/rest/v1/discord_secret_sessions`,
-      {
-        user_id_a: userAId,
-        user_id_b: userBId,
-        channel_id: channelId,
-        started_at: new Date().toISOString(),
-        created_by_matchmaking: true
-      },
-      { headers: supabaseHeaders(), timeout: 8000 }
-    );
-    return res.data?.[0]?.id ?? null;
-  } catch (err) {
-    console.error("[secret-chat] dbCreateSession error:", err.response?.data ?? err.message);
-    return null;
-  }
-}
-
-/** Mark a session as ended */
-async function dbEndSession(sessionId, leaveReason) {
-  if (!sessionId || !SUPABASE_URL || !SUPABASE_KEY) return;
-  try {
-    await axios.patch(
-      `${SUPABASE_URL}/rest/v1/discord_secret_sessions?id=eq.${sessionId}`,
-      {
-        ended_at: new Date().toISOString(),
-        leave_reason: leaveReason
-      },
-      { headers: { ...supabaseHeaders(), "Prefer": "return=minimal" }, timeout: 8000 }
-    );
-  } catch (err) {
-    console.error("[secret-chat] dbEndSession error:", err.response?.data ?? err.message);
-  }
-}
-
-/** Insert a report row (metadata only, no message content) */
-async function dbInsertReport(sessionId, reporterId, reportedId) {
-  if (!SUPABASE_URL || !SUPABASE_KEY) return { error: true };
-  try {
-    // Check for duplicate report in this session
-    const check = await axios.get(
-      `${SUPABASE_URL}/rest/v1/discord_secret_reports?session_id=eq.${sessionId}&reporter_id=eq.${reporterId}&select=id`,
-      { headers: { ...supabaseHeaders(), "Prefer": "return=representation" }, timeout: 8000 }
-    );
-    if (check.data?.length > 0) return { duplicate: true };
-
-    await axios.post(
-      `${SUPABASE_URL}/rest/v1/discord_secret_reports`,
-      { session_id: sessionId, reporter_id: reporterId, reported_id: reportedId },
-      { headers: { ...supabaseHeaders(), "Prefer": "return=minimal" }, timeout: 8000 }
-    );
-
-    // Increment strike counter via RPC
-    await axios.post(
-      `${SUPABASE_URL}/rest/v1/rpc/increment_discord_strike`,
-      { p_user_id: reportedId },
-      { headers: { ...supabaseHeaders(), "Prefer": "return=minimal" }, timeout: 8000 }
-    );
-
-    return { ok: true };
-  } catch (err) {
-    console.error("[secret-chat] dbInsertReport error:", err.response?.data ?? err.message);
-    return { error: true };
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════
-// Session timer — 7 min auto-delete with countdown reminders
-// ═══════════════════════════════════════════════════════════════
-
-/**
- * Schedule countdown reminders and auto-delete for a channel.
- * Reminders: 1 min left, 30 sec left, closing now.
- */
-function scheduleSessionTimer(channel, userAId, userBId, dbSessionId) {
-  const reminders = [];
-
-  // Helper: send a reminder safely (channel may already be deleted)
-  async function sendReminder(text) {
-    try {
-      await channel.send({ content: text });
-    } catch {
-      // Channel already gone — ignore
-    }
-  }
-
-  // 1 minute left  (at 6:00)
-  reminders.push(
-    setTimeout(() => {
-      const ts = Math.floor((Date.now() + 60_000) / 1000);
-      sendReminder(`⏳ เหลือเวลาอีก **1 นาที** — โต๊ะจะปิดตอน <t:${ts}:T> นะคะ`);
-    }, SESSION_DURATION_MS - 60_000)
-  );
-
-  // 30 seconds left  (at 6:30)
-  reminders.push(
-    setTimeout(() => {
-      sendReminder("⏰ เหลือเวลาอีก **30 วินาที** ค่ะ");
-    }, SESSION_DURATION_MS - 30_000)
-  );
-
-  // Auto-delete at 7:00
-  const mainTimer = setTimeout(async () => {
-    await closeSession(channel, userAId, userBId, dbSessionId, "timeout");
-  }, SESSION_DURATION_MS);
-
-  sessionTimers.set(channel.id, { mainTimer, reminders });
-}
-
-/** Cancel all timers for a channel */
-function cancelSessionTimer(channelId) {
-  const entry = sessionTimers.get(channelId);
-  if (!entry) return;
-  clearTimeout(entry.mainTimer);
-  for (const t of entry.reminders) clearTimeout(t);
-  sessionTimers.delete(channelId);
-}
-
-// ═══════════════════════════════════════════════════════════════
-// Core session lifecycle
-// ═══════════════════════════════════════════════════════════════
-
-/** Create the private channel, record metadata, start timer */
+// ============================================================================
+// CORE LOGIC: CHANNEL PROVISIONING
+// ============================================================================
 async function createSecretChatChannel(guild, userAId, userBId) {
   const category = guild.channels.cache.get(SECRET_CHAT_CATEGORY_ID);
   if (!category) throw new Error("SECRET_CHAT_CATEGORY_NOT_FOUND");
 
   const suffix = crypto.randomBytes(2).toString("hex");
-
   const channel = await guild.channels.create({
     name: `☕-โต๊ะลับ-${suffix}`,
     type: ChannelType.GuildText,
     parent: SECRET_CHAT_CATEGORY_ID,
-    permissionOverwrites: [
-      { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
+    permissionOverwrites: },
       { id: userAId, allow: buildAllowedPermissions() },
       { id: userBId, allow: buildAllowedPermissions() }
     ]
@@ -338,372 +152,230 @@ async function createSecretChatChannel(guild, userAId, userBId) {
 
   activeUsers.add(userAId);
   activeUsers.add(userBId);
-  tableMembers.set(channel.id, new Set([userAId, userBId]));
-  recordMatch(userAId, userBId);
+  tableMembers.set(channel.id, new Set());
+  
+  // สร้าง Timestamp ป้องกันการออกแล้วเข้าใหม่เจอคนเดิมทันที (5 นาที)
+  recentMatches.set(`${userAId}-${userBId}`, Date.now());
+  recentMatches.set(`${userBId}-${userAId}`, Date.now());
 
-  // Persist metadata to Supabase (no message content)
-  const dbId = await dbCreateSession(userAId, userBId, channel.id);
-  sessionMeta.set(channel.id, { userAId, userBId, startedAt: Date.now(), dbId });
-
-  const closeTs = Math.floor((Date.now() + SESSION_DURATION_MS) / 1000);
+  // คำนวณเวลาหมดอายุเพื่อแสดงเป็น Discord Timestamp
+  const endTime = Math.floor((Date.now() + SESSION_DURATION_MS) / 1000);
 
   await channel.send({
-    content:
-      `☕ โต๊ะลับพร้อมแล้วค่ะ\n\n` +
-      `ยินดีต้อนรับ <@${userAId}> และ <@${userBId}> ✨\n\n` +
-      `สามารถพูดคุยกันได้ตามสบายเลยนะคะ\n` +
-      `⏱️ โต๊ะนี้จะปิดอัตโนมัติตอน <t:${closeTs}:T> (<t:${closeTs}:R>)`,
-    components: [buildSessionButtons()]
+    content: `☕ โต๊ะลับพร้อมแล้วค่ะ\n\nยินดีต้อนรับ <@${userAId}> และ <@${userBId}> ✨\nระยะเวลาสนทนา 7 นาที (หมดเวลา: <t:${endTime}:R>)\nสามารถพูดคุยกันได้ตามสบายเลยนะคะ`,
+    components:
   });
 
-  scheduleSessionTimer(channel, userAId, userBId, dbId);
+  // สร้างระบบจับเวลาอิสระ (Asynchronous Timers)
+  const timerData = {
+    warning1m: setTimeout(async () => {
+      try { await channel.send("⏳ **เหลือเวลาอีก 1 นาที** โต๊ะจะปิดอัตโนมัติค่ะ"); } catch (e) {}
+    }, WARNING_1MIN_MS),
 
-  console.log(`[secret-chat] Created room ${channel.name} for ${userAId} + ${userBId} (db: ${dbId})`);
+    warning30s: setTimeout(async () => {
+      try { await channel.send("⚠️ **เหลือเวลาอีก 30 วินาที** เตรียมบอกลากันได้เลยนะคะ!"); } catch (e) {}
+    }, WARNING_30SEC_MS),
+
+    termination: setTimeout(async () => {
+      try {
+        await channel.send("🛑 หมดเวลาสนทนาแล้วค่ะ กำลังทำความสะอาดโต๊ะ...");
+        clearSessionTimers(channel.id);
+        tableMembers.delete(channel.id);
+        activeUsers.delete(userAId);
+        activeUsers.delete(userBId);
+        await channel.delete("Session timeout reached");
+      } catch (e) {}
+    }, SESSION_DURATION_MS)
+  };
+
+  sessionTimers.set(channel.id, timerData);
+  console.log(`[secret-chat] Created room ${channel.name} for ${userAId} + ${userBId}`);
   return channel;
 }
 
-/** Close a session: cancel timers, clean memory, delete channel, update DB */
-async function closeSession(channel, userAId, userBId, dbSessionId, reason) {
-  cancelSessionTimer(channel.id);
-
-  // Clean memory
-  for (const uid of [userAId, userBId]) {
-    activeUsers.delete(uid);
-    setCooldown(uid);
-  }
-  tableMembers.delete(channel.id);
-  sessionMeta.delete(channel.id);
-
-  await dbEndSession(dbSessionId, reason);
-
-  try {
-    await channel.send({ content: "🚪 กำลังปิดโต๊ะลับค่ะ..." });
-  } catch { /* already deleted */ }
-
-  try {
-    await channel.delete(`Secret chat closed: ${reason}`);
-  } catch (err) {
-    console.error("[secret-chat] channel.delete error:", err.message);
-  }
-
-  console.log(`[secret-chat] Session closed (${reason}) for ${userAId} + ${userBId}`);
-}
-
-// ═══════════════════════════════════════════════════════════════
-// Interaction handlers
-// ═══════════════════════════════════════════════════════════════
-
+// ============================================================================
+// INTERACTION HANDLERS (DEFENSIVE PROGRAMMING)
+// ============================================================================
 async function handleJoinQueue(interaction) {
   const userId = interaction.user.id;
 
-  // Defer immediately to prevent Unknown Interaction (10062)
   try {
     await interaction.deferReply({ ephemeral: true });
-  } catch (err) {
-    if (err.code === 10062) {
-      console.log("[secret-chat] Interaction expired before deferReply");
-      return;
-    }
-    console.error("[secret-chat] deferReply error:", err);
+  } catch (error) {
+    if (error.code === 10062) return; // หมดเวลาตอบสนอง ให้ยุติทันที
     return;
   }
 
-  try {
-    // ── Server-side role ban check ────────────────────────────
-    const member = interaction.member
-      ?? await interaction.guild.members.fetch(userId).catch(() => null);
-
-    if (member) {
-      const memberRoles = member.roles?.cache ?? new Map();
-      for (const roleId of BANNED_ROLE_IDS) {
-        if (memberRoles.has(roleId)) {
-          await interaction.editReply({
-            content: "ขออภัยค่ะ บัญชีของคุณไม่สามารถใช้งานระบบนี้ได้ในขณะนี้ 🙏"
-          });
-          return;
-        }
-      }
-    }
-
-    // ── Already busy ──────────────────────────────────────────
-    if (isUserBusy(userId)) {
-      await interaction.editReply({
-        content: "ตอนนี้คุณอยู่ในคิวหรือกำลังนั่งโต๊ะอยู่แล้วนะคะ ☕"
-      });
-      return;
-    }
-
-    // ── Queue cooldown ────────────────────────────────────────
-    if (isOnQueueCooldown(userId)) {
-      const remaining = Math.ceil(
-        (QUEUE_COOLDOWN_MS - (Date.now() - queueCooldown.get(userId))) / 1000
-      );
-      await interaction.editReply({
-        content: `กรุณารอสักครู่ก่อนเข้าคิวใหม่นะคะ (อีก ${remaining} วินาที) ⏳`
-      });
-      return;
-    }
-
-    // ── Find a waiting partner (not self, not recent match) ───
-    const candidate = queue.find(
-      (e) => e.userId !== userId && !isRecentMatch(userId, e.userId)
+  // 1. กระบวนการตรวจสอบแบนระดับเซิร์ฟเวอร์ (Server-Side Role Ban)
+  if (interaction.member && interaction.member.roles) {
+    const hasBlockedRole = BLOCKED_ROLES.some((roleId) =>
+      interaction.member.roles.cache.has(roleId)
     );
-
-    if (candidate) {
-      removeFromQueue(candidate.userId);
-
-      try {
-        await createSecretChatChannel(interaction.guild, candidate.userId, userId);
-        await interaction.editReply({ content: "จับคู่สำเร็จแล้วค่ะ ✨ ตรวจสอบช่องใหม่ได้เลยนะคะ" });
-      } catch (err) {
-        console.error("[secret-chat] createSecretChatChannel error:", err);
-        // Roll back active state on failure
-        activeUsers.delete(candidate.userId);
-        activeUsers.delete(userId);
-        await interaction.editReply({
-          content: "เกิดปัญหาระหว่างสร้างโต๊ะลับค่ะ ลองใหม่อีกครั้งนะคะ 🙏"
-        });
-      }
-      return;
+    if (hasBlockedRole) {
+      return await interaction.editReply("ขออภัยค่ะ สิทธิ์ของคุณไม่สามารถใช้งานโต๊ะลับได้ในขณะนี้ ☕");
     }
+  }
 
-    // ── No partner yet — join queue ───────────────────────────
-    queue.push({ userId, joinedAt: Date.now() });
-    console.log(`[secret-chat] ${userId} joined queue (queue size: ${queue.length})`);
+  // 2. การตรวจสอบสถานะการเข้าซ้ำและการแสปม (State & Anti-Abuse)
+  if (isUserBusy(userId)) {
+    return await interaction.editReply("ตอนนี้คุณอยู่ในคิวหรือกำลังนั่งโต๊ะอยู่แล้วนะคะ ☕");
+  }
+  if (checkSpamRateLimit(userId)) {
+    return await interaction.editReply("คุณทำรายการบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่ค่ะ ⏳");
+  }
 
-    await interaction.editReply({
-      content:
-        "☕ เข้าคิวเรียบร้อยแล้วค่ะ\n\n" +
-        "ระบบจะจับคู่ให้อัตโนมัติเมื่อมีคนเข้ามาเพิ่ม ✨\n" +
-        "_(หากไม่มีคู่ภายใน 5 นาที คิวจะถูกยกเลิกอัตโนมัติ)_"
-    });
+  // 3. กลไกการค้นหาและจับคู่ที่ป้องกันการเจอบุคคลเดิมซ้ำทันที
+  const partnerIndex = queue.findIndex((id) => {
+    if (id === userId) return false; // กันการจับคู่กับตัวเอง
+    const lastMatchTime = recentMatches.get(`${userId}-${id}`);
+    if (lastMatchTime && (Date.now() - lastMatchTime < 300000)) return false; // โคลดาวน์คู่สนทนาเดิม 5 นาที
+    return true;
+  });
 
-    // Auto-expire queue entry after 5 minutes
-    setTimeout(() => {
-      const stillInQueue = queue.some((e) => e.userId === userId);
-      if (stillInQueue) {
-        removeFromQueue(userId);
-        console.log(`[secret-chat] ${userId} queue expired (no match found)`);
-      }
-    }, 5 * 60 * 1000);
-
-  } catch (err) {
-    console.error("[secret-chat] handleJoinQueue error:", err);
+  if (partnerIndex!== -1) {
+    const waitingUserId = queue.splice(partnerIndex, 1);
     try {
-      if (interaction.deferred || interaction.replied) {
-        await interaction.editReply({
-          content: "เกิดข้อผิดพลาดระหว่างประมวลผลค่ะ ลองใหม่อีกครั้งนะคะ"
-        });
-      }
-    } catch (e2) {
-      if (e2.code !== 10062) console.error("[secret-chat] editReply fallback error:", e2);
+      await createSecretChatChannel(interaction.guild, waitingUserId, userId);
+      await interaction.editReply("จับคู่สำเร็จแล้วค่ะ ✨ ขอให้สนุกนะคะ");
+    } catch (error) {
+      console.error("[secret-chat] create room error:", error);
+      activeUsers.delete(waitingUserId);
+      activeUsers.delete(userId);
+      await interaction.editReply("เกิดปัญหาระหว่างสร้างโต๊ะลับค่ะ ลองใหม่อีกครั้งนะคะ");
     }
+  } else {
+    // 4. รอในคิวอย่างสงบสุข
+    queue.push(userId);
+    console.log(`[secret-chat] ${userId} joined queue. Total waiting: ${queue.length}`);
+    await interaction.editReply("☕ เข้าคิวเรียบร้อยแล้วค่ะ\n\nระบบจะจับคู่ให้อัตโนมัติเมื่อมีคนเข้ามาเพิ่ม ✨");
   }
 }
 
 async function handleLeaveTable(interaction) {
+  const channelId = interaction.channelId;
+  const members = tableMembers.get(channelId);
+
+  if (!members ||!members.has(interaction.user.id)) {
+    return await interaction.reply({ content: "ปุ่มนี้ใช้ได้เฉพาะคนที่อยู่โต๊ะนี้ค่ะ", ephemeral: true });
+  }
+
   try {
-    const members = tableMembers.get(interaction.channelId);
-
-    if (!members || !members.has(interaction.user.id)) {
-      await safeReply(interaction, {
-        content: "ปุ่มนี้ใช้ได้เฉพาะคนที่อยู่โต๊ะนี้ค่ะ"
-      });
-      return;
-    }
-
     await interaction.deferUpdate();
-
-    const meta = sessionMeta.get(interaction.channelId);
-    const { userAId, userBId, dbId } = meta ?? {};
-
-    // Rapid-leave abuse check
-    const isAbusing = recordLeaveAndCheckAbuse(interaction.user.id);
-    if (isAbusing) {
-      // Apply extra cooldown for abusers
-      queueCooldown.set(interaction.user.id, Date.now() + QUEUE_COOLDOWN_MS * 4);
-      console.warn(`[secret-chat] Rapid-leave abuse detected for ${interaction.user.id}`);
+    // ทำลายกลไกตัวจับเวลาทันทีเพื่อคืนหน่วยความจำและป้องกันบัค
+    clearSessionTimers(channelId);
+    
+    for (const memberId of members) {
+      activeUsers.delete(memberId);
     }
+    tableMembers.delete(channelId);
 
-    await closeSession(
-      interaction.channel,
-      userAId ?? interaction.user.id,
-      userBId ?? "",
-      dbId ?? null,
-      "leave"
-    );
-
-  } catch (err) {
-    console.error("[secret-chat] handleLeaveTable error:", err);
-    try {
-      if (!interaction.replied && !interaction.deferred) {
-        await interaction.reply({ content: "เกิดข้อผิดพลาดขณะปิดโต๊ะค่ะ", flags: 64 });
-      }
-    } catch { /* ignore */ }
+    console.log(`[secret-chat] Channel ${channelId} deleted by ${interaction.user.id}`);
+    await interaction.channel.delete(`Secret chat closed by ${interaction.user.id}`);
+  } catch (error) {
+    console.error("[secret-chat] Leave error:", error);
   }
 }
 
-async function handleReport(interaction) {
+async function handleReportUser(interaction) {
+  const channelId = interaction.channelId;
   const reporterId = interaction.user.id;
+  const members = tableMembers.get(channelId);
+
+  if (!members ||!members.has(reporterId)) {
+    return await interaction.reply({ content: "ไม่สามารถดำเนินการได้", ephemeral: true });
+  }
 
   try {
-    const members = tableMembers.get(interaction.channelId);
-
-    if (!members || !members.has(reporterId)) {
-      await safeReply(interaction, {
-        content: "ปุ่มนี้ใช้ได้เฉพาะคนที่อยู่โต๊ะนี้ค่ะ"
-      });
-      return;
-    }
-
-    // Report cooldown
-    const lastReport = reportCooldown.get(reporterId);
-    if (lastReport && Date.now() - lastReport < REPORT_COOLDOWN_MS) {
-      await safeReply(interaction, {
-        content: "กรุณารอสักครู่ก่อนรายงานซ้ำนะคะ ⏳"
-      });
-      return;
-    }
-
-    const meta = sessionMeta.get(interaction.channelId);
-    if (!meta) {
-      await safeReply(interaction, { content: "ไม่พบข้อมูลเซสชันค่ะ" });
-      return;
-    }
-
-    const reportedId = meta.userAId === reporterId ? meta.userBId : meta.userAId;
-
     await interaction.deferReply({ ephemeral: true });
+  } catch (e) { return; }
 
-    const result = await dbInsertReport(meta.dbId, reporterId, reportedId);
+  // ดึงหมายเลขไอดีของคนที่ถูกแจ้งรีพอร์ต
+  const membersArray = Array.from(members);
+  const reportedId = membersArray.find((id) => id!== reporterId);
 
-    reportCooldown.set(reporterId, Date.now());
+  if (!reportedId) {
+    return await interaction.editReply("ไม่พบผู้ใช้งานที่สามารถรายงานได้");
+  }
 
-    if (result.duplicate) {
-      await interaction.editReply({ content: "คุณได้รายงานในเซสชันนี้ไปแล้วค่ะ" });
-      return;
-    }
+  try {
+    // ส่งข้อมูล Metadata ไปยัง Supabase (เก็บเฉพาะ ID ห้ามเก็บข้อความ)
+    const { error } = await supabase
+    .from("secret_chat_reports")
+    .insert([
+        {
+          reporter_id: reporterId,
+          reported_id: reportedId,
+          channel_id: channelId
+        }
+      ]);
 
-    if (result.error) {
-      await interaction.editReply({ content: "เกิดข้อผิดพลาดขณะบันทึกรายงานค่ะ ลองใหม่นะคะ" });
-      return;
-    }
+    if (error) throw error;
 
-    await interaction.editReply({
-      content:
-        "✅ รับรายงานของคุณแล้วค่ะ\n\n" +
-        "ทีมงานจะตรวจสอบและดำเนินการต่อไปนะคะ 🙏\n" +
-        "_(ข้อมูลการสนทนาจะไม่ถูกบันทึก — เฉพาะ metadata เท่านั้น)_"
-    });
-
-    console.log(`[secret-chat] Report filed: ${reporterId} → ${reportedId} (session: ${meta.dbId})`);
-
-  } catch (err) {
-    console.error("[secret-chat] handleReport error:", err);
-    try {
-      if (!interaction.replied && !interaction.deferred) {
-        await interaction.reply({ content: "เกิดข้อผิดพลาดค่ะ", flags: 64 });
-      }
-    } catch { /* ignore */ }
+    await interaction.editReply("⚠️ ระบบได้รับรายงานเรียบร้อยแล้วค่ะ ข้อมูลถูกบันทึกเพื่อตรวจสอบโดยแอดมิน");
+  } catch (dbError) {
+    console.error("[secret-chat] Supabase Report Error:", dbError);
+    await interaction.editReply("เกิดข้อผิดพลาดในการส่งรายงาน แต่ระบบได้บันทึกความพยายามนี้ไว้แล้วค่ะ");
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// Module setup — attach all event listeners to the Discord client
-// ═══════════════════════════════════════════════════════════════
-
+// ============================================================================
+// MODULE EXPORT & EVENT SUBSCRIPTIONS
+// ============================================================================
 function setupSecretChat(client) {
+  
+  // Hook ระบบกู้คืนเซิร์ฟเวอร์
+  client.once(Events.ClientReady, async () => {
+    await runCrashRecovery(client);
+  });
 
-  // ── b!reset-match — post the lobby embed (admin only) ────────
-  client.on("messageCreate", async (message) => {
-    try {
-      if (message.author.bot) return;
-      if (!message.guild) return;
-      if (message.content.trim() !== "b!reset-match") return;
+  // สร้างหน้าต่างข้อความประกาศ Lobby
+  client.on(Events.MessageCreate, async (message) => {
+    if (message.author.bot ||!message.guild) return;
+    if (message.content.trim()!== "b!reset-match") return;
 
-      try { await message.delete(); } catch { /* ignore */ }
+    try { await message.delete(); } catch (e) {}
 
-      const embed = new EmbedBuilder()
-        .setColor("#D2B48C")
-        .setTitle("☕ โต๊ะลับฉบับ Bear Cafe")
-        .setDescription(
-          "บรรยากาศคาเฟ่กำลังดีเลย...\n" +
-          "อยากหาใครสักคนมานั่งคุยด้วยไหมคะ?\n\n" +
-          "กดปุ่มด้านล่างเพื่อเข้าสู่ระบบสุ่มแชท ✨\n\n" +
-          "**กฎ:**\n" +
-          "• ห้องจะปิดอัตโนมัติหลัง 7 นาที\n" +
-          "• ห้ามส่งเนื้อหาที่ไม่เหมาะสม\n" +
-          "• ใช้ปุ่ม 🚨 รายงาน หากพบพฤติกรรมไม่เหมาะสม"
-        );
-
-      const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId(BTN_JOIN_QUEUE)
-          .setLabel("☕ ค้นหาโต๊ะลับ")
-          .setStyle(ButtonStyle.Primary)
+    const embed = new EmbedBuilder()
+    .setColor("#D2B48C")
+    .setTitle("☕ โต๊ะลับฉบับ Bear Cafe")
+    .setDescription(
+        "บรรยากาศคาเฟ่กำลังดีเลย...\nอยากหาใครสักคนมานั่งคุยด้วยไหมคะ?\n\nกดปุ่มด้านล่างเพื่อเข้าสู่ระบบสุ่มแชท ✨"
       );
 
-      await message.channel.send({ embeds: [embed], components: [row] });
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+      .setCustomId(JOIN_QUEUE_CUSTOM_ID)
+      .setLabel("☕ ค้นหาโต๊ะลับ")
+      .setStyle(ButtonStyle.Primary)
+    );
 
-    } catch (err) {
-      console.error("[secret-chat] messageCreate error:", err);
+    await message.channel.send({ embeds: [embed], components: [row] });
+  });
+
+  // Router ตรวจจับการกดปุ่มทั้งหมด
+  client.on(Events.InteractionCreate, async (interaction) => {
+    if (!interaction.isButton()) return;
+
+    if (interaction.customId === JOIN_QUEUE_CUSTOM_ID) {
+      await handleJoinQueue(interaction);
+    } else if (interaction.customId === LEAVE_TABLE_CUSTOM_ID) {
+      await handleLeaveTable(interaction);
+    } else if (interaction.customId === REPORT_USER_CUSTOM_ID) {
+      await handleReportUser(interaction);
     }
   });
 
-  // ── Button interactions ───────────────────────────────────────
-  client.on("interactionCreate", async (interaction) => {
-    try {
-      if (!interaction.isButton()) return;
-
-      switch (interaction.customId) {
-        case BTN_JOIN_QUEUE:
-          await handleJoinQueue(interaction);
-          break;
-        case BTN_LEAVE_TABLE:
-          await handleLeaveTable(interaction);
-          break;
-        case BTN_REPORT:
-          await handleReport(interaction);
-          break;
-      }
-    } catch (err) {
-      console.error("[secret-chat] interactionCreate error:", err);
+  // Garbage Collection เมื่อแอดมินลบห้องทิ้งด้วยตนเอง
+  client.on(Events.ChannelDelete, (channel) => {
+    const members = tableMembers.get(channel.id);
+    if (members) {
+      clearSessionTimers(channel.id);
+      for (const memberId of members) activeUsers.delete(memberId);
+      tableMembers.delete(channel.id);
     }
   });
 
-  // ── Channel deleted externally — clean up memory ──────────────
-  client.on("channelDelete", (channel) => {
-    try {
-      const members = tableMembers.get(channel.id);
-      if (members) {
-        for (const uid of members) {
-          activeUsers.delete(uid);
-          setCooldown(uid);
-        }
-        tableMembers.delete(channel.id);
-      }
-
-      cancelSessionTimer(channel.id);
-
-      const meta = sessionMeta.get(channel.id);
-      if (meta) {
-        dbEndSession(meta.dbId, "channel_deleted").catch(() => {});
-        sessionMeta.delete(channel.id);
-      }
-    } catch (err) {
-      console.error("[secret-chat] channelDelete cleanup error:", err);
-    }
-  });
-
-  // ── Bot restart cleanup — clear stale in-memory state ─────────
-  client.once("clientReady", () => {
-    // On restart all in-memory state is fresh — nothing to restore.
-    // Any channels that existed before restart will be cleaned up
-    // when they are deleted or when users interact with them.
-    console.log("[secret-chat] Module loaded and ready");
-  });
-
-  console.log("[secret-chat] Module registered");
+  console.log("[secret-chat] Module loaded successfully");
 }
 
 module.exports = { setupSecretChat };

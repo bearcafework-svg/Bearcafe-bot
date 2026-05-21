@@ -20,8 +20,6 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildVoiceStates,
-
-    // ✅ เพิ่ม intents สำหรับ secretChat
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent
   ]

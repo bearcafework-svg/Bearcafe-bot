@@ -6,12 +6,16 @@ const {
   EmbedBuilder,
   PermissionFlagsBits
 } = require("discord.js");
+
 const crypto = require("crypto");
 
 const SECRET_CHAT_CATEGORY_ID = "1494308739220770888";
+
 const JOIN_QUEUE_CUSTOM_ID = "btn_join_queue";
 const LEAVE_TABLE_CUSTOM_ID = "btn_leave_table";
 
+const queue = [];
+const activeUsers = new Set();
 const tableMembers = new Map();
 
 function buildAllowedPermissions() {
@@ -36,9 +40,26 @@ function buildLeaveButton() {
   );
 }
 
+function removeUserFromQueue(userId) {
+  const index = queue.findIndex((id) => id === userId);
+
+  if (index !== -1) {
+    queue.splice(index, 1);
+  }
+}
+
+function isUserBusy(userId) {
+  return activeUsers.has(userId) || queue.includes(userId);
+}
+
 async function createSecretChatChannel(guild, userAId, userBId) {
+  const category = guild.channels.cache.get(SECRET_CHAT_CATEGORY_ID);
+
+  if (!category) {
+    throw new Error("SECRET_CHAT_CATEGORY_NOT_FOUND");
+  }
+
   const suffix = crypto.randomBytes(2).toString("hex");
-  const allowedPermissions = buildAllowedPermissions();
 
   const channel = await guild.channels.create({
     name: `☕-โต๊ะลับ-${suffix}`,
@@ -51,84 +72,225 @@ async function createSecretChatChannel(guild, userAId, userBId) {
       },
       {
         id: userAId,
-        allow: allowedPermissions
+        allow: buildAllowedPermissions()
       },
       {
         id: userBId,
-        allow: allowedPermissions
+        allow: buildAllowedPermissions()
       }
     ]
   });
 
+  activeUsers.add(userAId);
+  activeUsers.add(userBId);
+
   tableMembers.set(channel.id, new Set([userAId, userBId]));
 
   await channel.send({
-    content: `โต๊ะลับพร้อมแล้วค่ะ <@${userAId}> <@${userBId}> ☕`,
+    content:
+      `☕ โต๊ะลับพร้อมแล้วค่ะ\n\n` +
+      `ยินดีต้อนรับ <@${userAId}> และ <@${userBId}> ✨\n\n` +
+      `สามารถพูดคุยกันได้ตามสบายเลยนะคะ`,
     components: [buildLeaveButton()]
   });
+
+  console.log(`[secret-chat] Created room ${channel.name} for ${userAId} + ${userBId}`);
 
   return channel;
 }
 
-function setupSecretChat(client) {
-  client.on("messageCreate", async (message) => {
-    if (message.author.bot) return;
-    if (!message.guild) return;
-    if (message.content.trim() !== "b!reset-match") return;
-
-    try {
-      await message.delete();
-    } catch (error) {
-      console.error("[secret-chat] Failed to delete reset-match command:", error.message);
-    }
-
-    const embed = new EmbedBuilder()
-      .setColor("#D2B48C")
-      .setTitle("☕ โต๊ะลับฉบับ Bear Cafe")
-      .setDescription("บรรยากาศคาเฟ่กำลังดีเลย... \nอยากหาใครสักคนจิบชาและนั่งคุยด้วยกันไหมคะ? \n\nกดปุ่มด้านล่างเพื่อรอคิวสุ่มโต๊ะได้เลยค่ะ ระบบจะพาคุณไปที่โต๊ะส่วนตัวทันทีเมื่อเจอเพื่อนที่ว่างอยู่ ✨");
-
-    const joinQueueButton = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId(JOIN_QUEUE_CUSTOM_ID)
-        .setLabel("☕ ค้นหาโต๊ะลับ (สุ่มแชท)")
-        .setStyle(ButtonStyle.Primary)
-    );
-
-    await message.channel.send({
-      embeds: [embed],
-      components: [joinQueueButton]
+async function handleJoinQueue(interaction) {
+  try {
+    await interaction.deferReply({
+      flags: 64
     });
-  });
 
-  client.on("interactionCreate", async (interaction) => {
-    if (!interaction.isButton()) return;
+    const userId = interaction.user.id;
 
-    if (interaction.customId === JOIN_QUEUE_CUSTOM_ID) {
-      await interaction.reply({
-        content: "กำลังหาที่นั่งว่างให้นะคะ รอสักครู่... ⏳",
-        ephemeral: true
+    if (isUserBusy(userId)) {
+      await interaction.editReply({
+        content: "ตอนนี้คุณอยู่ในคิวหรือกำลังนั่งโต๊ะอยู่แล้วนะคะ ☕"
       });
       return;
     }
 
-    if (interaction.customId !== LEAVE_TABLE_CUSTOM_ID) return;
+    const waitingUserId = queue.find((id) => id !== userId);
 
+    if (waitingUserId) {
+      removeUserFromQueue(waitingUserId);
+
+      try {
+        await createSecretChatChannel(
+          interaction.guild,
+          waitingUserId,
+          userId
+        );
+
+        await interaction.editReply({
+          content: "จับคู่สำเร็จแล้วค่ะ ✨"
+        });
+
+      } catch (error) {
+        console.error("[secret-chat] Match create error:", error);
+
+        activeUsers.delete(waitingUserId);
+        activeUsers.delete(userId);
+
+        await interaction.editReply({
+          content: "เกิดปัญหาระหว่างสร้างโต๊ะลับค่ะ ลองใหม่อีกครั้งนะคะ"
+        });
+      }
+
+      return;
+    }
+
+    queue.push(userId);
+
+    await interaction.editReply({
+      content:
+        "กำลังหาคนคุยให้ค่ะ ☕\n" +
+        "เมื่อมีคนกดค้นหา ระบบจะจับคู่ให้อัตโนมัติ"
+    });
+
+    console.log(`[secret-chat] ${userId} joined queue`);
+
+  } catch (error) {
+    console.error("[secret-chat] Queue error:", error);
+
+    if (!interaction.replied && !interaction.deferred) {
+      try {
+        await interaction.reply({
+          content: "เกิดข้อผิดพลาดค่ะ",
+          flags: 64
+        });
+      } catch {}
+    }
+  }
+}
+
+async function handleLeaveTable(interaction) {
+  try {
     const members = tableMembers.get(interaction.channelId);
-    if (members && !members.has(interaction.user.id)) {
+
+    if (!members || !members.has(interaction.user.id)) {
       await interaction.reply({
-        content: "ปุ่มนี้ใช้ได้เฉพาะคนที่นั่งโต๊ะลับนี้เท่านั้นค่ะ",
-        ephemeral: true
+        content: "ปุ่มนี้ใช้ได้เฉพาะคนที่อยู่โต๊ะนี้ค่ะ",
+        flags: 64
       });
       return;
     }
 
     await interaction.deferUpdate();
+
+    for (const memberId of members) {
+      activeUsers.delete(memberId);
+    }
+
     tableMembers.delete(interaction.channelId);
-    await interaction.channel.delete(`Secret chat left by ${interaction.user.id}`);
+
+    console.log(
+      `[secret-chat] Channel deleted by ${interaction.user.id}`
+    );
+
+    await interaction.channel.delete(
+      `Secret chat closed by ${interaction.user.id}`
+    );
+
+  } catch (error) {
+    console.error("[secret-chat] Leave error:", error);
+
+    try {
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({
+          content: "เกิดข้อผิดพลาดขณะปิดโต๊ะค่ะ",
+          flags: 64
+        });
+      }
+    } catch {}
+  }
+}
+
+function setupSecretChat(client) {
+
+  client.on("messageCreate", async (message) => {
+    try {
+
+      if (message.author.bot) return;
+      if (!message.guild) return;
+
+      if (message.content.trim() !== "b!reset-match") {
+        return;
+      }
+
+      try {
+        await message.delete();
+      } catch {}
+
+      const embed = new EmbedBuilder()
+        .setColor("#D2B48C")
+        .setTitle("☕ โต๊ะลับฉบับ Bear Cafe")
+        .setDescription(
+          "บรรยากาศคาเฟ่กำลังดีเลย...\n" +
+          "อยากหาใครสักคนมานั่งคุยด้วยไหมคะ?\n\n" +
+          "กดปุ่มด้านล่างเพื่อเข้าสู่ระบบสุ่มแชท ✨"
+        );
+
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(JOIN_QUEUE_CUSTOM_ID)
+          .setLabel("☕ ค้นหาโต๊ะลับ")
+          .setStyle(ButtonStyle.Primary)
+      );
+
+      await message.channel.send({
+        embeds: [embed],
+        components: [row]
+      });
+
+    } catch (error) {
+      console.error("[secret-chat] messageCreate error:", error);
+    }
   });
+
+  client.on("interactionCreate", async (interaction) => {
+    try {
+
+      if (!interaction.isButton()) return;
+
+      if (interaction.customId === JOIN_QUEUE_CUSTOM_ID) {
+        await handleJoinQueue(interaction);
+        return;
+      }
+
+      if (interaction.customId === LEAVE_TABLE_CUSTOM_ID) {
+        await handleLeaveTable(interaction);
+        return;
+      }
+
+    } catch (error) {
+      console.error("[secret-chat] interactionCreate error:", error);
+    }
+  });
+
+  client.on("channelDelete", (channel) => {
+    try {
+      const members = tableMembers.get(channel.id);
+
+      if (members) {
+        for (const memberId of members) {
+          activeUsers.delete(memberId);
+        }
+
+        tableMembers.delete(channel.id);
+      }
+    } catch (error) {
+      console.error("[secret-chat] channelDelete cleanup error:", error);
+    }
+  });
+
+  console.log("[secret-chat] Module loaded");
 }
 
 module.exports = {
-  setupSecretChat,
-  createSecretChatChannel
+  setupSecretChat
 };

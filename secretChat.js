@@ -17,17 +17,31 @@ const crypto = require("crypto");
 const { createClient } = require("@supabase/supabase-js");
 
 // ── Global error guards ───────────────────────────────────────
-process.on("unhandledRejection", (err) => {
-  console.error("[secret-chat] Unhandled rejection:", err);
+process.on("unhandledRejection", (reason) => {
+  console.error("[secret-chat] Unhandled rejection:", reason);
 });
-process.on("uncaughtException", (err) => {
-  console.error("[secret-chat] Uncaught exception:", err);
+process.on("uncaughtException", (error) => {
+  console.error("[secret-chat] Uncaught exception:", error);
 });
 
-// ── Supabase client (service role for bot-side writes) ────────
+// ── Supabase client (service role, realtime disabled) ─────────
+// Realtime/WebSocket is intentionally disabled — this bot only
+// uses Supabase for insert/update (no subscriptions needed).
+// Disabling prevents the "Node.js 20 without native WebSocket"
+// crash on Koyeb.
 const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY,
+  {
+    realtime: {
+      enabled: false
+    },
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false
+    }
+  }
 );
 
 // ── Config ────────────────────────────────────────────────────

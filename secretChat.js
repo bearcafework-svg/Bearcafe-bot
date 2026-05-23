@@ -258,6 +258,7 @@ async function sendQueuePingNotification(client) {
       .setColor("#D2B48C")
       .setTitle("☕ มีคนรอหาเพื่อนคุยอยู่นะคะ!")
       .addFields(
+        { name: "🌱 หาเพื่อนได้ที่",       value: `<#1507027734097039442>`,  inline: true },
         { name: "⏳ รอในคิว",       value: `${inQueue} คน`,  inline: true },
         { name: "💬 ห้องที่เปิดอยู่", value: `${inSession} ห้อง`, inline: true }
       )

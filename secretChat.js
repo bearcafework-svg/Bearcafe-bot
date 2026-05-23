@@ -96,6 +96,7 @@ let lobbyEmbedMessage = null; // message object ของ embed หน้า lob
 
 // Ping cooldown (ข้อ 1)
 let lastPingTime = 0;
+let pingInFlight = false; // กัน race condition ที่ async calls หลายตัวผ่าน cooldown พร้อมกัน
 
 // ============================================================================
 // SUPABASE
@@ -244,7 +245,11 @@ async function updateLobbyEmbed() {
 async function sendQueuePingNotification(client) {
   if (!NOTIFY_CHANNEL_ID || !NOTIFY_ROLE_ID) return;
   const now = Date.now();
-  if (now - lastPingTime < PING_COOLDOWN_MS) return;
+  // กัน race condition: ถ้ายังส่งอยู่ หรือยังอยู่ใน cooldown ให้ return ทันที
+  if (pingInFlight || now - lastPingTime < PING_COOLDOWN_MS) return;
+
+  // จองสิทธิ์ก่อน await ใดๆ เพื่อกัน concurrent calls ผ่าน check พร้อมกัน
+  pingInFlight = true;
   lastPingTime = now;
 
   try {
@@ -267,6 +272,10 @@ async function sendQueuePingNotification(client) {
     await ch.send({ content: `<@&${NOTIFY_ROLE_ID}> มีสมาชิกกำลังรอหาเพื่อนคุยอยู่ค่ะ!`, embeds: [embed] });
   } catch (err) {
     console.error("[secret-chat] sendQueuePingNotification error:", err.message);
+    // ถ้าส่งไม่สำเร็จ reset lastPingTime เพื่อให้ลองใหม่ได้ในครั้งถัดไป
+    lastPingTime = 0;
+  } finally {
+    pingInFlight = false;
   }
 }
 
@@ -290,9 +299,15 @@ function setupSessionTimers(channelId, userAId, userBId, channel) {
       if (!tableMembers.has(channelId)) return;
       const extendCount = sessionExtendCount.get(channelId) ?? 0;
       const canExtend   = extendCount < MAX_EXTENDS;
+      const endTs       = Math.floor((sessionEndTimes.get(channelId) ?? Date.now()) / 1000);
       try {
         await channel.send({
-          content: "⏳ **เหลือเวลาอีก 1 นาที** โต๊ะจะปิดอัตโนมัติค่ะ",
+          content:
+            `⏳ **เหลือเวลาอีก 1 นาที!**\n` +
+            `🕐 ห้องจะถูกลบอัตโนมัติเวลา <t:${endTs}:T> (<t:${endTs}:R>)\n` +
+            (canExtend
+              ? `💡 กด **ต่อเวลา +3 นาที** ได้ถ้ายังอยากคุยต่อค่ะ!`
+              : `⚠️ ต่อเวลาได้ครบ ${MAX_EXTENDS} ครั้งแล้วค่ะ ห้องจะปิดเมื่อหมดเวลา`),
           components: [buildTableActionRow(!canExtend)]
         });
       } catch (e) { if (e.code !== 10003) console.error("[secret-chat] 1min warning:", e.message); }
@@ -300,13 +315,19 @@ function setupSessionTimers(channelId, userAId, userBId, channel) {
 
     warning30s: setTimeout(async () => {
       if (!tableMembers.has(channelId)) return;
-      try { await channel.send("⚠️ **เหลือเวลาอีก 30 วินาที** เตรียมบอกลากันได้เลยนะคะ!"); }
+      const endTs = Math.floor((sessionEndTimes.get(channelId) ?? Date.now()) / 1000);
+      try {
+        await channel.send(
+          `⚠️ **เหลือเวลาอีก 30 วินาที!**\n` +
+          `🗑️ ห้องนี้จะถูกลบโดยอัตโนมัติเวลา <t:${endTs}:T> เตรียมบอกลากันได้เลยนะคะ!`
+        );
+      }
       catch (e) { if (e.code !== 10003) console.error("[secret-chat] 30s warning:", e.message); }
     }, warn30Left > 0 ? warn30Left : 1),
 
     termination: setTimeout(async () => {
       if (!tableMembers.has(channelId)) return;
-      try { await channel.send("🛑 หมดเวลาสนทนาแล้วค่ะ กำลังทำความสะอาดโต๊ะ..."); }
+      try { await channel.send("🛑 **หมดเวลาสนทนาแล้วค่ะ** กำลังลบห้องโดยอัตโนมัติ..."); }
       catch (e) { if (e.code !== 10003) console.error("[secret-chat] termination send:", e.message); }
       sessionTimers.delete(channelId);
       await cleanupSession(channelId, userAId, userBId, channel);
@@ -434,6 +455,10 @@ async function logEvent(event, data = {}) {
 // HANDLER: JOIN QUEUE (ข้อ 3 — live searching UI)
 // ============================================================================
 async function handleJoinQueue(interaction) {
+  // dedup guard — กัน Discord retry / double-tap ส่ง ping ซ้ำ
+  if (isAlreadyHandled(interaction.id)) return;
+  markHandled(interaction.id);
+
   const userId = interaction.user.id;
 
   try { await interaction.deferReply({ flags: 64 }); }
@@ -663,9 +688,16 @@ async function handleExtendTime(interaction) {
   const [uA, uB] = Array.from(members);
   setupSessionTimers(channelId, uA, uB, interaction.channel);
 
+  // แจ้งเตือนในห้อง: ใครกดต่อเวลา หมดถึงกี่โมง
   try {
+    const remainText = canMore
+      ? `*(ต่อเวลาได้อีก ${MAX_EXTENDS - newCount} ครั้ง)*`
+      : `*(ถึงขีดสูงสุดแล้ว ต่อเวลาไม่ได้อีกแล้วค่ะ)*`;
+
     await interaction.channel.send(
-      `⏱️ <@${userId}> ต่อเวลาเรียบร้อยแล้วค่ะ! (+3 นาที ใช้ 50 แต้ม)\nหมดเวลาใหม่: <t:${newEndUnix}:R>\n*(ต่อเวลาได้อีก ${MAX_EXTENDS - newCount} ครั้ง)*`
+      `⏱️ **<@${userId}> กดต่อเวลาแล้วค่ะ!**\n` +
+      `🕐 หมดเวลาใหม่: <t:${newEndUnix}:T> (<t:${newEndUnix}:R>)\n` +
+      `💰 ใช้ 50 แต้ม | +3 นาที\n${remainText}`
     );
   } catch (_) {}
 

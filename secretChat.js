@@ -442,8 +442,7 @@ async function createSecretChatChannel(guild, userAId, userBId) {
     if (existing) clearTimeout(existing);
     const t = setTimeout(async () => {
       if (!tableMembers.has(channel.id)) return; // ห้องปิดไปแล้ว
-      try { await channel.send("👻 **ไม่มีการสนทนาเกิดขึ้นเลย 2 นาทีค่ะ**
-ระบบปิดห้องอัตโนมัติเพื่อรักษาบรรยากาศ ☕"); } catch (_) {}
+      try { await channel.send("👻 **ไม่มีการสนทนาเกิดขึ้นเลย 2 นาทีค่ะ**\nระบบปิดห้องอัตโนมัติเพื่อรักษาบรรยากาศ ☕"); } catch (_) {}
       idleKickTimers.delete(channel.id);
       clearSessionTimers(channel.id);
       await cleanupSession(channel.id, userAId, userBId, channel);
@@ -512,11 +511,8 @@ async function handleJoinQueue(interaction) {
   const status   = presence?.status ?? "offline";
   if (status === "dnd") {
     return await interaction.editReply(
-      "🔴 ตอนนี้คุณเปิดสถานะ **ห้ามรบกวน (DND)** อยู่ค่ะ
-" +
-      "ระบบไม่สามารถจับคู่ได้เพราะอาจพลาดแจ้งเตือนได้
-
-" +
+      "🔴 ตอนนี้คุณเปิดสถานะ **ห้ามรบกวน (DND)** อยู่ค่ะ\n" +
+      "ระบบไม่สามารถจับคู่ได้เพราะอาจพลาดแจ้งเตือนได้\n\n" +
       "✅ **กรุณาเปลี่ยนสถานะเป็น Online แล้วกดเข้าคิวใหม่อีกครั้งนะคะ**"
     );
   }
@@ -570,9 +566,7 @@ async function handleJoinQueue(interaction) {
       await updateLobbyEmbed();
       try {
         await interaction.editReply({
-          content: "⏰ **หมดเวลารอคิวแล้วค่ะ (15 นาที)**
-ระบบนำคุณออกจากคิวอัตโนมัติแล้ว
-กดเข้าคิวใหม่ได้เลยถ้ายังอยากคุยนะคะ ☕",
+          content: "⏰ **หมดเวลารอคิวแล้วค่ะ (15 นาที)**\nระบบนำคุณออกจากคิวอัตโนมัติแล้ว\nกดเข้าคิวใหม่ได้เลยถ้ายังอยากคุยนะคะ ☕",
           components: []
         });
       } catch (_) {}

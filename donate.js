@@ -196,13 +196,21 @@ async function sendOrUpdateTopDonate(channel, guild, supabase, existingMessage =
   }
 }
 
+const ws = require("ws");
+if (!global.WebSocket) {
+  global.WebSocket = ws;
+}
+
 // ══════════════════════════════════════════════════════════════
 //  setupDonate — เชื่อมกับ client
 // ══════════════════════════════════════════════════════════════
 function setupDonate(client) {
   const supabase = createClient(
     process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
+    process.env.SUPABASE_SERVICE_ROLE_KEY,
+    {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+    }
   );
 
   // ── คำสั่ง b!reset-donate (Owner เท่านั้น) ─────────────────

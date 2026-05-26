@@ -134,7 +134,7 @@ async function buildTopDonateComponents(guild, supabase) {
       type: 9,
       components: [{
         type: 10,
-        content: `### ${topEmojis[i]}⠀:⠀<@${uid}>⠀—⠀\` ${username} \`⠀𝖽𝗈𝗇𝖺𝗍𝖾𝖽 __${toMathNum(total)}__ 𝖻𝖺𝗁𝗍 .`
+        content: `### ${topEmojis[i]}⠀:⠀<@${uid}>⠀—⠀\` ${username} \`⠀𝖽𝗈𝗇𝖺𝗍𝖾𝖽 __${toMathNum(total)}__ 𝖻𝖺𝗁𝗍 .\n-# 𝗑𝗑𝗑𝗑 𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑 𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑 𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑 𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑 𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑 𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑`
       }],
       accessory: {
         type: 11,

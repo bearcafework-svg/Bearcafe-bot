@@ -19,9 +19,9 @@ const NOTIFY_CHANNEL_ID       = process.env.NOTIFY_CHANNEL_ID;   // ห้อง
 const NOTIFY_ROLE_ID          = process.env.NOTIFY_ROLE_ID;       // ยศที่จะถูก ping
 
 const BLOCKED_ROLES       = ["1156930837573546126", "1156930842434752614"];
-const SESSION_DURATION_MS = 7 * 60 * 1000;
-const WARNING_1MIN_MS     = 6 * 60 * 1000;
-const WARNING_30SEC_MS    = 6.5 * 60 * 1000;
+const SESSION_DURATION_MS = 15 * 60 * 1000;
+const WARNING_1MIN_MS  = SESSION_DURATION_MS - 60 * 1000;
+const WARNING_30SEC_MS = SESSION_DURATION_MS - 30 * 1000;
 const EXTEND_COST_POINTS  = 50;          // แต้มที่ใช้ต่อเวลา
 const EXTEND_DURATION_MS  = 3 * 60 * 1000; // +3 นาที
 const MAX_EXTENDS         = 2;           // ต่อเวลาได้สูงสุด 2 ครั้งต่อ session
@@ -444,7 +444,7 @@ async function createSecretChatChannel(guild, userAId, userBId) {
   sessionExtendCount.set(channel.id, 0);
 
   const sentMsg = await channel.send({
-    content: `☕ โต๊ะลับพร้อมแล้วค่ะ\n\nยินดีต้อนรับ <@${userAId}> และ <@${userBId}> ✨\nระยะเวลาสนทนา 7 นาที (หมดเวลา: <t:${endTimeUnix}:R>)\nสามารถพูดคุยกันได้ตามสบายเลยนะคะ`,
+    content: `☕ โต๊ะลับพร้อมแล้วค่ะ\n\nยินดีต้อนรับ <@${userAId}> และ <@${userBId}> ✨\nระยะเวลาสนทนา 15 นาที (หมดเวลา: <t:${endTimeUnix}:R>)\nสามารถพูดคุยกันได้ตามสบายเลยนะคะ`,
     components: [buildTableActionRow(false)]
   });
 

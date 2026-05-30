@@ -1126,23 +1126,29 @@ async function handleRating(interaction) {
 
   const parts     = interaction.customId.split(":");
   const channelId = parts[1];
-  const score     = parseInt(parts[2], 10); // 1=👎  3=😐  5=👍  0=label (disabled ไม่ควรถึง)
+  const score     = parseInt(parts[2], 10); // 1=👎  3=😐  5=👍  0=label (disabled)
   const userId    = interaction.user.id;
 
+  // ── Acknowledge ทันทีก่อน async ใดๆ เพื่อป้องกัน "interaction failed" ──
+  try { await interaction.deferReply({ flags: 64 }); }
+  catch (e) { if (e.code !== 10062) console.error("[secret-chat] rating deferReply:", e); return; }
+
   // ป้องกันปุ่ม label (score 0) เผื่อ client ส่งมา
-  if (score === 0) return await safeReply(interaction, { content: "กดที่ 👍 😐 👎 นะคะ" });
+  if (score === 0) {
+    return await interaction.editReply({ content: "กดที่ 👍 😐 👎 นะคะ ☕" });
+  }
 
   const submitted = ratingSubmitted.get(channelId);
   if (!submitted) {
-    return await safeReply(interaction, { content: "⏰ หมดเวลากด rating แล้วค่ะ" });
+    return await interaction.editReply({ content: "⏰ หมดเวลากด rating แล้วค่ะ ห้องกำลังจะถูกลบ" });
   }
   if (submitted.has(userId)) {
-    return await safeReply(interaction, { content: "คุณกด rating ไปแล้วค่ะ 😊" });
+    return await interaction.editReply({ content: "คุณส่ง rating ไปแล้วนะคะ 😊 รออีกคนกดก่อนนะคะ" });
   }
 
   submitted.add(userId);
 
-  // บันทึกคะแนนลง Supabase
+  // ── บันทึกคะแนนลง Supabase ──────────────────────────────────────────────
   try {
     await supabase.from("secret_chat_ratings").insert([{
       channel_id: channelId,
@@ -1154,22 +1160,70 @@ async function handleRating(interaction) {
     console.error("[secret-chat] save rating:", e.message);
   }
 
-  const label = score === 5 ? "👍 ดีมาก!" : score === 3 ? "😐 พอใช้" : "👎 ไม่โอเค";
-  await safeReply(interaction, {
-    content: `✅ รับ rating แล้วค่ะ: **${label}** ขอบคุณนะคะ ☕`
+  // ── ส่ง ephemeral แจ้งผู้ที่กด ──────────────────────────────────────────
+  const label = score === 5 ? "👍 ดีมากค่ะ!" : score === 3 ? "😐 โอเคค่ะ" : "👎 รับทราบค่ะ";
+  await interaction.editReply({
+    content:
+      `✅ รับ rating แล้วค่ะ: **${label}**\n` +
+      (submitted.size < 2
+        ? `⏳ รออีกคนให้คะแนนก่อนนะคะ ห้องจะถูกลบอัตโนมัติภายใน 30 วินาทีค่ะ`
+        : `🚪 ขอบคุณทั้งคู่ค่ะ กำลังปิดห้องแล้วนะคะ...`)
   });
 
-  // ถ้าทั้งสองคนกดครบแล้ว → ลบห้องทันที ไม่ต้องรอครบ 30 วิ
+  // ── อัปเดตปุ่มในห้องให้แสดงจำนวนคนที่กดแล้ว ────────────────────────────
+  try {
+    const ratingCount = submitted.size;
+    const disabledRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`${RATING_CUSTOM_ID}:${channelId}:0`)
+        .setLabel(`⭐ คุยโอเคไหม? (${ratingCount}/2 คนกดแล้ว)`)
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(true),
+      new ButtonBuilder()
+        .setCustomId(`${RATING_CUSTOM_ID}:${channelId}:5`)
+        .setEmoji("👍")
+        .setStyle(ButtonStyle.Success)
+        .setDisabled(ratingCount >= 2),
+      new ButtonBuilder()
+        .setCustomId(`${RATING_CUSTOM_ID}:${channelId}:3`)
+        .setEmoji("😐")
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(ratingCount >= 2),
+      new ButtonBuilder()
+        .setCustomId(`${RATING_CUSTOM_ID}:${channelId}:1`)
+        .setEmoji("👎")
+        .setStyle(ButtonStyle.Danger)
+        .setDisabled(ratingCount >= 2)
+    );
+    // หา message ที่มีปุ่ม rating แล้ว edit
+    const msgs = await interaction.channel.messages.fetch({ limit: 5 });
+    const ratingMsg = msgs.find(m =>
+      m.author.bot &&
+      m.components?.length > 0 &&
+      m.components[0]?.components?.some(c => c.customId?.startsWith(RATING_CUSTOM_ID))
+    );
+    if (ratingMsg) await ratingMsg.edit({ components: [disabledRow] });
+  } catch (e) {
+    if (e.code !== 10003 && e.code !== 10008) console.warn("[secret-chat] update rating buttons:", e.message);
+  }
+
+  // ── ถ้าทั้งสองคนกดครบ → แจ้งในห้องแล้วลบ ───────────────────────────────
   if (submitted.size >= 2) {
     const t = ratingTimeoutTimers.get(channelId);
     if (t) { clearTimeout(t); ratingTimeoutTimers.delete(channelId); }
     ratingSubmitted.delete(channelId);
     try {
-      const ch = await interaction.client.channels.fetch(channelId).catch(() => null);
-      if (ch) await ch.delete("Both users rated — cleanup");
-    } catch (e) {
-      if (e.code !== 10003) console.warn("[secret-chat] rating both done delete:", e.message);
-    }
+      await interaction.channel.send("☕ **ขอบคุณทุกคนค่ะ!** กำลังปิดโต๊ะลับ...");
+    } catch (_) {}
+    // หน่วงเล็กน้อยให้ข้อความปรากฏก่อนลบห้อง
+    setTimeout(async () => {
+      try {
+        const ch = await interaction.client.channels.fetch(channelId).catch(() => null);
+        if (ch) await ch.delete("Both users rated — cleanup");
+      } catch (e) {
+        if (e.code !== 10003) console.warn("[secret-chat] rating both done delete:", e.message);
+      }
+    }, 2000);
   }
 }
 

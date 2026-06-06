@@ -385,11 +385,13 @@ function findMatchByTopic(userId, forceWildcard = false) {
   return -1;
 }
 
-/** ล้าง topic + expand timer ของ user */
+/** ล้าง topic + expand timer + game state ของ user */
 function clearTopicState(userId) {
   userTopics.delete(userId);
   const t = topicExpandTimers.get(userId);
   if (t) { clearTimeout(t); topicExpandTimers.delete(userId); }
+  gameStreak.delete(userId);
+  gameScore.delete(userId);
 }
 
 // ============================================================================
@@ -487,7 +489,7 @@ function buildGameMessage(userId) {
   return { embeds: [embed], components: [row] };
 }
 
-/** ส่งเกมแรกให้ผู้ใช้ (ephemeral followUp) */
+/** ส่งเกมแรกให้ผู้ใช้ผ่าน followUp (ephemeral) — message จะถูก edit ใน handleGameAnswer */
 async function startMiniGame(interaction, userId) {
   gameStreak.set(userId, 0);
   gameScore.set(userId,  0);
@@ -505,9 +507,19 @@ async function handleGameAnswer(interaction) {
 
   const userId = interaction.user.id;
 
-  // ถ้า user ถูก match ไปแล้ว ให้ดิสเบิลปุ่มแล้วจบ
+  // ถ้า user ถูก match ไปแล้ว → disable ปุ่มแล้วจบเลย ไม่ส่งโจทย์ใหม่
   if (!queue.includes(userId)) {
-    try { await interaction.update({ components: [] }); } catch (_) {}
+    try {
+      await interaction.update({
+        embeds: [
+          new EmbedBuilder()
+            .setColor("#D2B48C")
+            .setTitle("✨ จับคู่สำเร็จแล้วค่ะ!")
+            .setDescription("ไปที่ห้องแชทได้เลยนะคะ ☕"),
+        ],
+        components: [],
+      });
+    } catch (_) {}
     return;
   }
 
@@ -516,9 +528,8 @@ async function handleGameAnswer(interaction) {
   const correct = parseInt(parts[2], 10);
   const isRight = chosen === correct;
 
-  // อัปเดต streak/score
-  const streak = gameStreak.get(userId) ?? 0;
-  const score  = gameScore.get(userId)  ?? 0;
+  const streak    = gameStreak.get(userId) ?? 0;
+  const score     = gameScore.get(userId)  ?? 0;
   const newStreak = isRight ? streak + 1 : 0;
   const newScore  = isRight ? score  + 1 : score;
   gameStreak.set(userId, newStreak);
@@ -527,19 +538,21 @@ async function handleGameAnswer(interaction) {
   const resultLine = isRight
     ? (newStreak >= 5 ? "🔥 เก่งมากเลย!" : newStreak >= 3 ? "🎉 ถูกต้อง! ไฟกำลังลุก!" : "✅ ถูกต้องค่ะ!")
     : `❌ ไม่ใช่นะคะ — คำตอบคือ **${correct}**`;
-
   const streakText = newStreak >= 3 ? ` 🔥 ${newStreak} ข้อติด!` : newStreak > 0 ? ` ✅ ${newStreak} ข้อติด` : "";
-  const nextEmbed  = new EmbedBuilder()
+
+  // แสดงผลลัพธ์ใน message เดิม (update = แก้ไข message ที่มีปุ่มที่ถูกกด)
+  const resultEmbed = new EmbedBuilder()
     .setColor(isRight ? "#7CFC00" : "#FF6B6B")
     .setTitle(resultLine)
-    .setDescription(`คะแนนรวม: **${newScore}** ข้อ${streakText}\n\nโจทย์ถัดไป...`);
+    .setDescription(`คะแนนรวม: **${newScore}** ข้อ${streakText}\n\n⏳ กำลังออกโจทย์ใหม่...`);
 
-  try { await interaction.update({ embeds: [nextEmbed], components: [] }); } catch (_) { return; }
+  try { await interaction.update({ embeds: [resultEmbed], components: [] }); }
+  catch (_) { return; }
 
-  // หน่วง 800ms แล้วส่งโจทย์ใหม่
+  // หน่วง 800ms แล้ว edit message เดิมด้วยโจทย์ใหม่ — ไม่มี followUp ใหม่เด็ดขาด
   setTimeout(async () => {
     if (!queue.includes(userId)) return; // match ไปแล้วระหว่างรอ
-    try { await interaction.followUp({ ...buildGameMessage(userId), flags: 64 }); } catch (_) {}
+    try { await interaction.message.edit({ ...buildGameMessage(userId) }); } catch (_) {}
   }, 800);
 }
 
@@ -1003,7 +1016,7 @@ async function handleTopicSelect(interaction) {
   markHandled(interaction.id);
 
   const userId = interaction.user.id;
-  const topic  = interaction.values[0]; // เช่น "chat", "consult", ...
+  const topic  = interaction.values[0];
 
   try { await interaction.deferUpdate(); } catch (e) { return; }
 
@@ -1014,45 +1027,44 @@ async function handleTopicSelect(interaction) {
 
   userTopics.set(userId, topic);
 
-  // ── พยายามจับคู่ทันที (ตาม priority) ────────────────────────────────────
-  const partnerIndex = findMatchByTopic(userId, false);
+  // ── helper: ล้าง timers ทั้งหมดของ userId ────────────────────────────────
+  function cleanupQueueTimers(id) {
+    stopSearchInterval(id);
+    stopQueueDmTimer(id);
+    clearTopicState(id);          // ล้าง topic + expandTimer + gameStreak/Score
+    queueJoinTimes.delete(id);
+    userSearchMsgToken.delete(id);
+    const t = queueTimeoutTimers.get(id);
+    if (t) { clearTimeout(t); queueTimeoutTimers.delete(id); }
+  }
 
-  if (partnerIndex !== -1) {
-    const [waitingUserId] = queue.splice(partnerIndex, 1);
-    stopSearchInterval(waitingUserId);
-    stopQueueDmTimer(waitingUserId);
-    clearTopicState(waitingUserId);
-    queueJoinTimes.delete(waitingUserId);
-    const wTimer = queueTimeoutTimers.get(waitingUserId);
-    if (wTimer) { clearTimeout(wTimer); queueTimeoutTimers.delete(waitingUserId); }
-    queueJoinTimes.delete(userId);
-    const uTimer = queueTimeoutTimers.get(userId);
-    if (uTimer) { clearTimeout(uTimer); queueTimeoutTimers.delete(userId); }
-    stopQueueDmTimer(userId);
-    clearTopicState(userId);
-
-    // ล้าง game state
-    gameStreak.delete(waitingUserId); gameScore.delete(waitingUserId);
-    gameStreak.delete(userId);        gameScore.delete(userId);
-
+  // ── helper: สร้างห้องแล้วแจ้งทั้งสองคน ──────────────────────────────────
+  async function doMatch(waitingUserId, newUserId, newInteraction) {
+    const waitInt = userSearchMsgToken.get(waitingUserId);
+    cleanupQueueTimers(waitingUserId);
+    cleanupQueueTimers(newUserId);
     try {
-      const channel = await createSecretChatChannel(interaction.guild, waitingUserId, userId);
-      await interaction.editReply({ content: `จับคู่สำเร็จแล้วค่ะ ✨ ไปที่ห้อง <#${channel.id}> ได้เลย ขอให้สนุกนะคะ`, components: [] });
-      const waitingInteraction = userSearchMsgToken.get(waitingUserId);
-      if (waitingInteraction) {
-        try { await waitingInteraction.editReply({ content: `จับคู่สำเร็จแล้วค่ะ ✨ ไปที่ห้อง <#${channel.id}> ได้เลย ขอให้สนุกนะคะ`, components: [] }); } catch (_) {}
-      }
-      const guildId = interaction.guildId;
+      const channel = await createSecretChatChannel(interaction.guild, waitingUserId, newUserId);
+      const matchMsg = `จับคู่สำเร็จแล้วค่ะ ✨ ไปที่ห้อง <#${channel.id}> ได้เลย ขอให้สนุกนะคะ`;
+      if (waitInt) { try { await waitInt.editReply({ content: matchMsg, components: [] }); } catch (_) {} }
+      try { await newInteraction.editReply({ content: matchMsg, components: [] }); } catch (_) {}
       await Promise.allSettled([
-        sendMatchDm(interaction.client, waitingUserId, channel.id, guildId),
-        sendMatchDm(interaction.client, userId,        channel.id, guildId),
+        sendMatchDm(interaction.client, waitingUserId, channel.id, interaction.guildId),
+        sendMatchDm(interaction.client, newUserId,     channel.id, interaction.guildId),
       ]);
     } catch (err) {
       console.error("[secret-chat] create room error:", err);
       activeUsers.delete(waitingUserId);
-      activeUsers.delete(userId);
-      try { await interaction.editReply({ content: "เกิดปัญหาระหว่างสร้างโต๊ะลับค่ะ ลองใหม่อีกครั้งนะคะ", components: [] }); } catch (_) {}
+      activeUsers.delete(newUserId);
+      try { await newInteraction.editReply({ content: "เกิดปัญหาระหว่างสร้างโต๊ะลับค่ะ ลองใหม่อีกครั้งนะคะ", components: [] }); } catch (_) {}
     }
+  }
+
+  // ── พยายามจับคู่ทันที ────────────────────────────────────────────────────
+  const partnerIndex = findMatchByTopic(userId, false);
+  if (partnerIndex !== -1) {
+    const [waitingUserId] = queue.splice(partnerIndex, 1);
+    await doMatch(waitingUserId, userId, interaction);
     return;
   }
 
@@ -1061,82 +1073,55 @@ async function handleTopicSelect(interaction) {
   queueJoinTimes.set(userId, Date.now());
   console.log(`[secret-chat] ${userId} joined queue (topic: ${topic}). Total: ${queue.length}`);
 
-  // 60 วิ → ขยาย wildcard อัตโนมัติ
+  // ── 60 วิ → ขยาย wildcard อัตโนมัติ ─────────────────────────────────────
+  // guard ป้องกัน race กับ dmKickTimer / queueTimer
+  let expandFired = false;
   const expandTimer = setTimeout(async () => {
-    topicExpandTimers.delete(userId);
-    if (!queue.includes(userId)) return;
+    if (expandFired) return;
+    if (!queue.includes(userId)) return; // match หรือ kick ไปแล้ว
     const expandIdx = findMatchByTopic(userId, true);
-    if (expandIdx === -1) return; // ยังไม่มีใครในคิว รอต่อ
+    if (expandIdx === -1) return;        // ยังไม่มีใครในคิว — รอ dmKickTimer แทน
+    expandFired = true;
+    topicExpandTimers.delete(userId);
     const [waitingUserId] = queue.splice(expandIdx, 1);
+    // ลบตัวเองออกจากคิวด้วย (expand match = ทั้งคู่ออกจากคิว)
     const myIdx = queue.indexOf(userId);
     if (myIdx !== -1) queue.splice(myIdx, 1);
-    stopSearchInterval(waitingUserId);
+    // cancel dmKickTimer + queueTimer ของทั้งสองคนก่อน doMatch
+    stopQueueDmTimer(userId);
     stopQueueDmTimer(waitingUserId);
-    clearTopicState(waitingUserId);
-    clearTopicState(userId);
-    queueJoinTimes.delete(waitingUserId);
-    queueJoinTimes.delete(userId);
-    [waitingUserId, userId].forEach(id => {
-      const t = queueTimeoutTimers.get(id);
-      if (t) { clearTimeout(t); queueTimeoutTimers.delete(id); }
-      stopQueueDmTimer(id);
-      gameStreak.delete(id); gameScore.delete(id);
-    });
-    try {
-      const channel = await createSecretChatChannel(interaction.guild, waitingUserId, userId);
-      const waitInt = userSearchMsgToken.get(waitingUserId);
-      if (waitInt) {
-        try { await waitInt.editReply({ content: `จับคู่สำเร็จแล้วค่ะ ✨ ไปที่ห้อง <#${channel.id}> ได้เลย ขอให้สนุกนะคะ`, components: [] }); } catch (_) {}
-      }
-      try { await interaction.editReply({ content: `จับคู่สำเร็จแล้วค่ะ ✨ ไปที่ห้อง <#${channel.id}> ได้เลย ขอให้สนุกนะคะ`, components: [] }); } catch (_) {}
-      await Promise.allSettled([
-        sendMatchDm(interaction.client, waitingUserId, channel.id, interaction.guildId),
-        sendMatchDm(interaction.client, userId,        channel.id, interaction.guildId),
-      ]);
-    } catch (err) {
-      console.error("[secret-chat] expand match create room error:", err);
-      activeUsers.delete(waitingUserId);
-      activeUsers.delete(userId);
-    }
+    const t1 = queueTimeoutTimers.get(userId);
+    if (t1) { clearTimeout(t1); queueTimeoutTimers.delete(userId); }
+    const t2 = queueTimeoutTimers.get(waitingUserId);
+    if (t2) { clearTimeout(t2); queueTimeoutTimers.delete(waitingUserId); }
+    await doMatch(waitingUserId, userId, interaction);
   }, TOPIC_EXPAND_MS);
   topicExpandTimers.set(userId, expandTimer);
 
-  // ── DM kick หลัง 5 นาที ──────────────────────────────────────────────────
+  // ── DM kick หลัง 5 นาที ─────────────────────────────────────────────────
   const dmKickTimer = setTimeout(async () => {
+    if (expandFired) return;                        // expand match ไปแล้ว
     const stillInQueue = queue.indexOf(userId);
-    if (stillInQueue === -1) return;
+    if (stillInQueue === -1) return;                // match ปกติไปแล้ว
     queue.splice(stillInQueue, 1);
-    queueJoinTimes.delete(userId);
-    queueDmTimers.delete(userId);
-    stopSearchInterval(userId);
-    clearTopicState(userId);
-    gameStreak.delete(userId); gameScore.delete(userId);
+    cleanupQueueTimers(userId);
     const qTimer15 = queueTimeoutTimers.get(userId);
     if (qTimer15) { clearTimeout(qTimer15); queueTimeoutTimers.delete(userId); }
-    activeUsers.delete(userId);
     await updateLobbyEmbed();
     await sendQueueTimeoutDm(interaction.client, userId);
-    try {
-      await interaction.editReply({ content: "⏰ **ไม่พบคู่สนทนาภายใน 5 นาทีค่ะ**\nระบบนำคุณออกจากคิวอัตโนมัติแล้ว กรุณาตรวจสอบ DM จากบอทสำหรับรายละเอียดเพิ่มเติมค่ะ ☕", components: [] });
-    } catch (_) {}
+    try { await interaction.editReply({ content: "⏰ **ไม่พบคู่สนทนาภายใน 5 นาทีค่ะ**\nระบบนำคุณออกจากคิวอัตโนมัติแล้ว กรุณาตรวจสอบ DM จากบอทค่ะ ☕", components: [] }); } catch (_) {}
   }, QUEUE_DM_KICK_MS);
   queueDmTimers.set(userId, dmKickTimer);
 
   // ── kick หลัง 15 นาที ────────────────────────────────────────────────────
   const queueTimer = setTimeout(async () => {
+    if (expandFired) return;
     const stillInQueue = queue.indexOf(userId);
     if (stillInQueue === -1) return;
     queue.splice(stillInQueue, 1);
-    queueJoinTimes.delete(userId);
-    queueTimeoutTimers.delete(userId);
-    stopSearchInterval(userId);
-    clearTopicState(userId);
-    gameStreak.delete(userId); gameScore.delete(userId);
-    activeUsers.delete(userId);
+    cleanupQueueTimers(userId);
     await updateLobbyEmbed();
-    try {
-      await interaction.editReply({ content: "⏰ **หมดเวลารอคิวแล้วค่ะ (15 นาที)**\nระบบนำคุณออกจากคิวอัตโนมัติแล้ว\nกดเข้าคิวใหม่ได้เลยถ้ายังอยากคุยนะคะ ☕", components: [] });
-    } catch (_) {}
+    try { await interaction.editReply({ content: "⏰ **หมดเวลารอคิวแล้วค่ะ (15 นาที)**\nกดเข้าคิวใหม่ได้เลยถ้ายังอยากคุยนะคะ ☕", components: [] }); } catch (_) {}
   }, QUEUE_MAX_WAIT_MS);
   queueTimeoutTimers.set(userId, queueTimer);
 
@@ -1157,7 +1142,7 @@ async function handleTopicSelect(interaction) {
   }[topic] ?? topic;
 
   await interaction.editReply({
-    content: `${SEARCHING_MESSAGES[0]}\n\n🏷️ หัวข้อที่เลือก: **${topicLabel}**\n*(ระบบจะขยายการค้นหาอัตโนมัติใน 60 วินาที)*`,
+    content: `${SEARCHING_MESSAGES[0]}\n\n🏷️ หัวข้อที่เลือก: **${topicLabel}**\n*(ระบบจะขยายการค้นหาอัตโนมัติใน 60 วินาทีค่ะ)*`,
     components: [cancelRow],
   });
 
@@ -1172,7 +1157,7 @@ async function handleTopicSelect(interaction) {
     if (!queue.includes(userId)) { stopSearchInterval(userId); return; }
     try {
       await interaction.editReply({
-        content: `${SEARCHING_MESSAGES[msgIndex % SEARCHING_MESSAGES.length]}\n\n🏷️ หัวข้อที่เลือก: **${topicLabel}**\n*(ระบบจะขยายการค้นหาอัตโนมัติใน 60 วินาที)*`,
+        content: `${SEARCHING_MESSAGES[msgIndex % SEARCHING_MESSAGES.length]}\n\n🏷️ หัวข้อที่เลือก: **${topicLabel}**\n*(ระบบจะขยายการค้นหาอัตโนมัติใน 60 วินาทีค่ะ)*`,
         components: [cancelRow],
       });
       msgIndex++;
@@ -1199,10 +1184,9 @@ async function handleCancelQueue(interaction) {
   queue.splice(idx, 1);
   stopSearchInterval(userId);
   stopQueueDmTimer(userId);
-  clearTopicState(userId);
-  gameStreak.delete(userId);
-  gameScore.delete(userId);
+  clearTopicState(userId);   // ล้าง topic + expandTimer + gameStreak/Score
   queueJoinTimes.delete(userId);
+  userSearchMsgToken.delete(userId);
   const qTimer = queueTimeoutTimers.get(userId);
   if (qTimer) { clearTimeout(qTimer); queueTimeoutTimers.delete(userId); }
   await updateLobbyEmbed();

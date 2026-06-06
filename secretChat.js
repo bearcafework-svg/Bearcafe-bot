@@ -5,6 +5,8 @@ const {
   ChannelType,
   EmbedBuilder,
   PermissionFlagsBits,
+  StringSelectMenuBuilder,
+  StringSelectMenuOptionBuilder,
   Events
 } = require("discord.js");
 const crypto = require("crypto");
@@ -40,6 +42,35 @@ const CANCEL_QUEUE_CUSTOM_ID  = "btn_cancel_queue";
 const CLAIM_CASE_CUSTOM_ID    = "btn_claim_case";
 const RATING_CUSTOM_ID        = "btn_rating";          // prefix: btn_rating:channelId:score
 const STAFF_ALERT_CHANNEL_ID  = "1145314688800927744";
+const TOPIC_SELECT_CUSTOM_ID  = "sel_topic";           // SelectMenu เลือกหัวข้อ
+const GAME_ANSWER_CUSTOM_ID   = "btn_game";            // prefix: btn_game:answer:correct
+
+// ============================================================================
+// TOPIC CONFIG
+// ============================================================================
+// topic key → ชื่อยศ Discord (ใช้เปรียบเทียบ roles.cache)
+const TOPIC_ROLE_NAMES = {
+  chat:       "พิมพ์แชทคุย",
+  consult:    "หมีขอคำปรึกษา",
+  listen:     "หมีชอบรับฟัง",
+  student:    "สังคมวัยเรียน",
+  worker:     "สังคมวัยทำงาน",
+  activity:   "หมีชอบทำกิจกรรม",
+  misc:       "หมีเบ็ดเตล็ด",
+};
+
+// priority list: topic ของ A → ลำดับ topic ที่จะหาในคิว (null = wildcard ทุกคน)
+const TOPIC_MATCH_PRIORITY = {
+  chat:     ["chat",     null],
+  consult:  ["listen",   "consult", null],
+  listen:   ["consult",  "chat",    null],
+  student:  ["student",  null],
+  worker:   ["worker",   null],
+  activity: ["activity", "misc",    null],
+  misc:     [null],
+};
+
+const TOPIC_EXPAND_MS = 60 * 1000; // 60 วิ แล้ว fallback wildcard
 
 const RATING_TIMEOUT_MS       = 30 * 1000;             // รอ rating 30 วินาทีก่อนลบห้อง
 
@@ -102,6 +133,14 @@ const idleKickTimers      = new Map(); // channelId -> timeoutId auto-close idle
 const userSearchMsgToken  = new Map(); // userId -> interaction (เพื่อ edit ได้)
 const ratingTimeoutTimers = new Map(); // channelId -> timeoutId auto-delete หลัง rating
 const ratingSubmitted     = new Map(); // channelId -> Set<userId> ที่กด rating แล้ว
+
+// ── Topic filter state ────────────────────────────────────────────────────────
+const userTopics          = new Map(); // userId -> topic key
+const topicExpandTimers   = new Map(); // userId -> timeoutId (60วิ fallback)
+
+// ── Mini-game state ───────────────────────────────────────────────────────────
+const gameStreak          = new Map(); // userId -> streak count
+const gameScore           = new Map(); // userId -> total correct
 
 // Lobby embed tracking (ข้อ 4)
 let lobbyEmbedMessage = null; // message object ของ embed หน้า lobby
@@ -281,8 +320,230 @@ async function sendQueueTimeoutDm(client, userId) {
 }
 
 // ============================================================================
-// LOBBY EMBED UPDATE (ข้อ 4)
+// TOPIC HELPERS
 // ============================================================================
+
+/** สร้าง SelectMenu เลือกหัวข้อ (optgroup ด้วย placeholder) */
+function buildTopicSelectMenu() {
+  return new ActionRowBuilder().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId(TOPIC_SELECT_CUSTOM_ID)
+      .setPlaceholder("☕ วันนี้คุณอยากคุยเรื่องอะไร?")
+      .addOptions(
+        // ─── หมวด: เป้าหมายการคุย ─────────────────────────────────────────
+        new StringSelectMenuOptionBuilder()
+          .setLabel("💬 พิมพ์แชทคุย")
+          .setDescription("แชทสนุก ๆ ทั่วไป ไม่มีธีมเฉพาะ")
+          .setValue("chat"),
+        new StringSelectMenuOptionBuilder()
+          .setLabel("🫂 หมีขอคำปรึกษา")
+          .setDescription("อยากระบาย ขอคำแนะนำ หรือแค่มีคนรับฟัง")
+          .setValue("consult"),
+        new StringSelectMenuOptionBuilder()
+          .setLabel("🫶 หมีชอบรับฟัง")
+          .setDescription("อยากเป็นคนรับฟังและช่วยเหลือผู้อื่น")
+          .setValue("listen"),
+        // ─── หมวด: สังคม / ไลฟ์สไตล์ ────────────────────────────────────
+        new StringSelectMenuOptionBuilder()
+          .setLabel("🎓 สังคมวัยเรียน")
+          .setDescription("คุยเรื่องการเรียน ชีวิตนักเรียน/นักศึกษา")
+          .setValue("student"),
+        new StringSelectMenuOptionBuilder()
+          .setLabel("💼 สังคมวัยทำงาน")
+          .setDescription("คุยเรื่องงาน ชีวิตออฟฟิศ ความเครียด")
+          .setValue("worker"),
+        // ─── หมวด: กิจกรรม ───────────────────────────────────────────────
+        new StringSelectMenuOptionBuilder()
+          .setLabel("🎮 หมีชอบทำกิจกรรม")
+          .setDescription("เกม งานอดิเรก กิจกรรมต่าง ๆ")
+          .setValue("activity"),
+        new StringSelectMenuOptionBuilder()
+          .setLabel("🎲 อะไรก็ได้")
+          .setDescription("ไม่มีธีม — match กับใครก็ได้เลย!")
+          .setValue("misc"),
+      )
+  );
+}
+
+/** หาคู่ในคิวตาม topic priority ของ userId
+ *  @returns index ใน queue หรือ -1 ถ้าไม่เจอ
+ */
+function findMatchByTopic(userId, forceWildcard = false) {
+  const myTopic   = userTopics.get(userId) ?? "misc";
+  const priorities = forceWildcard ? [null] : (TOPIC_MATCH_PRIORITY[myTopic] ?? [null]);
+
+  for (const wantTopic of priorities) {
+    const idx = queue.findIndex(id => {
+      if (id === userId) return false;
+      const last = recentMatches.get(`${userId}-${id}`);
+      if (last && Date.now() - last < 300000) return false;
+      if (wantTopic === null) return true; // wildcard
+      return (userTopics.get(id) ?? "misc") === wantTopic;
+    });
+    if (idx !== -1) return idx;
+  }
+  return -1;
+}
+
+/** ล้าง topic + expand timer ของ user */
+function clearTopicState(userId) {
+  userTopics.delete(userId);
+  const t = topicExpandTimers.get(userId);
+  if (t) { clearTimeout(t); topicExpandTimers.delete(userId); }
+}
+
+// ============================================================================
+// MINI-GAME ENGINE
+// ============================================================================
+
+/** สร้างโจทย์คณิตสุ่ม พร้อม 3 ตัวเลือก
+ *  @returns { question, correct, choices }
+ */
+function generateMathQuestion() {
+  const level = Math.random();
+  let a, b, op, correct;
+
+  if (level < 0.4) {
+    // ง่าย: บวก/ลบ 1-20
+    a  = Math.floor(Math.random() * 20) + 1;
+    b  = Math.floor(Math.random() * 20) + 1;
+    op = Math.random() < 0.5 ? "+" : "-";
+    correct = op === "+" ? a + b : a - b;
+  } else if (level < 0.75) {
+    // กลาง: คูณ/หาร ตัวเลขสวย
+    const pairs = [[2,3],[2,4],[2,5],[2,6],[3,4],[3,5],[3,6],[4,5],[4,6],[5,6],[6,7],[7,8],[8,9]];
+    [a, b] = pairs[Math.floor(Math.random() * pairs.length)];
+    op = Math.random() < 0.5 ? "×" : "÷";
+    if (op === "×") { correct = a * b; }
+    else            { correct = a; [a, b] = [a * b, b]; } // สลับให้หารลงตัว
+  } else {
+    // ยาก: สองขั้นตอน เช่น 12 × 3 - 4
+    a = Math.floor(Math.random() * 9) + 2;
+    b = Math.floor(Math.random() * 9) + 2;
+    const c  = Math.floor(Math.random() * 10) + 1;
+    const op2 = Math.random() < 0.5 ? "+" : "-";
+    op = `${a} × ${b} ${op2} ${c}`;
+    correct = op2 === "+" ? a * b + c : a * b - c;
+    // คืนค่าแบบพิเศษ
+    const wrong = generateWrongAnswers(correct);
+    return { question: `${op} = ?`, correct, choices: shuffle([correct, ...wrong]) };
+  }
+
+  const wrong = generateWrongAnswers(correct);
+  return { question: `${a} ${op} ${b} = ?`, correct, choices: shuffle([correct, ...wrong]) };
+}
+
+/** สร้างตัวเลือกผิด 2 ตัวที่สมเหตุสมผล ไม่ซ้ำ ไม่เท่า correct */
+function generateWrongAnswers(correct) {
+  const offsets = [1, 2, 3, 5, 10, -1, -2, -3, -5, -10];
+  const wrongs  = new Set();
+  const pool    = shuffle([...offsets]);
+  for (const d of pool) {
+    const w = correct + d;
+    if (w !== correct && !wrongs.has(w)) wrongs.add(w);
+    if (wrongs.size >= 2) break;
+  }
+  // fallback ถ้าวนแล้วไม่ครบ
+  let extra = correct + 7;
+  while (wrongs.size < 2) { wrongs.add(extra); extra++; }
+  return [...wrongs];
+}
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/** สร้าง embed + row ปุ่มของเกม */
+function buildGameMessage(userId) {
+  const { question, correct, choices } = generateMathQuestion();
+  const streak = gameStreak.get(userId) ?? 0;
+  const score  = gameScore.get(userId)  ?? 0;
+
+  const streakText = streak >= 3 ? ` 🔥 ${streak} ข้อติด!` : streak > 0 ? ` ✅ ${streak} ข้อติด` : "";
+  const embed = new EmbedBuilder()
+    .setColor("#D2B48C")
+    .setTitle(`🧮 ${question}`)
+    .setDescription(
+      `คะแนนรวม: **${score}** ข้อ${streakText}\n` +
+      `*(เล่นไปก่อนระหว่างรอนะคะ ☕)*`
+    )
+    .setFooter({ text: "กดเลือกคำตอบที่ถูกต้องค่ะ" });
+
+  // encode: btn_game:selectedAnswer:correctAnswer
+  const row = new ActionRowBuilder().addComponents(
+    ...choices.map(c =>
+      new ButtonBuilder()
+        .setCustomId(`${GAME_ANSWER_CUSTOM_ID}:${c}:${correct}`)
+        .setLabel(String(c))
+        .setStyle(ButtonStyle.Primary)
+    )
+  );
+
+  return { embeds: [embed], components: [row] };
+}
+
+/** ส่งเกมแรกให้ผู้ใช้ (ephemeral followUp) */
+async function startMiniGame(interaction, userId) {
+  gameStreak.set(userId, 0);
+  gameScore.set(userId,  0);
+  try {
+    await interaction.followUp({ ...buildGameMessage(userId), flags: 64 });
+  } catch (_) {}
+}
+
+// ============================================================================
+// HANDLER: GAME ANSWER
+// ============================================================================
+async function handleGameAnswer(interaction) {
+  if (isAlreadyHandled(interaction.id)) return;
+  markHandled(interaction.id);
+
+  const userId = interaction.user.id;
+
+  // ถ้า user ถูก match ไปแล้ว ให้ดิสเบิลปุ่มแล้วจบ
+  if (!queue.includes(userId)) {
+    try { await interaction.update({ components: [] }); } catch (_) {}
+    return;
+  }
+
+  const parts   = interaction.customId.split(":");
+  const chosen  = parseInt(parts[1], 10);
+  const correct = parseInt(parts[2], 10);
+  const isRight = chosen === correct;
+
+  // อัปเดต streak/score
+  const streak = gameStreak.get(userId) ?? 0;
+  const score  = gameScore.get(userId)  ?? 0;
+  const newStreak = isRight ? streak + 1 : 0;
+  const newScore  = isRight ? score  + 1 : score;
+  gameStreak.set(userId, newStreak);
+  gameScore.set(userId,  newScore);
+
+  const resultLine = isRight
+    ? (newStreak >= 5 ? "🔥 เก่งมากเลย!" : newStreak >= 3 ? "🎉 ถูกต้อง! ไฟกำลังลุก!" : "✅ ถูกต้องค่ะ!")
+    : `❌ ไม่ใช่นะคะ — คำตอบคือ **${correct}**`;
+
+  const streakText = newStreak >= 3 ? ` 🔥 ${newStreak} ข้อติด!` : newStreak > 0 ? ` ✅ ${newStreak} ข้อติด` : "";
+  const nextEmbed  = new EmbedBuilder()
+    .setColor(isRight ? "#7CFC00" : "#FF6B6B")
+    .setTitle(resultLine)
+    .setDescription(`คะแนนรวม: **${newScore}** ข้อ${streakText}\n\nโจทย์ถัดไป...`);
+
+  try { await interaction.update({ embeds: [nextEmbed], components: [] }); } catch (_) { return; }
+
+  // หน่วง 800ms แล้วส่งโจทย์ใหม่
+  setTimeout(async () => {
+    if (!queue.includes(userId)) return; // match ไปแล้วระหว่างรอ
+    try { await interaction.followUp({ ...buildGameMessage(userId), flags: 64 }); } catch (_) {}
+  }, 800);
+}
+
+
 async function updateLobbyEmbed() {
   if (!lobbyEmbedMessage) return;
   try {
@@ -684,10 +945,9 @@ async function logEvent(event, data = {}) {
 }
 
 // ============================================================================
-// HANDLER: JOIN QUEUE (ข้อ 3 — live searching UI)
+// HANDLER: JOIN QUEUE — Step 1: แสดง SelectMenu เลือกหัวข้อ
 // ============================================================================
 async function handleJoinQueue(interaction) {
-  // dedup guard — กัน Discord retry / double-tap ส่ง ping ซ้ำ
   if (isAlreadyHandled(interaction.id)) return;
   markHandled(interaction.id);
 
@@ -704,7 +964,6 @@ async function handleJoinQueue(interaction) {
   if (isUserBusy(userId)) return await interaction.editReply("ตอนนี้คุณอยู่ในคิวหรือกำลังนั่งโต๊ะอยู่แล้วนะคะ ☕");
   if (checkSpamRateLimit(userId)) return await interaction.editReply("คุณทำรายการบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่ค่ะ ⏳");
 
-  // ── เช็คว่าเปิด DM ไว้หรือยัง ───────────────────────────────────────────
   const dmOpen = await checkDmOpen(interaction.user);
   if (!dmOpen) {
     return await interaction.editReply(
@@ -715,6 +974,7 @@ async function handleJoinQueue(interaction) {
       "*หลังเปิดแล้วกดปุ่ม ☕ ค้นหาโต๊ะลับ ใหม่อีกครั้งได้เลยค่ะ*"
     );
   }
+
   const presence = interaction.guild?.members?.cache.get(userId)?.presence;
   const status   = presence?.status ?? "offline";
   if (status === "dnd") {
@@ -725,35 +985,63 @@ async function handleJoinQueue(interaction) {
     );
   }
 
-  const partnerIndex = queue.findIndex(id => {
-    if (id === userId) return false;
-    const last = recentMatches.get(`${userId}-${id}`);
-    return !(last && Date.now() - last < 300000);
+  // ── แสดง SelectMenu ให้เลือกหัวข้อก่อนเข้าคิว ────────────────────────────
+  await interaction.editReply({
+    content: "☕ **วันนี้คุณอยากคุยเรื่องอะไรคะ?**\nเลือกหัวข้อเพื่อให้ระบบจับคู่ได้ตรงใจมากขึ้นนะคะ ✨",
+    components: [buildTopicSelectMenu()],
   });
+
+  // เก็บ interaction ไว้รับ SelectMenu ใน handleTopicSelect
+  userSearchMsgToken.set(userId, interaction);
+}
+
+// ============================================================================
+// HANDLER: TOPIC SELECT — Step 2: รับหัวข้อแล้วเข้าคิว
+// ============================================================================
+async function handleTopicSelect(interaction) {
+  if (isAlreadyHandled(interaction.id)) return;
+  markHandled(interaction.id);
+
+  const userId = interaction.user.id;
+  const topic  = interaction.values[0]; // เช่น "chat", "consult", ...
+
+  try { await interaction.deferUpdate(); } catch (e) { return; }
+
+  if (isUserBusy(userId)) {
+    try { await interaction.editReply({ content: "ตอนนี้คุณอยู่ในคิวหรือกำลังนั่งโต๊ะอยู่แล้วนะคะ ☕", components: [] }); } catch (_) {}
+    return;
+  }
+
+  userTopics.set(userId, topic);
+
+  // ── พยายามจับคู่ทันที (ตาม priority) ────────────────────────────────────
+  const partnerIndex = findMatchByTopic(userId, false);
 
   if (partnerIndex !== -1) {
     const [waitingUserId] = queue.splice(partnerIndex, 1);
-    // หยุด search interval + queue timeout ของคนที่รออยู่
     stopSearchInterval(waitingUserId);
     stopQueueDmTimer(waitingUserId);
+    clearTopicState(waitingUserId);
     queueJoinTimes.delete(waitingUserId);
     const wTimer = queueTimeoutTimers.get(waitingUserId);
     if (wTimer) { clearTimeout(wTimer); queueTimeoutTimers.delete(waitingUserId); }
-    // clear ของตัวเองด้วย (กรณีไม่ได้รออยู่ในคิว แต่ก็ clear ไว้ safe)
     queueJoinTimes.delete(userId);
     const uTimer = queueTimeoutTimers.get(userId);
     if (uTimer) { clearTimeout(uTimer); queueTimeoutTimers.delete(userId); }
     stopQueueDmTimer(userId);
+    clearTopicState(userId);
+
+    // ล้าง game state
+    gameStreak.delete(waitingUserId); gameScore.delete(waitingUserId);
+    gameStreak.delete(userId);        gameScore.delete(userId);
+
     try {
       const channel = await createSecretChatChannel(interaction.guild, waitingUserId, userId);
-      await interaction.editReply(`จับคู่สำเร็จแล้วค่ะ ✨ ไปที่ห้อง <#${channel.id}> ได้เลย ขอให้สนุกนะคะ`);
-      // แจ้งคนที่รืออยู่ผ่าน followUp ถ้ายังมี interaction token
+      await interaction.editReply({ content: `จับคู่สำเร็จแล้วค่ะ ✨ ไปที่ห้อง <#${channel.id}> ได้เลย ขอให้สนุกนะคะ`, components: [] });
       const waitingInteraction = userSearchMsgToken.get(waitingUserId);
       if (waitingInteraction) {
-        try { await waitingInteraction.editReply(`จับคู่สำเร็จแล้วค่ะ ✨ ไปที่ห้อง <#${channel.id}> ได้เลย ขอให้สนุกนะคะ`); }
-        catch (_) {}
+        try { await waitingInteraction.editReply({ content: `จับคู่สำเร็จแล้วค่ะ ✨ ไปที่ห้อง <#${channel.id}> ได้เลย ขอให้สนุกนะคะ`, components: [] }); } catch (_) {}
       }
-      // ── ส่ง DM แจ้งเตือนทั้ง 2 คน ─────────────────────────────────────
       const guildId = interaction.guildId;
       await Promise.allSettled([
         sendMatchDm(interaction.client, waitingUserId, channel.id, guildId),
@@ -763,91 +1051,136 @@ async function handleJoinQueue(interaction) {
       console.error("[secret-chat] create room error:", err);
       activeUsers.delete(waitingUserId);
       activeUsers.delete(userId);
-      await interaction.editReply("เกิดปัญหาระหว่างสร้างโต๊ะลับค่ะ ลองใหม่อีกครั้งนะคะ");
+      try { await interaction.editReply({ content: "เกิดปัญหาระหว่างสร้างโต๊ะลับค่ะ ลองใหม่อีกครั้งนะคะ", components: [] }); } catch (_) {}
     }
-  } else {
-    queue.push(userId);
-    queueJoinTimes.set(userId, Date.now());
-    console.log(`[secret-chat] ${userId} joined queue. Total: ${queue.length}`);
-
-    // ── Auto-kick + DM หลัง 5 นาที ถ้ายังไม่เจอแมตช์ ────────────────────
-    const dmKickTimer = setTimeout(async () => {
-      const stillInQueue = queue.indexOf(userId);
-      if (stillInQueue === -1) return; // ถูก match ไปแล้ว
-      queue.splice(stillInQueue, 1);
-      queueJoinTimes.delete(userId);
-      queueDmTimers.delete(userId);
-      stopSearchInterval(userId);
-      // ยกเลิก 15-min timer ด้วย เพราะ kick แล้ว
-      const qTimer15 = queueTimeoutTimers.get(userId);
-      if (qTimer15) { clearTimeout(qTimer15); queueTimeoutTimers.delete(userId); }
-      activeUsers.delete(userId);
-      await updateLobbyEmbed();
-      // ส่ง DM แจ้งสาเหตุ
-      await sendQueueTimeoutDm(interaction.client, userId);
-      // แก้ข้อความ searching ให้รู้ว่าถูก kick แล้ว
-      try {
-        await interaction.editReply({
-          content: "⏰ **ไม่พบคู่สนทนาภายใน 5 นาทีค่ะ**\nระบบนำคุณออกจากคิวอัตโนมัติแล้ว กรุณาตรวจสอบ DM จากบอทสำหรับรายละเอียดเพิ่มเติมค่ะ ☕",
-          components: []
-        });
-      } catch (_) {}
-    }, QUEUE_DM_KICK_MS);
-    queueDmTimers.set(userId, dmKickTimer);
-
-    // ── Auto-kick หลัง 15 นาที ───────────────────────────────────────────
-    const queueTimer = setTimeout(async () => {
-      const stillInQueue = queue.indexOf(userId);
-      if (stillInQueue === -1) return; // ถูก match ไปแล้ว
-      queue.splice(stillInQueue, 1);
-      queueJoinTimes.delete(userId);
-      queueTimeoutTimers.delete(userId);
-      stopSearchInterval(userId);
-      activeUsers.delete(userId);
-      await updateLobbyEmbed();
-      try {
-        await interaction.editReply({
-          content: "⏰ **หมดเวลารอคิวแล้วค่ะ (15 นาที)**\nระบบนำคุณออกจากคิวอัตโนมัติแล้ว\nกดเข้าคิวใหม่ได้เลยถ้ายังอยากคุยนะคะ ☕",
-          components: []
-        });
-      } catch (_) {}
-    }, QUEUE_MAX_WAIT_MS);
-    queueTimeoutTimers.set(userId, queueTimer);
-
-    // แจ้งเตือน ping ยศ (ข้อ 1)
-    await sendQueuePingNotification(interaction.client);
-
-    // อัปเดต lobby embed
-    await updateLobbyEmbed();
-
-    // แสดงปุ่มยกเลิกคิวพร้อมข้อความค้นหา
-    const cancelRow = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId(CANCEL_QUEUE_CUSTOM_ID)
-        .setLabel("❌ ยกเลิกคิว")
-        .setStyle(ButtonStyle.Secondary)
-    );
-
-    await interaction.editReply({ content: SEARCHING_MESSAGES[0], components: [cancelRow] });
-
-    // เก็บ interaction ไว้ edit ได้ในภายหลัง
-    userSearchMsgToken.set(userId, interaction);
-
-    // เริ่ม interval หมุนข้อความ (ข้อ 3)
-    let msgIndex = 1;
-    const iv = setInterval(async () => {
-      if (!queue.includes(userId)) { stopSearchInterval(userId); return; }
-      try {
-        await interaction.editReply({
-          content: SEARCHING_MESSAGES[msgIndex % SEARCHING_MESSAGES.length],
-          components: [cancelRow]
-        });
-        msgIndex++;
-      } catch (_) { stopSearchInterval(userId); }
-    }, SEARCH_CYCLE_MS);
-    searchIntervals.set(userId, iv);
+    return;
   }
+
+  // ── ไม่เจอคู่ทันที → เข้าคิว ─────────────────────────────────────────────
+  queue.push(userId);
+  queueJoinTimes.set(userId, Date.now());
+  console.log(`[secret-chat] ${userId} joined queue (topic: ${topic}). Total: ${queue.length}`);
+
+  // 60 วิ → ขยาย wildcard อัตโนมัติ
+  const expandTimer = setTimeout(async () => {
+    topicExpandTimers.delete(userId);
+    if (!queue.includes(userId)) return;
+    const expandIdx = findMatchByTopic(userId, true);
+    if (expandIdx === -1) return; // ยังไม่มีใครในคิว รอต่อ
+    const [waitingUserId] = queue.splice(expandIdx, 1);
+    const myIdx = queue.indexOf(userId);
+    if (myIdx !== -1) queue.splice(myIdx, 1);
+    stopSearchInterval(waitingUserId);
+    stopQueueDmTimer(waitingUserId);
+    clearTopicState(waitingUserId);
+    clearTopicState(userId);
+    queueJoinTimes.delete(waitingUserId);
+    queueJoinTimes.delete(userId);
+    [waitingUserId, userId].forEach(id => {
+      const t = queueTimeoutTimers.get(id);
+      if (t) { clearTimeout(t); queueTimeoutTimers.delete(id); }
+      stopQueueDmTimer(id);
+      gameStreak.delete(id); gameScore.delete(id);
+    });
+    try {
+      const channel = await createSecretChatChannel(interaction.guild, waitingUserId, userId);
+      const waitInt = userSearchMsgToken.get(waitingUserId);
+      if (waitInt) {
+        try { await waitInt.editReply({ content: `จับคู่สำเร็จแล้วค่ะ ✨ ไปที่ห้อง <#${channel.id}> ได้เลย ขอให้สนุกนะคะ`, components: [] }); } catch (_) {}
+      }
+      try { await interaction.editReply({ content: `จับคู่สำเร็จแล้วค่ะ ✨ ไปที่ห้อง <#${channel.id}> ได้เลย ขอให้สนุกนะคะ`, components: [] }); } catch (_) {}
+      await Promise.allSettled([
+        sendMatchDm(interaction.client, waitingUserId, channel.id, interaction.guildId),
+        sendMatchDm(interaction.client, userId,        channel.id, interaction.guildId),
+      ]);
+    } catch (err) {
+      console.error("[secret-chat] expand match create room error:", err);
+      activeUsers.delete(waitingUserId);
+      activeUsers.delete(userId);
+    }
+  }, TOPIC_EXPAND_MS);
+  topicExpandTimers.set(userId, expandTimer);
+
+  // ── DM kick หลัง 5 นาที ──────────────────────────────────────────────────
+  const dmKickTimer = setTimeout(async () => {
+    const stillInQueue = queue.indexOf(userId);
+    if (stillInQueue === -1) return;
+    queue.splice(stillInQueue, 1);
+    queueJoinTimes.delete(userId);
+    queueDmTimers.delete(userId);
+    stopSearchInterval(userId);
+    clearTopicState(userId);
+    gameStreak.delete(userId); gameScore.delete(userId);
+    const qTimer15 = queueTimeoutTimers.get(userId);
+    if (qTimer15) { clearTimeout(qTimer15); queueTimeoutTimers.delete(userId); }
+    activeUsers.delete(userId);
+    await updateLobbyEmbed();
+    await sendQueueTimeoutDm(interaction.client, userId);
+    try {
+      await interaction.editReply({ content: "⏰ **ไม่พบคู่สนทนาภายใน 5 นาทีค่ะ**\nระบบนำคุณออกจากคิวอัตโนมัติแล้ว กรุณาตรวจสอบ DM จากบอทสำหรับรายละเอียดเพิ่มเติมค่ะ ☕", components: [] });
+    } catch (_) {}
+  }, QUEUE_DM_KICK_MS);
+  queueDmTimers.set(userId, dmKickTimer);
+
+  // ── kick หลัง 15 นาที ────────────────────────────────────────────────────
+  const queueTimer = setTimeout(async () => {
+    const stillInQueue = queue.indexOf(userId);
+    if (stillInQueue === -1) return;
+    queue.splice(stillInQueue, 1);
+    queueJoinTimes.delete(userId);
+    queueTimeoutTimers.delete(userId);
+    stopSearchInterval(userId);
+    clearTopicState(userId);
+    gameStreak.delete(userId); gameScore.delete(userId);
+    activeUsers.delete(userId);
+    await updateLobbyEmbed();
+    try {
+      await interaction.editReply({ content: "⏰ **หมดเวลารอคิวแล้วค่ะ (15 นาที)**\nระบบนำคุณออกจากคิวอัตโนมัติแล้ว\nกดเข้าคิวใหม่ได้เลยถ้ายังอยากคุยนะคะ ☕", components: [] });
+    } catch (_) {}
+  }, QUEUE_MAX_WAIT_MS);
+  queueTimeoutTimers.set(userId, queueTimer);
+
+  await sendQueuePingNotification(interaction.client);
+  await updateLobbyEmbed();
+
+  const cancelRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(CANCEL_QUEUE_CUSTOM_ID)
+      .setLabel("❌ ยกเลิกคิว")
+      .setStyle(ButtonStyle.Secondary)
+  );
+
+  const topicLabel = {
+    chat: "💬 พิมพ์แชทคุย", consult: "🫂 หมีขอคำปรึกษา", listen: "🫶 หมีชอบรับฟัง",
+    student: "🎓 สังคมวัยเรียน", worker: "💼 สังคมวัยทำงาน",
+    activity: "🎮 หมีชอบทำกิจกรรม", misc: "🎲 อะไรก็ได้",
+  }[topic] ?? topic;
+
+  await interaction.editReply({
+    content: `${SEARCHING_MESSAGES[0]}\n\n🏷️ หัวข้อที่เลือก: **${topicLabel}**\n*(ระบบจะขยายการค้นหาอัตโนมัติใน 60 วินาที)*`,
+    components: [cancelRow],
+  });
+
+  userSearchMsgToken.set(userId, interaction);
+
+  // เริ่มเกม
+  await startMiniGame(interaction, userId);
+
+  // หมุนข้อความค้นหา
+  let msgIndex = 1;
+  const iv = setInterval(async () => {
+    if (!queue.includes(userId)) { stopSearchInterval(userId); return; }
+    try {
+      await interaction.editReply({
+        content: `${SEARCHING_MESSAGES[msgIndex % SEARCHING_MESSAGES.length]}\n\n🏷️ หัวข้อที่เลือก: **${topicLabel}**\n*(ระบบจะขยายการค้นหาอัตโนมัติใน 60 วินาที)*`,
+        components: [cancelRow],
+      });
+      msgIndex++;
+    } catch (_) { stopSearchInterval(userId); }
+  }, SEARCH_CYCLE_MS);
+  searchIntervals.set(userId, iv);
 }
+
 
 // ============================================================================
 // HANDLER: CANCEL QUEUE
@@ -866,6 +1199,9 @@ async function handleCancelQueue(interaction) {
   queue.splice(idx, 1);
   stopSearchInterval(userId);
   stopQueueDmTimer(userId);
+  clearTopicState(userId);
+  gameStreak.delete(userId);
+  gameScore.delete(userId);
   queueJoinTimes.delete(userId);
   const qTimer = queueTimeoutTimers.get(userId);
   if (qTimer) { clearTimeout(qTimer); queueTimeoutTimers.delete(userId); }
@@ -1264,6 +1600,12 @@ function setupSecretChat(client) {
   });
 
   client.on(Events.InteractionCreate, async (interaction) => {
+    // ── SelectMenu ────────────────────────────────────────────────────────────
+    if (interaction.isStringSelectMenu()) {
+      if (interaction.customId === TOPIC_SELECT_CUSTOM_ID) await handleTopicSelect(interaction);
+      return;
+    }
+
     if (!interaction.isButton()) return;
 
     if      (interaction.customId === JOIN_QUEUE_CUSTOM_ID)                           await handleJoinQueue(interaction);
@@ -1274,6 +1616,7 @@ function setupSecretChat(client) {
     else if (interaction.customId.startsWith(CLAIM_CASE_CUSTOM_ID + ":"))             await handleClaimCase(interaction);
     else if (interaction.customId.startsWith(CONFIRM_LEAVE_CUSTOM_ID + ":"))          await handleConfirmLeave(interaction);
     else if (interaction.customId.startsWith(RATING_CUSTOM_ID + ":"))                 await handleRating(interaction);
+    else if (interaction.customId.startsWith(GAME_ANSWER_CUSTOM_ID + ":"))            await handleGameAnswer(interaction);
   });
 
   client.on(Events.ChannelDelete, async (channel) => {

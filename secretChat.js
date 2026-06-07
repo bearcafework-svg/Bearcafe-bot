@@ -113,13 +113,12 @@ const queueDmTimers       = new Map();
 const idleKickTimers      = new Map();
 const userSearchMsgToken  = new Map();
 const ratingTimeoutTimers = new Map();
-const ratingSubmitted     = new Map(); // channelId -> Set<userId>
-const ratingMembers       = new Map(); // channelId -> [userAId, userBId]
-const ratingMsgRefs       = new Map(); // channelId -> Message (ใช้ edit ปุ่ม rating)
+const ratingSubmitted     = new Map(); 
+const ratingMembers       = new Map(); 
+const ratingMsgRefs       = new Map(); 
 const userTopics          = new Map();
 const topicExpandTimers   = new Map();
-// เก็บ message id ของ "1 นาที warning" เพื่อลบก่อนส่ง extend confirm
-const warningMessages     = new Map(); // channelId -> Message
+const warningMessages     = new Map(); 
 
 let lobbyEmbedMessage = null;
 let lastPingTime      = 0;
@@ -162,7 +161,6 @@ function buildAllowedPermissions() {
   ];
 }
 
-/** Component v2 — ส่วนหัวข้อแสดงผลในห้อง (ต้อนรับ) */
 function buildV2Welcome(userAId, userBId, endTimeUnix) {
   return {
     flags: 32768,
@@ -186,7 +184,6 @@ function buildV2Welcome(userAId, userBId, endTimeUnix) {
   };
 }
 
-/** Component v2 — เหลือ 1 นาที (มีปุ่มต่อเวลา) */
 function buildV2Warning1Min(userAId, userBId, endTs, canExtend) {
   const buttons = [
     { style: 4, type: 2, custom_id: LEAVE_TABLE_CUSTOM_ID, label: "ออกจากโต๊ะ" },
@@ -216,7 +213,6 @@ function buildV2Warning1Min(userAId, userBId, endTs, canExtend) {
   };
 }
 
-/** Component v2 — เหลือ 30 วินาที */
 function buildV2Warning30Sec(userAId, userBId, endTs) {
   return {
     flags: 32768,
@@ -235,7 +231,6 @@ function buildV2Warning30Sec(userAId, userBId, endTs) {
   };
 }
 
-/** Component v2 — rating prompt */
 function buildV2RatingPrompt(userAId, userBId) {
   return {
     flags: 32768,
@@ -259,13 +254,11 @@ function buildV2RatingPrompt(userAId, userBId) {
   };
 }
 
-/** แทนที่ CHANNELID placeholder ใน rating prompt */
 function injectChannelId(v2obj, channelId) {
   const str = JSON.stringify(v2obj).replace(/CHANNELID/g, channelId);
   return JSON.parse(str);
 }
 
-/** Component v2 — extend confirm */
 function buildV2ExtendConfirm(userId, newEndUnix, remainText) {
   return {
     flags: 32768,
@@ -285,7 +278,6 @@ function buildV2ExtendConfirm(userId, newEndUnix, remainText) {
   };
 }
 
-/** Component v2 — Lobby */
 function buildV2Lobby(total, inQueue) {
   return {
     flags: 32768,
@@ -311,7 +303,6 @@ function buildV2Lobby(total, inQueue) {
   };
 }
 
-/** Component v2 — SelectMenu เลือกหัวข้อ */
 function buildV2TopicSelect() {
   return {
     flags: 32768,
@@ -343,7 +334,6 @@ function buildV2TopicSelect() {
   };
 }
 
-/** Component v2 — กำลังค้นหา */
 function buildV2Searching(topicLabel, msgText) {
   return {
     flags: 32768,
@@ -366,7 +356,6 @@ function buildV2Searching(topicLabel, msgText) {
   };
 }
 
-/** Component v2 — จับคู่สำเร็จ (ephemeral + DM) */
 function buildV2MatchSuccess(channelId, guildId) {
   return {
     flags: 32768,
@@ -388,7 +377,6 @@ function buildV2MatchSuccess(channelId, guildId) {
   };
 }
 
-/** Component v2 — ไม่พบคู่สนทนา (ephemeral) */
 function buildV2NoMatch() {
   return {
     flags: 32768,
@@ -406,7 +394,6 @@ function buildV2NoMatch() {
   };
 }
 
-/** Component v2 — Notify ห้องค้นหา */
 function buildV2Notify(roleIds, msg) {
   const mention = roleIds.map(id => `<@&${id}>`).join(" ");
   return {
@@ -429,7 +416,6 @@ function buildV2Notify(roleIds, msg) {
   };
 }
 
-/** Component v2 — DM ไม่พบคู่ */
 function buildV2DmNoMatch() {
   return {
     flags: 32768,
@@ -510,9 +496,11 @@ function checkSpamRateLimit(userId) {
   return recent.length > 3;
 }
 
-/** ตรวจว่า userId ทั้งสองอยู่ใน BLOCKED_PAIRS และห้ามเจอกัน */
+// [FIX] เพิ่มการครอบ String() และ .trim() ป้องกันปัญหาช่องว่างซ่อนตัว
 function isBlockedPair(userAId, userBId) {
-  return BLOCKED_PAIRS.has(userAId) && BLOCKED_PAIRS.has(userBId);
+  const a = String(userAId).trim();
+  const b = String(userBId).trim();
+  return BLOCKED_PAIRS.has(a) && BLOCKED_PAIRS.has(b);
 }
 
 // ============================================================================
@@ -687,7 +675,6 @@ async function endSessionWithRating(channelId, userAId, userBId, channel, endedB
     metadata: { duration_seconds: Math.round(durationMs / 1000), ended_by: endedBy }
   });
 
-  // AFK → ปิดห้องตรงโดยไม่ส่ง rating
   if (endedBy === "idle") {
     try { await channel.delete("Idle kick — no rating"); } catch (_) {}
     return;
@@ -807,7 +794,6 @@ async function createSecretChatChannel(guild, userAId, userBId) {
   sessionEndTimes.set(channel.id, endTime);
   sessionExtendCount.set(channel.id, 0);
 
-  // ส่งข้อความต้อนรับ (Component v2 ไม่มีปุ่มต่อเวลาตอนแรก)
   const sentMsg = await channel.send(buildV2Welcome(userAId, userBId, endTimeUnix));
   tableActionMessages.set(channel.id, sentMsg);
   reportedByUsers.set(channel.id, new Set());
@@ -815,7 +801,6 @@ async function createSecretChatChannel(guild, userAId, userBId) {
   setupSessionTimers(channel.id, userAId, userBId, channel);
   sessionStartTimes.set(channel.id, Date.now());
 
-  // Idle kick
   const scheduleIdleKick = () => {
     const existing = idleKickTimers.get(channel.id);
     if (existing) clearTimeout(existing);
@@ -823,6 +808,10 @@ async function createSecretChatChannel(guild, userAId, userBId) {
       if (!tableMembers.has(channel.id)) return;
       idleKickTimers.delete(channel.id);
       clearSessionTimers(channel.id);
+      
+      // [FIX] สั่งหยุดฟัง Event ทันทีเพื่อป้องกัน Memory Leak
+      channel.client.off("messageCreate", idleResetListener);
+      
       await endSessionWithRating(channel.id, userAId, userBId, channel, "idle");
     }, IDLE_KICK_MS);
     idleKickTimers.set(channel.id, t);
@@ -900,7 +889,6 @@ async function handleJoinQueue(interaction) {
     });
   }
 
-  // แสดง SelectMenu Component v2
   await interaction.editReply(buildV2TopicSelect());
   userSearchMsgToken.set(userId, interaction);
 }
@@ -942,6 +930,11 @@ async function handleTopicSelect(interaction) {
       activeUsers.delete(waitingUserId);
       activeUsers.delete(newUserId);
       try { await newInteraction.editReply({ content: ERR_MATCH_FAILED, components: [] }); } catch (_) {}
+      
+      // [FIX] เพิ่มการแจ้งเตือนกลับไปยังคนที่รออยู่ในคิว ไม่ให้ค้างเป็นผี
+      if (waitInt) {
+        try { await waitInt.editReply({ content: ERR_MATCH_FAILED, components: [] }); } catch (_) {}
+      }
     }
   }
 
@@ -952,12 +945,10 @@ async function handleTopicSelect(interaction) {
     return;
   }
 
-  // เข้าคิว
   queue.push(userId);
   queueJoinTimes.set(userId, Date.now());
   console.log(`[secret-chat] ${userId} joined queue (topic: ${topic}). Total: ${queue.length}`);
 
-  // 60 วิ → wildcard fallback
   let expandFired = false;
   const expandTimer = setTimeout(async () => {
     if (expandFired || !queue.includes(userId)) return;
@@ -974,7 +965,6 @@ async function handleTopicSelect(interaction) {
   }, TOPIC_EXPAND_MS);
   topicExpandTimers.set(userId, expandTimer);
 
-  // 5 นาที → kick + DM
   const dmKickTimer = setTimeout(async () => {
     if (expandFired) return;
     const stillInQueue = queue.indexOf(userId);
@@ -1153,7 +1143,6 @@ async function handleExtendTime(interaction) {
   const [uA, uB] = Array.from(members);
   setupSessionTimers(channelId, uA, uB, interaction.channel);
 
-  // ลบข้อความ "1 นาที warning" ก่อนหน้า (ถ้ามี)
   const prevWarn = warningMessages.get(channelId);
   if (prevWarn) {
     try { await prevWarn.delete(); } catch (_) {}
@@ -1191,7 +1180,6 @@ async function handleReportUser(interaction) {
 
   await safeReply(interaction, { content: "⚠️ กำลังติดต่อทีมงาน รอสักครู่นะคะ..." });
 
-  // Disable ปุ่มในห้อง
   try {
     const actionMsg = tableActionMessages.get(channelId);
     if (actionMsg) {
@@ -1203,7 +1191,6 @@ async function handleReportUser(interaction) {
     }
   } catch (e) { console.error("[secret-chat] disable report button:", e); }
 
-  // Alert staff (Component v2)
   try {
     const staffCh = await interaction.client.channels.fetch(STAFF_ALERT_CHANNEL_ID);
     if (!staffCh) return;
@@ -1224,6 +1211,17 @@ async function handleReportUser(interaction) {
 
     await staffCh.send({ content: `<@&1144701361448038512> พบการแจ้งปัญหาที่โซนสุ่มแชทคุย`, embeds: [embed], components: [claimRow] });
     await logEvent("report_sent", { channelId, userId: reporterId });
+
+    // [FIX] ระบบจับเวลาปิดห้องฉุกเฉิน: หากผ่านไป 10 นาทีแล้วยังไม่มีแอดมินกดรับเคส ให้ลบห้องทิ้งทันที
+    setTimeout(async () => {
+      // ตรวจสอบว่าห้องยังอยู่และยังไม่ถูกกดรับเคส
+      if (tableMembers.has(channelId) && !claimedReports.has(channelId)) {
+        const currentMembers = tableMembers.get(channelId);
+        const [uA, uB] = Array.from(currentMembers);
+        await cleanupSession(channelId, uA, uB, interaction.channel, "report_timeout");
+      }
+    }, 10 * 60 * 1000); // 10 นาที
+
   } catch (err) { console.error("[secret-chat] handleReportUser:", err); }
 }
 
@@ -1304,7 +1302,6 @@ async function handleRating(interaction) {
         : `🚪 ขอบคุณทั้งคู่ค่ะ กำลังปิดห้องแล้วนะคะ...`)
   });
 
-  // อัปเดต rating message ในห้อง — สร้าง payload ใหม่พร้อม disable ปุ่มถ้าครบแล้ว
   try {
     const membersPair  = ratingMembers.get(channelId) ?? ["", ""];
     const [uA, uB]     = membersPair;
@@ -1313,7 +1310,6 @@ async function handleRating(interaction) {
 
     let updatedPayload = injectChannelId(buildV2RatingPrompt(uA, uB), channelId);
 
-    // disable ปุ่มทั้งหมดเมื่อทั้งคู่กดแล้ว
     if (isDone) {
       const inner = updatedPayload.components?.[0]?.components;
       if (inner) {
@@ -1324,7 +1320,6 @@ async function handleRating(interaction) {
       }
     }
 
-    // v2 message ไม่มี components cache แบบ legacy — ดึง message จาก ratingMsgRef แทน
     const ratingMsgRef = ratingMsgRefs.get(channelId);
     if (ratingMsgRef) {
       try { await ratingMsgRef.edit(updatedPayload); } catch (_) {}
@@ -1359,7 +1354,6 @@ function setupSecretChat(client) {
     await runCrashRecovery(client);
   });
 
-  // b!reset-match — สร้าง/รีเซ็ต lobby (Component v2)
   client.on(Events.MessageCreate, async (message) => {
     if (message.author.bot || !message.guild) return;
     if (message.content.trim() !== "b!reset-match") return;

@@ -141,6 +141,7 @@ const topicExpandTimers   = new Map(); // userId -> timeoutId (60วิ fallback
 // ── Mini-game state ───────────────────────────────────────────────────────────
 const gameStreak          = new Map(); // userId -> streak count
 const gameScore           = new Map(); // userId -> total correct
+const userGameInteraction = new Map(); // userId -> interaction ของ followUp เกม (ใช้ editReply)
 
 // Lobby embed tracking (ข้อ 4)
 let lobbyEmbedMessage = null; // message object ของ embed หน้า lobby
@@ -392,6 +393,7 @@ function clearTopicState(userId) {
   if (t) { clearTimeout(t); topicExpandTimers.delete(userId); }
   gameStreak.delete(userId);
   gameScore.delete(userId);
+  userGameInteraction.delete(userId);
 }
 
 // ============================================================================
@@ -489,11 +491,16 @@ function buildGameMessage(userId) {
   return { embeds: [embed], components: [row] };
 }
 
-/** ส่งเกมแรกให้ผู้ใช้ผ่าน followUp (ephemeral) — message จะถูก edit ใน handleGameAnswer */
+/** ส่งเกมแรกให้ผู้ใช้ผ่าน followUp (ephemeral) — เก็บ interaction ไว้ editReply โจทย์ถัดไป */
 async function startMiniGame(interaction, userId) {
   gameStreak.set(userId, 0);
   gameScore.set(userId,  0);
   try {
+    // followUp คืน message ได้ แต่เราต้องการ interaction ของปุ่ม
+    // วิธีที่ถูกต้องสำหรับ ephemeral: เก็บ parent interaction ไว้ edit ผ่าน followUp
+    // ดังนั้นเก็บ parent interaction (queue interaction) แยกไว้ใน userGameInteraction
+    // แล้วใช้ interaction.followUp ครั้งเดียว — โจทย์ถัดไปใช้ gameInteraction.editReply
+    userGameInteraction.set(userId, interaction);
     await interaction.followUp({ ...buildGameMessage(userId), flags: 64 });
   } catch (_) {}
 }
@@ -507,7 +514,7 @@ async function handleGameAnswer(interaction) {
 
   const userId = interaction.user.id;
 
-  // ถ้า user ถูก match ไปแล้ว → disable ปุ่มแล้วจบเลย ไม่ส่งโจทย์ใหม่
+  // ถ้า user ถูก match ไปแล้ว → ล้างปุ่มแล้วจบ
   if (!queue.includes(userId)) {
     try {
       await interaction.update({
@@ -540,7 +547,7 @@ async function handleGameAnswer(interaction) {
     : `❌ ไม่ใช่นะคะ — คำตอบคือ **${correct}**`;
   const streakText = newStreak >= 3 ? ` 🔥 ${newStreak} ข้อติด!` : newStreak > 0 ? ` ✅ ${newStreak} ข้อติด` : "";
 
-  // แสดงผลลัพธ์ใน message เดิม (update = แก้ไข message ที่มีปุ่มที่ถูกกด)
+  // Step 1: update ปุ่มที่กด → แสดงผลลัพธ์ทันที
   const resultEmbed = new EmbedBuilder()
     .setColor(isRight ? "#7CFC00" : "#FF6B6B")
     .setTitle(resultLine)
@@ -549,10 +556,12 @@ async function handleGameAnswer(interaction) {
   try { await interaction.update({ embeds: [resultEmbed], components: [] }); }
   catch (_) { return; }
 
-  // หน่วง 800ms แล้ว edit message เดิมด้วยโจทย์ใหม่ — ไม่มี followUp ใหม่เด็ดขาด
+  // Step 2: หน่วง 800ms แล้ว editReply ผ่าน parent interaction — แก้ใน message เดิม ไม่ส่งใหม่
   setTimeout(async () => {
-    if (!queue.includes(userId)) return; // match ไปแล้วระหว่างรอ
-    try { await interaction.message.edit({ ...buildGameMessage(userId) }); } catch (_) {}
+    if (!queue.includes(userId)) return;
+    const gameInteraction = userGameInteraction.get(userId);
+    if (!gameInteraction) return;
+    try { await gameInteraction.editReply({ ...buildGameMessage(userId) }); } catch (_) {}
   }, 800);
 }
 

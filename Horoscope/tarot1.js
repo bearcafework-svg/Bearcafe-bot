@@ -28,7 +28,7 @@ async function getUserRow(supabase, userId) {
   return data ?? { points: 0, tarot_point: 0 };
 }
 
-// ─── Helper: upsert แต้ม (รองรับกรณีที่ยังไม่มี row) ─────────────────────────
+// ─── Helper: upsert แต้ม ─────────────────────────────────────────────────────
 async function addPoints(supabase, userId, pointsDelta, tarotPointDelta = 0) {
   const row = await getUserRow(supabase, userId);
   const newPoints     = (row.points      ?? 0) + pointsDelta;
@@ -64,8 +64,9 @@ function pointIconStr() {
   return pi.animated ? `<a:${pi.name}:${pi.id}>` : `<:${pi.name}:${pi.id}>`;
 }
 
-// ─── Component: Loading ───────────────────────────────────────────────────────
-function buildLoadingComponent() {
+// ─── Component v2 payload: Loading ───────────────────────────────────────────
+// ส่งตรงๆ เป็น { flags, components } ไม่ wrap ใน data
+function buildLoadingPayload() {
   return {
     flags: 32768,
     components: [{
@@ -85,8 +86,8 @@ function buildLoadingComponent() {
   };
 }
 
-// ─── Component: Mission (components1) ────────────────────────────────────────
-function buildMissionComponent(tarotPoint, isComplete) {
+// ─── Component v2 payload: Mission (components1) ─────────────────────────────
+function buildMissionPayload(tarotPoint, isComplete) {
   const progressBar = buildProgressBar(tarotPoint);
   return {
     flags: 32768,
@@ -127,11 +128,8 @@ function buildMissionComponent(tarotPoint, isComplete) {
   };
 }
 
-// ─── Component: Card Result (components2) ────────────────────────────────────
-// ลบปุ่ม "บันทึกคำทำนาย" ออก
-// เพิ่ม accessory ปุ่ม link แสดงแต้มที่ได้รับ
-// ปุ่ม "ดูดวงแบบอื่น" และ "ดูดวงฟรี!" ย้ายลงใน action row แทน
-function buildCardComponent(card, earnedPoints) {
+// ─── Component v2 payload: Card Result (components2) ─────────────────────────
+function buildCardPayload(card, earnedPoints) {
   const pi = cfg.point_icon;
   return {
     flags: 32768,
@@ -149,7 +147,6 @@ function buildCardComponent(card, earnedPoints) {
               `-# ${card.meaning} ${cfg.emojis.plant}\n\n` +
               `> ${card.prediction}`
           }],
-          // accessory = ปุ่ม link แสดงแต้มที่ได้รับ (type 2 style 5 = link button)
           accessory: {
             type:      2,
             style:     5,
@@ -159,7 +156,6 @@ function buildCardComponent(card, earnedPoints) {
             custom_id: 'p_311147737020108802'
           }
         },
-        // action row สำหรับปุ่ม "ดูดวงแบบอื่น" และ "ดูดวงฟรี!"
         {
           type: 1,
           components: [
@@ -207,7 +203,9 @@ function setupTarot1(client) {
     // ── ตรวจ Blacklist Role ─────────────────────────────────────────────────
     const isBlacklisted = cfg.role_blacklist.some(id => member.roles.cache.has(id));
     if (isBlacklisted) {
-      const sent = await message.reply({ data: blacklistComponent(userId).data });
+      // blacklistComponent() คืน { data: { flags, components } } — ดึงแค่ชั้นใน
+      const { flags, components } = blacklistComponent(userId).data;
+      const sent = await message.reply({ flags, components });
       setTimeout(() => sent.delete().catch(() => {}), 5000);
       return;
     }
@@ -226,7 +224,7 @@ function setupTarot1(client) {
     cooldowns.set(userId, now + cdDuration);
 
     // ── ส่ง Loading ──────────────────────────────────────────────────────────
-    await message.reply({ data: buildLoadingComponent() });
+    await message.reply(buildLoadingPayload());
 
     // ── รอ 5 วินาที (ห้ามแก้ไข loading message) ─────────────────────────────
     await new Promise(r => setTimeout(r, 5000));
@@ -246,9 +244,13 @@ function setupTarot1(client) {
     const { newTarotPoint } = await addPoints(supabase, userId, earnedPoints, 1);
     const missionComplete   = newTarotPoint >= cfg.mission_target;
 
-    // ── ส่ง Mission + Card (message ใหม่ ไม่แก้ loading) ────────────────────
-    await message.channel.send({ data: buildMissionComponent(newTarotPoint, missionComplete) });
-    await message.channel.send({ data: buildCardComponent(card, earnedPoints) });
+    // ── ส่ง Mission + Card ────────────────────────────────────────────────────
+    // ซ่อน components1 เมื่อ tarot_point ก่อนหน้า อยู่ที่หรือเกิน mission_target แล้ว (กดรับรางวัลไปแล้ว)
+    const alreadyClaimed = tarotPoint >= cfg.mission_target;
+    if (!alreadyClaimed) {
+      await message.channel.send(buildMissionPayload(newTarotPoint, missionComplete));
+    }
+    await message.channel.send(buildCardPayload(card, earnedPoints));
   });
 
   // ── Listener: Interaction (ปุ่ม) ────────────────────────────────────────────
@@ -259,7 +261,8 @@ function setupTarot1(client) {
 
     // ── ปุ่ม: ดูดวงแบบอื่น ─────────────────────────────────────────────────
     if (customId === 'tarot_other_commands') {
-      await interaction.reply({ data: otherCommandsComponent().data, ephemeral: true });
+      const { flags, components } = otherCommandsComponent().data;
+      await interaction.reply({ flags, components, ephemeral: true });
       return;
     }
 

@@ -1,0 +1,57 @@
+{
+  "channel_id": "1209457041756921906",
+
+  "role_blacklist": [
+    "1156930837573546126",
+    "1156930842434752614"
+  ],
+  "role_premium": [
+    "1304347182362660904",
+    "1304347185646927915"
+  ],
+
+  "cooldown_normal_ms": 60000,
+  "cooldown_premium_ms": 5000,
+
+  "point_reward_min": 5,
+  "point_reward_max": 15,
+
+  "mission_target": 50,
+  "mission_reward_points": 500,
+  "mission_reward_role": "1377499722578923651",
+
+  "point_icon": {
+    "id": "1280194407014076447",
+    "name": "strawbear",
+    "animated": false
+  },
+
+  "progress_bar": {
+    "max_points": 50,
+    "slots": 10,
+    "left_empty":   "<:barn1:1352982115523756134>",
+    "middle_empty": "<:barn2:1352982117360996426>",
+    "right_empty":  "<:barn3:1352982119281983538>",
+    "left_fill":    "<:bary1:1352982110557835408>",
+    "middle_fill":  "<:bary2:1352982107403714591>",
+    "right_fill":   "<:bary3:1352982104564039691>"
+  },
+
+  "emojis": {
+    "bear":          "<:bear7:1148271118709436416>",
+    "star":          "<:bear_star1:1152782839671169184>",
+    "plant":         "<:cuteplant:1152834055528783872>",
+    "loading":       "<a:516185loading:1510390943172399195>",
+    "sparkles":      "<a:99322sparkles:1372427884479778908>",
+    "gift":          "<:68492gift:1276130500410605609>",
+    "purpleween":    "<:58991purpleween:1428305761783517204>",
+    "bee":           "<:bee20000:1256669436350562355>",
+    "leaf":          "<a:59217leaf:1512014878796152862>",
+    "checkmark":     "<:50121checkmark:1358584609087946867>"
+  },
+
+  "channels": {
+    "punishment_channel": "1231153445944168518",
+    "horoscope_info_channel": "1487427879246626896"
+  }
+}

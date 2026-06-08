@@ -193,7 +193,7 @@ function buildV2Warning1Min(userAId, userBId, endTs, canExtend) {
     buttons.push({ style: 3, type: 2, custom_id: EXTEND_TIME_CUSTOM_ID, label: "ต่อเวลา +3 นาที (150 แต้ม)", emoji: { name: "⏰" } });
   }
   const bodyText = canExtend
-    ? `คุณสามารถใช้ <:strawbear:1280194407014076447> **150** แต้มเพื่อเวลาได้ +3 นาที <a:99322sparkles:1372427884479778908>`
+    ? `คุณสามารถใช้ <:strawbear:1280194407014076447> **150** แต้มต่อเพื่อเวลาได้ +3 นาที <a:99322sparkles:1372427884479778908>`
     : `ต่อเวลาได้ครบ ${MAX_EXTENDS} ครั้งแล้วค่ะ ห้องจะปิดเมื่อหมดเวลา <a:99322sparkles:1372427884479778908>`;
   return {
     flags: 32768,

@@ -15,33 +15,68 @@ function randInt(min, max) {
 }
 
 // ─── Helper: ดึง user row จาก user_points ────────────────────────────────────
+// primary key คือ discord_id ตาม schema จริง
 async function getUserRow(supabase, userId) {
   const { data, error } = await supabase
     .from('user_points')
     .select('points, tarot_point')
-    .eq('member_id', userId)
+    .eq('discord_id', userId)   // ✅ แก้จาก member_id → discord_id
     .single();
   if (error) {
+    // PGRST116 = row not found → คืนค่า default แทน throw
+    if (error.code === 'PGRST116') return { points: 0, tarot_point: 0 };
     console.error('[tarot1] getUserRow error:', error.message);
     return { points: 0, tarot_point: 0 };
   }
   return data ?? { points: 0, tarot_point: 0 };
 }
 
-// ─── Helper: upsert แต้ม ─────────────────────────────────────────────────────
+// ─── Helper: atomic upsert แต้ม ──────────────────────────────────────────────
+// ใช้ upsert + onConflict + increment expression ผ่าน RPC เพื่อป้องกัน race condition
+// Supabase ไม่รองรับ increment โดยตรงใน upsert → ใช้ RPC function ที่ต้องสร้างใน Supabase
+//
+// SQL ที่ต้องรันใน Supabase SQL Editor ครั้งเดียว:
+// ─────────────────────────────────────────────────────────────────────────────
+// CREATE OR REPLACE FUNCTION add_tarot_points(
+//   p_discord_id TEXT,
+//   p_points_delta INTEGER,
+//   p_tarot_delta INTEGER
+// ) RETURNS TABLE(new_points INTEGER, new_tarot_point INTEGER)
+// LANGUAGE plpgsql AS $$
+// BEGIN
+//   INSERT INTO user_points (discord_id, points, tarot_point)
+//   VALUES (p_discord_id, p_points_delta, p_tarot_delta)
+//   ON CONFLICT (discord_id) DO UPDATE
+//     SET points      = user_points.points      + p_points_delta,
+//         tarot_point = user_points.tarot_point + p_tarot_delta,
+//         updated_at  = now();
+//   RETURN QUERY
+//     SELECT points, tarot_point FROM user_points WHERE discord_id = p_discord_id;
+// END;
+// $$;
+// ─────────────────────────────────────────────────────────────────────────────
 async function addPoints(supabase, userId, pointsDelta, tarotPointDelta = 0) {
-  const row = await getUserRow(supabase, userId);
-  const newPoints     = (row.points      ?? 0) + pointsDelta;
-  const newTarotPoint = (row.tarot_point ?? 0) + tarotPointDelta;
-
-  const { error } = await supabase
-    .from('user_points')
-    .upsert(
-      { member_id: userId, points: newPoints, tarot_point: newTarotPoint },
-      { onConflict: 'member_id' }
-    );
-  if (error) console.error('[tarot1] addPoints error:', error.message);
-  return { newPoints, newTarotPoint };
+  const { data, error } = await supabase.rpc('add_tarot_points', {
+    p_discord_id:   userId,
+    p_points_delta: pointsDelta,
+    p_tarot_delta:  tarotPointDelta,
+  });
+  if (error) {
+    console.error('[tarot1] addPoints error:', error.message);
+    // fallback: ดึงค่าเดิมแล้วบวกแบบเดิม (กรณี RPC ยังไม่ถูกสร้าง)
+    const row = await getUserRow(supabase, userId);
+    const newPoints     = (row.points      ?? 0) + pointsDelta;
+    const newTarotPoint = (row.tarot_point ?? 0) + tarotPointDelta;
+    await supabase
+      .from('user_points')
+      .upsert(
+        { discord_id: userId, points: newPoints, tarot_point: newTarotPoint },
+        { onConflict: 'discord_id' }
+      );
+    return { newPoints, newTarotPoint };
+  }
+  const row = data?.[0] ?? { new_points: 0, new_tarot_point: 0 };
+  return { newPoints: row.new_points, newTarotPoint: row.new_tarot_point };
 }
 
 // ─── Helper: Progress Bar ─────────────────────────────────────────────────────
@@ -65,7 +100,6 @@ function pointIconStr() {
 }
 
 // ─── Component v2 payload: Loading ───────────────────────────────────────────
-// ส่งตรงๆ เป็น { flags, components } ไม่ wrap ใน data
 function buildLoadingPayload() {
   return {
     flags: 32768,
@@ -147,13 +181,14 @@ function buildCardPayload(card, earnedPoints) {
               `-# ${card.meaning} ${cfg.emojis.plant}\n\n` +
               `> ${card.prediction}`
           }],
+          // ✅ Link button (style 5) ห้ามมี custom_id — ลบออก
           accessory: {
-            type:      2,
-            style:     5,
-            label:     `ได้รับ +${earnedPoints} แต้ม`,
-            emoji:     { id: pi.id, name: pi.name, animated: pi.animated },
-            url:       'https://discord.com/channels/1144251788493602848/1145305334806741122',
-            custom_id: 'p_311147737020108802'
+            type:    2,
+            style:   5,
+            label:   `ได้รับ +${earnedPoints} แต้ม`,
+            emoji:   { id: pi.id, name: pi.name, animated: pi.animated },
+            url:     'https://discord.com/channels/1144251788493602848/1145305334806741122'
+            // ไม่มี custom_id
           }
         },
         {
@@ -168,11 +203,12 @@ function buildCardPayload(card, earnedPoints) {
               flow:      { actions: [] }
             },
             {
-              type:      2,
-              style:     5,
-              custom_id: 'tarot_link',
-              label:     'ดูดวงฟรี!',
-              url:       `https://discord.com/channels/1144251788493602848/${cfg.channels.horoscope_info_channel}`
+              // ✅ Link button (style 5) ห้ามมี custom_id — ลบออก
+              type:  2,
+              style: 5,
+              label: 'ดูดวงฟรี!',
+              url:   `https://discord.com/channels/1144251788493602848/${cfg.channels.horoscope_info_channel}`
+              // ไม่มี custom_id
             }
           ]
         }
@@ -203,7 +239,6 @@ function setupTarot1(client) {
     // ── ตรวจ Blacklist Role ─────────────────────────────────────────────────
     const isBlacklisted = cfg.role_blacklist.some(id => member.roles.cache.has(id));
     if (isBlacklisted) {
-      // blacklistComponent() คืน { data: { flags, components } } — ดึงแค่ชั้นใน
       const { flags, components } = blacklistComponent(userId).data;
       const sent = await message.reply({ flags, components });
       setTimeout(() => sent.delete().catch(() => {}), 5000);
@@ -229,9 +264,9 @@ function setupTarot1(client) {
     // ── รอ 5 วินาที (ห้ามแก้ไข loading message) ─────────────────────────────
     await new Promise(r => setTimeout(r, 5000));
 
-    // ── ดึงข้อมูล User จาก Supabase ─────────────────────────────────────────
+    // ── ดึงข้อมูล User จาก Supabase (ก่อนบวกแต้ม) ───────────────────────────
     const userRow    = await getUserRow(supabase, userId);
-    const tarotPoint = userRow.tarot_point ?? 0;
+    const tarotPoint = userRow.tarot_point ?? 0;   // ค่าก่อนบวก ใช้ตรวจ alreadyClaimed
 
     // ── สุ่มไพ่ id 1-78 ──────────────────────────────────────────────────────
     const cardId = String(randInt(1, 78));
@@ -240,12 +275,12 @@ function setupTarot1(client) {
     // ── สุ่มแต้ม min-max จาก settingtarot.json ───────────────────────────────
     const earnedPoints = randInt(cfg.point_reward_min, cfg.point_reward_max);
 
-    // ── บันทึกแต้มลง Supabase ────────────────────────────────────────────────
+    // ── บันทึกแต้มลง Supabase (atomic) ──────────────────────────────────────
     const { newTarotPoint } = await addPoints(supabase, userId, earnedPoints, 1);
     const missionComplete   = newTarotPoint >= cfg.mission_target;
 
     // ── ส่ง Mission + Card ────────────────────────────────────────────────────
-    // ซ่อน components1 เมื่อ tarot_point ก่อนหน้า อยู่ที่หรือเกิน mission_target แล้ว (กดรับรางวัลไปแล้ว)
+    // ซ่อน components1 เมื่อ tarot_point (ก่อนบวก) >= mission_target = กดรับรางวัลไปแล้ว
     const alreadyClaimed = tarotPoint >= cfg.mission_target;
     if (!alreadyClaimed) {
       await message.channel.send(buildMissionPayload(newTarotPoint, missionComplete));
@@ -285,7 +320,7 @@ function setupTarot1(client) {
         console.error('[tarot1] addRole error:', err.message);
       }
 
-      // เพิ่มแต้มรางวัล
+      // เพิ่มแต้มรางวัลลง Supabase (atomic)
       await addPoints(supabase, user.id, cfg.mission_reward_points, 0);
 
       // แก้ไขปุ่มเป็น "รับรางวัลเรียบร้อย!" + disabled

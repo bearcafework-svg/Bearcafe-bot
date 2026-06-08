@@ -2,6 +2,7 @@ require('dotenv').config(); // แม้ว่า Koyeb จะจัดการ
 const { Client, GatewayIntentBits, Events } = require('discord.js');
 const { setupSecretChat } = require('./secretChat');
 const { setupDonate }    = require('./donate');
+const { setupTarot1 }    = require('./Horoscope/tarot1');
 const axios = require("axios");
 const http = require("http");
 const crypto = require("crypto");
@@ -35,6 +36,9 @@ setupSecretChat(client);
 
 // เรียกใช้ระบบยอดโดเนท
 setupDonate(client);
+
+// เรียกใช้ระบบดูดวงทาโรต์
+setupTarot1(client);
 
 function getUserCountInChannel(guild, channelId) {
   if (!channelId) return 0;

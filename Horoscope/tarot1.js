@@ -24,15 +24,15 @@ function randInt(min, max) {
 async function getUserRow(supabase, userId) {
   const { data, error } = await supabase
     .from('user_points')
-    .select('points, tarot_point')
+    .select('points, tarot_point, mission_claimed')
     .eq('discord_id', userId)
     .single();
   if (error) {
-    if (error.code === 'PGRST116') return { points: 0, tarot_point: 0 }; // row not found
+    if (error.code === 'PGRST116') return { points: 0, tarot_point: 0, mission_claimed: false }; // row not found
     console.error('[tarot1] getUserRow error:', error.message);
-    return { points: 0, tarot_point: 0 };
+    return { points: 0, tarot_point: 0, mission_claimed: false };
   }
-  return data ?? { points: 0, tarot_point: 0 };
+  return data ?? { points: 0, tarot_point: 0, mission_claimed: false };
 }
 
 // ─── Helper: atomic upsert แต้ม ──────────────────────────────────────────────
@@ -304,13 +304,14 @@ function setupTarot1(client) {
     const card         = infotarot.cards[cardId];
     const earnedPoints = randInt(cfg.point_reward_min, cfg.point_reward_max);
 
-    // ── ตรวจว่ากดรับรางวัลไปแล้วหรือยัง ─────────────────────────────────────
-    const alreadyClaimed = tarotPoint >= cfg.mission_target;
+    // ── ตรวจว่ากดรับรางวัลไปแล้วหรือยัง (ดูจาก mission_claimed ใน DB) ─────────
+    // ไม่ดูจาก tarotPoint เพราะ 50 แล้วยังไม่กด != กดแล้ว
+    const alreadyClaimed = userRow.mission_claimed === true;
 
     // ── บันทึกแต้มลง Supabase (atomic) ──────────────────────────────────────
     // tarot_point หยุดนับที่ mission_target เพื่อป้องกัน 49→51
-    // (แต้มครบ 50 แล้วยังไม่กด → ยังบวกไม่ได้ รอกดรับก่อน)
-    const tarotDelta        = alreadyClaimed ? 0 : (tarotPoint >= cfg.mission_target - 1 ? cfg.mission_target - tarotPoint : 1);
+    // กรณียังไม่กดรับ: บวกได้สูงสุดถึง mission_target เท่านั้น
+    const tarotDelta        = alreadyClaimed ? 0 : Math.min(1, cfg.mission_target - tarotPoint);
     const { newTarotPoint } = await addPoints(supabase, userId, earnedPoints, tarotDelta);
     const missionComplete   = newTarotPoint >= cfg.mission_target;
 
@@ -365,8 +366,11 @@ function setupTarot1(client) {
         console.error('[tarot1] addRole error:', err.message);
       }
 
-      // เพิ่มแต้มรางวัล (atomic)
-      await addPoints(supabase, user.id, cfg.mission_reward_points, 0);
+      // เพิ่มแต้มรางวัล (atomic) + mark mission_claimed = true
+      await Promise.all([
+        addPoints(supabase, user.id, cfg.mission_reward_points, 0),
+        supabase.from('user_points').update({ mission_claimed: true }).eq('discord_id', user.id)
+      ]);
 
       // แก้ไขปุ่มเป็น "รับรางวัลเรียบร้อย!" + disabled
       await interaction.update({

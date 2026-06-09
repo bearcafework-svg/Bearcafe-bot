@@ -377,7 +377,7 @@ function setupTarot1(client) {
             if (comp.custom_id === 'tarot_mission_claim') {
               return {
                 ...comp,
-                label:    'รับรางวัลเรียบร้อย!',
+                label:    '︲รับรางวัลเรียบร้อย!',
                 emoji:    { id: '1358584609087946867', name: '50121checkmark', animated: false },
                 disabled: true,
                 style:    1

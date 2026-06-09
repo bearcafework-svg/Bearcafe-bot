@@ -182,14 +182,14 @@ function buildCombinedPayload(card, earnedPoints, tarotPoint, isComplete) {
               `- **ภารกิจของเธอ:** เพียงใช้คำสั่งดูดวง คำสั่งไหนก็ได้รวมกัน ${cfg.mission_target} ครั้ง ก็รับยศพิเศษจากคาเฟ่หมีไปเลย ${cfg.emojis.sparkles}\n` +
               `- **ยศที่คุณจะได้รับ:** **\`@ヽเจ้าหมีสายมู ✱\` + ${pointIconStr()}${cfg.mission_reward_points}**\n\n` +
               `**ความคืบหน้า ${tarotPoint}/${cfg.mission_target}**\n` +
-              `${buildProgressBar(tarotPoint)}`
+              `## ${buildProgressBar(tarotPoint)}`
           }],
           accessory: {
             type: 11,
             media: { url: 'https://media.discordapp.net/attachments/1144675871798591569/1377501031541506162/64603-purpleween.png?ex=6a2793ce&is=6a26424e&hm=aaa4a4ffaa1643c61b7de85b7ba56bca75dbc88d0c1116f39d2692991e6e7709&format=webp&quality=lossless&width=160&height=160&' }
           }
         },
-        { type: 14, spacing: 2 },
+        { type: 14, spacing: 1, divider: false },
         {
           type: 1,
           components: [{

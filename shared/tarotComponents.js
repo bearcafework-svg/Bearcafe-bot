@@ -1,13 +1,15 @@
 // shared/tarotComponents.js
 // รวม Components ที่ใช้ซ้ำหลายคำสั่ง แก้ที่นี่ที่เดียว
 
+const { MessageFlags } = require('discord.js');
 const cfg = require('../Horoscope/settingtarot.json');
 
-// ─── Blacklist Response ───────────────────────────────────────────────────────
-// คืน { flags, components } ตรงๆ (ไม่ wrap ใน data)
+const FLAG_V2 = MessageFlags.IsComponentsV2; // 32768
+
+// ─── Blacklist Payload ────────────────────────────────────────────────────────
 function blacklistPayload(memberId) {
   return {
-    flags: 32768,
+    flags: FLAG_V2,
     components: [{
       type: 17,
       components: [
@@ -25,17 +27,17 @@ function blacklistPayload(memberId) {
   };
 }
 
-// ─── Cooldown Response ────────────────────────────────────────────────────────
+// ─── Cooldown Content ─────────────────────────────────────────────────────────
 function cooldownContent(memberId, readyTimestamp) {
   return `## ${cfg.emojis.star}︲<@${memberId}> ใช้คำสั่งได้อีก <t:${readyTimestamp}:R>`;
 }
 
-// ─── "ดูดวงแบบอื่น" Ephemeral Payload ───────────────────────────────────────
-// คืน { flags, components } ตรงๆ (ไม่ wrap ใน data)
-// ✅ ลบ type:12 ที่มี url ว่างออก → Discord reject เพราะ url required
+// ─── Other Commands Payload ───────────────────────────────────────────────────
+// คืน { flags, components } ตรงๆ ให้ caller ประกอบ flags เพิ่มเองได้
+// (เช่น tarot1.js รวม FLAG_V2 | FLAG_EPHEMERAL เองก่อน reply)
 function otherCommandsPayload() {
   return {
-    flags: 32768,
+    flags: FLAG_V2,
     components: [{
       type: 17,
       components: [

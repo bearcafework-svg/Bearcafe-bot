@@ -346,65 +346,69 @@ function setupTarot1(client) {
 
 // ── ปุ่ม: กดรับรางวัล Mission ─────────────────────────────────────────
     if (customId === 'tarot_mission_claim') {
-      const userRow    = await getUserRow(supabase, user.id);
-      const tarotPoint = userRow.tarot_point ?? 0;
-
-      if (tarotPoint < cfg.mission_target) {
-        await interaction.reply({
-          flags:   FLAG_EPHEMERAL,
-          content: '❌ แต้มดูดวงของคุณยังไม่ครบนะคะ!'
-        });
-        return;
-      }
-
-      // เพิ่ม role
       try {
-        if (!member.roles.cache.has(cfg.mission_reward_role)) {
-          await member.roles.add(cfg.mission_reward_role);
+        const userRow    = await getUserRow(supabase, user.id);
+        const tarotPoint = userRow.tarot_point ?? 0;
+
+        if (tarotPoint < cfg.mission_target) {
+          await interaction.reply({
+            flags:   FLAG_EPHEMERAL,
+            content: '❌ แต้มดูดวงของคุณยังไม่ครบนะคะ!'
+          });
+          return;
         }
-      } catch (err) {
-        console.error('[tarot1] addRole error:', err.message);
-      }
 
-      // เพิ่มแต้มรางวัล (atomic) + mark mission_claimed = true
-      await Promise.all([
-        addPoints(supabase, user.id, cfg.mission_reward_points, 0),
-        supabase.from('user_points').update({ mission_claimed: true }).eq('discord_id', user.id)
-      ]);
+        // 1. กดยอมรับ Interaction ทันทีเพื่อยืดเวลาและป้องกัน Error ซ้ำซ้อน
+        await interaction.deferUpdate();
 
-      // ฟังก์ชันสำหรับค้นหาและแก้ไขปุ่มใน Component V2 ทุกระดับชั้น (Recursive)
-      const updateButtonDeep = (components) => {
-        return components.map(c => {
-          // ดึง Raw object ออกมาจาก discord.js (ถ้าถูก Cache ไว้)
-          let comp = typeof c.toJSON === 'function' ? c.toJSON() : { ...c };
-
-          // ถ้าเจอปุ่มเป้าหมาย ให้ทำการเปลี่ยนหน้าตาและปิดการกด (disabled)
-          if (comp.custom_id === 'tarot_mission_claim') {
-            return {
-              ...comp,
-              label:    'รับรางวัลเรียบร้อย!',
-              emoji:    { id: '1358584609087946867', name: '50121checkmark', animated: false },
-              disabled: true,
-              style:    1 // เปลี่ยนเป็นสีหลัก (Primary) เพื่อให้ดูเหมือนสำเร็จแล้ว
-            };
+        // 2. ทำงานเบื้องหลัง (เพิ่มยศ)
+        try {
+          if (!member.roles.cache.has(cfg.mission_reward_role)) {
+            await member.roles.add(cfg.mission_reward_role);
           }
+        } catch (err) {
+          console.error('[tarot1] addRole error:', err.message);
+        }
 
-          // ถ้า Component นี้มีลูกซ้อนอยู่ข้างใน (เช่น Type 17 หรือ Type 1) ให้ทะลวงลงไปหาต่อ
-          if (comp.components) {
-            comp.components = updateButtonDeep(comp.components);
-          }
-          return comp;
+        // 3. เพิ่มแต้มรางวัล (atomic) + mark mission_claimed = true
+        await Promise.all([
+          addPoints(supabase, user.id, cfg.mission_reward_points, 0),
+          supabase.from('user_points').update({ mission_claimed: true }).eq('discord_id', user.id)
+        ]);
+
+        // 4. ฟังก์ชันสำหรับค้นหาและแก้ไขปุ่ม (Recursive)
+        const updateButtonDeep = (components) => {
+          return components.map(c => {
+            let comp = typeof c.toJSON === 'function' ? c.toJSON() : { ...c };
+
+            if (comp.custom_id === 'tarot_mission_claim') {
+              return {
+                ...comp,
+                label:    'รับรางวัลเรียบร้อย!',
+                emoji:    { id: '1358584609087946867', name: '50121checkmark', animated: false },
+                disabled: true,
+                style:    1
+              };
+            }
+
+            if (comp.components) {
+              comp.components = updateButtonDeep(comp.components);
+            }
+            return comp;
+          });
+        };
+
+        const updatedComponents = updateButtonDeep(interaction.message.components);
+
+        // 5. ใช้ editReply แทน update เนื่องจากเราทำการ deferUpdate ไปแล้วด้านบน
+        await interaction.editReply({
+          flags: FLAG_V2, 
+          components: updatedComponents
         });
-      };
 
-      // นำโครงสร้างเดิมมาอัปเดตปุ่มเป้าหมาย
-      const updatedComponents = updateButtonDeep(interaction.message.components);
-
-      // อัปเดต UI กลับไป พร้อมแนบ flags: FLAG_V2 
-      await interaction.update({
-        flags: FLAG_V2, 
-        components: updatedComponents
-      });
+      } catch (error) {
+        console.error('[tarot1] Mission Claim Error:', error);
+      }
     }
   });
 

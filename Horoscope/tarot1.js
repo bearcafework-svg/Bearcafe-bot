@@ -36,16 +36,6 @@ async function getUserRow(supabase, userId) {
 }
 
 // ─── Helper: atomic upsert แต้ม ──────────────────────────────────────────────
-// ต้องสร้าง RPC ใน Supabase SQL Editor ก่อน (ดู SQL ด้านล่าง)
-// CREATE OR REPLACE FUNCTION add_tarot_points(p_discord_id TEXT, p_points_delta INTEGER, p_tarot_delta INTEGER)
-// RETURNS TABLE(new_points INTEGER, new_tarot_point INTEGER) LANGUAGE plpgsql AS $$
-// BEGIN
-//   INSERT INTO user_points (discord_id, points, tarot_point)
-//   VALUES (p_discord_id, p_points_delta, p_tarot_delta)
-//   ON CONFLICT (discord_id) DO UPDATE
-//     SET points=user_points.points+p_points_delta, tarot_point=user_points.tarot_point+p_tarot_delta, updated_at=now();
-//   RETURN QUERY SELECT points, tarot_point FROM user_points WHERE discord_id=p_discord_id;
-// END; $$;
 async function addPoints(supabase, userId, pointsDelta, tarotPointDelta = 0) {
   const { data, error } = await supabase.rpc('add_tarot_points', {
     p_discord_id:   userId,
@@ -344,24 +334,27 @@ function setupTarot1(client) {
       return;
     }
 
-// ── ปุ่ม: กดรับรางวัล Mission ─────────────────────────────────────────
+    // ── ปุ่ม: กดรับรางวัล Mission ─────────────────────────────────────────
     if (customId === 'tarot_mission_claim') {
       try {
+        // 1. กดยอมรับ Interaction ทันทีเป็นอันดับแรกสุด! 
+        // (ซื้อเวลา 15 นาที + ป้องกันปัญหาบอทรันซ้อนกันแย่งตอบ)
+        await interaction.deferUpdate();
+
+        // 2. ค่อยไปดึงข้อมูลจาก Database
         const userRow    = await getUserRow(supabase, user.id);
         const tarotPoint = userRow.tarot_point ?? 0;
 
         if (tarotPoint < cfg.mission_target) {
-          await interaction.reply({
+          // เนื่องจากเรา deferUpdate ไปแล้ว การส่งข้อความแจ้งเตือนต้องใช้ followUp แทน reply
+          await interaction.followUp({
             flags:   FLAG_EPHEMERAL,
             content: '❌ แต้มดูดวงของคุณยังไม่ครบนะคะ!'
           });
           return;
         }
 
-        // 1. กดยอมรับ Interaction ทันทีเพื่อยืดเวลาและป้องกัน Error ซ้ำซ้อน
-        await interaction.deferUpdate();
-
-        // 2. ทำงานเบื้องหลัง (เพิ่มยศ)
+        // 3. เพิ่ม Role
         try {
           if (!member.roles.cache.has(cfg.mission_reward_role)) {
             await member.roles.add(cfg.mission_reward_role);
@@ -370,13 +363,13 @@ function setupTarot1(client) {
           console.error('[tarot1] addRole error:', err.message);
         }
 
-        // 3. เพิ่มแต้มรางวัล (atomic) + mark mission_claimed = true
+        // 4. เพิ่มแต้มรางวัล (atomic) + mark mission_claimed = true
         await Promise.all([
           addPoints(supabase, user.id, cfg.mission_reward_points, 0),
           supabase.from('user_points').update({ mission_claimed: true }).eq('discord_id', user.id)
         ]);
 
-        // 4. ฟังก์ชันสำหรับค้นหาและแก้ไขปุ่ม (Recursive)
+        // 5. ฟังก์ชันสำหรับค้นหาและแก้ไขปุ่ม (Recursive)
         const updateButtonDeep = (components) => {
           return components.map(c => {
             let comp = typeof c.toJSON === 'function' ? c.toJSON() : { ...c };
@@ -400,14 +393,17 @@ function setupTarot1(client) {
 
         const updatedComponents = updateButtonDeep(interaction.message.components);
 
-        // 5. ใช้ editReply แทน update เนื่องจากเราทำการ deferUpdate ไปแล้วด้านบน
+        // 6. อัปเดต UI กลับไป
         await interaction.editReply({
           flags: FLAG_V2, 
           components: updatedComponents
         });
 
       } catch (error) {
-        console.error('[tarot1] Mission Claim Error:', error);
+        // หาก Error 40060 โผล่มาอีกจากบอทตัวเก่า (Ghost Instance) ให้ข้ามเงียบๆ ไปเลย
+        if (error.code !== 40060 && error.code !== 10062) {
+          console.error('[tarot1] Mission Claim Error:', error);
+        }
       }
     }
   });

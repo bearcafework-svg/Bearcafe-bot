@@ -344,7 +344,7 @@ function setupTarot1(client) {
       return;
     }
 
-    // ── ปุ่ม: กดรับรางวัล Mission ─────────────────────────────────────────
+// ── ปุ่ม: กดรับรางวัล Mission ─────────────────────────────────────────
     if (customId === 'tarot_mission_claim') {
       const userRow    = await getUserRow(supabase, user.id);
       const tarotPoint = userRow.tarot_point ?? 0;
@@ -372,22 +372,38 @@ function setupTarot1(client) {
         supabase.from('user_points').update({ mission_claimed: true }).eq('discord_id', user.id)
       ]);
 
-      // แก้ไขปุ่มเป็น "รับรางวัลเรียบร้อย!" + disabled
+      // ฟังก์ชันสำหรับค้นหาและแก้ไขปุ่มใน Component V2 ทุกระดับชั้น (Recursive)
+      const updateButtonDeep = (components) => {
+        return components.map(c => {
+          // ดึง Raw object ออกมาจาก discord.js (ถ้าถูก Cache ไว้)
+          let comp = typeof c.toJSON === 'function' ? c.toJSON() : { ...c };
+
+          // ถ้าเจอปุ่มเป้าหมาย ให้ทำการเปลี่ยนหน้าตาและปิดการกด (disabled)
+          if (comp.custom_id === 'tarot_mission_claim') {
+            return {
+              ...comp,
+              label:    'รับรางวัลเรียบร้อย!',
+              emoji:    { id: '1358584609087946867', name: '50121checkmark', animated: false },
+              disabled: true,
+              style:    1 // เปลี่ยนเป็นสีหลัก (Primary) เพื่อให้ดูเหมือนสำเร็จแล้ว
+            };
+          }
+
+          // ถ้า Component นี้มีลูกซ้อนอยู่ข้างใน (เช่น Type 17 หรือ Type 1) ให้ทะลวงลงไปหาต่อ
+          if (comp.components) {
+            comp.components = updateButtonDeep(comp.components);
+          }
+          return comp;
+        });
+      };
+
+      // นำโครงสร้างเดิมมาอัปเดตปุ่มเป้าหมาย
+      const updatedComponents = updateButtonDeep(interaction.message.components);
+
+      // อัปเดต UI กลับไป พร้อมแนบ flags: FLAG_V2 
       await interaction.update({
-        components: interaction.message.components.map(row => ({
-          ...row,
-          components: row.components.map(btn =>
-            btn.custom_id === 'tarot_mission_claim'
-              ? {
-                  ...btn,
-                  label:    'รับรางวัลเรียบร้อย!',
-                  emoji:    { id: '1358584609087946867', name: '50121checkmark', animated: false },
-                  disabled: true,
-                  style:    1
-                }
-              : btn
-          )
-        }))
+        flags: FLAG_V2, 
+        components: updatedComponents
       });
     }
   });

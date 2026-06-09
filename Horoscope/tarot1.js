@@ -292,18 +292,11 @@ function setupTarot1(client) {
     // ── ส่ง Loading reply ────────────────────────────────────────────────────
     const loadingMsg = await message.reply(buildLoadingPayload());
 
-    // ── รอ 5 วินาที ──────────────────────────────────────────────────────────
-    await new Promise(r => setTimeout(r, 5000));
-
-    // ── ลบ loading (ตรวจ deletable ก่อน — ต้องการ Manage Messages permission) ─
-    if (loadingMsg.deletable) {
-      loadingMsg.delete().catch(err =>
-        console.error('[tarot1] delete loading error:', err.message)
-      );
-    }
-
-    // ── ดึงข้อมูล User ก่อนบวกแต้ม ──────────────────────────────────────────
-    const userRow    = await getUserRow(supabase, userId);
+    // ── เตรียมข้อมูลทั้งหมดระหว่างรอ 5 วินาที (ให้ smooth ไม่มี gap) ────────
+    const [userRow] = await Promise.all([
+      getUserRow(supabase, userId),
+      new Promise(r => setTimeout(r, 5000))
+    ]);
     const tarotPoint = userRow.tarot_point ?? 0;
 
     // ── สุ่มไพ่ + แต้ม ───────────────────────────────────────────────────────
@@ -311,18 +304,26 @@ function setupTarot1(client) {
     const card         = infotarot.cards[cardId];
     const earnedPoints = randInt(cfg.point_reward_min, cfg.point_reward_max);
 
+    // ── ตรวจว่ากดรับรางวัลไปแล้วหรือยัง ─────────────────────────────────────
+    const alreadyClaimed = tarotPoint >= cfg.mission_target;
+
     // ── บันทึกแต้มลง Supabase (atomic) ──────────────────────────────────────
-    const { newTarotPoint } = await addPoints(supabase, userId, earnedPoints, 1);
+    // tarot_point หยุดนับที่ mission_target เพื่อป้องกัน 49→51
+    // (แต้มครบ 50 แล้วยังไม่กด → ยังบวกไม่ได้ รอกดรับก่อน)
+    const tarotDelta        = alreadyClaimed ? 0 : (tarotPoint >= cfg.mission_target - 1 ? cfg.mission_target - tarotPoint : 1);
+    const { newTarotPoint } = await addPoints(supabase, userId, earnedPoints, tarotDelta);
     const missionComplete   = newTarotPoint >= cfg.mission_target;
 
-    // ── ส่ง reply: Mission+Card รวม หรือ Card เดียว ──────────────────────────
-    // reply message ทำให้ Discord mention ผู้ใช้ + แสดงในห้องถูกต้อง
-    const alreadyClaimed = tarotPoint >= cfg.mission_target;
-    if (alreadyClaimed) {
-      await message.reply(buildCardPayload(card, earnedPoints));
-    } else {
-      await message.reply(buildCombinedPayload(card, earnedPoints, newTarotPoint, missionComplete));
-    }
+    // ── ลบ loading + ส่ง result พร้อมกัน (ไม่มี gap) ─────────────────────────
+    const deletePromise = loadingMsg.deletable
+      ? loadingMsg.delete().catch(err => console.error('[tarot1] delete loading error:', err.message))
+      : Promise.resolve();
+
+    const sendPromise = alreadyClaimed
+      ? message.reply(buildCardPayload(card, earnedPoints))
+      : message.reply(buildCombinedPayload(card, earnedPoints, newTarotPoint, missionComplete));
+
+    await Promise.all([deletePromise, sendPromise]);
   });
 
   // ── Listener: Interaction (ปุ่ม) ────────────────────────────────────────────

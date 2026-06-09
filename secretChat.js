@@ -1015,7 +1015,23 @@ async function handleCancelQueue(interaction) {
   await updateLobbyEmbed();
 
   try {
-    await interaction.update({ content: "❌ ยกเลิกการค้นหาเรียบร้อยแล้วค่ะ", components: [] });
+    // เปลี่ยนมาใช้ Component V2 Structure แทนการส่ง content ปกติ
+    await interaction.update({
+      flags: 32768,
+      components: [{
+        type: 17,
+        components: [
+          { type: 14, spacing: 2 },
+          { 
+            type: 10, 
+            content: 
+              `## ❌︲__\` ยกเลิกการค้นหาเรียบร้อยแล้วค่ะ \`__\n` +
+              `-# ระบบนำคุณออกจากคิวแล้ว สามารถกดเริ่มหาใหม่ได้ทุกเมื่อนะคะ <:cuteplant:1152834055528783872>`
+          },
+          { type: 14, spacing: 2 }
+        ]
+      }]
+    });
   } catch (err) {
     if (err.code !== 40060 && err.code !== 10003) console.error("[secret-chat] cancelQueue:", err);
   }

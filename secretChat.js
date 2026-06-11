@@ -292,7 +292,7 @@ function buildV2Lobby(total, inQueue) {
           `**สถานะ:**\n` +
           `> (<a:28457gameoverheart:1372833851092504637>)︰กำลังเล่นอยู่ **${total}** คน\n` +
           `> (<a:7596clock:1160230591892029510>)︰กำลังรอในคิว **${inQueue}** คน\n` +
-          `# ***ช่วงเวลาที่มีคนเล่นเยอะมักเป็นช่วงเย็น-ดึกค่ะ*** <a:yellowhearts:1352954734394478643>\n`
+          `# ***ระบบเปิดให้เล่นช่วง 18:00 - 23:00 เป็นต้นไป*** <a:yellowhearts:1352954734394478643>\n`
         },
         { type: 14, spacing: 2 },
         { type: 1, components: [
@@ -432,6 +432,36 @@ function buildV2DmNoMatch() {
         { type: 1, components: [
           { type: 2, style: 5, label: "สุ่มอีกครั้ง", url: "https://discord.com/channels/1144251788493602848/1507027734097039442" },
         ]},
+      ]
+    }]
+  };
+}
+
+// ============================================================================
+// OPERATING HOURS CHECK (18:00 – 23:00 Thailand Time / UTC+7)
+// ============================================================================
+function isWithinOperatingHours() {
+  const now     = new Date();
+  const thHour  = (now.getUTCHours() + 7) % 24;   // UTC+7
+  // เปิด 18:00 ≤ hour < 23:00  (23:00 ตัดรับใหม่ แต่เซสชันที่แมตช์แล้วเล่นต่อได้)
+  return thHour >= 18 && thHour < 23;
+}
+
+function buildV2OutsideHours() {
+  return {
+    flags: 32768 | 64, // IS_COMPONENTS_V2 + EPHEMERAL
+    components: [{
+      type: 17,
+      components: [
+        { type: 14, spacing: 2 },
+        { type: 10, content:
+          `## <a:3602exclamationmarkbubble:1372837492205555812>︲__\` ยังไม่ถึงเวลาเปิดให้บริการค่ะ 𓂃 \`__\n` +
+          `-# <a:59217leaf:1512014878796152862> — ระบบสุ่มแชทหาเพื่อน\n\n` +
+          `ขณะนี้ระบบยังไม่เปิดให้บริการค่ะ <:cuteplant:1152834055528783872>\n` +
+          `**ระบบเปิดให้เล่นเฉพาะช่วง 18:00 – 23:00 น. (เวลาไทย)** <a:yellowhearts:1352954734394478643>\n\n` +
+          `สามารถกลับมากดได้ใหม่ในช่วงเวลาดังกล่าวนะคะ <a:99322sparkles:1372427884479778908>`
+        },
+        { type: 14, spacing: 2 },
       ]
     }]
   };
@@ -860,6 +890,11 @@ async function handleJoinQueue(interaction) {
 
   try { await interaction.deferReply({ flags: 64 }); }
   catch (e) { if (e.code === 10062) return; return; }
+
+  // [FIX] ตรวจสอบช่วงเวลาเปิดให้บริการ (18:00 – 23:00 เวลาไทย)
+  if (!isWithinOperatingHours()) {
+    return await interaction.editReply(buildV2OutsideHours());
+  }
 
   if (interaction.member?.roles) {
     const hasBlocked = BLOCKED_ROLES.some(r => interaction.member.roles.cache.has(r));
@@ -1375,10 +1410,28 @@ function setupSecretChat(client) {
     if (message.content.trim() !== "b!reset-match") return;
     try { await message.delete(); } catch (_) {}
 
+    // [FIX] คำนวณสถานะใหม่เสมอ และอัปเดต lobbyEmbedMessage reference ให้ถูกต้อง
     const inQueue = queue.length;
     const total   = inQueue + tableMembers.size * 2;
-    const sent    = await message.channel.send(buildV2Lobby(total, inQueue));
-    lobbyEmbedMessage = sent;
+    const payload = buildV2Lobby(total, inQueue);
+
+    // ลองแก้ไขข้อความเดิมก่อน (ถ้ามี) เพื่อไม่ให้เกิดข้อความซ้ำ
+    if (lobbyEmbedMessage) {
+      try {
+        await lobbyEmbedMessage.edit(payload);
+        return;
+      } catch (_) {
+        // ข้อความเดิมถูกลบหรือไม่สามารถแก้ได้ — สร้างใหม่
+        lobbyEmbedMessage = null;
+      }
+    }
+
+    try {
+      const sent = await message.channel.send(payload);
+      lobbyEmbedMessage = sent;
+    } catch (err) {
+      console.error("[secret-chat] b!reset-match send error:", err.message);
+    }
   });
 
   client.on(Events.InteractionCreate, async (interaction) => {

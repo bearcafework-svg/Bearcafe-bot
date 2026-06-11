@@ -1414,10 +1414,15 @@ function setupSecretChat(client) {
     const total   = inQueue + tableMembers.size * 2;
     const payload = buildV2Lobby(total, inQueue);
 
-    // ลบข้อความเดิมก่อนเสมอ เพื่อป้องกัน Component ซ้ำ
+    // ถ้ามีข้อความเดิม → edit แทน send เพื่อไม่ให้ขึ้น 2 อัน
     if (lobbyEmbedMessage) {
-      try { await lobbyEmbedMessage.delete(); } catch (_) {}
-      lobbyEmbedMessage = null;
+      try {
+        await lobbyEmbedMessage.edit(payload);
+        return;
+      } catch (_) {
+        // edit ไม่ได้ (ถูกลบ / ต่างช่อง) → ลบ reference แล้วส่งใหม่
+        lobbyEmbedMessage = null;
+      }
     }
 
     try {

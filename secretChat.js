@@ -1410,20 +1410,14 @@ function setupSecretChat(client) {
     if (message.content.trim() !== "b!reset-match") return;
     try { await message.delete(); } catch (_) {}
 
-    // [FIX] คำนวณสถานะใหม่เสมอ และอัปเดต lobbyEmbedMessage reference ให้ถูกต้อง
     const inQueue = queue.length;
     const total   = inQueue + tableMembers.size * 2;
     const payload = buildV2Lobby(total, inQueue);
 
-    // ลองแก้ไขข้อความเดิมก่อน (ถ้ามี) เพื่อไม่ให้เกิดข้อความซ้ำ
+    // ลบข้อความเดิมก่อนเสมอ เพื่อป้องกัน Component ซ้ำ
     if (lobbyEmbedMessage) {
-      try {
-        await lobbyEmbedMessage.edit(payload);
-        return;
-      } catch (_) {
-        // ข้อความเดิมถูกลบหรือไม่สามารถแก้ได้ — สร้างใหม่
-        lobbyEmbedMessage = null;
-      }
+      try { await lobbyEmbedMessage.delete(); } catch (_) {}
+      lobbyEmbedMessage = null;
     }
 
     try {

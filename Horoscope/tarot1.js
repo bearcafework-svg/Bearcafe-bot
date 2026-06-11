@@ -116,7 +116,7 @@ function buildCardPayload(card, earnedPoints) {
             content:
               `## ${cfg.emojis.purpleween}︲__\` ${card.name} ₊ ☾ 𓂃 \`__\n` +
               `-# ${card.meaning} ${cfg.emojis.plant}\n\n` +
-              `> ${card.prediction}`
+              `>>> ${card.prediction}`
           }],
           // Link button ห้ามมี custom_id
           accessory: {
@@ -203,7 +203,7 @@ function buildCombinedPayload(card, earnedPoints, tarotPoint, isComplete) {
             content:
               `## ${cfg.emojis.purpleween}︲__\` ${card.name} ₊ ☾ 𓂃 \`__\n` +
               `-# ${card.meaning} ${cfg.emojis.plant}\n\n` +
-              `> ${card.prediction}`
+              `>>> ${card.prediction}`
           }],
           // Link button ห้ามมี custom_id
           accessory: {

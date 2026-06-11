@@ -4,6 +4,7 @@ const { setupSecretChat } = require('./secretChat');
 const { setupDonate }    = require('./donate');
 const { setupTarot1 }    = require('./Horoscope/tarot1');
 const { setupTarot2 } = require('./Horoscope/tarot2');
+const { setupTarot3 } = require('./Horoscope/tarot3');
 const axios = require("axios");
 const http = require("http");
 const crypto = require("crypto");
@@ -41,6 +42,7 @@ setupDonate(client);
 // เรียกใช้ระบบดูดวงทาโรต์
 setupTarot1(client);
 setupTarot2(client);
+setupTarot3(client);
 
 function getUserCountInChannel(guild, channelId) {
   if (!channelId) return 0;

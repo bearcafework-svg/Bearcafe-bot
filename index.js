@@ -6,6 +6,7 @@ const { setupTarot1 }    = require('./Horoscope/tarot1');
 const { setupTarot2 } = require('./Horoscope/tarot2');
 const { setupTarot3 } = require('./Horoscope/tarot3');
 const { setupTarot4 } = require('./Horoscope/tarot4');
+const { setupTarot5 } = require('./Horoscope/tarot5');
 const axios = require("axios");
 const http = require("http");
 const crypto = require("crypto");
@@ -45,6 +46,7 @@ setupTarot1(client);
 setupTarot2(client);
 setupTarot3(client);
 setupTarot4(client);
+setupTarot5(client);
 
 function getUserCountInChannel(guild, channelId) {
   if (!channelId) return 0;

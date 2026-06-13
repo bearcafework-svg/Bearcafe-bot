@@ -151,7 +151,6 @@ function buildCardPayload(questImgUrl, earnedPoints) {
     components: [{
       type: 17,
       components: [
-        { type: 14, spacing: 2 },
         { type: 12, items: [{ media: { url: questImgUrl } }] },
         { type: 14, spacing: 2 },
         {

@@ -107,7 +107,6 @@ function buildCardPayload(card, earnedPoints) {
     components: [{
       type: 17,
       components: [
-        { type: 14, spacing: 2 },
         { type: 12, items: [{ media: { url: card.img } }] },
         { type: 14, spacing: 2 },
         {

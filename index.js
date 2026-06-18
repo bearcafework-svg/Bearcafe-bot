@@ -4,10 +4,20 @@
 
 require("dotenv").config();
 
+const http = require("http");
 const { Client, GatewayIntentBits, REST, Routes } = require("discord.js");
 const { startMonitor } = require("./handlers/roomMonitor");
 const { destroyRoom } = require("./handlers/roomDestroyer");
 const { handleRoomPanel, handleRoomPanelInteraction } = require("./handlers/roomPanel");
+const { setupDonate } = require("./src/features/donate");
+const { setupSecretChat } = require("./src/features/secretChat");
+const { setupTarot1 } = require("./src/features/horoscope/tarot1");
+const { setupTarot2 } = require("./src/features/horoscope/tarot2");
+const { setupTarot3 } = require("./src/features/horoscope/tarot3");
+const { setupTarot4 } = require("./src/features/horoscope/tarot4");
+const { setupTarot5 } = require("./src/features/horoscope/tarot5");
+const { setupTarot6 } = require("./src/features/horoscope/tarot6");
+const { setupVoicePoints } = require("./src/features/voicePoints");
 const voiceStateUpdate = require("./events/voiceStateUpdate");
 const { getAllRooms, getAllSeparators } = require("./state/redisClient");
 const { syncAllSeparators } = require("./utils/separatorManager");
@@ -20,8 +30,20 @@ const client = new Client({
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildPresences,
+    GatewayIntentBits.DirectMessages,
   ],
 });
+
+setupSecretChat(client);
+setupDonate(client);
+setupTarot1(client);
+setupTarot2(client);
+setupTarot3(client);
+setupTarot4(client);
+setupTarot5(client);
+setupTarot6(client);
+setupVoicePoints(client);
 
 // ── ตอนบอท ready ──────────────────────────────────────────────────
 client.once("clientReady", async () => {
@@ -112,18 +134,35 @@ client.on("voiceStateUpdate", (oldState, newState) => {
 });
 
 client.on("messageCreate", async (message) => {
-  await handleRoomPanel(message);
+  handleRoomPanel(message).catch(console.error);
 });
 
 client.on("interactionCreate", async (interaction) => {
-  await handleRoomPanelInteraction(interaction);
+  handleRoomPanelInteraction(interaction).catch(console.error);
 });
+
+if (process.env.PORT) {
+  http
+    .createServer((req, res) => {
+      if (req.url === "/health") {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: true }));
+        return;
+      }
+
+      res.writeHead(200, { "Content-Type": "text/plain" });
+      res.end("Bear Cafe bot is running");
+    })
+    .listen(Number(process.env.PORT), () => {
+      console.log(`Health server listening on port ${process.env.PORT}`);
+    });
+}
 
 // ── Register Slash Commands ────────────────────────────────────────
 async function registerCommands() {
   const commands = [];
 
-  const rest = new REST().setToken(process.env.DISCORD_TOKEN);
+  const rest = new REST().setToken(process.env.BOT_TOKEN);
 
   try {
     await rest.put(Routes.applicationCommands(client.user.id), { body: commands });
@@ -138,4 +177,4 @@ client.on("error", (e) => console.error("Discord client error:", e));
 process.on("unhandledRejection", (e) => console.error("Unhandled rejection:", e));
 
 // ── Login ──────────────────────────────────────────────────────────
-client.login(process.env.DISCORD_TOKEN);
+client.login(process.env.BOT_TOKEN);

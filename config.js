@@ -27,7 +27,7 @@ module.exports = {
   },
 
   vipRoomPermissions: {
-    memberId: "1517097332330725427",
+    memberId: "1144700895020462200",
     coffee1Id: "1156930837573546126",
     coffee2Id: "1156930842434752614",
   },

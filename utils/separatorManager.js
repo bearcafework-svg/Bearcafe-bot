@@ -14,6 +14,10 @@ function isLastZone(zone) {
   return config.zones[config.zones.length - 1]?.id === zone.id;
 }
 
+function shouldSkipSeparator(zone) {
+  return zone.id === "vip" || isLastZone(zone);
+}
+
 function getZoneCategoryId(guild, zone) {
   if (zone.roomsCategoryId) return zone.roomsCategoryId;
   if (config.roomsCategoryId) return config.roomsCategoryId;
@@ -172,7 +176,7 @@ async function syncCategoryLayout(guild, rooms) {
       }
 
       const separator = findSeparator(guild, zone);
-      if (separator && !isLastZone(zone)) {
+      if (separator && !shouldSkipSeparator(zone)) {
         await moveChannel(separator, nextPosition++);
       }
     }
@@ -195,7 +199,7 @@ async function syncAllSeparators(guild, roomsInput) {
   for (const zone of config.zones) {
     const roomEntries = getZoneRoomEntries(guild, rooms, zone);
 
-    if (roomEntries.length > 0 && !isLastZone(zone)) {
+    if (roomEntries.length > 0 && !shouldSkipSeparator(zone)) {
       await showSeparator(guild, zone);
     } else {
       await hideSeparator(guild, zone);

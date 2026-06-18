@@ -106,7 +106,7 @@ module.exports = {
     {
       id: "game",
       name: "เกม",
-      lobbyChannelId: "1361387566108115076",
+      lobbyChannelId: "1517172169501835384",
       separatorChannelId: null,
       separatorName: "𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃",
       nameThemes: ["🎮︲โต๊ะเกม username"],
@@ -114,7 +114,7 @@ module.exports = {
     {
       id: "music",
       name: "เพลง",
-      lobbyChannelId: "1361387662497550427",
+      lobbyChannelId: "1517172198580682844",
       separatorChannelId: null,
       separatorName: "𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃",
       nameThemes: ["🎶︲โต๊ะเพลง username"],
@@ -122,7 +122,7 @@ module.exports = {
     {
       id: "work",
       name: "ทำงาน",
-      lobbyChannelId: "1361387697285108013",
+      lobbyChannelId: "1517172231510163466",
       separatorChannelId: null,
       separatorName: "𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃",
       nameThemes: ["💼︲โต๊ะทำงาน username"],

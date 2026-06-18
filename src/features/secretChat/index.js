@@ -591,7 +591,7 @@ async function safeReply(interaction, options) {
       await interaction.reply({ ...options, flags: 64 });
     }
   } catch (err) {
-    if (err.code !== 40060 && err.code !== 10003) {
+    if (err.code !== 40060 && err.code !== 10062 && err.code !== 10003) {
       console.error("[secret-chat] safeReply error:", err);
     }
   }
@@ -1130,11 +1130,17 @@ async function handleCancelQueue(interaction) {
   if (isAlreadyHandled(interaction.id)) return;
   markHandled(interaction.id);
 
+  try { await interaction.deferUpdate(); }
+  catch (err) {
+    if (err.code !== 40060 && err.code !== 10062) console.error("[secret-chat] cancelQueue deferUpdate:", err);
+    return;
+  }
+
   const userId = interaction.user.id;
   const idx    = queue.indexOf(userId);
 
   if (idx === -1) {
-    return await safeReply(interaction, { content: "คุณไม่ได้อยู่ในคิวแล้วค่ะ" });
+    return await interaction.followUp({ content: "คุณไม่ได้อยู่ในคิวแล้วค่ะ", flags: 64 }).catch(() => {});
   }
 
   queue.splice(idx, 1);
@@ -1143,7 +1149,7 @@ async function handleCancelQueue(interaction) {
 
   try {
     // เปลี่ยนมาใช้ Component V2 Structure แทนการส่ง content ปกติ
-    await interaction.update({
+    await interaction.editReply({
       flags: 32768,
       components: [{
         type: 17,
@@ -1160,7 +1166,7 @@ async function handleCancelQueue(interaction) {
       }]
     });
   } catch (err) {
-    if (err.code !== 40060 && err.code !== 10003) console.error("[secret-chat] cancelQueue:", err);
+    if (err.code !== 40060 && err.code !== 10062 && err.code !== 10003) console.error("[secret-chat] cancelQueue:", err);
   }
 }
 
@@ -1376,8 +1382,17 @@ async function handleClaimCase(interaction) {
   const channelId = interaction.customId.split(":")[1];
   const staffId   = interaction.user.id;
 
+  try { await interaction.deferUpdate(); }
+  catch (err) {
+    if (err.code !== 40060 && err.code !== 10062) console.error("[secret-chat] claimCase deferUpdate:", err);
+    return;
+  }
+
   if (claimedReports.has(channelId)) {
-    return await safeReply(interaction, { content: `เคสนี้ถูกรับโดย <@${claimedReports.get(channelId)}> แล้วค่ะ` });
+    return await interaction.followUp({
+      content: `เคสนี้ถูกรับโดย <@${claimedReports.get(channelId)}> แล้วค่ะ`,
+      flags: 64
+    }).catch(() => {});
   }
 
   claimedReports.set(channelId, staffId);
@@ -1386,8 +1401,12 @@ async function handleClaimCase(interaction) {
     new ButtonBuilder().setCustomId(`${CLAIM_CASE_CUSTOM_ID}:${channelId}`).setLabel(`✅ รับเคสโดย @${interaction.user.username}`).setStyle(ButtonStyle.Secondary).setDisabled(true)
   );
 
-  try { await interaction.update({ components: [disabledRow] }); }
-  catch (e) { await safeReply(interaction, { content: "รับเคสเรียบร้อยแล้วค่ะ" }); }
+  try { await interaction.editReply({ components: [disabledRow] }); }
+  catch (e) {
+    if (e.code !== 40060 && e.code !== 10062 && e.code !== 10003) {
+      console.error("[secret-chat] claimCase editReply:", e);
+    }
+  }
 
   await logEvent("report_claimed", { channelId, staffId });
 

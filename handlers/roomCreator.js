@@ -88,6 +88,12 @@ async function _createRoom(guild, member, zone) {
 
   try {
     await member.voice.setChannel(newChannel);
+    console.log(`Created room "${roomName}" and moved ${member.user.tag}`);
+  } catch (e) {
+    console.error("Could not move member:", e.message);
+  }
+
+  try {
     await sendRoomPanel(newChannel, member, {
       zoneId: zone.id,
       ownerId: member.id,
@@ -98,9 +104,8 @@ async function _createRoom(guild, member, zone) {
         blockedUserIds: [],
       },
     });
-    console.log(`Created room "${roomName}" and moved ${member.user.tag}`);
   } catch (e) {
-    console.error("Could not move member:", e.message);
+    console.error(`Could not send room panel for "${roomName}":`, e.message);
   }
 
   return newChannel;

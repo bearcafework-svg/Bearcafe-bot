@@ -75,21 +75,26 @@ async function sendRoomPanel(channel, ownerMember, room) {
     await channel.send(payload);
   } catch (e) {
     console.error("Component v2 panel send failed, using fallback:", e.message);
-    await channel.send(createFallbackPanelPayload(ownerMember, room));
+    await channel.send(createFallbackPanelPayload(ownerMember, room)).catch((fallbackError) => {
+      console.error("Fallback room panel send failed:", fallbackError.message);
+      throw fallbackError;
+    });
   }
 }
 
 async function handlePanelButton(interaction) {
-  const context = await getOwnedRoomContextFromInteraction(interaction);
-  if (!context) return await replyOwnerOnly(interaction);
-
   if (interaction.customId === CUSTOM_IDS.name) {
-    return await showNameModal(interaction, context);
+    return await showNameModal(interaction);
   }
 
   if (interaction.customId === CUSTOM_IDS.limit) {
-    return await showLimitModal(interaction, context);
+    return await showLimitModal(interaction);
   }
+
+  await deferEphemeral(interaction);
+
+  const context = await getOwnedRoomContextFromInteraction(interaction);
+  if (!context) return await replyOwnerOnly(interaction);
 
   if (interaction.customId === CUSTOM_IDS.lock) {
     const settings = getSettings(context.room);
@@ -97,9 +102,9 @@ async function handlePanelButton(interaction) {
       settings: { ...settings, locked: !settings.locked },
     });
     await applyRoomPermissions(context.channel, room);
-    return await interaction.reply(ephemeral({
+    return await respondEphemeral(interaction, {
       content: `อัปเดตแล้วค่ะ ตอนนี้ห้อง **${room.settings.locked ? "ล็อค" : "ไม่ล็อค"}**`,
-    }));
+    });
   }
 
   if (interaction.customId === CUSTOM_IDS.hide) {
@@ -108,9 +113,9 @@ async function handlePanelButton(interaction) {
       settings: { ...settings, hidden: !settings.hidden },
     });
     await applyRoomPermissions(context.channel, room);
-    return await interaction.reply(ephemeral({
+    return await respondEphemeral(interaction, {
       content: `อัปเดตแล้วค่ะ ตอนนี้ห้อง **${room.settings.hidden ? "ซ่อน" : "มองเห็นได้"}**`,
-    }));
+    });
   }
 
   if (interaction.customId === CUSTOM_IDS.trust) {
@@ -130,7 +135,7 @@ async function handlePanelButton(interaction) {
   }
 
   if (interaction.customId === CUSTOM_IDS.delete) {
-    await interaction.reply(ephemeral({ content: "กำลังลบห้องค่ะ" }));
+    await respondEphemeral(interaction, { content: "กำลังลบห้องค่ะ" });
     return await deleteOwnedRoom(interaction, context);
   }
 
@@ -138,6 +143,8 @@ async function handlePanelButton(interaction) {
 }
 
 async function handlePanelUserSelect(interaction) {
+  await deferEphemeral(interaction);
+
   const context = await getOwnedRoomContextFromInteraction(interaction);
   if (!context) return await replyOwnerOnly(interaction);
 
@@ -149,23 +156,23 @@ async function handlePanelUserSelect(interaction) {
   }
 
   if (members.length === 0) {
-    return await interaction.reply(ephemeral({ content: "ไม่พบสมาชิกที่เลือกค่ะ" }));
+    return await respondEphemeral(interaction, { content: "ไม่พบสมาชิกที่เลือกค่ะ" });
   }
 
   if (interaction.customId === CUSTOM_IDS.selectKick) {
     const member = members[0];
     if (member.voice.channelId !== context.channel.id) {
-      return await interaction.reply(ephemeral({ content: "สมาชิกคนนั้นไม่ได้อยู่ในห้องนี้ค่ะ" }));
+      return await respondEphemeral(interaction, { content: "สมาชิกคนนั้นไม่ได้อยู่ในห้องนี้ค่ะ" });
     }
     await member.voice.disconnect("Room owner kicked member");
-    return await interaction.reply(ephemeral({ content: `ตัด ${member} ออกจากห้องแล้วค่ะ` }));
+    return await respondEphemeral(interaction, { content: `ตัด ${member} ออกจากห้องแล้วค่ะ` });
   }
 
   if (interaction.customId === CUSTOM_IDS.selectTransfer) {
     const member = members[0];
     const room = await updateRoom(context.channel.id, { ownerId: member.id });
     await applyRoomPermissions(context.channel, room);
-    return await interaction.reply(ephemeral({ content: `โอนเจ้าของห้องให้ ${member} แล้วค่ะ` }));
+    return await respondEphemeral(interaction, { content: `โอนเจ้าของห้องให้ ${member} แล้วค่ะ` });
   }
 
   const settings = getSettings(context.room);
@@ -203,40 +210,42 @@ async function handlePanelUserSelect(interaction) {
   });
 
   await applyRoomPermissions(context.channel, room);
-  return await interaction.reply(ephemeral({ content: "อัปเดตสิทธิ์สมาชิกแล้วค่ะ" }));
+  return await respondEphemeral(interaction, { content: "อัปเดตสิทธิ์สมาชิกแล้วค่ะ" });
 }
 
 async function handlePanelModal(interaction) {
+  await deferEphemeral(interaction);
+
   const context = await getOwnedRoomContextFromInteraction(interaction);
   if (!context) return await replyOwnerOnly(interaction);
 
   if (interaction.customId === CUSTOM_IDS.modalName) {
     const name = interaction.fields.getTextInputValue("room_name").trim();
     if (!name || name.length > 100) {
-      return await interaction.reply(ephemeral({ content: "ชื่อห้องต้องมีความยาว 1-100 ตัวอักษรค่ะ" }));
+      return await respondEphemeral(interaction, { content: "ชื่อห้องต้องมีความยาว 1-100 ตัวอักษรค่ะ" });
     }
 
     await context.channel.setName(name);
     await updateRoom(context.channel.id, {
       settings: { ...getSettings(context.room), name },
     });
-    return await interaction.reply(ephemeral({ content: `เปลี่ยนชื่อห้องเป็น **${name}** แล้วค่ะ` }));
+    return await respondEphemeral(interaction, { content: `เปลี่ยนชื่อห้องเป็น **${name}** แล้วค่ะ` });
   }
 
   if (interaction.customId === CUSTOM_IDS.modalLimit) {
     const rawLimit = interaction.fields.getTextInputValue("room_limit").trim();
     const userLimit = Number.parseInt(rawLimit, 10);
     if (!Number.isInteger(userLimit) || userLimit < 0 || userLimit > 99) {
-      return await interaction.reply(ephemeral({ content: "ลิมิตต้องเป็นตัวเลข 0-99 ค่ะ" }));
+      return await respondEphemeral(interaction, { content: "ลิมิตต้องเป็นตัวเลข 0-99 ค่ะ" });
     }
 
     await context.channel.setUserLimit(userLimit);
     await updateRoom(context.channel.id, {
       settings: { ...getSettings(context.room), limit: userLimit },
     });
-    return await interaction.reply(ephemeral({
+    return await respondEphemeral(interaction, {
       content: `ตั้งลิมิตห้องเป็น ${userLimit || "ไม่จำกัด"} แล้วค่ะ`,
-    }));
+    });
   }
 
   return false;
@@ -260,7 +269,7 @@ async function getOwnedRoomContextFromInteraction(interaction) {
   return { channel, room };
 }
 
-async function showNameModal(interaction, context) {
+async function showNameModal(interaction) {
   const modal = new ModalBuilder()
     .setCustomId(CUSTOM_IDS.modalName)
     .setTitle("เปลี่ยนชื่อห้อง")
@@ -272,7 +281,7 @@ async function showNameModal(interaction, context) {
           .setStyle(TextInputStyle.Short)
           .setMaxLength(100)
           .setRequired(true)
-          .setValue(context.channel.name.slice(0, 100))
+          .setValue((interaction.channel?.name ?? "").slice(0, 100))
       )
     );
 
@@ -280,7 +289,7 @@ async function showNameModal(interaction, context) {
   return true;
 }
 
-async function showLimitModal(interaction, context) {
+async function showLimitModal(interaction) {
   const modal = new ModalBuilder()
     .setCustomId(CUSTOM_IDS.modalLimit)
     .setTitle("เปลี่ยนจำนวนคน")
@@ -291,7 +300,7 @@ async function showLimitModal(interaction, context) {
           .setLabel("จำนวนคนสูงสุด 0-99")
           .setStyle(TextInputStyle.Short)
           .setRequired(true)
-          .setValue(String(context.channel.userLimit || 0))
+          .setValue(String(interaction.channel?.userLimit || 0))
       )
     );
 
@@ -308,22 +317,46 @@ async function replyWithUserSelect(interaction, customId, placeholder, maxValues
       .setMaxValues(maxValues)
   );
 
-  await interaction.reply(ephemeral({
+  await respondEphemeral(interaction, {
     content: placeholder,
     components: [row],
-  }));
+  });
   return true;
 }
 
 async function replyOwnerOnly(interaction) {
-  const payload = {
+  await respondEphemeral(interaction, {
     content: "ใช้ได้เฉพาะเจ้าของห้องเท่านั้นค่ะ",
-  };
+  });
+  return true;
+}
 
-  if (interaction.replied || interaction.deferred) {
-    await interaction.followUp(ephemeral(payload));
-  } else {
-    await interaction.reply(ephemeral(payload));
+async function deferEphemeral(interaction) {
+  if (interaction.replied || interaction.deferred) return true;
+  try {
+    await interaction.deferReply({ flags: EPHEMERAL_FLAG });
+    return true;
+  } catch (err) {
+    if (err.code !== 40060 && err.code !== 10062 && err.code !== 10003) {
+      console.error("[roomPanel] defer interaction error:", err);
+    }
+    return false;
+  }
+}
+
+async function respondEphemeral(interaction, payload) {
+  try {
+    if (interaction.deferred && !interaction.replied) {
+      await interaction.editReply(payload);
+    } else if (interaction.replied || interaction.deferred) {
+      await interaction.followUp(ephemeral(payload));
+    } else {
+      await interaction.reply(ephemeral(payload));
+    }
+  } catch (err) {
+    if (err.code !== 40060 && err.code !== 10062 && err.code !== 10003) {
+      console.error("[roomPanel] respond interaction error:", err);
+    }
   }
   return true;
 }
@@ -434,6 +467,7 @@ async function applyRoomPermissions(channel, room) {
     ? getVipRoomOverwrites(channel, room, settings)
     : getDefaultRoomOverwrites(channel, room, settings);
 
+  ensureBotOverwrite(channel, overwrites);
   await channel.permissionOverwrites.set(overwrites);
 }
 
@@ -557,6 +591,51 @@ function ownerAllowPermissions() {
     PermissionFlagsBits.ManageEvents,
     PermissionFlagsBits.UseExternalApps,
   ];
+}
+
+function ensureBotOverwrite(channel, overwrites) {
+  const botId = channel.guild.members.me?.id || channel.client.user?.id;
+  if (!botId) return;
+
+  const botOverwrite = {
+    id: botId,
+    allow: botPanelPermissions(),
+  };
+
+  if (Array.isArray(overwrites)) {
+    const existingIndex = overwrites.findIndex((overwrite) => overwrite.id === botId);
+    if (existingIndex >= 0) {
+      overwrites[existingIndex] = {
+        ...overwrites[existingIndex],
+        allow: mergePermissions(overwrites[existingIndex].allow, botOverwrite.allow),
+      };
+    } else {
+      overwrites.push(botOverwrite);
+    }
+    return;
+  }
+
+  const existing = overwrites.get(botId);
+  overwrites.set(botId, existing
+    ? { ...existing, allow: mergePermissions(existing.allow, botOverwrite.allow) }
+    : botOverwrite
+  );
+}
+
+function botPanelPermissions() {
+  return [
+    PermissionFlagsBits.ViewChannel,
+    PermissionFlagsBits.SendMessages,
+    PermissionFlagsBits.ReadMessageHistory,
+    PermissionFlagsBits.EmbedLinks,
+    PermissionFlagsBits.AttachFiles,
+    PermissionFlagsBits.AddReactions,
+    PermissionFlagsBits.ManageChannels,
+  ];
+}
+
+function mergePermissions(current = [], extra = []) {
+  return [...new Set([current, extra].flat())];
 }
 
 module.exports = {

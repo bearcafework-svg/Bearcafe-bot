@@ -14,6 +14,8 @@ const cooldowns = new Map();
 const FLAG_V2        = MessageFlags.IsComponentsV2;  // 32768
 const FLAG_EPHEMERAL = MessageFlags.Ephemeral;        // 64
 const FLAG_V2_EPH    = FLAG_V2 | FLAG_EPHEMERAL;      // Component v2 + ephemeral
+const OTHER_COMMANDS_ID = 'tarot4_other_commands';
+const MISSION_CLAIM_ID  = 'tarot4_mission_claim';
 
 // ─── Helper: random int ───────────────────────────────────────────────────────
 function randInt(min, max) {
@@ -133,7 +135,7 @@ function buildCardPayload(card, earnedPoints) {
             {
               type:      2,
               style:     1,
-              custom_id: 'tarot_other_commands',
+              custom_id: OTHER_COMMANDS_ID,
               label:     '︲ดูดวงแบบอื่น',
               emoji:     { id: '1256669436350562355', name: 'bee20000', animated: false },
               flow:      { actions: [] }
@@ -183,7 +185,7 @@ function buildCombinedPayload(card, earnedPoints, tarotPoint, isComplete) {
           components: [{
             type:      2,
             style:     isComplete ? 3 : 1,
-            custom_id: 'tarot_mission_claim',
+            custom_id: MISSION_CLAIM_ID,
             label:     'กดรับรางวัล',
             disabled:  !isComplete,
             flow:      { actions: [] }
@@ -218,7 +220,7 @@ function buildCombinedPayload(card, earnedPoints, tarotPoint, isComplete) {
             {
               type:      2,
               style:     1,
-              custom_id: 'tarot_other_commands',
+              custom_id: OTHER_COMMANDS_ID,
               label:     '︲ดูดวงแบบอื่น',
               emoji:     { id: '1256669436350562355', name: 'bee20000', animated: false },
               flow:      { actions: [] }
@@ -317,7 +319,7 @@ function setupTarot4(client) {
     const { customId, user, member } = interaction;
 
     // ── ปุ่ม: ดูดวงแบบอื่น ─────────────────────────────────────────────────
-    if (customId === 'tarot_other_commands') {
+    if (customId === OTHER_COMMANDS_ID) {
       const payload = otherCommandsPayload();
       await interaction.reply({
         flags:      FLAG_V2_EPH,
@@ -327,7 +329,7 @@ function setupTarot4(client) {
     }
 
     // ── ปุ่ม: กดรับรางวัล Mission ─────────────────────────────────────────
-    if (customId === 'tarot_mission_claim') {
+    if (customId === MISSION_CLAIM_ID) {
       try {
         await interaction.deferUpdate();
 
@@ -362,7 +364,7 @@ function setupTarot4(client) {
           return components.map(c => {
             let comp = typeof c.toJSON === 'function' ? c.toJSON() : { ...c };
 
-            if (comp.custom_id === 'tarot_mission_claim') {
+            if (comp.custom_id === MISSION_CLAIM_ID) {
               return {
                 ...comp,
                 label:    '︲รับรางวัลเรียบร้อย!',

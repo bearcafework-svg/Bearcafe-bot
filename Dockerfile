@@ -1,7 +1,11 @@
 FROM node:20-slim
 WORKDIR /app
-COPY package.json ./
-# ใช้ npm install แทน npm ci เพื่อความยืดหยุ่น
-RUN npm install
+
+ENV NODE_ENV=production
+
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --no-audit --no-fund
+
 COPY . .
-CMD ["node", "index.js"]
+
+CMD ["npm", "start"]

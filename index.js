@@ -9,19 +9,18 @@ const { Client, GatewayIntentBits, REST, Routes } = require("discord.js");
 const { startMonitor } = require("./handlers/roomMonitor");
 const { destroyRoom } = require("./handlers/roomDestroyer");
 const { handleRoomPanel, handleRoomPanelInteraction } = require("./handlers/roomPanel");
-const { setupDonate } = require("./src/features/donate");
-const { setupSecretChat } = require("./src/features/secretChat");
-const { setupTarot1 } = require("./src/features/horoscope/tarot1");
-const { setupTarot2 } = require("./src/features/horoscope/tarot2");
-const { setupTarot3 } = require("./src/features/horoscope/tarot3");
-const { setupTarot4 } = require("./src/features/horoscope/tarot4");
-const { setupTarot5 } = require("./src/features/horoscope/tarot5");
-const { setupTarot6 } = require("./src/features/horoscope/tarot6");
-const { setupVoicePoints } = require("./src/features/voicePoints");
 const voiceStateUpdate = require("./events/voiceStateUpdate");
 const { getAllRooms, getAllSeparators } = require("./state/redisClient");
 const { syncAllSeparators } = require("./utils/separatorManager");
 const config = require("./config");
+
+const isLocalFastStart = process.env.LOCAL_FAST_START === "true";
+const supabaseEnvKeys = ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"];
+
+if (!process.env.BOT_TOKEN && process.env.DISCORD_TOKEN) {
+  process.env.BOT_TOKEN = process.env.DISCORD_TOKEN;
+  console.warn("[env] Using DISCORD_TOKEN as BOT_TOKEN fallback. Please rename it to BOT_TOKEN before Koyeb deploy.");
+}
 
 const client = new Client({
   intents: [
@@ -35,15 +34,26 @@ const client = new Client({
   ],
 });
 
-setupSecretChat(client);
-setupDonate(client);
-setupTarot1(client);
-setupTarot2(client);
-setupTarot3(client);
-setupTarot4(client);
-setupTarot5(client);
-setupTarot6(client);
-setupVoicePoints(client);
+setupFeature("secretChat", "./src/features/secretChat", "setupSecretChat", supabaseEnvKeys);
+setupFeature("donate", "./src/features/donate", "setupDonate", supabaseEnvKeys);
+setupFeature("tarot1", "./src/features/horoscope/tarot1", "setupTarot1", supabaseEnvKeys);
+setupFeature("tarot2", "./src/features/horoscope/tarot2", "setupTarot2", supabaseEnvKeys);
+setupFeature("tarot3", "./src/features/horoscope/tarot3", "setupTarot3", supabaseEnvKeys);
+setupFeature("tarot4", "./src/features/horoscope/tarot4", "setupTarot4", supabaseEnvKeys);
+setupFeature("tarot5", "./src/features/horoscope/tarot5", "setupTarot5", supabaseEnvKeys);
+setupFeature("tarot6", "./src/features/horoscope/tarot6", "setupTarot6", supabaseEnvKeys);
+setupFeature("voicePoints", "./src/features/voicePoints", "setupVoicePoints");
+
+function setupFeature(name, modulePath, setupName, requiredEnv = []) {
+  const missing = requiredEnv.filter((key) => !process.env[key]);
+  if (missing.length && isLocalFastStart) {
+    console.warn(`[local] Skipping ${name}; missing ${missing.join(", ")}.`);
+    return;
+  }
+
+  const feature = require(modulePath);
+  feature[setupName](client);
+}
 
 // ── ตอนบอท ready ──────────────────────────────────────────────────
 client.once("clientReady", async () => {
@@ -62,11 +72,16 @@ client.once("clientReady", async () => {
     console.error("⚠️ โหลด separators จาก Redis ไม่ได้:", e.message);
   }
 
-  // Register slash commands
-  await registerCommands();
+  if (process.env.CLEAR_SLASH_COMMANDS_ON_START === "true") {
+    await registerCommands();
+  }
 
   // ── Startup Cleanup — ลบห้องค้างจากก่อนบอทดับ ─────────────────
-  await startupCleanup();
+  if (isLocalFastStart) {
+    console.log("[local] Skipping startup cleanup.");
+  } else {
+    startupCleanup().catch((e) => console.error("Startup cleanup failed:", e.message));
+  }
 
   // เริ่ม monitor loop
   startMonitor(client);

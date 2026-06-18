@@ -1495,7 +1495,13 @@ async function handleRating(interaction) {
 function setupSecretChat(client) {
 
   client.once(Events.ClientReady, async () => {
-    await runCrashRecovery(client);
+    if (process.env.LOCAL_FAST_START === "true") {
+      console.log("[secret-chat] Skipping crash recovery in LOCAL_FAST_START mode.");
+      return;
+    }
+    runCrashRecovery(client).catch((err) => {
+      console.error("[secret-chat] crash recovery failed:", err.message);
+    });
   });
 
   client.on(Events.MessageCreate, async (message) => {

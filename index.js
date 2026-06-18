@@ -1,0 +1,141 @@
+// ===================================================
+// index.js — จุดเริ่มต้นของบอท
+// ===================================================
+
+require("dotenv").config();
+
+const { Client, GatewayIntentBits, REST, Routes } = require("discord.js");
+const { startMonitor } = require("./handlers/roomMonitor");
+const { destroyRoom } = require("./handlers/roomDestroyer");
+const { handleRoomPanel, handleRoomPanelInteraction } = require("./handlers/roomPanel");
+const voiceStateUpdate = require("./events/voiceStateUpdate");
+const { getAllRooms, getAllSeparators } = require("./state/redisClient");
+const { syncAllSeparators } = require("./utils/separatorManager");
+const config = require("./config");
+
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildVoiceStates,
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+  ],
+});
+
+// ── ตอนบอท ready ──────────────────────────────────────────────────
+client.once("clientReady", async () => {
+  console.log(`✅ บอท "${client.user.tag}" พร้อมใช้งานแล้ว!`);
+
+  // โหลด separator IDs จาก Redis
+  try {
+    const separators = await getAllSeparators();
+    for (const zone of config.zones) {
+      if (separators[zone.id]) {
+        zone.separatorChannelId = separators[zone.id];
+        console.log(`📌 โหลด separator โซน "${zone.name}": ${separators[zone.id]}`);
+      }
+    }
+  } catch (e) {
+    console.error("⚠️ โหลด separators จาก Redis ไม่ได้:", e.message);
+  }
+
+  // Register slash commands
+  await registerCommands();
+
+  // ── Startup Cleanup — ลบห้องค้างจากก่อนบอทดับ ─────────────────
+  await startupCleanup();
+
+  // เริ่ม monitor loop
+  startMonitor(client);
+});
+
+// ── Startup Cleanup ────────────────────────────────────────────────
+async function startupCleanup() {
+  console.log("🧹 เริ่ม Startup Cleanup — ตรวจห้องค้าง...");
+
+  try {
+    const rooms = await getAllRooms();
+    const roomIds = Object.keys(rooms);
+
+    if (roomIds.length === 0) {
+      console.log("✅ ไม่มีห้องค้าง");
+    }
+
+    // รอให้ guild cache โหลดก่อน
+    await new Promise((r) => setTimeout(r, 2000));
+
+    let deletedCount = 0;
+
+    for (const [channelId] of Object.entries(rooms)) {
+      // หาห้องใน guild ทุกอัน
+      const channel = client.channels.cache.get(channelId);
+
+      if (!channel) {
+        // ห้องถูกลบไปแล้ว (ลบ manual ระหว่างบอทดับ) — ลบออกจาก Redis
+        const { deleteRoom } = require("./state/redisClient");
+        await deleteRoom(channelId);
+        console.log(`🗑️ ลบ ${channelId} ออกจาก Redis (ไม่พบ channel)`);
+        deletedCount++;
+        continue;
+      }
+
+      // ถ้าห้องว่าง → ลบทันทีเลย ไม่รอ 2 นาที
+      if (channel.members.size === 0) {
+        console.log(`🗑️ ลบห้องค้าง "${channel.name}"`);
+        await destroyRoom(channel.guild, channelId);
+        deletedCount++;
+      } else {
+        console.log(`✅ "${channel.name}" — มีคนอยู่ ${channel.members.size} คน ไม่ลบ`);
+      }
+    }
+
+    console.log(`🧹 Cleanup เสร็จ — ลบ ${deletedCount} ห้อง`);
+
+    // sync separator ทุกโซนหลัง cleanup
+    const remainingRooms = await getAllRooms();
+
+    // หา guild แรกที่บอทอยู่
+    const guild = client.guilds.cache.first();
+    if (guild) {
+      await syncAllSeparators(guild, remainingRooms);
+    }
+
+  } catch (e) {
+    console.error("❌ Startup Cleanup error:", e.message);
+  }
+}
+
+// ── จับ event เข้า/ออกห้อง Voice ─────────────────────────────────
+client.on("voiceStateUpdate", (oldState, newState) => {
+  voiceStateUpdate.execute(oldState, newState).catch(console.error);
+});
+
+client.on("messageCreate", async (message) => {
+  await handleRoomPanel(message);
+});
+
+client.on("interactionCreate", async (interaction) => {
+  await handleRoomPanelInteraction(interaction);
+});
+
+// ── Register Slash Commands ────────────────────────────────────────
+async function registerCommands() {
+  const commands = [];
+
+  const rest = new REST().setToken(process.env.DISCORD_TOKEN);
+
+  try {
+    await rest.put(Routes.applicationCommands(client.user.id), { body: commands });
+    console.log("✅ ล้าง Slash commands เก่าแล้ว");
+  } catch (e) {
+    console.error("❌ Register commands ไม่ได้:", e.message);
+  }
+}
+
+// ── Error handling ─────────────────────────────────────────────────
+client.on("error", (e) => console.error("Discord client error:", e));
+process.on("unhandledRejection", (e) => console.error("Unhandled rejection:", e));
+
+// ── Login ──────────────────────────────────────────────────────────
+client.login(process.env.DISCORD_TOKEN);

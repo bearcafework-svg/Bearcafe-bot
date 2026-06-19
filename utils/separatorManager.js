@@ -14,12 +14,12 @@ function getSeparatorNames(zone) {
   ].filter(Boolean);
 }
 
-function isLastZone(zone) {
-  return config.zones[config.zones.length - 1]?.id === zone.id;
+function isFirstZone(zone) {
+  return config.zones[0]?.id === zone.id;
 }
 
 function shouldSkipSeparator(zone) {
-  return zone.id === "vip" || isLastZone(zone);
+  return isFirstZone(zone);
 }
 
 function getZoneCategoryId(guild, zone) {
@@ -240,13 +240,13 @@ async function syncCategoryLayout(guild, rooms) {
 
       const roomEntries = getZoneRoomEntries(guild, rooms, zone);
 
-      for (const { channel } of roomEntries) {
-        await moveChannel(channel, nextPosition++);
-      }
-
       const separator = findSeparator(guild, zone);
       if (separator && !shouldSkipSeparator(zone)) {
         await moveChannel(separator, nextPosition++);
+      }
+
+      for (const { channel } of roomEntries) {
+        await moveChannel(channel, nextPosition++);
       }
     }
   }

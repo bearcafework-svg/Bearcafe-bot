@@ -103,7 +103,7 @@ async function handlePanelButton(interaction) {
     const room = await updateRoom(context.channel.id, {
       settings: { ...settings, locked: !settings.locked },
     });
-    await persistRoomPreset(room);
+    await persistRoomPreset(context.channel, room);
     await applyRoomPermissions(context.channel, room);
     return await respondEphemeral(interaction, {
       content: `อัปเดตแล้วค่ะ ตอนนี้ห้อง **${room.settings.locked ? "ล็อค" : "ไม่ล็อค"}**`,
@@ -115,7 +115,7 @@ async function handlePanelButton(interaction) {
     const room = await updateRoom(context.channel.id, {
       settings: { ...settings, hidden: !settings.hidden },
     });
-    await persistRoomPreset(room);
+    await persistRoomPreset(context.channel, room);
     await applyRoomPermissions(context.channel, room);
     return await respondEphemeral(interaction, {
       content: `อัปเดตแล้วค่ะ ตอนนี้ห้อง **${room.settings.hidden ? "ซ่อน" : "มองเห็นได้"}**`,
@@ -175,7 +175,7 @@ async function handlePanelUserSelect(interaction) {
   if (interaction.customId === CUSTOM_IDS.selectTransfer) {
     const member = members[0];
     const room = await updateRoom(context.channel.id, { ownerId: member.id });
-    await persistRoomPreset(room);
+    await persistRoomPreset(context.channel, room);
     await applyRoomPermissions(context.channel, room);
     return await respondEphemeral(interaction, { content: `โอนเจ้าของห้องให้ ${member} แล้วค่ะ` });
   }
@@ -214,7 +214,7 @@ async function handlePanelUserSelect(interaction) {
     },
   });
 
-  await persistRoomPreset(room);
+  await persistRoomPreset(context.channel, room);
   await applyRoomPermissions(context.channel, room);
   return await respondEphemeral(interaction, { content: "อัปเดตสิทธิ์สมาชิกแล้วค่ะ" });
 }
@@ -235,7 +235,7 @@ async function handlePanelModal(interaction) {
     const room = await updateRoom(context.channel.id, {
       settings: { ...getSettings(context.room), name },
     });
-    await persistRoomPreset(room);
+    await persistRoomPreset(context.channel, room);
     return await respondEphemeral(interaction, { content: `เปลี่ยนชื่อห้องเป็น **${name}** แล้วค่ะ` });
   }
 
@@ -250,7 +250,7 @@ async function handlePanelModal(interaction) {
     const room = await updateRoom(context.channel.id, {
       settings: { ...getSettings(context.room), limit: userLimit },
     });
-    await persistRoomPreset(room);
+    await persistRoomPreset(context.channel, room);
     return await respondEphemeral(interaction, {
       content: `ตั้งลิมิตห้องเป็น ${userLimit || "ไม่จำกัด"} แล้วค่ะ`,
     });
@@ -469,9 +469,10 @@ function getStatusText(room) {
   return `${settings.locked ? "ล็อค" : "ไม่ล็อค"} / ${settings.hidden ? "ซ่อน" : "มองเห็นได้"}`;
 }
 
-async function persistRoomPreset(room) {
-  if (!room?.ownerId || !room?.zoneId) return false;
-  return await saveSmartRoomPreset(room.ownerId, room.zoneId, getSettings(room));
+async function persistRoomPreset(channel, room) {
+  const guildId = channel?.guild?.id || room?.guildId;
+  if (!guildId || !room?.ownerId || !room?.zoneId) return false;
+  return await saveSmartRoomPreset(guildId, room.ownerId, room.zoneId, getSettings(room));
 }
 
 async function applyRoomPermissions(channel, room) {

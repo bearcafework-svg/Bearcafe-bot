@@ -35,6 +35,7 @@ const CUSTOM_IDS = {
 const EPHEMERAL_FLAG = 64;
 const PANEL_BUTTON_IDS = new Set(Object.values(CUSTOM_IDS).filter((id) => id.startsWith("p_")));
 const SET_VOICE_CHANNEL_STATUS = PermissionFlagsBits.SetVoiceChannelStatus || (1n << 48n);
+const PANEL_ZONE_ID = "vip";
 
 function ephemeral(options) {
   return { ...options, flags: EPHEMERAL_FLAG };
@@ -46,7 +47,7 @@ async function handleRoomPanel(message) {
 
   const context = await getOwnedRoomContextFromMessage(message);
   if (!context) {
-    await message.reply("ใช้ได้เฉพาะเจ้าของห้องที่กำลังอยู่ในห้องของตัวเองเท่านั้นค่ะ");
+    await message.reply("แผงตั้งค่าใช้ได้เฉพาะเจ้าของห้อง VIP ที่กำลังอยู่ในห้องของตัวเองเท่านั้นค่ะ");
     return true;
   }
 
@@ -71,6 +72,8 @@ async function handleRoomPanelInteraction(interaction) {
 }
 
 async function sendRoomPanel(channel, ownerMember, room) {
+  if (room.zoneId !== PANEL_ZONE_ID) return false;
+
   const payload = createComponentV2PanelPayload(ownerMember, room);
 
   try {
@@ -86,17 +89,21 @@ async function sendRoomPanel(channel, ownerMember, room) {
 
 async function handlePanelButton(interaction) {
   if (interaction.customId === CUSTOM_IDS.name) {
+    const context = await getOwnedRoomContextFromInteraction(interaction);
+    if (!context) return await replyVipOnly(interaction);
     return await showNameModal(interaction);
   }
 
   if (interaction.customId === CUSTOM_IDS.limit) {
+    const context = await getOwnedRoomContextFromInteraction(interaction);
+    if (!context) return await replyVipOnly(interaction);
     return await showLimitModal(interaction);
   }
 
   await deferEphemeral(interaction);
 
   const context = await getOwnedRoomContextFromInteraction(interaction);
-  if (!context) return await replyOwnerOnly(interaction);
+  if (!context) return await replyVipOnly(interaction);
 
   if (interaction.customId === CUSTOM_IDS.lock) {
     const settings = getSettings(context.room);
@@ -150,7 +157,7 @@ async function handlePanelUserSelect(interaction) {
   await deferEphemeral(interaction);
 
   const context = await getOwnedRoomContextFromInteraction(interaction);
-  if (!context) return await replyOwnerOnly(interaction);
+  if (!context) return await replyVipOnly(interaction);
 
   const userIds = interaction.values;
   const members = [];
@@ -223,7 +230,7 @@ async function handlePanelModal(interaction) {
   await deferEphemeral(interaction);
 
   const context = await getOwnedRoomContextFromInteraction(interaction);
-  if (!context) return await replyOwnerOnly(interaction);
+  if (!context) return await replyVipOnly(interaction);
 
   if (interaction.customId === CUSTOM_IDS.modalName) {
     const name = interaction.fields.getTextInputValue("room_name").trim();
@@ -265,6 +272,7 @@ async function getOwnedRoomContextFromMessage(message) {
 
   const room = await getRoom(voiceChannel.id);
   if (!room || room.ownerId !== message.author.id) return null;
+  if (room.zoneId !== PANEL_ZONE_ID) return null;
 
   return { channel: voiceChannel, room };
 }
@@ -274,6 +282,7 @@ async function getOwnedRoomContextFromInteraction(interaction) {
   const channel = interaction.channel;
 
   if (!room || !channel || room.ownerId !== interaction.user.id) return null;
+  if (room.zoneId !== PANEL_ZONE_ID) return null;
   return { channel, room };
 }
 
@@ -335,6 +344,13 @@ async function replyWithUserSelect(interaction, customId, placeholder, maxValues
 async function replyOwnerOnly(interaction) {
   await respondEphemeral(interaction, {
     content: "ใช้ได้เฉพาะเจ้าของห้องเท่านั้นค่ะ",
+  });
+  return true;
+}
+
+async function replyVipOnly(interaction) {
+  await respondEphemeral(interaction, {
+    content: "แผงตั้งค่าใช้ได้เฉพาะห้อง VIP เท่านั้นค่ะ",
   });
   return true;
 }

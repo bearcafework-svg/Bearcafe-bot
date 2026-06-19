@@ -237,26 +237,34 @@ async function syncCategoryLayout(guild, rooms) {
       let nextPosition = lobbyChannel.position + 1;
 
       const roomEntries = getZoneRoomEntries(guild, rooms, zone);
+      const orderedChannels = [];
 
       const separator = findSeparator(guild, zone);
       if (separator && !shouldSkipSeparator(zone)) {
-        await moveChannel(separator, nextPosition++);
+        orderedChannels.push(separator);
       }
 
       for (const { channel } of roomEntries) {
-        await moveChannel(channel, nextPosition++);
+        orderedChannels.push(channel);
       }
+
+      await setChannelPositions(guild, orderedChannels, nextPosition);
     }
   }
 }
 
-async function moveChannel(channel, position) {
-  if (channel.position === position) return;
+async function setChannelPositions(guild, channels, startPosition) {
+  const updates = channels.map((channel, index) => ({
+    channel,
+    position: startPosition + index,
+  }));
+
+  if (updates.every(({ channel, position }) => channel.position === position)) return;
 
   try {
-    await channel.setPosition(position);
+    await guild.channels.setPositions(updates);
   } catch (e) {
-    console.error(`Could not position "${channel.name}":`, e.message);
+    console.error("Could not batch position smart-room channels:", e.message);
   }
 }
 

@@ -192,10 +192,12 @@ async function createRoomWithLock(guild, member, zone) {
     console.error("Could not move member:", e.message);
   }
 
-  try {
-    await sendRoomPanel(newChannel, member, room);
-  } catch (e) {
-    console.error(`Could not send room panel for "${roomName}":`, e.message);
+  if (zone.id === "vip") {
+    try {
+      await sendRoomPanel(newChannel, member, room);
+    } catch (e) {
+      console.error(`Could not send room panel for "${roomName}":`, e.message);
+    }
   }
 
   const rooms = await getAllRooms();

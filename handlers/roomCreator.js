@@ -3,10 +3,12 @@ const { generateRoomName } = require("../utils/nameGenerator");
 const { saveRoom, getAllRooms } = require("../state/redisClient");
 const { syncAllSeparators } = require("../utils/separatorManager");
 const { applyRoomPermissions, sendRoomPanel } = require("./roomPanel");
+const { sendRoomLog } = require("../utils/roomLogger");
 const config = require("../config");
 
 let isCreating = false;
 const queue = [];
+const pendingOwners = new Set();
 
 function getRoomsCategoryId(guild, zone) {
   if (zone.roomsCategoryId) return zone.roomsCategoryId;
@@ -21,12 +23,15 @@ async function processQueue() {
   isCreating = true;
 
   const { guild, member, zone, resolve } = queue.shift();
+  const ownerKey = `${guild.id}:${member.id}`;
   try {
     const result = await _createRoom(guild, member, zone);
     resolve(result);
   } catch (e) {
     console.error("roomCreator error:", e);
     resolve(null);
+  } finally {
+    pendingOwners.delete(ownerKey);
   }
 
   isCreating = false;
@@ -35,6 +40,13 @@ async function processQueue() {
 
 function createRoom(guild, member, zone) {
   return new Promise((resolve) => {
+    const ownerKey = `${guild.id}:${member.id}`;
+    if (pendingOwners.has(ownerKey)) {
+      resolve(null);
+      return;
+    }
+
+    pendingOwners.add(ownerKey);
     queue.push({ guild, member, zone, resolve });
     processQueue();
   });
@@ -47,6 +59,23 @@ async function _createRoom(guild, member, zone) {
   if (!lobbyChannel) {
     console.error(`Cannot create room for zone "${zone.name}": lobby not found`);
     return null;
+  }
+
+  if (member.voice.channelId !== zone.lobbyChannelId) {
+    console.log(`Skip create room for ${member.user.tag}: no longer in lobby "${zone.name}"`);
+    return null;
+  }
+
+  const activeRooms = await getAllRooms();
+  const existingRoomEntry = Object.entries(activeRooms).find(([, room]) => room.ownerId === member.id);
+  if (existingRoomEntry) {
+    const [existingChannelId] = existingRoomEntry;
+    const existingChannel = guild.channels.cache.get(existingChannelId);
+    if (existingChannel) {
+      await member.voice.setChannel(existingChannel).catch(() => {});
+      console.log(`Skip duplicate room for ${member.user.tag}: moved to existing room "${existingChannel.name}"`);
+      return existingChannel;
+    }
   }
 
   const category = categoryId ? guild.channels.cache.get(categoryId) : null;
@@ -83,12 +112,10 @@ async function _createRoom(guild, member, zone) {
     },
   });
 
-  const rooms = await getAllRooms();
-  await syncAllSeparators(guild, rooms);
-
   try {
     await member.voice.setChannel(newChannel);
     console.log(`Created room "${roomName}" and moved ${member.user.tag}`);
+    await sendRoomLog("create", member, { channel: newChannel });
   } catch (e) {
     console.error("Could not move member:", e.message);
   }
@@ -107,6 +134,9 @@ async function _createRoom(guild, member, zone) {
   } catch (e) {
     console.error(`Could not send room panel for "${roomName}":`, e.message);
   }
+
+  const rooms = await getAllRooms();
+  await syncAllSeparators(guild, rooms);
 
   return newChannel;
 }

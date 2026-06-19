@@ -19,7 +19,7 @@ const requiredEnv = [
   "UPSTASH_REDIS_REST_TOKEN",
 ];
 
-const optionalEnv = ["PORT", "WEBHOOK_URL", "VOICE_POINTS_URL"];
+const optionalEnv = ["PORT", "WEBHOOK_URL", "ROOM_LOG_WEBHOOK_URL", "VOICE_POINTS_URL"];
 
 function fail(message) {
   console.error(`[preflight] FAIL: ${message}`);

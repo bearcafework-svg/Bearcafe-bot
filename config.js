@@ -39,7 +39,7 @@ module.exports = {
       name: "VIP",
       lobbyChannelId: "1517125951757226135",
       separatorChannelId: null,
-      separatorName: "𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃",
+      separatorName: "〔𝖵𝖨𝖯〕𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃",
       nameThemes: ["⭐︲VIP username"],
     },
     {
@@ -53,7 +53,7 @@ module.exports = {
       separatorChannelId: null,
 
       // ✏️ แก้ชื่อเส้นคั่นได้ตามใจชอบ
-      separatorName: "𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃",
+      separatorName: "〔𝖢𝖧𝖨𝖫𝖫〕𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃",
 
       // ชื่อห้องที่จะสุ่มสร้าง
       nameThemes: [
@@ -108,7 +108,7 @@ module.exports = {
       name: "เกม",
       lobbyChannelId: "1517172169501835384",
       separatorChannelId: null,
-      separatorName: "𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃",
+      separatorName: "〔𝖦𝖠𝖬𝖤〕𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃",
       nameThemes: ["🎮︲โต๊ะเกม username"],
     },
     {
@@ -116,7 +116,7 @@ module.exports = {
       name: "เพลง",
       lobbyChannelId: "1517172198580682844",
       separatorChannelId: null,
-      separatorName: "𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃",
+      separatorName: "〔𝖬𝖴𝖲𝖨𝖢〕𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃",
       nameThemes: ["🎶︲โต๊ะเพลง username"],
     },
     {
@@ -124,7 +124,7 @@ module.exports = {
       name: "ทำงาน",
       lobbyChannelId: "1517172231510163466",
       separatorChannelId: null,
-      separatorName: "𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃",
+      separatorName: "〔𝖶𝖮𝖱𝖪〕𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃",
       nameThemes: ["💼︲โต๊ะทำงาน username"],
     },
 

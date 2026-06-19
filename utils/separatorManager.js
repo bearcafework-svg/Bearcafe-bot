@@ -2,6 +2,8 @@ const { ChannelType, PermissionFlagsBits } = require("discord.js");
 const { saveSeparator } = require("../state/redisClient");
 const config = require("../config");
 
+const syncLocks = new Set();
+
 function getSeparatorNames(zone) {
   return [
     zone.separatorName,
@@ -26,11 +28,6 @@ function getZoneCategoryId(guild, zone) {
   return lobbyChannel ? lobbyChannel.parentId : null;
 }
 
-function hasUniqueSeparatorName(zone) {
-  if (!zone.separatorName) return false;
-  return config.zones.filter((z) => z.separatorName === zone.separatorName).length === 1;
-}
-
 function getSeparatorPermissionOverwrites(guild) {
   const separatorPermissions = config.separatorPermissions || {};
   const visibleNoConnectIds = separatorPermissions.visibleNoConnectIds || [];
@@ -53,6 +50,11 @@ function getSeparatorPermissionOverwrites(guild) {
   ];
 }
 
+function hasUniqueSeparatorName(zone) {
+  if (!zone.separatorName) return false;
+  return config.zones.filter((item) => item.separatorName === zone.separatorName).length === 1;
+}
+
 function findSeparator(guild, zone) {
   if (zone.separatorChannelId) {
     const byId = guild.channels.cache.get(zone.separatorChannelId);
@@ -68,6 +70,54 @@ function findSeparator(guild, zone) {
   return guild.channels.cache.find(
     (channel) => channel.parentId === categoryId && names.includes(channel.name)
   ) || null;
+}
+
+function findAdoptableSeparator(guild, zone) {
+  const categoryId = getZoneCategoryId(guild, zone);
+  if (!categoryId) return null;
+
+  const knownIds = getKnownSeparatorIds();
+  const names = getSeparatorNames(zone);
+  return guild.channels.cache.find(
+    (channel) =>
+      channel.parentId === categoryId &&
+      !knownIds.has(channel.id) &&
+      channel.type === ChannelType.GuildVoice &&
+      names.includes(channel.name)
+  ) || null;
+}
+
+function getKnownSeparatorIds() {
+  return new Set(config.zones.map((zone) => zone.separatorChannelId).filter(Boolean));
+}
+
+function isSeparatorLikeChannel(channel) {
+  if (channel.type !== ChannelType.GuildVoice) return false;
+  return config.zones.some((zone) => getSeparatorNames(zone).includes(channel.name));
+}
+
+async function cleanupOrphanSeparators(guild) {
+  const knownIds = getKnownSeparatorIds();
+  const categoryIds = new Set(
+    config.zones
+      .map((zone) => getZoneCategoryId(guild, zone))
+      .filter(Boolean)
+  );
+
+  const orphanSeparators = guild.channels.cache.filter((channel) => {
+    if (!categoryIds.has(channel.parentId)) return false;
+    if (!isSeparatorLikeChannel(channel)) return false;
+    return !knownIds.has(channel.id);
+  });
+
+  for (const channel of orphanSeparators.values()) {
+    try {
+      await channel.delete("Remove duplicate smart-room separator");
+      console.log(`Deleted duplicate separator "${channel.name}"`);
+    } catch (e) {
+      console.error(`Could not delete duplicate separator "${channel.name}":`, e.message);
+    }
+  }
 }
 
 function normalizeRooms(rooms) {
@@ -139,6 +189,14 @@ async function showSeparator(guild, zone) {
     return existing;
   }
 
+  const adoptable = findAdoptableSeparator(guild, zone);
+  if (adoptable) {
+    await adoptable.permissionOverwrites.set(getSeparatorPermissionOverwrites(guild));
+    zone.separatorChannelId = adoptable.id;
+    await saveSeparator(zone.id, adoptable.id);
+    return adoptable;
+  }
+
   const separator = await guild.channels.create({
     name: zone.separatorName || `\u23af\u23af\u23af ${zone.name} \u23af\u23af\u23af`,
     type: ChannelType.GuildVoice,
@@ -168,8 +226,12 @@ async function syncCategoryLayout(guild, rooms) {
     let nextPosition = 0;
 
     for (const zone of zonesInCategory) {
+      const lobbyChannel = guild.channels.cache.get(zone.lobbyChannelId);
+      if (lobbyChannel) {
+        await moveChannel(lobbyChannel, nextPosition++);
+      }
+
       const roomEntries = getZoneRoomEntries(guild, rooms, zone);
-      if (roomEntries.length === 0) continue;
 
       for (const { channel } of roomEntries) {
         await moveChannel(channel, nextPosition++);
@@ -194,19 +256,27 @@ async function moveChannel(channel, position) {
 }
 
 async function syncAllSeparators(guild, roomsInput) {
+  if (syncLocks.has(guild.id)) return;
+  syncLocks.add(guild.id);
+
   const rooms = normalizeRooms(roomsInput);
 
-  for (const zone of config.zones) {
-    const roomEntries = getZoneRoomEntries(guild, rooms, zone);
+  try {
+    for (const zone of config.zones) {
+      const roomEntries = getZoneRoomEntries(guild, rooms, zone);
 
-    if (roomEntries.length > 0 && !shouldSkipSeparator(zone)) {
-      await showSeparator(guild, zone);
-    } else {
-      await hideSeparator(guild, zone);
+      if (roomEntries.length > 0 && !shouldSkipSeparator(zone)) {
+        await showSeparator(guild, zone);
+      } else {
+        await hideSeparator(guild, zone);
+      }
     }
-  }
 
-  await syncCategoryLayout(guild, rooms);
+    await cleanupOrphanSeparators(guild);
+    await syncCategoryLayout(guild, rooms);
+  } finally {
+    syncLocks.delete(guild.id);
+  }
 }
 
 module.exports = {

@@ -22,10 +22,6 @@ function makeUniqueName(base, existingNames) {
 }
 
 function generateRoomName(zone, existingNames = [], member = null) {
-  if (zone.id === "game") {
-    return makeUniqueName(formatThemeName("🎮︲username", member), existingNames);
-  }
-
   const themes = zone.nameThemes.map((theme) => formatThemeName(theme, member));
   const shuffled = [...themes].sort(() => Math.random() - 0.5);
 

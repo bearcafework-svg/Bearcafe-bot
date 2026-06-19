@@ -5,7 +5,7 @@
 require("dotenv").config();
 
 const http = require("http");
-const { Client, GatewayIntentBits, REST, Routes } = require("discord.js");
+const { Client, GatewayIntentBits } = require("discord.js");
 const { startMonitor } = require("./handlers/roomMonitor");
 const { destroyRoom } = require("./handlers/roomDestroyer");
 const { handleRoomPanel, handleRoomPanelInteraction } = require("./handlers/roomPanel");
@@ -17,9 +17,9 @@ const config = require("./config");
 const isLocalFastStart = process.env.LOCAL_FAST_START === "true";
 const supabaseEnvKeys = ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"];
 
-if (!process.env.BOT_TOKEN && process.env.DISCORD_TOKEN) {
-  process.env.BOT_TOKEN = process.env.DISCORD_TOKEN;
-  console.warn("[env] Using DISCORD_TOKEN as BOT_TOKEN fallback. Please rename it to BOT_TOKEN before Koyeb deploy.");
+if (!process.env.BOT_TOKEN) {
+  console.error("[env] BOT_TOKEN is missing. Refusing to start so this project cannot accidentally use another bot token.");
+  process.exit(1);
 }
 
 const client = new Client({
@@ -73,7 +73,7 @@ client.once("clientReady", async () => {
   }
 
   if (process.env.CLEAR_SLASH_COMMANDS_ON_START === "true") {
-    await registerCommands();
+    console.warn("[slash] CLEAR_SLASH_COMMANDS_ON_START is disabled in this project to avoid wiping another bot's slash commands.");
   }
 
   // ── Startup Cleanup — ลบห้องค้างจากก่อนบอทดับ ─────────────────
@@ -171,20 +171,6 @@ if (process.env.PORT) {
     .listen(Number(process.env.PORT), () => {
       console.log(`Health server listening on port ${process.env.PORT}`);
     });
-}
-
-// ── Register Slash Commands ────────────────────────────────────────
-async function registerCommands() {
-  const commands = [];
-
-  const rest = new REST().setToken(process.env.BOT_TOKEN);
-
-  try {
-    await rest.put(Routes.applicationCommands(client.user.id), { body: commands });
-    console.log("✅ ล้าง Slash commands เก่าแล้ว");
-  } catch (e) {
-    console.error("❌ Register commands ไม่ได้:", e.message);
-  }
 }
 
 // ── Error handling ─────────────────────────────────────────────────

@@ -12,6 +12,7 @@ const {
 const config = require("../config");
 const { deleteRoom, getAllRooms, getRoom, updateRoom } = require("../state/redisClient");
 const { syncAllSeparators } = require("../utils/separatorManager");
+const { saveSmartRoomPreset } = require("../utils/smartRoomPresets");
 
 const CUSTOM_IDS = {
   name: "p_314732019948982291",
@@ -33,6 +34,7 @@ const CUSTOM_IDS = {
 
 const EPHEMERAL_FLAG = 64;
 const PANEL_BUTTON_IDS = new Set(Object.values(CUSTOM_IDS).filter((id) => id.startsWith("p_")));
+const SET_VOICE_CHANNEL_STATUS = PermissionFlagsBits.SetVoiceChannelStatus || (1n << 48n);
 
 function ephemeral(options) {
   return { ...options, flags: EPHEMERAL_FLAG };
@@ -101,6 +103,7 @@ async function handlePanelButton(interaction) {
     const room = await updateRoom(context.channel.id, {
       settings: { ...settings, locked: !settings.locked },
     });
+    await persistRoomPreset(room);
     await applyRoomPermissions(context.channel, room);
     return await respondEphemeral(interaction, {
       content: `อัปเดตแล้วค่ะ ตอนนี้ห้อง **${room.settings.locked ? "ล็อค" : "ไม่ล็อค"}**`,
@@ -112,6 +115,7 @@ async function handlePanelButton(interaction) {
     const room = await updateRoom(context.channel.id, {
       settings: { ...settings, hidden: !settings.hidden },
     });
+    await persistRoomPreset(room);
     await applyRoomPermissions(context.channel, room);
     return await respondEphemeral(interaction, {
       content: `อัปเดตแล้วค่ะ ตอนนี้ห้อง **${room.settings.hidden ? "ซ่อน" : "มองเห็นได้"}**`,
@@ -171,6 +175,7 @@ async function handlePanelUserSelect(interaction) {
   if (interaction.customId === CUSTOM_IDS.selectTransfer) {
     const member = members[0];
     const room = await updateRoom(context.channel.id, { ownerId: member.id });
+    await persistRoomPreset(room);
     await applyRoomPermissions(context.channel, room);
     return await respondEphemeral(interaction, { content: `โอนเจ้าของห้องให้ ${member} แล้วค่ะ` });
   }
@@ -209,6 +214,7 @@ async function handlePanelUserSelect(interaction) {
     },
   });
 
+  await persistRoomPreset(room);
   await applyRoomPermissions(context.channel, room);
   return await respondEphemeral(interaction, { content: "อัปเดตสิทธิ์สมาชิกแล้วค่ะ" });
 }
@@ -226,9 +232,10 @@ async function handlePanelModal(interaction) {
     }
 
     await context.channel.setName(name);
-    await updateRoom(context.channel.id, {
+    const room = await updateRoom(context.channel.id, {
       settings: { ...getSettings(context.room), name },
     });
+    await persistRoomPreset(room);
     return await respondEphemeral(interaction, { content: `เปลี่ยนชื่อห้องเป็น **${name}** แล้วค่ะ` });
   }
 
@@ -240,9 +247,10 @@ async function handlePanelModal(interaction) {
     }
 
     await context.channel.setUserLimit(userLimit);
-    await updateRoom(context.channel.id, {
+    const room = await updateRoom(context.channel.id, {
       settings: { ...getSettings(context.room), limit: userLimit },
     });
+    await persistRoomPreset(room);
     return await respondEphemeral(interaction, {
       content: `ตั้งลิมิตห้องเป็น ${userLimit || "ไม่จำกัด"} แล้วค่ะ`,
     });
@@ -461,6 +469,11 @@ function getStatusText(room) {
   return `${settings.locked ? "ล็อค" : "ไม่ล็อค"} / ${settings.hidden ? "ซ่อน" : "มองเห็นได้"}`;
 }
 
+async function persistRoomPreset(room) {
+  if (!room?.ownerId || !room?.zoneId) return false;
+  return await saveSmartRoomPreset(room.ownerId, room.zoneId, getSettings(room));
+}
+
 async function applyRoomPermissions(channel, room) {
   const settings = getSettings(room);
   const overwrites = room.zoneId === "vip"
@@ -583,9 +596,11 @@ function ownerAllowPermissions() {
     PermissionFlagsBits.Stream,
     PermissionFlagsBits.UseVAD,
     PermissionFlagsBits.SendMessages,
+    PermissionFlagsBits.EmbedLinks,
     PermissionFlagsBits.AttachFiles,
     PermissionFlagsBits.AddReactions,
     PermissionFlagsBits.ReadMessageHistory,
+    SET_VOICE_CHANNEL_STATUS,
     PermissionFlagsBits.CreateEvents,
     PermissionFlagsBits.UseEmbeddedActivities,
     PermissionFlagsBits.ManageEvents,

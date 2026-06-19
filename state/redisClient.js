@@ -5,6 +5,7 @@
 // เพื่อให้บอท restart แล้วยังจำได้ว่ามีห้องอะไรอยู่บ้าง
 
 const { Redis } = require("@upstash/redis");
+const crypto = require("crypto");
 
 let redis;
 
@@ -19,7 +20,17 @@ function getRedis() {
 }
 
 // บันทึกห้องที่บอทสร้างลง Redis
-async function saveRoom(channelId, zoneId, ownerId) {
+function defaultRoomSettings(settings = {}) {
+  return {
+    locked: false,
+    hidden: false,
+    trustedUserIds: [],
+    blockedUserIds: [],
+    ...settings,
+  };
+}
+
+async function saveRoom(channelId, zoneId, ownerId, settings = {}) {
   const r = getRedis();
   await r.hset("rooms:active", {
     [channelId]: JSON.stringify({
@@ -27,12 +38,7 @@ async function saveRoom(channelId, zoneId, ownerId) {
       ownerId,
       createdAt: Date.now(),
       emptyAt: null,
-      settings: {
-        locked: false,
-        hidden: false,
-        trustedUserIds: [],
-        blockedUserIds: [],
-      },
+      settings: defaultRoomSettings(settings),
     }),
   });
 }
@@ -115,6 +121,28 @@ async function getAllSeparators() {
   return raw || {};
 }
 
+async function acquireLock(key, ttlMs = 30000) {
+  const r = getRedis();
+  const token = crypto.randomUUID();
+  const result = await r.set(key, token, { nx: true, px: ttlMs });
+
+  if (result !== "OK") return null;
+  return { key, token };
+}
+
+async function releaseLock(lock) {
+  if (!lock?.key || !lock?.token) return false;
+
+  const r = getRedis();
+  const released = await r.eval(
+    "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end",
+    [lock.key],
+    [lock.token]
+  );
+
+  return released === 1;
+}
+
 module.exports = {
   saveRoom,
   getRoom,
@@ -125,4 +153,6 @@ module.exports = {
   saveSeparator,
   getSeparator,
   getAllSeparators,
+  acquireLock,
+  releaseLock,
 };

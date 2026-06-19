@@ -1,14 +1,19 @@
 const { ChannelType } = require("discord.js");
 const { generateRoomName } = require("../utils/nameGenerator");
-const { saveRoom, getAllRooms } = require("../state/redisClient");
+const { acquireLock, deleteRoom, getAllRooms, releaseLock, saveRoom } = require("../state/redisClient");
 const { syncAllSeparators } = require("../utils/separatorManager");
 const { applyRoomPermissions, sendRoomPanel } = require("./roomPanel");
 const { sendRoomLog } = require("../utils/roomLogger");
+const { getSmartRoomPreset, normalizePresetSettings } = require("../utils/smartRoomPresets");
 const config = require("../config");
 
 let isCreating = false;
 const queue = [];
 const pendingOwners = new Set();
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function getRoomsCategoryId(guild, zone) {
   if (zone.roomsCategoryId) return zone.roomsCategoryId;
@@ -16,6 +21,47 @@ function getRoomsCategoryId(guild, zone) {
 
   const lobbyChannel = guild.channels.cache.get(zone.lobbyChannelId);
   return lobbyChannel ? lobbyChannel.parentId : null;
+}
+
+function getInitialSettings(preset = {}) {
+  return normalizePresetSettings({
+    locked: false,
+    hidden: false,
+    trustedUserIds: [],
+    blockedUserIds: [],
+    ...preset,
+  });
+}
+
+async function moveToExistingOwnerRoom(guild, member, zone) {
+  const activeRooms = await getAllRooms();
+  const existingRoomEntry = Object.entries(activeRooms).find(([, room]) => room.ownerId === member.id);
+  if (!existingRoomEntry) return null;
+
+  const [existingChannelId, existingRoom] = existingRoomEntry;
+  const existingChannel = guild.channels.cache.get(existingChannelId);
+  if (!existingChannel) {
+    await deleteRoom(existingChannelId);
+    return null;
+  }
+
+  if (existingRoom.zoneId !== zone.id) return existingChannel;
+
+  if (member.voice.channelId !== existingChannel.id) {
+    await member.voice.setChannel(existingChannel).catch(() => {});
+  }
+
+  return existingChannel;
+}
+
+async function waitForExistingOwnerRoom(guild, member, zone) {
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const existingChannel = await moveToExistingOwnerRoom(guild, member, zone);
+    if (existingChannel) return existingChannel;
+    await delay(500);
+  }
+
+  return null;
 }
 
 async function processQueue() {
@@ -53,6 +99,24 @@ function createRoom(guild, member, zone) {
 }
 
 async function _createRoom(guild, member, zone) {
+  const lockKey = `smart-room:create:${guild.id}:${member.id}`;
+  const lock = await acquireLock(lockKey, 30000);
+
+  if (!lock) {
+    console.log(`Skip create room for ${member.user.tag}: another bot/process is handling it`);
+    return await waitForExistingOwnerRoom(guild, member, zone);
+  }
+
+  try {
+    return await createRoomWithLock(guild, member, zone);
+  } finally {
+    await releaseLock(lock).catch((e) => {
+      console.error(`Could not release create lock for ${member.user.tag}:`, e.message);
+    });
+  }
+}
+
+async function createRoomWithLock(guild, member, zone) {
   const lobbyChannel = guild.channels.cache.get(zone.lobbyChannelId);
   const categoryId = getRoomsCategoryId(guild, zone);
 
@@ -70,11 +134,19 @@ async function _createRoom(guild, member, zone) {
   const existingRoomEntry = Object.entries(activeRooms).find(([, room]) => room.ownerId === member.id);
   if (existingRoomEntry) {
     const [existingChannelId] = existingRoomEntry;
+    const [, existingRoom] = existingRoomEntry;
     const existingChannel = guild.channels.cache.get(existingChannelId);
-    if (existingChannel) {
+    if (existingChannel && existingRoom.zoneId === zone.id) {
       await member.voice.setChannel(existingChannel).catch(() => {});
       console.log(`Skip duplicate room for ${member.user.tag}: moved to existing room "${existingChannel.name}"`);
       return existingChannel;
+    }
+
+    if (existingChannel && existingChannel.members.size === 0) {
+      await existingChannel.delete("Owner created a new smart room in another zone").catch(() => {});
+      await deleteRoom(existingChannelId);
+    } else if (!existingChannel) {
+      await deleteRoom(existingChannelId);
     }
   }
 
@@ -88,29 +160,28 @@ async function _createRoom(guild, member, zone) {
     .filter((channel) => channel.parentId === categoryId)
     .map((channel) => channel.name);
 
-  const roomName = generateRoomName(zone, existingNames, member);
+  const preset = await getSmartRoomPreset(member.id, zone.id);
+  const settings = getInitialSettings(preset || {});
+  const roomName = settings.name || generateRoomName(zone, existingNames, member);
   const newChannel = await guild.channels.create({
     name: roomName,
     type: ChannelType.GuildVoice,
     parent: categoryId,
-    userLimit: config.softCap,
+    userLimit: Number.isInteger(settings.limit) ? settings.limit : config.softCap,
   });
 
   if (zone.id !== "vip") {
     await newChannel.lockPermissions();
   }
 
-  await saveRoom(newChannel.id, zone.id, member.id);
-  await applyRoomPermissions(newChannel, {
+  const room = {
     zoneId: zone.id,
     ownerId: member.id,
-    settings: {
-      locked: false,
-      hidden: false,
-      trustedUserIds: [],
-      blockedUserIds: [],
-    },
-  });
+    settings,
+  };
+
+  await saveRoom(newChannel.id, zone.id, member.id, settings);
+  await applyRoomPermissions(newChannel, room);
 
   try {
     await member.voice.setChannel(newChannel);
@@ -121,16 +192,7 @@ async function _createRoom(guild, member, zone) {
   }
 
   try {
-    await sendRoomPanel(newChannel, member, {
-      zoneId: zone.id,
-      ownerId: member.id,
-      settings: {
-        locked: false,
-        hidden: false,
-        trustedUserIds: [],
-        blockedUserIds: [],
-      },
-    });
+    await sendRoomPanel(newChannel, member, room);
   } catch (e) {
     console.error(`Could not send room panel for "${roomName}":`, e.message);
   }

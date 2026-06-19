@@ -1,8 +1,10 @@
 const { ChannelType, PermissionFlagsBits } = require("discord.js");
-const { saveSeparator } = require("../state/redisClient");
+const { acquireLock, getAllRooms, releaseLock, saveSeparator } = require("../state/redisClient");
 const config = require("../config");
 
 const syncLocks = new Set();
+const syncPending = new Set();
+const retryTimers = new Set();
 
 function getSeparatorNames(zone) {
   return [
@@ -26,6 +28,11 @@ function getZoneCategoryId(guild, zone) {
 
   const lobbyChannel = guild.channels.cache.get(zone.lobbyChannelId);
   return lobbyChannel ? lobbyChannel.parentId : null;
+}
+
+function getLayoutCategoryId(guild, zone) {
+  const lobbyChannel = guild.channels.cache.get(zone.lobbyChannelId);
+  return lobbyChannel?.parentId || getZoneCategoryId(guild, zone);
 }
 
 function getSeparatorPermissionOverwrites(guild) {
@@ -214,13 +221,13 @@ async function showSeparator(guild, zone) {
 async function syncCategoryLayout(guild, rooms) {
   const categoryIds = new Set(
     config.zones
-      .map((zone) => getZoneCategoryId(guild, zone))
+      .map((zone) => getLayoutCategoryId(guild, zone))
       .filter(Boolean)
   );
 
   for (const categoryId of categoryIds) {
     const zonesInCategory = config.zones.filter(
-      (zone) => getZoneCategoryId(guild, zone) === categoryId
+      (zone) => getLayoutCategoryId(guild, zone) === categoryId
     );
 
     let nextPosition = 0;
@@ -255,11 +262,27 @@ async function moveChannel(channel, position) {
   }
 }
 
-async function syncAllSeparators(guild, roomsInput) {
-  if (syncLocks.has(guild.id)) return;
-  syncLocks.add(guild.id);
+function scheduleSyncRetry(guild) {
+  if (retryTimers.has(guild.id)) return;
 
-  const rooms = normalizeRooms(roomsInput);
+  retryTimers.add(guild.id);
+  setTimeout(() => {
+    retryTimers.delete(guild.id);
+    syncAllSeparators(guild).catch((e) => {
+      console.error(`syncAllSeparators retry error (${guild.id}):`, e.message);
+    });
+  }, 2000);
+}
+
+async function runSeparatorSync(guild, roomsInput) {
+  const rooms = normalizeRooms(roomsInput || (await getAllRooms()));
+  const lock = await acquireLock(`smart-room:layout:${guild.id}`, 20000);
+
+  if (!lock) {
+    syncPending.add(guild.id);
+    scheduleSyncRetry(guild);
+    return;
+  }
 
   try {
     for (const zone of config.zones) {
@@ -274,6 +297,29 @@ async function syncAllSeparators(guild, roomsInput) {
 
     await cleanupOrphanSeparators(guild);
     await syncCategoryLayout(guild, rooms);
+  } finally {
+    await releaseLock(lock).catch((e) => {
+      console.error(`Could not release layout lock (${guild.id}):`, e.message);
+    });
+  }
+}
+
+async function syncAllSeparators(guild, roomsInput) {
+  if (syncLocks.has(guild.id)) {
+    syncPending.add(guild.id);
+    return;
+  }
+
+  syncLocks.add(guild.id);
+
+  try {
+    let nextRoomsInput = roomsInput;
+
+    do {
+      syncPending.delete(guild.id);
+      await runSeparatorSync(guild, nextRoomsInput);
+      nextRoomsInput = null;
+    } while (syncPending.has(guild.id) && !retryTimers.has(guild.id));
   } finally {
     syncLocks.delete(guild.id);
   }

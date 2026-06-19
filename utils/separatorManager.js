@@ -234,8 +234,6 @@ async function syncCategoryLayout(guild, rooms) {
       const lobbyChannel = guild.channels.cache.get(zone.lobbyChannelId);
       if (!lobbyChannel) continue;
 
-      let nextPosition = lobbyChannel.position + 1;
-
       const roomEntries = getZoneRoomEntries(guild, rooms, zone);
       const orderedChannels = [];
 
@@ -247,6 +245,11 @@ async function syncCategoryLayout(guild, rooms) {
       for (const { channel } of roomEntries) {
         orderedChannels.push(channel);
       }
+
+      const firstRoomPosition = roomEntries[0]?.channel.position;
+      const nextPosition = Number.isInteger(firstRoomPosition)
+        ? firstRoomPosition
+        : lobbyChannel.position + 1;
 
       await setChannelPositions(guild, orderedChannels, nextPosition);
     }

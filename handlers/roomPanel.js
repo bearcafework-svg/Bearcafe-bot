@@ -72,7 +72,10 @@ async function handleRoomPanelInteraction(interaction) {
 }
 
 async function sendRoomPanel(channel, ownerMember, room) {
-  if (room.zoneId !== PANEL_ZONE_ID) return false;
+  if (room.zoneId !== PANEL_ZONE_ID) {
+    console.warn(`[roomPanel] blocked non-VIP panel send channel=${channel.id} zone=${room.zoneId} owner=${room.ownerId}`);
+    return false;
+  }
 
   const payload = createComponentV2PanelPayload(ownerMember, room);
 
@@ -272,7 +275,10 @@ async function getOwnedRoomContextFromMessage(message) {
 
   const room = await getRoom(voiceChannel.id);
   if (!room || room.ownerId !== message.author.id) return null;
-  if (room.zoneId !== PANEL_ZONE_ID) return null;
+  if (room.zoneId !== PANEL_ZONE_ID) {
+    console.warn(`[roomPanel] blocked non-VIP panel request channel=${voiceChannel.id} zone=${room.zoneId} owner=${room.ownerId}`);
+    return null;
+  }
 
   return { channel: voiceChannel, room };
 }
@@ -282,7 +288,10 @@ async function getOwnedRoomContextFromInteraction(interaction) {
   const channel = interaction.channel;
 
   if (!room || !channel || room.ownerId !== interaction.user.id) return null;
-  if (room.zoneId !== PANEL_ZONE_ID) return null;
+  if (room.zoneId !== PANEL_ZONE_ID) {
+    console.warn(`[roomPanel] blocked non-VIP panel interaction channel=${channel.id} zone=${room.zoneId} owner=${room.ownerId} customId=${interaction.customId}`);
+    return null;
+  }
   return { channel, room };
 }
 

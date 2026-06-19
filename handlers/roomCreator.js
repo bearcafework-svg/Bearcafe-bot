@@ -198,6 +198,8 @@ async function createRoomWithLock(guild, member, zone) {
     } catch (e) {
       console.error(`Could not send room panel for "${roomName}":`, e.message);
     }
+  } else {
+    console.log(`Skip room panel for non-VIP room "${roomName}" zone=${zone.id}`);
   }
 
   const rooms = await getAllRooms();

@@ -230,13 +230,11 @@ async function syncCategoryLayout(guild, rooms) {
       (zone) => getLayoutCategoryId(guild, zone) === categoryId
     );
 
-    let nextPosition = 0;
-
     for (const zone of zonesInCategory) {
       const lobbyChannel = guild.channels.cache.get(zone.lobbyChannelId);
-      if (lobbyChannel) {
-        await moveChannel(lobbyChannel, nextPosition++);
-      }
+      if (!lobbyChannel) continue;
+
+      let nextPosition = lobbyChannel.position + 1;
 
       const roomEntries = getZoneRoomEntries(guild, rooms, zone);
 

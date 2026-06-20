@@ -20,14 +20,16 @@ const CUSTOM_IDS = {
   lock: "p_314732736411602947",
   hide: "p_314732859879329797",
   trust: "p_314732993098813448",
+  untrust: "p_314733100921708544",
   block: "p_314733274586943489",
+  unblock: "p_314733300217905153",
   kick: "p_314733387149479938",
-  transfer: "p_314733566908960771",
   delete: "p_314733640162480141",
   selectTrust: "room_panel_select_trust",
+  selectUntrust: "room_panel_select_untrust",
   selectBlock: "room_panel_select_block",
+  selectUnblock: "room_panel_select_unblock",
   selectKick: "room_panel_select_kick",
-  selectTransfer: "room_panel_select_transfer",
   modalName: "room_panel_modal_name",
   modalLimit: "room_panel_modal_limit",
 };
@@ -36,6 +38,7 @@ const EPHEMERAL_FLAG = 64;
 const PANEL_BUTTON_IDS = new Set(Object.values(CUSTOM_IDS).filter((id) => id.startsWith("p_")));
 const SET_VOICE_CHANNEL_STATUS = PermissionFlagsBits.SetVoiceChannelStatus || (1n << 48n);
 const PANEL_ZONE_ID = "vip";
+const DEPRECATED_TRANSFER_ID = "p_314733566908960771";
 
 function ephemeral(options) {
   return { ...options, flags: EPHEMERAL_FLAG };
@@ -56,6 +59,10 @@ async function handleRoomPanel(message) {
 }
 
 async function handleRoomPanelInteraction(interaction) {
+  if (interaction.isButton() && interaction.customId === DEPRECATED_TRANSFER_ID) {
+    return await respondEphemeral(interaction, { content: "ปุ่มเปลี่ยนเจ้าของห้องถูกปิดใช้งานแล้วค่ะ" });
+  }
+
   if (interaction.isButton() && PANEL_BUTTON_IDS.has(interaction.customId)) {
     return await handlePanelButton(interaction);
   }
@@ -92,14 +99,10 @@ async function sendRoomPanel(channel, ownerMember, room) {
 
 async function handlePanelButton(interaction) {
   if (interaction.customId === CUSTOM_IDS.name) {
-    const context = await getOwnedRoomContextFromInteraction(interaction);
-    if (!context) return await replyVipOnly(interaction);
     return await showNameModal(interaction);
   }
 
   if (interaction.customId === CUSTOM_IDS.limit) {
-    const context = await getOwnedRoomContextFromInteraction(interaction);
-    if (!context) return await replyVipOnly(interaction);
     return await showLimitModal(interaction);
   }
 
@@ -116,7 +119,7 @@ async function handlePanelButton(interaction) {
     await persistRoomPreset(context.channel, room);
     await applyRoomPermissions(context.channel, room);
     return await respondEphemeral(interaction, {
-      content: `อัปเดตแล้วค่ะ ตอนนี้ห้อง **${room.settings.locked ? "ล็อค" : "ไม่ล็อค"}**`,
+      content: `อัปเดตแล้วค่ะ\n${getPanelSummary(room)}`,
     });
   }
 
@@ -128,24 +131,28 @@ async function handlePanelButton(interaction) {
     await persistRoomPreset(context.channel, room);
     await applyRoomPermissions(context.channel, room);
     return await respondEphemeral(interaction, {
-      content: `อัปเดตแล้วค่ะ ตอนนี้ห้อง **${room.settings.hidden ? "ซ่อน" : "มองเห็นได้"}**`,
+      content: `อัปเดตแล้วค่ะ\n${getPanelSummary(room)}`,
     });
   }
 
   if (interaction.customId === CUSTOM_IDS.trust) {
-    return await replyWithUserSelect(interaction, CUSTOM_IDS.selectTrust, "เลือกสมาชิกเพื่อเพิ่ม/ลบสิทธิ์เข้าห้อง");
+    return await replyWithUserSelect(interaction, CUSTOM_IDS.selectTrust, "เลือกสมาชิกที่จะอนุญาตให้เข้าห้อง");
+  }
+
+  if (interaction.customId === CUSTOM_IDS.untrust) {
+    return await replyWithUserSelect(interaction, CUSTOM_IDS.selectUntrust, "เลือกสมาชิกที่จะยกเลิกสิทธิ์เข้าห้อง");
   }
 
   if (interaction.customId === CUSTOM_IDS.block) {
-    return await replyWithUserSelect(interaction, CUSTOM_IDS.selectBlock, "เลือกสมาชิกเพื่อซ่อน/เลิกซ่อนห้อง");
+    return await replyWithUserSelect(interaction, CUSTOM_IDS.selectBlock, "เลือกสมาชิกที่จะซ่อนห้องจากเขา");
+  }
+
+  if (interaction.customId === CUSTOM_IDS.unblock) {
+    return await replyWithUserSelect(interaction, CUSTOM_IDS.selectUnblock, "เลือกสมาชิกที่จะเลิกซ่อนห้อง");
   }
 
   if (interaction.customId === CUSTOM_IDS.kick) {
-    return await replyWithUserSelect(interaction, CUSTOM_IDS.selectKick, "เลือกสมาชิกที่จะตัดออกจากห้อง", 1);
-  }
-
-  if (interaction.customId === CUSTOM_IDS.transfer) {
-    return await replyWithUserSelect(interaction, CUSTOM_IDS.selectTransfer, "เลือกเจ้าของห้องคนใหม่", 1);
+    return await replyWithUserSelect(interaction, CUSTOM_IDS.selectKick, "เลือกสมาชิกที่จะเตะออกจากห้อง", 1);
   }
 
   if (interaction.customId === CUSTOM_IDS.delete) {
@@ -179,15 +186,7 @@ async function handlePanelUserSelect(interaction) {
       return await respondEphemeral(interaction, { content: "สมาชิกคนนั้นไม่ได้อยู่ในห้องนี้ค่ะ" });
     }
     await member.voice.disconnect("Room owner kicked member");
-    return await respondEphemeral(interaction, { content: `ตัด ${member} ออกจากห้องแล้วค่ะ` });
-  }
-
-  if (interaction.customId === CUSTOM_IDS.selectTransfer) {
-    const member = members[0];
-    const room = await updateRoom(context.channel.id, { ownerId: member.id });
-    await persistRoomPreset(context.channel, room);
-    await applyRoomPermissions(context.channel, room);
-    return await respondEphemeral(interaction, { content: `โอนเจ้าของห้องให้ ${member} แล้วค่ะ` });
+    return await respondEphemeral(interaction, { content: `เตะ ${member} ออกจากห้องแล้วค่ะ` });
   }
 
   const settings = getSettings(context.room);
@@ -198,21 +197,21 @@ async function handlePanelUserSelect(interaction) {
     if (member.id === context.room.ownerId) continue;
 
     if (interaction.customId === CUSTOM_IDS.selectTrust) {
-      if (trustedUserIds.has(member.id)) {
-        trustedUserIds.delete(member.id);
-      } else {
-        trustedUserIds.add(member.id);
-        blockedUserIds.delete(member.id);
-      }
+      trustedUserIds.add(member.id);
+      blockedUserIds.delete(member.id);
+    }
+
+    if (interaction.customId === CUSTOM_IDS.selectUntrust) {
+      trustedUserIds.delete(member.id);
     }
 
     if (interaction.customId === CUSTOM_IDS.selectBlock) {
-      if (blockedUserIds.has(member.id)) {
-        blockedUserIds.delete(member.id);
-      } else {
-        blockedUserIds.add(member.id);
-        trustedUserIds.delete(member.id);
-      }
+      blockedUserIds.add(member.id);
+      trustedUserIds.delete(member.id);
+    }
+
+    if (interaction.customId === CUSTOM_IDS.selectUnblock) {
+      blockedUserIds.delete(member.id);
     }
   }
 
@@ -226,7 +225,7 @@ async function handlePanelUserSelect(interaction) {
 
   await persistRoomPreset(context.channel, room);
   await applyRoomPermissions(context.channel, room);
-  return await respondEphemeral(interaction, { content: "อัปเดตสิทธิ์สมาชิกแล้วค่ะ" });
+  return await respondEphemeral(interaction, { content: `อัปเดตสิทธิ์สมาชิกแล้วค่ะ\n${getPanelSummary(room)}` });
 }
 
 async function handlePanelModal(interaction) {
@@ -246,7 +245,7 @@ async function handlePanelModal(interaction) {
       settings: { ...getSettings(context.room), name },
     });
     await persistRoomPreset(context.channel, room);
-    return await respondEphemeral(interaction, { content: `เปลี่ยนชื่อห้องเป็น **${name}** แล้วค่ะ` });
+    return await respondEphemeral(interaction, { content: `เปลี่ยนชื่อห้องเป็น **${name}** แล้วค่ะ\n${getPanelSummary(room)}` });
   }
 
   if (interaction.customId === CUSTOM_IDS.modalLimit) {
@@ -262,7 +261,7 @@ async function handlePanelModal(interaction) {
     });
     await persistRoomPreset(context.channel, room);
     return await respondEphemeral(interaction, {
-      content: `ตั้งลิมิตห้องเป็น ${userLimit || "ไม่จำกัด"} แล้วค่ะ`,
+      content: `ตั้งลิมิตห้องเป็น ${userLimit || "ไม่จำกัด"} แล้วค่ะ\n${getPanelSummary(room)}`,
     });
   }
 
@@ -296,6 +295,8 @@ async function getOwnedRoomContextFromInteraction(interaction) {
 }
 
 async function showNameModal(interaction) {
+  if (interaction.replied || interaction.deferred) return false;
+
   const modal = new ModalBuilder()
     .setCustomId(CUSTOM_IDS.modalName)
     .setTitle("เปลี่ยนชื่อห้อง")
@@ -311,11 +312,13 @@ async function showNameModal(interaction) {
       )
     );
 
-  await interaction.showModal(modal);
+  await safeShowModal(interaction, modal);
   return true;
 }
 
 async function showLimitModal(interaction) {
+  if (interaction.replied || interaction.deferred) return false;
+
   const modal = new ModalBuilder()
     .setCustomId(CUSTOM_IDS.modalLimit)
     .setTitle("เปลี่ยนจำนวนคน")
@@ -330,8 +333,20 @@ async function showLimitModal(interaction) {
       )
     );
 
-  await interaction.showModal(modal);
+  await safeShowModal(interaction, modal);
   return true;
+}
+
+async function safeShowModal(interaction, modal) {
+  try {
+    await interaction.showModal(modal);
+    return true;
+  } catch (err) {
+    if (err.code !== 40060 && err.code !== 10062 && err.code !== 10003) {
+      console.error("[roomPanel] show modal error:", err);
+    }
+    return false;
+  }
 }
 
 async function replyWithUserSelect(interaction, customId, placeholder, maxValues = 10) {
@@ -407,7 +422,7 @@ async function deleteOwnedRoom(interaction, context) {
 }
 
 function createComponentV2PanelPayload(ownerMember, room) {
-  const status = getStatusText(room);
+  const summary = getPanelSummary(room);
   return {
     flags: 32768,
     components: [
@@ -417,7 +432,7 @@ function createComponentV2PanelPayload(ownerMember, room) {
           { type: 14, spacing: 2 },
           {
             type: 10,
-            content: `${ownerMember} ห้องของคุณพร้อมแล้วค่ะ ถ้าคุณกับเพื่อนคุยกันจนการตั้งค่าถูกดันไปข้างบนให้แท็ก <@${ownerMember.guild.client.user.id}> อีกรอบนะคะ <:cuteplant:1152834055528783872>\nสถานะห้อง: **${status}**`,
+            content: `${ownerMember} ห้อง VIP ของคุณพร้อมแล้วค่ะ\n${summary}`,
           },
           { type: 14, spacing: 1, divider: false },
           {
@@ -425,18 +440,19 @@ function createComponentV2PanelPayload(ownerMember, room) {
             components: [
               button(ButtonStyle.Secondary, CUSTOM_IDS.name, "เปลี่ยนชื่อห้อง", "✏️"),
               button(ButtonStyle.Secondary, CUSTOM_IDS.limit, "เปลี่ยนจำนวนคน", "👥"),
-              button(ButtonStyle.Secondary, CUSTOM_IDS.lock, "ล็อคหรือปลดล็อคห้อง", "🔓"),
-              button(ButtonStyle.Secondary, CUSTOM_IDS.hide, "ซ่อนหรือเปิดการมองเห็นห้อง", "👀"),
-              button(ButtonStyle.Secondary, CUSTOM_IDS.trust, "เพิ่ม-ลบเพื่อนเข้าห้อง", "➕"),
+              button(ButtonStyle.Secondary, CUSTOM_IDS.lock, "ล็อค/ปลดล็อค", "🔓"),
+              button(ButtonStyle.Secondary, CUSTOM_IDS.hide, "ซ่อน/เปิดมองเห็น", "👀"),
+              button(ButtonStyle.Danger, CUSTOM_IDS.delete, "ลบห้อง", "🗑️"),
             ],
           },
           {
             type: 1,
             components: [
-              button(ButtonStyle.Secondary, CUSTOM_IDS.block, "ซ่อนหรือเลิกซ่อนจากสมาชิก", "😶‍🌫️"),
-              button(ButtonStyle.Secondary, CUSTOM_IDS.kick, "ตัดสมาชิกออกจากห้อง", "📤"),
-              button(ButtonStyle.Primary, CUSTOM_IDS.transfer, "เปลี่ยนเจ้าของห้อง", "👑"),
-              button(ButtonStyle.Danger, CUSTOM_IDS.delete, "ลบห้อง", "🗑️"),
+              button(ButtonStyle.Secondary, CUSTOM_IDS.trust, "อนุญาตสมาชิก", "➕"),
+              button(ButtonStyle.Secondary, CUSTOM_IDS.untrust, "ยกเลิกอนุญาต", "➖"),
+              button(ButtonStyle.Secondary, CUSTOM_IDS.block, "ซ่อนสมาชิก", "🙈"),
+              button(ButtonStyle.Secondary, CUSTOM_IDS.unblock, "เลิกซ่อนสมาชิก", "👁️"),
+              button(ButtonStyle.Secondary, CUSTOM_IDS.kick, "เตะสมาชิกออกจากห้อง", "📤"),
             ],
           },
           { type: 14, spacing: 2 },
@@ -448,20 +464,21 @@ function createComponentV2PanelPayload(ownerMember, room) {
 
 function createFallbackPanelPayload(ownerMember, room) {
   return {
-    content: `${ownerMember} ห้องของคุณพร้อมแล้วค่ะ ถ้าต้องการเปิดแผงตั้งค่าอีกครั้ง ให้แท็ก <@${ownerMember.guild.client.user.id}>\nสถานะห้อง: **${getStatusText(room)}**`,
+    content: `${ownerMember} ห้อง VIP ของคุณพร้อมแล้วค่ะ\n${getPanelSummary(room)}`,
     components: [
       new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId(CUSTOM_IDS.name).setLabel("เปลี่ยนชื่อห้อง").setEmoji("✏️").setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId(CUSTOM_IDS.limit).setLabel("เปลี่ยนจำนวนคน").setEmoji("👥").setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId(CUSTOM_IDS.lock).setLabel("ล็อค/ปลดล็อค").setEmoji("🔓").setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId(CUSTOM_IDS.hide).setLabel("ซ่อน/เปิดมองเห็น").setEmoji("👀").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId(CUSTOM_IDS.trust).setLabel("เพิ่ม-ลบเพื่อน").setEmoji("➕").setStyle(ButtonStyle.Secondary)
+        new ButtonBuilder().setCustomId(CUSTOM_IDS.delete).setLabel("ลบห้อง").setEmoji("🗑️").setStyle(ButtonStyle.Danger)
       ),
       new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId(CUSTOM_IDS.block).setLabel("ซ่อนสมาชิก").setEmoji("😶‍🌫️").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId(CUSTOM_IDS.kick).setLabel("ตัดออก").setEmoji("📤").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId(CUSTOM_IDS.transfer).setLabel("เปลี่ยนเจ้าของ").setEmoji("👑").setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId(CUSTOM_IDS.delete).setLabel("ลบห้อง").setEmoji("🗑️").setStyle(ButtonStyle.Danger)
+        new ButtonBuilder().setCustomId(CUSTOM_IDS.trust).setLabel("อนุญาตสมาชิก").setEmoji("➕").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(CUSTOM_IDS.untrust).setLabel("ยกเลิกอนุญาต").setEmoji("➖").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(CUSTOM_IDS.block).setLabel("ซ่อนสมาชิก").setEmoji("🙈").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(CUSTOM_IDS.unblock).setLabel("เลิกซ่อนสมาชิก").setEmoji("👁️").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(CUSTOM_IDS.kick).setLabel("เตะสมาชิกออกจากห้อง").setEmoji("📤").setStyle(ButtonStyle.Secondary)
       ),
     ],
   };
@@ -494,10 +511,26 @@ function getStatusText(room) {
   return `${settings.locked ? "ล็อค" : "ไม่ล็อค"} / ${settings.hidden ? "ซ่อน" : "มองเห็นได้"}`;
 }
 
+function getPanelSummary(room) {
+  const settings = getSettings(room);
+  const limit = Number.isInteger(settings.limit) ? settings.limit : "ค่าเริ่มต้น";
+
+  return [
+    `สถานะห้อง: **${getStatusText(room)}**`,
+    `จำนวนคน: **${limit}**`,
+    `อนุญาตให้เข้า: ${formatUserList(settings.trustedUserIds)}`,
+    `ซ่อนจาก: ${formatUserList(settings.blockedUserIds)}`,
+  ].join("\n");
+}
+
+function formatUserList(userIds = []) {
+  if (!Array.isArray(userIds) || userIds.length === 0) return "ไม่มี";
+  return userIds.slice(0, 10).map((id) => `<@${id}>`).join(", ");
+}
+
 async function persistRoomPreset(channel, room) {
-  const guildId = channel?.guild?.id || room?.guildId;
-  if (!guildId || !room?.ownerId || !room?.zoneId) return false;
-  return await saveSmartRoomPreset(guildId, room.ownerId, room.zoneId, getSettings(room));
+  if (!room?.ownerId || !room?.zoneId) return false;
+  return await saveSmartRoomPreset(room.ownerId, room.zoneId, getSettings(room));
 }
 
 async function applyRoomPermissions(channel, room) {

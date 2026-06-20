@@ -160,7 +160,7 @@ async function createRoomWithLock(guild, member, zone) {
     .filter((channel) => channel.parentId === categoryId)
     .map((channel) => channel.name);
 
-  const preset = await getSmartRoomPreset(guild.id, member.id, zone.id);
+  const preset = await getSmartRoomPreset(member.id, zone.id);
   const settings = getInitialSettings(preset || {});
   const roomName = settings.name || generateRoomName(zone, existingNames, member);
   const newChannel = await guild.channels.create({

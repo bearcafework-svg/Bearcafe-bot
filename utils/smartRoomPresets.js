@@ -51,11 +51,10 @@ function rowToSettings(row) {
   });
 }
 
-function settingsToRow(guildId, ownerId, zoneId, settings) {
+function settingsToRow(ownerId, zoneId, settings) {
   const normalized = normalizePresetSettings(settings);
 
   return {
-    guild_id: guildId,
     owner_id: ownerId,
     zone_id: zoneId,
     room_name: normalized.name || null,
@@ -68,39 +67,38 @@ function settingsToRow(guildId, ownerId, zoneId, settings) {
   };
 }
 
-async function getSmartRoomPreset(guildId, ownerId, zoneId) {
+async function getSmartRoomPreset(ownerId, zoneId) {
   const client = getSupabase();
   if (!client) return null;
 
   const { data, error } = await client
     .from(TABLE)
     .select("room_name,user_limit,locked,hidden,trusted_user_ids,blocked_user_ids")
-    .eq("guild_id", guildId)
     .eq("owner_id", ownerId)
     .eq("zone_id", zoneId)
     .maybeSingle();
 
   if (error) {
-    console.error(`[smartRoomPresets] load failed (${guildId}/${ownerId}/${zoneId}):`, error.message);
+    console.error(`[smartRoomPresets] load failed (${ownerId}/${zoneId}):`, error.message);
     return null;
   }
 
   return rowToSettings(data);
 }
 
-async function saveSmartRoomPreset(guildId, ownerId, zoneId, settings) {
+async function saveSmartRoomPreset(ownerId, zoneId, settings) {
   const client = getSupabase();
   if (!client) return false;
 
   const { error } = await client
     .from(TABLE)
     .upsert(
-      settingsToRow(guildId, ownerId, zoneId, settings),
-      { onConflict: "guild_id,owner_id,zone_id" }
+      settingsToRow(ownerId, zoneId, settings),
+      { onConflict: "owner_id,zone_id" }
     );
 
   if (error) {
-    console.error(`[smartRoomPresets] save failed (${guildId}/${ownerId}/${zoneId}):`, error.message);
+    console.error(`[smartRoomPresets] save failed (${ownerId}/${zoneId}):`, error.message);
     return false;
   }
 

@@ -14,12 +14,8 @@ function getSeparatorNames(zone) {
   ].filter(Boolean);
 }
 
-function isFirstZone(zone) {
-  return config.zones[0]?.id === zone.id;
-}
-
 function shouldSkipSeparator(zone) {
-  return isFirstZone(zone);
+  return false;
 }
 
 function getZoneCategoryId(guild, zone) {
@@ -230,12 +226,10 @@ async function syncCategoryLayout(guild, rooms) {
       (zone) => getLayoutCategoryId(guild, zone) === categoryId
     );
 
-    for (const zone of zonesInCategory) {
-      const lobbyChannel = guild.channels.cache.get(zone.lobbyChannelId);
-      if (!lobbyChannel) continue;
+    const orderedChannels = [];
 
+    for (const zone of zonesInCategory) {
       const roomEntries = getZoneRoomEntries(guild, rooms, zone);
-      const orderedChannels = [];
 
       const separator = findSeparator(guild, zone);
       if (separator && !shouldSkipSeparator(zone)) {
@@ -245,14 +239,14 @@ async function syncCategoryLayout(guild, rooms) {
       for (const { channel } of roomEntries) {
         orderedChannels.push(channel);
       }
-
-      const firstRoomPosition = roomEntries[0]?.channel.position;
-      const nextPosition = Number.isInteger(firstRoomPosition)
-        ? firstRoomPosition
-        : lobbyChannel.position + 1;
-
-      await setChannelPositions(guild, orderedChannels, nextPosition);
     }
+
+    const currentPositions = orderedChannels
+      .map((channel) => channel.position)
+      .filter((position) => Number.isInteger(position));
+    if (currentPositions.length === 0) continue;
+
+    await setChannelPositions(guild, orderedChannels, Math.min(...currentPositions));
   }
 }
 

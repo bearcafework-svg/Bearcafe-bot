@@ -57,7 +57,19 @@ function setupVoicePoints(client) {
 
   async function postWebhook(payload, attempt = 0) {
     try {
-      await axios.post(webhookUrl, payload, { timeout: 10000 });
+      if (payload.isPointsApi && voicePointsUrl) {
+        // Use voice points API
+        const res = await axios.post(voicePointsUrl, payload.data, { timeout: 10000 });
+        const data = res.data;
+        if (data.skipped) {
+          console.log(`[voice-points] ${payload.data.userId} skipped: ${data.reason}`);
+        } else {
+          console.log(`[voice-points] ${payload.data.userId} +${data.earned} pts`);
+        }
+      } else if (webhookUrl) {
+        // Use webhook URL
+        await axios.post(webhookUrl, payload, { timeout: 10000 });
+      }
     } catch (err) {
       const status = err.response?.status;
       const retryAfterSeconds = Number(err.response?.data?.retry_after);
@@ -79,21 +91,22 @@ function setupVoicePoints(client) {
     if (parentId === EXCLUDED_CATEGORY_ID) return;
 
     const eventId = `voice-${userId}-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`;
-    try {
-      const res = await axios.post(
-        voicePointsUrl,
-        { eventId, userId, duration: durationSeconds, userCount, channelName },
-        { timeout: 10000 }
-      );
-      const data = res.data;
-      if (data.skipped) {
-        console.log(`[voice-points] ${userId} skipped: ${data.reason}`);
-      } else {
-        console.log(`[voice-points] ${userId} +${data.earned} pts`);
-      }
-    } catch (err) {
-      console.error(`[voice-points] ${userId}:`, err.response?.data ?? err.message);
-    }
+    
+    // Add to webhook queue for rate limiting
+    webhookQueue.push({
+      event: "AWARD_VOICE_POINTS",
+      data: {
+        eventId,
+        userId,
+        duration: durationSeconds,
+        userCount,
+        channelName,
+      },
+      isPointsApi: true,
+    });
+    processWebhookQueue().catch((err) => {
+      console.error("[voice-points] webhook queue:", err.message);
+    });
   }
 
   async function trackJoinState(guild) {

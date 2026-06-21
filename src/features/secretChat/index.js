@@ -11,7 +11,7 @@ const {
 } = require("discord.js");
 const crypto = require("crypto");
 const { createClient } = require("@supabase/supabase-js");
-const { safeDeleteChannel } = require("../../../utils/discordSafety");
+const { safeDeleteChannel, safeDeferReply, safeRespond } = require("../../../utils/discordSafety");
 const ws = require("ws");
 
 // ============================================================================
@@ -582,35 +582,10 @@ async function fetchActiveRooms() {
 }
 
 // ============================================================================
-// SAFE INTERACTION REPLY
+// SAFE INTERACTION REPLY (using centralized discordSafety)
 // ============================================================================
 async function safeReply(interaction, options) {
-  try {
-    if (interaction.deferred && !interaction.replied) {
-      await interaction.editReply(options);
-    } else if (interaction.replied || interaction.deferred) {
-      await interaction.followUp({ ...options, flags: 64 });
-    } else {
-      await interaction.reply({ ...options, flags: 64 });
-    }
-  } catch (err) {
-    if (err.code !== 40060 && err.code !== 10062 && err.code !== 10003) {
-      console.error("[secret-chat] safeReply error:", err);
-    }
-  }
-}
-
-async function safeDeferReply(interaction) {
-  if (interaction.replied || interaction.deferred) return true;
-  try {
-    await interaction.deferReply({ flags: 64 });
-    return true;
-  } catch (err) {
-    if (err.code !== 40060 && err.code !== 10062 && err.code !== 10003) {
-      console.error("[secret-chat] deferReply error:", err);
-    }
-    return false;
-  }
+  return await safeRespond(interaction, { ...options, flags: 64 });
 }
 
 // ============================================================================

@@ -46,6 +46,35 @@ async function safeRespond(interaction, payload = {}) {
   }
 }
 
+async function safeEditReply(interaction, payload = {}) {
+  if (!interaction) return false;
+  if (!interaction.deferred && !interaction.replied) return false;
+
+  try {
+    await interaction.editReply(payload);
+    return true;
+  } catch (error) {
+    if (!isDiscordCode(error, [INTERACTION_ALREADY_ACKNOWLEDGED, UNKNOWN_INTERACTION, UNKNOWN_CHANNEL])) {
+      console.error("[discordSafety] editReply failed:", error);
+    }
+    return false;
+  }
+}
+
+async function safeFollowUp(interaction, payload = {}) {
+  if (!interaction) return false;
+
+  try {
+    await interaction.followUp(ephemeral(payload));
+    return true;
+  } catch (error) {
+    if (!isDiscordCode(error, [INTERACTION_ALREADY_ACKNOWLEDGED, UNKNOWN_INTERACTION, UNKNOWN_CHANNEL])) {
+      console.error("[discordSafety] followUp failed:", error);
+    }
+    return false;
+  }
+}
+
 async function safeDeleteChannel(channel, reason) {
   if (!channel || channel.deleted) return false;
 
@@ -95,6 +124,8 @@ module.exports = {
   safeDeferReply,
   safeDeleteChannel,
   safeDisconnectMember,
+  safeEditReply,
+  safeFollowUp,
   safeMoveMember,
   safeRespond,
 };

@@ -56,7 +56,11 @@ async function handleRoomPanel(message) {
 
   const context = await getOwnedRoomContextFromMessage(message);
   if (!context) {
-    await message.reply("แผงตั้งค่าใช้ได้เฉพาะเจ้าของห้อง VIP ที่กำลังอยู่ในห้องของตัวเองเท่านั้นค่ะ");
+    try {
+      await message.reply("แผงตั้งค่าใช้ได้เฉพาะเจ้าของห้อง VIP ที่กำลังอยู่ในห้องของตัวเองเท่านั้นค่ะ");
+    } catch (err) {
+      if (err.code !== 10062) console.error("[roomPanel] reply error:", err.message);
+    }
     return true;
   }
 

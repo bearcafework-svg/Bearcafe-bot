@@ -13,6 +13,13 @@ const config = require("../config");
 const { deleteRoom, getAllRooms, getRoom, updateRoom } = require("../state/redisClient");
 const { syncAllSeparators } = require("../utils/separatorManager");
 const { saveSmartRoomPreset } = require("../utils/smartRoomPresets");
+const {
+  EPHEMERAL_FLAG,
+  safeDeferReply,
+  safeDeleteChannel,
+  safeDisconnectMember,
+  safeRespond,
+} = require("../utils/discordSafety");
 
 const CUSTOM_IDS = {
   name: "p_314732019948982291",
@@ -34,7 +41,6 @@ const CUSTOM_IDS = {
   modalLimit: "room_panel_modal_limit",
 };
 
-const EPHEMERAL_FLAG = 64;
 const PANEL_BUTTON_IDS = new Set(Object.values(CUSTOM_IDS).filter((id) => id.startsWith("p_")));
 const SET_VOICE_CHANNEL_STATUS = PermissionFlagsBits.SetVoiceChannelStatus || (1n << 48n);
 const PANEL_ZONE_ID = "vip";
@@ -182,10 +188,13 @@ async function handlePanelUserSelect(interaction) {
 
   if (interaction.customId === CUSTOM_IDS.selectKick) {
     const member = members[0];
-    if (member.voice.channelId !== context.channel.id) {
+    if (!member.voice.channel || member.voice.channelId !== context.channel.id) {
       return await respondEphemeral(interaction, { content: "สมาชิกคนนั้นไม่ได้อยู่ในห้องนี้ค่ะ" });
     }
-    await member.voice.disconnect("Room owner kicked member");
+    const disconnected = await safeDisconnectMember(member, "Room owner kicked member");
+    if (!disconnected) {
+      return await respondEphemeral(interaction, { content: "สมาชิกคนนั้นไม่ได้อยู่ในห้องแล้วค่ะ" });
+    }
     return await respondEphemeral(interaction, { content: `เตะ ${member} ออกจากห้องแล้วค่ะ` });
   }
 
@@ -380,40 +389,19 @@ async function replyVipOnly(interaction) {
 }
 
 async function deferEphemeral(interaction) {
-  if (interaction.replied || interaction.deferred) return true;
-  try {
-    await interaction.deferReply({ flags: EPHEMERAL_FLAG });
-    return true;
-  } catch (err) {
-    if (err.code !== 40060 && err.code !== 10062 && err.code !== 10003) {
-      console.error("[roomPanel] defer interaction error:", err);
-    }
-    return false;
-  }
+  return await safeDeferReply(interaction, { flags: EPHEMERAL_FLAG });
 }
 
 async function respondEphemeral(interaction, payload) {
-  try {
-    if (interaction.deferred && !interaction.replied) {
-      await interaction.editReply(payload);
-    } else if (interaction.replied || interaction.deferred) {
-      await interaction.followUp(ephemeral(payload));
-    } else {
-      await interaction.reply(ephemeral(payload));
-    }
-  } catch (err) {
-    if (err.code !== 40060 && err.code !== 10062 && err.code !== 10003) {
-      console.error("[roomPanel] respond interaction error:", err);
-    }
-  }
+  await safeRespond(interaction, ephemeral(payload));
   return true;
 }
 
 async function deleteOwnedRoom(interaction, context) {
   const channelId = context.channel.id;
   const member = interaction.guild.members.cache.get(interaction.user.id);
-  await member?.voice?.disconnect("Room owner deleted room").catch(() => null);
-  await context.channel.delete("Room owner deleted room");
+  await safeDisconnectMember(member, "Room owner deleted room");
+  await safeDeleteChannel(context.channel, "Room owner deleted room");
   await deleteRoom(channelId);
 
   const rooms = await getAllRooms();

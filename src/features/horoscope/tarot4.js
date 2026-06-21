@@ -2,6 +2,7 @@
 // คำสั่ง "เกิดใหม่เป็นอะไร" — สุ่มการเกิดใหม่ + ระบบ Mission
 
 const { createClient } = require('@supabase/supabase-js');
+const { safeRespond } = require("../../../utils/discordSafety");
 const { MessageFlags }  = require('discord.js');
 const cfg        = require('./settingtarot.json');
 const infotarot2 = require('./Infotarot2.json');
@@ -321,7 +322,7 @@ function setupTarot4(client) {
     // ── ปุ่ม: ดูดวงแบบอื่น ─────────────────────────────────────────────────
     if (customId === OTHER_COMMANDS_ID) {
       const payload = otherCommandsPayload();
-      await interaction.reply({
+      await safeRespond(interaction, {
         flags:      FLAG_V2_EPH,
         components: payload.components
       });

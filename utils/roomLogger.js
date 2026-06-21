@@ -7,6 +7,14 @@ const EVENT_CONFIG = {
   move: { color: 0xfee75c, title: "ย้ายห้อง" },
 };
 
+const queue = [];
+const recentMessages = new Map();
+let processing = false;
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function getWebhookUrl() {
   return process.env.ROOM_LOG_WEBHOOK_URL || "";
 }
@@ -21,12 +29,65 @@ function roomName(channel) {
   return channel?.name || "unknown";
 }
 
+function dedupeKey(eventType, member, details) {
+  const oldChannelId = details.oldChannel?.id || "";
+  const newChannelId = details.newChannel?.id || details.channel?.id || "";
+  return [eventType, member.id, oldChannelId, newChannelId].join(":");
+}
+
+function shouldSkipDuplicate(key) {
+  const now = Date.now();
+  const previous = recentMessages.get(key);
+  recentMessages.set(key, now);
+
+  for (const [entryKey, timestamp] of recentMessages) {
+    if (now - timestamp > 10000) recentMessages.delete(entryKey);
+  }
+
+  return previous && now - previous < 3000;
+}
+
+async function postWebhook(webhookUrl, payload, attempt = 0) {
+  try {
+    await axios.post(webhookUrl, payload, { timeout: 10000 });
+  } catch (err) {
+    const status = err.response?.status;
+    const retryAfterSeconds = Number(err.response?.data?.retry_after);
+    const retryAfterMs = Number.isFinite(retryAfterSeconds)
+      ? Math.ceil(retryAfterSeconds * 1000)
+      : 1000 * (attempt + 1);
+
+    if (status === 429 && attempt < 3) {
+      await delay(Math.min(retryAfterMs + 250, 10000));
+      return await postWebhook(webhookUrl, payload, attempt + 1);
+    }
+
+    console.error("[roomLogger] webhook error:", err.response?.data ?? err.message);
+  }
+}
+
+async function processQueue() {
+  if (processing) return;
+  processing = true;
+
+  while (queue.length > 0) {
+    const item = queue.shift();
+    await postWebhook(item.webhookUrl, item.payload);
+    await delay(350);
+  }
+
+  processing = false;
+}
+
 async function sendRoomLog(eventType, member, details = {}) {
   const webhookUrl = getWebhookUrl();
   if (!webhookUrl) return;
 
   const config = EVENT_CONFIG[eventType];
   if (!config || !member?.user) return;
+
+  const key = dedupeKey(eventType, member, details);
+  if (shouldSkipDuplicate(key)) return;
 
   const fields = [
     { name: "แท็ก", value: `<@${member.id}>`, inline: true },
@@ -51,14 +112,14 @@ async function sendRoomLog(eventType, member, details = {}) {
     timestamp: new Date().toISOString(),
   };
 
-  try {
-    await axios.post(webhookUrl, {
+  queue.push({
+    webhookUrl,
+    payload: {
       username: "Smart Rooms Logs",
       embeds: [embed],
-    }, { timeout: 10000 });
-  } catch (err) {
-    console.error("[roomLogger] webhook error:", err.message);
-  }
+    },
+  });
+  processQueue().catch((err) => console.error("[roomLogger] queue error:", err.message));
 }
 
 module.exports = { sendRoomLog };

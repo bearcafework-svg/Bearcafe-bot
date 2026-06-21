@@ -1,6 +1,9 @@
 const { deleteRoom, setRoomEmpty, getAllRooms } = require("../state/redisClient");
 const { isSeparatorChannel, isLobbyChannel } = require("../utils/zoneResolver");
 const { syncAllSeparators } = require("../utils/separatorManager");
+const { safeDeleteChannel } = require("../utils/discordSafety");
+
+const deletingChannels = new Set();
 
 async function markRoomEmpty(channelId) {
   await setRoomEmpty(channelId, Date.now());
@@ -11,6 +14,8 @@ async function markRoomActive(channelId) {
 }
 
 async function destroyRoom(guild, channelId) {
+  if (deletingChannels.has(channelId)) return;
+
   if (isLobbyChannel(channelId) || isSeparatorChannel(channelId)) {
     console.log(`Skip ${channelId}: lobby or separator`);
     return;
@@ -27,12 +32,15 @@ async function destroyRoom(guild, channelId) {
     return;
   }
 
+  deletingChannels.add(channelId);
   try {
-    await channel.delete("Smart room is empty");
+    await safeDeleteChannel(channel, "Smart room is empty");
     await deleteRoom(channelId);
     console.log(`Deleted room "${channel.name}"`);
   } catch (e) {
     console.error(`Could not delete room ${channelId}:`, e.message);
+  } finally {
+    deletingChannels.delete(channelId);
   }
 
   const rooms = await getAllRooms();

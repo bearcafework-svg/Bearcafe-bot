@@ -2,6 +2,7 @@
 // คำสั่ง "ดูคำทำนาย" — สุ่มไพ่ทาโรต์ + ระบบ Mission
 
 const { createClient } = require('@supabase/supabase-js');
+const { safeRespond } = require("../../../utils/discordSafety");
 const { MessageFlags }  = require('discord.js');
 const cfg       = require('./settingtarot.json');
 const infotarot = require('./Infotarot.json');
@@ -329,7 +330,7 @@ function setupTarot1(client) {
     if (customId === OTHER_COMMANDS_ID) {
       // ✅ ใช้ flags: FLAG_V2_EPH แทน ephemeral: true (deprecated)
       const payload = otherCommandsPayload();
-      await interaction.reply({
+      await safeRespond(interaction, {
         flags:      FLAG_V2_EPH,   // Component v2 (32768) | Ephemeral (64) = 32832
         components: payload.components
       });

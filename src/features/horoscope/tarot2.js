@@ -2,6 +2,7 @@
 // คำสั่ง "คำทำนายของฉัน" — สุ่มรูป quest + ระบบ Mission
 
 const { createClient } = require('@supabase/supabase-js');
+const { safeRespond } = require("../../../utils/discordSafety");
 const { MessageFlags }  = require('discord.js');
 const cfg       = require('./settingtarot.json');
 const infotarot = require('./Infotarot.json');
@@ -359,7 +360,7 @@ function setupTarot2(client) {
     // ── ปุ่ม: ดูดวงแบบอื่น ─────────────────────────────────────────────────
     if (customId === OTHER_COMMANDS_ID) {
       const payload = otherCommandsPayload();
-      await interaction.reply({
+      await safeRespond(interaction, {
         flags:      FLAG_V2_EPH,
         components: payload.components
       });

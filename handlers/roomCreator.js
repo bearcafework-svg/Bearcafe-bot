@@ -5,6 +5,7 @@ const { syncAllSeparators } = require("../utils/separatorManager");
 const { applyRoomPermissions, sendRoomPanel } = require("./roomPanel");
 const { sendRoomLog } = require("../utils/roomLogger");
 const { getSmartRoomPreset, normalizePresetSettings } = require("../utils/smartRoomPresets");
+const { safeDeleteChannel, safeMoveMember } = require("../utils/discordSafety");
 const config = require("../config");
 
 let isCreating = false;
@@ -47,8 +48,8 @@ async function moveToExistingOwnerRoom(guild, member, zone) {
 
   if (existingRoom.zoneId !== zone.id) return existingChannel;
 
-  if (member.voice.channelId !== existingChannel.id) {
-    await member.voice.setChannel(existingChannel).catch(() => {});
+  if (member.voice.channel && member.voice.channelId !== existingChannel.id) {
+    await safeMoveMember(member, existingChannel, "Move owner to existing smart room");
   }
 
   return existingChannel;
@@ -137,13 +138,15 @@ async function createRoomWithLock(guild, member, zone) {
     const [, existingRoom] = existingRoomEntry;
     const existingChannel = guild.channels.cache.get(existingChannelId);
     if (existingChannel && existingRoom.zoneId === zone.id) {
-      await member.voice.setChannel(existingChannel).catch(() => {});
+      if (member.voice.channel) {
+        await safeMoveMember(member, existingChannel, "Move owner to existing smart room");
+      }
       console.log(`Skip duplicate room for ${member.user.tag}: moved to existing room "${existingChannel.name}"`);
       return existingChannel;
     }
 
     if (existingChannel && existingChannel.members.size === 0) {
-      await existingChannel.delete("Owner created a new smart room in another zone").catch(() => {});
+      await safeDeleteChannel(existingChannel, "Owner created a new smart room in another zone");
       await deleteRoom(existingChannelId);
     } else if (!existingChannel) {
       await deleteRoom(existingChannelId);
@@ -185,8 +188,12 @@ async function createRoomWithLock(guild, member, zone) {
   await applyRoomPermissions(newChannel, room);
 
   try {
-    await member.voice.setChannel(newChannel);
-    console.log(`Created room "${roomName}" and moved ${member.user.tag}`);
+    const moved = await safeMoveMember(member, newChannel, "Create smart room");
+    if (!moved) {
+      console.log(`Created room "${roomName}" but ${member.user.tag} is no longer connected to voice`);
+    } else {
+      console.log(`Created room "${roomName}" and moved ${member.user.tag}`);
+    }
     await sendRoomLog("create", member, { channel: newChannel });
   } catch (e) {
     console.error("Could not move member:", e.message);

@@ -11,6 +11,7 @@ const {
 } = require("discord.js");
 const crypto = require("crypto");
 const { createClient } = require("@supabase/supabase-js");
+const { safeDeleteChannel } = require("../../../utils/discordSafety");
 const ws = require("ws");
 
 // ============================================================================
@@ -585,7 +586,9 @@ async function fetchActiveRooms() {
 // ============================================================================
 async function safeReply(interaction, options) {
   try {
-    if (interaction.replied || interaction.deferred) {
+    if (interaction.deferred && !interaction.replied) {
+      await interaction.editReply(options);
+    } else if (interaction.replied || interaction.deferred) {
       await interaction.followUp({ ...options, flags: 64 });
     } else {
       await interaction.reply({ ...options, flags: 64 });
@@ -594,6 +597,19 @@ async function safeReply(interaction, options) {
     if (err.code !== 40060 && err.code !== 10062 && err.code !== 10003) {
       console.error("[secret-chat] safeReply error:", err);
     }
+  }
+}
+
+async function safeDeferReply(interaction) {
+  if (interaction.replied || interaction.deferred) return true;
+  try {
+    await interaction.deferReply({ flags: 64 });
+    return true;
+  } catch (err) {
+    if (err.code !== 40060 && err.code !== 10062 && err.code !== 10003) {
+      console.error("[secret-chat] deferReply error:", err);
+    }
+    return false;
   }
 }
 
@@ -751,7 +767,7 @@ async function endSessionWithRating(channelId, userAId, userBId, channel, endedB
   });
 
   if (endedBy === "idle") {
-    try { await channel.delete("Idle kick — no rating"); } catch (_) {}
+    await safeDeleteChannel(channel, "Idle kick - no rating");
     return;
   }
 
@@ -773,7 +789,7 @@ async function endSessionWithRating(channelId, userAId, userBId, channel, endedB
     ratingMsgRefs.set(channelId, ratingMsg);
   } catch (e) {
     if (e.code !== 10003) console.error("[secret-chat] rating prompt send:", e.message);
-    try { await channel.delete("Rating prompt failed — auto cleanup"); } catch (_) {}
+    await safeDeleteChannel(channel, "Rating prompt failed - auto cleanup");
     return;
   }
 
@@ -782,7 +798,7 @@ async function endSessionWithRating(channelId, userAId, userBId, channel, endedB
     ratingSubmitted.delete(channelId);
     ratingMembers.delete(channelId);
     ratingMsgRefs.delete(channelId);
-    try { await channel.delete("Rating timeout — auto cleanup"); }
+    try { await safeDeleteChannel(channel, "Rating timeout - auto cleanup"); }
     catch (e) { if (e.code !== 10003) console.warn("[secret-chat] rating timeout delete:", e.message); }
   }, RATING_TIMEOUT_MS);
   ratingTimeoutTimers.set(channelId, t);
@@ -809,7 +825,7 @@ async function cleanupSession(channelId, userAId, userBId, channel, endedBy = "m
     metadata: { duration_seconds: Math.round(durationMs / 1000), ended_by: endedBy }
   });
 
-  try { await channel.delete("Session closed"); }
+  try { await safeDeleteChannel(channel, "Session closed"); }
   catch (e) { if (e.code !== 10003) console.warn("[secret-chat] channel delete:", e.message); }
 }
 
@@ -872,7 +888,7 @@ async function runCrashRecovery(client) {
           continue;
         }
         try {
-          await ch.delete("Orphan cleanup post-restart");
+          await safeDeleteChannel(ch, "Orphan cleanup post-restart");
           purged++;
         } catch (e) {
           console.warn(`[secret-chat] Recovery: failed to delete ${ch.name}:`, e.message);
@@ -980,8 +996,7 @@ async function handleJoinQueue(interaction) {
 
   const userId = interaction.user.id;
 
-  try { await interaction.deferReply({ flags: 64 }); }
-  catch (e) { if (e.code === 10062) return; return; }
+  if (!(await safeDeferReply(interaction))) return;
 
   // [FIX] ตรวจสอบช่วงเวลาเปิดให้บริการ (18:00 – 23:00 เวลาไทย)
   if (!isWithinOperatingHours()) {
@@ -1202,11 +1217,7 @@ async function handleLeaveTable(interaction) {
       .setStyle(ButtonStyle.Danger)
   );
 
-  try {
-    await interaction.reply({ content: `<@${interaction.user.id}> ต้องการออกจากโต๊ะจริง ๆ ใช่มั้ยคะ`, components: [row], flags: 64 });
-  } catch (err) {
-    if (err.code !== 40060 && err.code !== 10003) console.error("[secret-chat] leaveTable:", err);
-  }
+  await safeReply(interaction, { content: `<@${interaction.user.id}> ต้องการออกจากโต๊ะจริง ๆ ใช่มั้ยคะ`, components: [row] });
 }
 
 // ============================================================================
@@ -1236,7 +1247,7 @@ async function handleConfirmLeave(interaction) {
 
   await updateLobbyEmbed();
 
-  try { await interaction.channel.delete(`Closed by ${interaction.user.id}`); }
+  try { await safeDeleteChannel(interaction.channel, `Closed by ${interaction.user.id}`); }
   catch (err) { if (err.code !== 10003) console.error("[secret-chat] confirmLeave delete:", err); }
 }
 
@@ -1434,8 +1445,7 @@ async function handleRating(interaction) {
   const score     = parseInt(parts[2], 10);
   const userId    = interaction.user.id;
 
-  try { await interaction.deferReply({ flags: 64 }); }
-  catch (e) { if (e.code !== 10062) console.error("[secret-chat] rating deferReply:", e); return; }
+  if (!(await safeDeferReply(interaction))) return;
 
   const submitted = ratingSubmitted.get(channelId);
   if (!submitted)
@@ -1500,7 +1510,7 @@ async function handleRating(interaction) {
     setTimeout(async () => {
       try {
         const ch = await interaction.client.channels.fetch(channelId).catch(() => null);
-        if (ch) await ch.delete("Both users rated — cleanup");
+        if (ch) await safeDeleteChannel(ch, "Both users rated - cleanup");
       } catch (e) {
         if (e.code !== 10003) console.warn("[secret-chat] rating both done delete:", e.message);
       }

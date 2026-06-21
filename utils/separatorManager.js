@@ -1,5 +1,6 @@
 const { ChannelType, PermissionFlagsBits } = require("discord.js");
 const { acquireLock, getAllRooms, releaseLock, saveSeparator } = require("../state/redisClient");
+const { safeDeleteChannel } = require("./discordSafety");
 const config = require("../config");
 
 const syncLocks = new Set();
@@ -115,7 +116,7 @@ async function cleanupOrphanSeparators(guild) {
 
   for (const channel of orphanSeparators.values()) {
     try {
-      await channel.delete("Remove duplicate smart-room separator");
+      await safeDeleteChannel(channel, "Remove duplicate smart-room separator");
       console.log(`Deleted duplicate separator "${channel.name}"`);
     } catch (e) {
       console.error(`Could not delete duplicate separator "${channel.name}":`, e.message);
@@ -159,7 +160,7 @@ async function hideSeparator(guild, zone) {
   }
 
   try {
-    await channel.delete();
+    await safeDeleteChannel(channel, "Hide empty smart-room separator");
     zone.separatorChannelId = null;
     await saveSeparator(zone.id, null);
     console.log(`Deleted separator for zone "${zone.name}"`);

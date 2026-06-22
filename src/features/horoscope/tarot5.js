@@ -6,26 +6,27 @@ const { safeRespond } = require("../../../utils/discordSafety");
 const { MessageFlags }  = require('discord.js');
 const cfg        = require('./settingtarot.json');
 const infotarot3 = require('./Infotarot3.json');
+const tarotImages = require('./tarotImages.json');
 const { blacklistPayload, cooldownContent, otherCommandsPayload } = require('../shared/tarotComponents');
 
 // ─── Cooldown store (in-memory) ───────────────────────────────────────────────
 const cooldowns = new Map();
 
-// ─── Flag constants ───────────────────────────────────────────────────────────
+// ─── Flag constants ────────────────────────────────────────────────────────[...]
 const FLAG_V2        = MessageFlags.IsComponentsV2;  // 32768
 const FLAG_EPHEMERAL = MessageFlags.Ephemeral;        // 64
 const FLAG_V2_EPH    = FLAG_V2 | FLAG_EPHEMERAL;      // Component v2 + ephemeral
 const OTHER_COMMANDS_ID = 'tarot5_other_commands';
 const MISSION_CLAIM_ID  = 'tarot5_mission_claim';
 
-// ─── ภาพหมีตามปุ่มที่กด ───────────────────────────────────────────────────────
+// ─── ภาพหมีตามปุ่มที่กด ────────────────────────────────────────────
 const BEAR_IMAGES = {
   'tarot5_bear_1': 'https://cdn.discordapp.com/attachments/1144675871798591569/1515372890797904044/2.png',
   'tarot5_bear_2': 'https://cdn.discordapp.com/attachments/1144675871798591569/1515372891376586812/3.png',
   'tarot5_bear_3': 'https://cdn.discordapp.com/attachments/1144675871798591569/1515372890214629558/4.png',
 };
 
-// ─── Helper: random int ───────────────────────────────────────────────────────
+// ─── Helper: random int ────────────────────────────────────────────────────────
 function randInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
@@ -101,8 +102,8 @@ function buildLoadingPayload() {
         {
           type: 10,
           content:
-            `## <:starquestionmark:1352954565041061929>︲__\` 𝖯𝗂𝖼𝗄 𝖺 𝖡𝖾𝖺𝗋 ₊ เลือกหมี 1 ตัว 𓂃 \`__\n` +
-            `-# คำทำนายนี้เป็นเพียงการคาดการณ์ อาจไม่ตรงกับความเป็นจริง ขอให้ใช้วิจารณญาณในการอ่าน และใช้งานเพื่อความบันเทิงน้า <:cuteplant:1152834055528783872>`
+            `## <:starquestionmark:1352954565041061929>︲__\` 𝖯𝗂𝖼𝗄 𝖆 𝖉𝖎𝗋𝖑 ₊ เลือกหมี 1 ตัว 𓂃 \`__\n` +
+            `-# คำทำนายนี้เป็นเพียงการคาดการณ์ อาจไม่ตรงกับความเป็นจริง ขอให้ใจเปิดกว้าง ✨`,
         },
         { type: 14, spacing: 2 },
         {
@@ -139,6 +140,7 @@ function buildLoadingPayload() {
 // ─── Payload: Card Only (กรณีกดรับรางวัลไปแล้ว) ──────────────────────────────
 function buildCardPayload(bearImgUrl, card, earnedPoints) {
   const pi = cfg.point_icon;
+  const imgUrl = tarotImages.cards[card.cardId];
   return {
     flags: FLAG_V2,
     components: [{
@@ -156,7 +158,7 @@ function buildCardPayload(bearImgUrl, card, earnedPoints) {
           }],
           accessory: {
             type:  11,
-            media: { url: card.img }
+            media: { url: imgUrl }
           }
         },
         { type: 14, spacing: 1, divider: false },
@@ -220,6 +222,7 @@ function buildCardPayload(bearImgUrl, card, earnedPoints) {
 // ─── Payload: Mission + Card รวมกัน ──────────────────────────────────────────
 function buildCombinedPayload(bearImgUrl, card, earnedPoints, tarotPoint, isComplete) {
   const pi = cfg.point_icon;
+  const imgUrl = tarotImages.cards[card.cardId];
   return {
     flags: FLAG_V2,
     components: [{
@@ -233,14 +236,14 @@ function buildCombinedPayload(bearImgUrl, card, earnedPoints, tarotPoint, isComp
             type: 10,
             content:
               `## ${cfg.emojis.gift}︲__\` 𝖬𝗂𝗌𝗌𝗂𝗈𝗇 ₊ ภารกิจรับยศฟรี! 𓂃 \`__\n` +
-              `- **ภารกิจของเธอ:** เพียงใช้คำสั่งดูดวง คำสั่งไหนก็ได้รวมกัน ${cfg.mission_target} ครั้ง ก็รับยศพิเศษจากคาเฟ่หมีไปเลย ${cfg.emojis.sparkles}\n` +
+              `- **ภารกิจของเธอ:** เพียงใช้คำสั่งดูดวง คำสั่งไหนก็ได้รวมกัน ${cfg.mission_target} ครั้ง ก็จะได้ยศ + แต้มพิเศษ!\n` +
               `- **ยศที่คุณจะได้รับ:** **\`@ヽเจ้าหมีสายมู ✱\` + ${pointIconStr()}${cfg.mission_reward_points}**\n\n` +
               `**ความคืบหน้า ${tarotPoint}/${cfg.mission_target}**\n` +
               `## ${buildProgressBar(tarotPoint)}`
           }],
           accessory: {
             type: 11,
-            media: { url: 'https://media.discordapp.net/attachments/1144675871798591569/1377501031541506162/64603-purpleween.png?ex=6a2793ce&is=6a26424e&hm=aaa4a4ffaa1643c61b7de85b7ba56bca75dbc88d0c1116f39d2692991e6e7709&format=webp&quality=lossless&width=160&height=160&' }
+            media: { url: 'https://media.discordapp.net/attachments/1144675871798591569/1377501031541506162/64603-purpleween.png?ex=6a2793ce&is=6a26424e&hm=aaa4a4ffaa1643c61b7de85b7ba56bca75dbc88[...]' }
           }
         },
         { type: 14, spacing: 1, divider: false },
@@ -270,7 +273,7 @@ function buildCombinedPayload(bearImgUrl, card, earnedPoints, tarotPoint, isComp
           }],
           accessory: {
             type:  11,
-            media: { url: card.img }
+            media: { url: imgUrl }
           }
         },
         { type: 14, spacing: 1, divider: false },
@@ -331,7 +334,7 @@ function buildCombinedPayload(bearImgUrl, card, earnedPoints, tarotPoint, isComp
   };
 }
 
-// ─── Setup ───────────────────────────────────────────────────────────────────
+// ─── Setup ────────────────────────────────────────────────────────────────
 function setupTarot5(client) {
 
   const supabase = createClient(
@@ -340,7 +343,7 @@ function setupTarot5(client) {
     { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
   );
 
-  // ── Listener: ข้อความ "เลือกหมี" ────────────────────────────────────────────
+  // ── Listener: ข้อความ "เลือกหมี" ──────────────────────────────────────────
   client.on('messageCreate', async (message) => {
     if (!message.guild)     return;
     if (message.author.bot) return;
@@ -358,7 +361,7 @@ function setupTarot5(client) {
       return;
     }
 
-    // ── ตรวจ Cooldown ────────────────────────────────────────────────────────
+    // ── ตรวจ Cooldown ─────────────────────────────────────────────────────[...]
     const isPremium  = cfg.role_premium.some(id => member.roles.cache.has(id));
     const cdDuration = isPremium ? cfg.cooldown_premium_ms : cfg.cooldown_normal_ms;
     const now        = Date.now();
@@ -381,7 +384,7 @@ function setupTarot5(client) {
 
     const { customId, user, member } = interaction;
 
-    // ── ปุ่ม: เลือกหมี 1-3 ────────────────────────────────────────────────
+    // ── ปุ่ม: เลือกหมี 1-3 ──────────────────────────────────────────────[...]
     if (customId in BEAR_IMAGES) {
       try {
         await interaction.deferUpdate();
@@ -398,6 +401,7 @@ function setupTarot5(client) {
         // สุ่มไพ่ (1-78) จาก Infotarot3.json
         const cardId       = String(randInt(1, 78));
         const card         = infotarot3.cards[cardId];
+        card.cardId = cardId; // เก็บ ID ไว้ใช้ดึง img
         const earnedPoints = randInt(cfg.point_reward_min, cfg.point_reward_max);
 
         const alreadyClaimed = userRow.mission_claimed === true;
@@ -425,7 +429,7 @@ function setupTarot5(client) {
       return;
     }
 
-    // ── ปุ่ม: ดูดวงแบบอื่น ─────────────────────────────────────────────────
+    // ── ปุ่ม: ดูดวงแบบอื่น ─────────────────────────────────────────────
     if (customId === OTHER_COMMANDS_ID) {
       const payload = otherCommandsPayload();
       await safeRespond(interaction, {

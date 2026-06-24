@@ -10,6 +10,8 @@ const EVENT_CONFIG = {
 const queue = [];
 const recentMessages = new Map();
 let processing = false;
+let globalBlockUntil = 0; // ถ้าถูก Discord block ชั่วคราว หยุดส่งจนกว่าจะพ้นเวลา
+const QUEUE_MAX = 50; // cap queue ไม่ให้พองไม่หยุด
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -49,10 +51,19 @@ function shouldSkipDuplicate(key) {
 
 async function postWebhook(webhookUrl, payload, attempt = 0) {
   try {
-    await axios.post(webhookUrl, payload, { timeout: 10000 });
+    await axios.post(webhookUrl, payload, { timeout: 5000 });
   } catch (err) {
     const status = err.response?.status;
-    const retryAfterSeconds = Number(err.response?.data?.retry_after);
+    const data = err.response?.data;
+
+    // Discord global block (code: 0) — หยุดส่ง queue 30 วินาที
+    if (data?.code === 0) {
+      globalBlockUntil = Date.now() + 30000;
+      console.warn("[roomLogger] Discord global rate limit — หยุดส่ง 30 วินาที");
+      return;
+    }
+
+    const retryAfterSeconds = Number(data?.retry_after);
     const retryAfterMs = Number.isFinite(retryAfterSeconds)
       ? Math.ceil(retryAfterSeconds * 1000)
       : 1000 * (attempt + 1);
@@ -62,7 +73,7 @@ async function postWebhook(webhookUrl, payload, attempt = 0) {
       return await postWebhook(webhookUrl, payload, attempt + 1);
     }
 
-    console.error("[roomLogger] webhook error:", err.response?.data ?? err.message);
+    console.error("[roomLogger] webhook error:", data ?? err.message);
   }
 }
 
@@ -71,6 +82,12 @@ async function processQueue() {
   processing = true;
 
   while (queue.length > 0) {
+    // ถ้าถูก block อยู่ — รอจนพ้นเวลาแล้วค่อยส่งต่อ
+    const waitMs = globalBlockUntil - Date.now();
+    if (waitMs > 0) {
+      await delay(waitMs);
+    }
+
     const item = queue.shift();
     await postWebhook(item.webhookUrl, item.payload);
     await delay(350);
@@ -111,6 +128,9 @@ async function sendRoomLog(eventType, member, details = {}) {
     fields,
     timestamp: new Date().toISOString(),
   };
+
+  // ไม่รับ log ใหม่ถ้า queue เต็มหรือถูก block อยู่
+  if (queue.length >= QUEUE_MAX || Date.now() < globalBlockUntil) return;
 
   queue.push({
     webhookUrl,

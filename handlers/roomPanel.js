@@ -619,7 +619,7 @@ function getVipRoomOverwrites(channel, room, settings) {
 
   overwrites.push({
     id: room.ownerId,
-    allow: ownerAllowPermissions(),
+    allow: vipOwnerAllowPermissions(),
   });
 
   for (const userId of settings.trustedUserIds) {
@@ -656,6 +656,13 @@ function ownerAllowPermissions() {
     PermissionFlagsBits.UseEmbeddedActivities,
     PermissionFlagsBits.ManageEvents,
     PermissionFlagsBits.UseExternalApps,
+  ];
+}
+
+// เฉพาะเจ้าของห้อง VIP — มีสิทธิ์จัดการสมาชิกเพิ่มเติม
+function vipOwnerAllowPermissions() {
+  return [
+    ...ownerAllowPermissions(),
     PermissionFlagsBits.MuteMembers,
     PermissionFlagsBits.DeafenMembers,
     PermissionFlagsBits.MoveMembers,

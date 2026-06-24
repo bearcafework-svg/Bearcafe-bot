@@ -5,7 +5,7 @@
 const { resolveZoneFromLobby } = require("../utils/zoneResolver");
 const { createRoom } = require("../handlers/roomCreator");
 const { markRoomActive, destroyRoom } = require("../handlers/roomDestroyer");
-const { getAllRooms } = require("../state/redisClient");
+const { getAllRooms, deleteRoom } = require("../state/redisClient");
 const { sendRoomLog } = require("../utils/roomLogger");
 
 module.exports = {
@@ -26,6 +26,16 @@ module.exports = {
       const zone = resolveZoneFromLobby(joinedChannel);
       if (zone) {
         console.log(`👤 ${member.user.tag} เข้า Lobby โซน "${zone.name}"`);
+
+        // ตรวจลบห้องเดิมก่อน แม้จะกำลังเข้า Lobby
+        if (leftChannel && rooms[leftChannel]) {
+          const leftCh = guild.channels.cache.get(leftChannel);
+          if (leftCh && leftCh.members.size === 0) {
+            console.log(`🔕 "${leftCh.name}" ว่างแล้ว (ออกไปเข้า Lobby) — ลบ`);
+            await destroyRoom(guild, leftChannel);
+          }
+        }
+
         await createRoom(guild, member, zone);
         return;
       }
@@ -56,7 +66,10 @@ module.exports = {
       if (!rooms[leftChannel]) return; // ไม่ใช่ห้องที่บอทสร้าง
 
       const channel = guild.channels.cache.get(leftChannel);
-      if (!channel) return;
+      if (!channel) {
+        await deleteRoom(leftChannel); // channel หายไปจาก cache แต่ยังอยู่ใน Redis
+        return;
+      }
 
       if (channel.members.size === 0) {
         console.log(`🔕 "${channel.name}" ว่างแล้ว — ลบทันที`);

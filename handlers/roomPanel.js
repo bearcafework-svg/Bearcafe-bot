@@ -656,6 +656,9 @@ function ownerAllowPermissions() {
     PermissionFlagsBits.UseEmbeddedActivities,
     PermissionFlagsBits.ManageEvents,
     PermissionFlagsBits.UseExternalApps,
+    PermissionFlagsBits.MuteMembers,
+    PermissionFlagsBits.DeafenMembers,
+    PermissionFlagsBits.MoveMembers,
   ];
 }
 

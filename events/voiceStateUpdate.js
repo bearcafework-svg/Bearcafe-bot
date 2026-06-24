@@ -26,9 +26,6 @@ module.exports = {
       const zone = resolveZoneFromLobby(joinedChannel);
       if (zone) {
         console.log(`👤 ${member.user.tag} เข้า Lobby โซน "${zone.name}"`);
-        if (rooms[leftChannel]) {
-          await sendRoomLog("leave", member, { channel: guild.channels.cache.get(leftChannel) });
-        }
         await createRoom(guild, member, zone);
         return;
       }

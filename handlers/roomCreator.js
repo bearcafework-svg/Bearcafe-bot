@@ -79,9 +79,9 @@ async function processQueue() {
     resolve(null);
   } finally {
     pendingOwners.delete(ownerKey);
+    isCreating = false; // ✅ reset เสมอ แม้ error
   }
 
-  isCreating = false;
   processQueue();
 }
 

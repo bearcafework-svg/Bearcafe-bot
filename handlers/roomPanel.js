@@ -170,6 +170,28 @@ async function handlePanelButton(interaction) {
     return await deleteOwnedRoom(interaction, context);
   }
 
+  if (interaction.customId === CUSTOM_IDS.permissionsList) {
+    const settings = getSettings(context.room);
+    const ownerId = context.room.ownerId;
+
+    const trustedList = settings.trustedUserIds.length > 0
+      ? settings.trustedUserIds.map((id) => `<@${id}>`).join(", ")
+      : "ไม่มี";
+
+    const blockedList = settings.blockedUserIds.length > 0
+      ? settings.blockedUserIds.map((id) => `<@${id}>`).join(", ")
+      : "ไม่มี";
+
+    const content = [
+      `📋 **รายละเอียดสิทธิ์สมาชิกภายในห้อง**`,
+      `👑 **เจ้าของห้อง**: <@${ownerId}>`,
+      `🟢 **อนุญาตให้เข้า (มองเห็น)**: ${trustedList}`,
+      `🔴 **ถูกซ่อน/บล็อค (ถูกบล็อค)**: ${blockedList}`,
+    ].join("\n");
+
+    return await respondEphemeral(interaction, { content });
+  }
+
   return false;
 }
 
@@ -447,6 +469,12 @@ function createComponentV2PanelPayload(ownerMember, room) {
               button(ButtonStyle.Secondary, CUSTOM_IDS.kick, "เตะสมาชิกออกจากห้อง", "📤"),
             ],
           },
+          {
+            type: 1,
+            components: [
+              button(ButtonStyle.Primary, CUSTOM_IDS.permissionsList, "ตรวจสอบสิทธิ์สมาชิก", "📋"),
+            ],
+          },
           { type: 14, spacing: 2 },
         ],
       },
@@ -471,6 +499,9 @@ function createFallbackPanelPayload(ownerMember, room) {
         new ButtonBuilder().setCustomId(CUSTOM_IDS.block).setLabel("ซ่อนสมาชิก").setEmoji("🙈").setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId(CUSTOM_IDS.unblock).setLabel("เลิกซ่อนสมาชิก").setEmoji("👁️").setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId(CUSTOM_IDS.kick).setLabel("เตะสมาชิกออกจากห้อง").setEmoji("📤").setStyle(ButtonStyle.Secondary)
+      ),
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(CUSTOM_IDS.permissionsList).setLabel("ตรวจสอบสิทธิ์สมาชิก").setEmoji("📋").setStyle(ButtonStyle.Primary)
       ),
     ],
   };

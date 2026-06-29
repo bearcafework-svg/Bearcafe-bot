@@ -47,6 +47,7 @@ const JOIN_QUEUE_CUSTOM_ID    = "btn_join_queue";
 const LEAVE_TABLE_CUSTOM_ID   = "btn_leave_table";
 const REPORT_USER_CUSTOM_ID   = "btn_report_user";
 const CONFIRM_LEAVE_CUSTOM_ID = "btn_confirm_leave";
+const CONFIRM_REPORT_CUSTOM_ID = "btn_confirm_report";
 const EXTEND_TIME_CUSTOM_ID   = "btn_extend_time";
 const CANCEL_QUEUE_CUSTOM_ID  = "btn_cancel_queue";
 const CLAIM_CASE_CUSTOM_ID    = "btn_claim_case";
@@ -164,23 +165,169 @@ function buildAllowedPermissions() {
   ];
 }
 
-function buildV2Welcome(userAId, userBId, endTimeUnix) {
+function buildV2Welcome(userAId, userBId, endTimeUnix, ads = [], ctaButtons = []) {
+  const containerChildren = [
+    { type: 14, spacing: 2 },
+    { type: 10, content:
+      `## <:bee20000:1256669436350562355>︲__\` 𝖲𝗎𝖼𝖼𝖾𝗌𝗌𝖿𝗎𝗅 𝗆𝖺𝗍𝖼𝗁 ₊ แมตช์สำเร็จ 𓂃 \`__\n` +
+      `ยินดีต้อนรับ <@${userAId}> และ <@${userBId}> <:cuteplant:1152834055528783872>\n` +
+      `- ระยะเวลาสนทนา 15 นาที (หมดเวลา: <t:${endTimeUnix}:R>)\n` +
+      `- พบสมาชิกพฤติกรรมไม่เหมาะสมกดปุ่ม **แจ้งรีพอร์ต** เพื่อติดต่อทีมงานโดยตรง`
+    },
+    { type: 14, spacing: 2 },
+    { type: 1, components: [
+      { style: 4, type: 2, custom_id: LEAVE_TABLE_CUSTOM_ID, label: "ออกจากโต๊ะ" },
+      { style: 1, type: 2, custom_id: REPORT_USER_CUSTOM_ID, label: "แจ้งรีพอร์ต" },
+    ]}
+  ];
+
+  for (const ad of ads) {
+    containerChildren.push({ type: 14, divider: true, spacing: 2 });
+    containerChildren.push({
+      type: 12,
+      items: [
+        {
+          media: { url: ad.image_url },
+          spoiler: false,
+        },
+      ],
+    });
+    containerChildren.push({ type: 14, divider: false });
+
+    const adRowComponents = [
+      {
+        type: 2,
+        style: 5,
+        label: "ดูรายละเอียด",
+        emoji: { name: "🔎" },
+        url: ad.link_url,
+      },
+      ...ctaButtons.map((b) => ({
+        type: b.type || 2,
+        style: b.style || 5,
+        url: b.url,
+        label: b.label,
+        ...(b.emoji ? { emoji: b.emoji } : {}),
+      })),
+    ];
+    containerChildren.push({
+      type: 1,
+      components: adRowComponents,
+    });
+  }
+
+  if (ads.length === 0 && ctaButtons.length > 0) {
+    containerChildren.push({ type: 14, divider: true, spacing: 2 });
+    containerChildren.push({
+      type: 1,
+      components: ctaButtons.map((b) => ({
+        type: b.type || 2,
+        style: b.style || 5,
+        url: b.url,
+        label: b.label,
+        ...(b.emoji ? { emoji: b.emoji } : {}),
+      })),
+    });
+  }
+
   return {
     flags: 32768,
+    components: [{
+      type: 17,
+      components: containerChildren,
+    }]
+  };
+}
+
+function buildV2WelcomeDisabled(userAId, userBId, endTimeUnix, reporterUsername, ads = [], ctaButtons = []) {
+  const containerChildren = [
+    { type: 14, spacing: 2 },
+    { type: 10, content:
+      `## <:bee20000:1256669436350562355>︲__\` 𝖲𝗎𝖼𝖼𝖾𝗌𝗌𝖿𝗎𝗅 𝗆𝖺𝗍𝖼𝗁 ₊ แมตช์สำเร็จ 𓂃 \`__\n` +
+      `ยินดีต้อนรับ <@${userAId}> และ <@${userBId}> <:cuteplant:1152834055528783872>\n` +
+      `- ระยะเวลาสนทนา 15 นาที (หมดเวลา: <t:${endTimeUnix}:R>)\n` +
+      `- พบสมาชิกพฤติกรรมไม่เหมาะสมกดปุ่ม **แจ้งรีพอร์ต** เพื่อติดต่อทีมงานโดยตรง`
+    },
+    { type: 14, spacing: 2 },
+    { type: 1, components: [
+      { style: 4, type: 2, custom_id: LEAVE_TABLE_CUSTOM_ID, label: "ออกจากโต๊ะ (ถูกระงับ)", disabled: true },
+      { style: 2, type: 2, custom_id: REPORT_USER_CUSTOM_ID, label: `แจ้งรีพอร์ตโดย ${reporterUsername}`, disabled: true },
+    ]}
+  ];
+
+  for (const ad of ads) {
+    containerChildren.push({ type: 14, divider: true, spacing: 2 });
+    containerChildren.push({
+      type: 12,
+      items: [
+        {
+          media: { url: ad.image_url },
+          spoiler: false,
+        },
+      ],
+    });
+    containerChildren.push({ type: 14, divider: false });
+
+    const adRowComponents = [
+      {
+        type: 2,
+        style: 5,
+        label: "ดูรายละเอียด",
+        emoji: { name: "🔎" },
+        url: ad.link_url,
+      },
+      ...ctaButtons.map((b) => ({
+        type: b.type || 2,
+        style: b.style || 5,
+        url: b.url,
+        label: b.label,
+        ...(b.emoji ? { emoji: b.emoji } : {}),
+      })),
+    ];
+    containerChildren.push({
+      type: 1,
+      components: adRowComponents,
+    });
+  }
+
+  if (ads.length === 0 && ctaButtons.length > 0) {
+    containerChildren.push({ type: 14, divider: true, spacing: 2 });
+    containerChildren.push({
+      type: 1,
+      components: ctaButtons.map((b) => ({
+        type: b.type || 2,
+        style: b.style || 5,
+        url: b.url,
+        label: b.label,
+        ...(b.emoji ? { emoji: b.emoji } : {}),
+      })),
+    });
+  }
+
+  return {
+    flags: 32768,
+    components: [{
+      type: 17,
+      components: containerChildren,
+    }]
+  };
+}
+
+function buildV2ReportConfirm(userId) {
+  return {
+    flags: 32768 | 64, // IS_COMPONENTS_V2 + EPHEMERAL
     components: [{
       type: 17,
       components: [
         { type: 14, spacing: 2 },
         { type: 10, content:
-          `## <:bee20000:1256669436350562355>︲__\` 𝖲𝗎𝖼𝖼𝖾𝗌𝗌𝖿𝗎𝗅 𝗆𝖺𝗍𝖼𝗁 ₊ แมตช์สำเร็จ 𓂃 \`__\n` +
-          `ยินดีต้อนรับ <@${userAId}> และ <@${userBId}> <:cuteplant:1152834055528783872>\n` +
-          `- ระยะเวลาสนทนา 15 นาที (หมดเวลา: <t:${endTimeUnix}:R>)\n` +
-          `- พบสมาชิกพฤติกรรมไม่เหมาะสมกดปุ่ม **แจ้งรีพอร์ต** เพื่อติดต่อทีมงานโดยตรง`
+          `## 🚨︲__\` ยืนยันการแจ้งรีพอร์ต 𓂃 \`__\n` +
+          `คุณต้องการแจ้งรีพอร์ตห้องสนทนานี้ใช่หรือไม่คะ?\n` +
+          `-# เมื่อยืนยันแล้ว ระบบจะทำการปิดเซสชันและแจ้งเตือนทีมงานเพื่อเข้าตรวจสอบค่ะ`
         },
         { type: 14, spacing: 2 },
         { type: 1, components: [
-          { style: 4, type: 2, custom_id: LEAVE_TABLE_CUSTOM_ID, label: "ออกจากโต๊ะ" },
-          { style: 1, type: 2, custom_id: REPORT_USER_CUSTOM_ID, label: "แจ้งรีพอร์ต" },
+          { style: 4, type: 2, custom_id: `${CONFIRM_REPORT_CUSTOM_ID}:${userId}`, label: "ยืนยันการแจ้งรีพอร์ต" },
         ]},
       ]
     }]
@@ -414,6 +561,43 @@ function buildV2Notify(roleIds, msg) {
       ]
     }]
   };
+}
+
+async function getAdsAndCta() {
+  let ads = [];
+  let ctaButtons = [];
+  try {
+    const { data: adsData, error: adsErr } = await supabase
+      .from("ads")
+      .select("*");
+    if (!adsErr && adsData) {
+      ads = adsData.filter(ad => ad.status === "active" || ad.status === undefined || ad.status === null);
+    }
+  } catch (e) {
+    console.error("[secret-chat] fetch ads error:", e);
+  }
+
+  try {
+    const { data: settingsData, error: settingsErr } = await supabase
+      .from("site_settings")
+      .select("*")
+      .eq("key", "secret_chat_cta");
+    if (!settingsErr && settingsData && settingsData.length > 0) {
+      const row = settingsData[0];
+      if (Array.isArray(row.value)) {
+        ctaButtons = row.value;
+      } else if (typeof row.value === "string") {
+        try {
+          ctaButtons = JSON.parse(row.value);
+        } catch (_) {}
+      } else if (row.value && typeof row.value === "object" && Array.isArray(row.value.buttons)) {
+        ctaButtons = row.value.buttons;
+      }
+    }
+  } catch (e) {
+    console.error("[secret-chat] fetch site_settings error:", e);
+  }
+  return { ads, ctaButtons };
 }
 
 function buildV2DmNoMatch() {
@@ -907,7 +1091,8 @@ async function createSecretChatChannel(guild, userAId, userBId) {
   sessionExtendCount.set(channel.id, 0);
   await persistActiveRoom(channel, userAId, userBId, endTime);
 
-  const sentMsg = await channel.send(buildV2Welcome(userAId, userBId, endTimeUnix));
+  const { ads, ctaButtons } = await getAdsAndCta();
+  const sentMsg = await channel.send(buildV2Welcome(userAId, userBId, endTimeUnix, ads, ctaButtons));
   tableActionMessages.set(channel.id, sentMsg);
   reportedByUsers.set(channel.id, new Set());
 
@@ -1298,34 +1483,91 @@ async function handleExtendTime(interaction) {
 // HANDLER: REPORT USER
 // ============================================================================
 async function handleReportUser(interaction) {
-  const channelId        = interaction.channelId;
-  const reporterId       = interaction.user.id;
-  const reporterUsername = interaction.user.username;
-  const members          = tableMembers.get(channelId);
+  if (isAlreadyHandled(interaction.id)) return;
+  markHandled(interaction.id);
+
+  const channelId = interaction.channelId;
+  const reporterId = interaction.user.id;
+  const members = tableMembers.get(channelId);
 
   if (!members || !members.has(reporterId))
-    return await safeReply(interaction, { content: "ไม่สามารถดำเนินการได้" });
+    return await safeRespond(interaction, { content: "ไม่สามารถดำเนินการได้", flags: 64 });
 
   const reportedSet = reportedByUsers.get(channelId) || new Set();
   if (reportedSet.has(reporterId))
-    return await safeReply(interaction, { content: "⚠️ คุณได้แจ้งรีพอร์ตไปแล้วค่ะ" });
+    return await safeRespond(interaction, { content: "⚠️ คุณได้แจ้งรีพอร์ตไปแล้วค่ะ", flags: 64 });
+
+  const confirmPayload = buildV2ReportConfirm(reporterId);
+  await safeRespond(interaction, confirmPayload);
+}
+
+// ============================================================================
+// HANDLER: CONFIRM REPORT
+// ============================================================================
+async function handleConfirmReport(interaction) {
+  if (isAlreadyHandled(interaction.id)) return;
+  markHandled(interaction.id);
+
+  const [, targetUserId] = interaction.customId.split(":");
+  if (interaction.user.id !== targetUserId) {
+    return await safeRespond(interaction, { content: "ปุ่มนี้สำหรับคนที่กดปุ่มแจ้งรีพอร์ตเท่านั้นค่ะ", flags: 64 });
+  }
+
+  const channelId = interaction.channelId;
+  const reporterId = interaction.user.id;
+  const reporterUsername = interaction.user.username;
+  const members = tableMembers.get(channelId);
+
+  if (!members || !members.has(reporterId)) {
+    return await safeRespond(interaction, { content: "ไม่สามารถดำเนินการได้", flags: 64 });
+  }
+
+  const reportedSet = reportedByUsers.get(channelId) || new Set();
+  if (reportedSet.has(reporterId)) {
+    return await safeRespond(interaction, { content: "⚠️ คุณได้แจ้งรีพอร์ตไปแล้วค่ะ", flags: 64 });
+  }
+
+  try { await interaction.deferUpdate(); }
+  catch (err) { if (err.code !== 40060) { console.error("[secret-chat] confirmReport deferUpdate:", err); return; } }
 
   reportedSet.add(reporterId);
   reportedByUsers.set(channelId, reportedSet);
   clearSessionTimers(channelId);
 
-  await safeReply(interaction, { content: "⚠️ กำลังติดต่อทีมงาน รอสักครู่นะคะ..." });
+  try {
+    await interaction.editReply({
+      flags: 32768,
+      components: [{
+        type: 17,
+        components: [
+          { type: 14, spacing: 2 },
+          {
+            type: 10,
+            content:
+              `## <:50121checkmark:1358584609087946867>︲__\` แจ้งรีพอร์ตเรียบร้อยแล้วค่ะ 𓂃 \`__\n` +
+              `-# ระบบส่งเรื่องให้ทีมงานเรียบร้อยแล้ว กรุณารอสักครู่นะคะ`
+          },
+          { type: 14, spacing: 2 }
+        ]
+      }]
+    });
+  } catch (e) {
+    console.error("[secret-chat] update report confirm reply error:", e);
+  }
 
   try {
     const actionMsg = tableActionMessages.get(channelId);
     if (actionMsg) {
-      const disabled = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId(LEAVE_TABLE_CUSTOM_ID).setLabel("ออกจากโต๊ะ (ถูกระงับ)").setStyle(ButtonStyle.Danger).setDisabled(true),
-        new ButtonBuilder().setCustomId(REPORT_USER_CUSTOM_ID).setLabel(`แจ้งรีพอร์ตโดย ${reporterUsername}`).setStyle(ButtonStyle.Secondary).setDisabled(true),
-      );
-      await actionMsg.edit({ components: [disabled] });
+      const [uA, uB] = Array.from(members);
+      const endTime = sessionEndTimes.get(channelId) ?? Date.now();
+      const endTimeUnix = Math.floor(endTime / 1000);
+
+      const { ads, ctaButtons } = await getAdsAndCta();
+
+      const disabledV2Welcome = buildV2WelcomeDisabled(uA, uB, endTimeUnix, reporterUsername, ads, ctaButtons);
+      await actionMsg.edit(disabledV2Welcome);
     }
-  } catch (e) { console.error("[secret-chat] disable report button:", e); }
+  } catch (e) { console.error("[secret-chat] disable report button v2 edit error:", e); }
 
   try {
     const staffCh = await interaction.client.channels.fetch(STAFF_ALERT_CHANNEL_ID);
@@ -1335,9 +1577,9 @@ async function handleReportUser(interaction) {
       .setColor("#FF4444")
       .setTitle("🚨 พบการแจ้งปัญหาที่โซนสุ่มแชทคุย")
       .addFields(
-        { name: "ห้องแชท", value: `<#${channelId}>`,  inline: true },
-        { name: "ผู้แจ้ง",  value: `<@${reporterId}>`, inline: true },
-        { name: "สถานะ",    value: "⏳ รอทีมงานรับเคส", inline: true }
+        { name: "ห้องแชท", value: `<#${channelId}>`, inline: true },
+        { name: "ผู้แจ้ง", value: `<@${reporterId}>`, inline: true },
+        { name: "สถานะ", value: "⏳ รอทีมงานรับเคส", inline: true }
       )
       .setTimestamp();
 
@@ -1358,7 +1600,7 @@ async function handleReportUser(interaction) {
       }
     }, 10 * 60 * 1000); // 10 นาที
 
-  } catch (err) { console.error("[secret-chat] handleReportUser:", err); }
+  } catch (err) { console.error("[secret-chat] handleConfirmReport action error:", err); }
 }
 
 // ============================================================================
@@ -1549,6 +1791,7 @@ function setupSecretChat(client) {
     else if (interaction.customId === REPORT_USER_CUSTOM_ID)                await handleReportUser(interaction);
     else if (interaction.customId.startsWith(CLAIM_CASE_CUSTOM_ID + ":"))   await handleClaimCase(interaction);
     else if (interaction.customId.startsWith(CONFIRM_LEAVE_CUSTOM_ID + ":")) await handleConfirmLeave(interaction);
+    else if (interaction.customId.startsWith(CONFIRM_REPORT_CUSTOM_ID + ":")) await handleConfirmReport(interaction);
     else if (interaction.customId.startsWith(RATING_CUSTOM_ID + ":"))       await handleRating(interaction);
   });
 

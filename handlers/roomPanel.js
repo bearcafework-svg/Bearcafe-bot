@@ -542,8 +542,8 @@ function getPanelSummary(room) {
   return [
     `สถานะห้อง: **${getStatusText(room)}**`,
     `จำนวนคน: **${limit}**`,
-    `อนุญาตให้เข้า: ${formatUserList(settings.trustedUserIds)}`,
-    `ซ่อนจาก: ${formatUserList(settings.blockedUserIds)}`,
+    `อนุญาตให้เข้า: **${settings.trustedUserIds?.length || 0} คน**`,
+    `ซ่อนจาก: **${settings.blockedUserIds?.length || 0} คน**`,
   ].join("\n");
 }
 

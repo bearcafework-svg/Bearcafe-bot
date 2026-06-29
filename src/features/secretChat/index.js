@@ -1184,27 +1184,46 @@ async function logEvent(event, data = {}) {
 // HANDLER: JOIN QUEUE
 // ============================================================================
 async function handleJoinQueue(interaction) {
-  if (isAlreadyHandled(interaction.id)) return;
+  console.log(`[debug] handleJoinQueue started for ${interaction.id}`);
+  if (isAlreadyHandled(interaction.id)) {
+    console.log(`[debug] interaction ${interaction.id} already handled`);
+    return;
+  }
   markHandled(interaction.id);
 
   const userId = interaction.user.id;
 
-  if (!(await safeDeferReply(interaction))) return;
+  const deferResult = await safeDeferReply(interaction);
+  console.log(`[debug] safeDeferReply result: ${deferResult}`);
+  if (!deferResult) return;
 
   // [FIX] ตรวจสอบช่วงเวลาเปิดให้บริการ (18:00 – 23:00 เวลาไทย)
   if (!isWithinOperatingHours()) {
+    console.log(`[debug] outside operating hours`);
     return await interaction.editReply(buildV2OutsideHours());
   }
 
   if (interaction.member?.roles) {
     const hasBlocked = BLOCKED_ROLES.some(r => interaction.member.roles.cache.has(r));
-    if (hasBlocked) return await interaction.editReply({ content: "ขออภัยค่ะ สิทธิ์ของคุณไม่สามารถใช้งานระบบนี้ได้ในขณะนี้" });
+    if (hasBlocked) {
+      console.log(`[debug] blocked role`);
+      return await interaction.editReply({ content: "ขออภัยค่ะ สิทธิ์ของคุณไม่สามารถใช้งานระบบนี้ได้ในขณะนี้" });
+    }
   }
 
-  if (isUserBusy(userId)) return await interaction.editReply({ content: "ตอนนี้คุณอยู่ในคิวหรือกำลังนั่งโต๊ะอยู่แล้วนะคะ ☕" });
-  if (checkSpamRateLimit(userId)) return await interaction.editReply({ content: "คุณทำรายการบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่ค่ะ ⏳" });
+  if (isUserBusy(userId)) {
+    console.log(`[debug] user is busy`);
+    return await interaction.editReply({ content: "ตอนนี้คุณอยู่ในคิวหรือกำลังนั่งโต๊ะอยู่แล้วนะคะ ☕" });
+  }
+  
+  if (checkSpamRateLimit(userId)) {
+    console.log(`[debug] spam rate limit`);
+    return await interaction.editReply({ content: "คุณทำรายการบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่ค่ะ ⏳" });
+  }
 
+  console.log(`[debug] checking DM open...`);
   const dmOpen = await checkDmOpen(interaction.user);
+  console.log(`[debug] DM open result: ${dmOpen}`);
   if (!dmOpen) {
     return await interaction.editReply({
       content:
@@ -1216,6 +1235,7 @@ async function handleJoinQueue(interaction) {
   }
 
   const presence = interaction.guild?.members?.cache.get(userId)?.presence;
+  console.log(`[debug] presence status: ${presence?.status}`);
   if ((presence?.status ?? "offline") === "dnd") {
     return await interaction.editReply({
       content:
@@ -1224,7 +1244,13 @@ async function handleJoinQueue(interaction) {
     });
   }
 
-  await interaction.editReply(buildV2TopicSelect());
+  console.log(`[debug] sending topic select...`);
+  try {
+    await interaction.editReply(buildV2TopicSelect());
+    console.log(`[debug] topic select sent!`);
+  } catch (err) {
+    console.error(`[debug] editReply buildV2TopicSelect error:`, err);
+  }
   userSearchMsgToken.set(userId, interaction);
 }
 
@@ -1810,6 +1836,10 @@ function setupSecretChat(client) {
   });
 
   client.on(Events.InteractionCreate, async (interaction) => {
+    if (interaction.customId) {
+      console.log(`[secret-chat] Interaction received: ${interaction.customId} from ${interaction.user.tag}`);
+    }
+
     if (interaction.isStringSelectMenu()) {
       if (interaction.customId === TOPIC_SELECT_CUSTOM_ID) await handleTopicSelect(interaction);
       return;

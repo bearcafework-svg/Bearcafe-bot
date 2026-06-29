@@ -1570,7 +1570,7 @@ async function handleConfirmLeave(interaction) {
     return await safeReply(interaction, { content: "โต๊ะนี้ถูกทำความสะอาดไปแล้วค่ะ" });
 
   try { await interaction.deferUpdate(); }
-  catch (err) { if (err.code !== 40060) { console.error("[secret-chat] confirmLeave deferUpdate:", err); return; } }
+  catch (err) { if (err.code !== 40060 && err.code !== 10062) { console.error("[secret-chat] confirmLeave deferUpdate:", err); return; } }
 
   clearSessionTimers(channelId);
   const membersCopy = new Set(members);

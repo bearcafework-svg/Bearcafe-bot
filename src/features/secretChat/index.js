@@ -566,37 +566,70 @@ function buildV2Notify(roleIds, msg) {
 async function getAdsAndCta() {
   let ads = [];
   let ctaButtons = [];
+
+  // 1. Fetch Global CTA buttons
   try {
-    const { data: adsData, error: adsErr } = await supabase
-      .from("ads")
-      .select("*");
-    if (!adsErr && adsData) {
-      ads = adsData.filter(ad => ad.status === "active" || ad.status === undefined || ad.status === null);
+    const { data: ctaData, error: ctaErr } = await supabase
+      .from("site_settings")
+      .select("value")
+      .eq("key", "global_cta_buttons")
+      .maybeSingle();
+
+    if (!ctaErr && ctaData && ctaData.value) {
+      const allCtaButtons = Array.isArray(ctaData.value) ? ctaData.value : [];
+      ctaButtons = allCtaButtons.filter(
+        (b) => b.is_active && Array.isArray(b.placement) && b.placement.includes("secret_chat")
+      );
     }
   } catch (e) {
-    console.error("[secret-chat] fetch ads error:", e);
+    console.error("[secret-chat] fetch global_cta_buttons error:", e);
   }
 
+  // 2. Fetch Ad Placements
   try {
-    const { data: settingsData, error: settingsErr } = await supabase
-      .from("site_settings")
-      .select("*")
-      .eq("key", "secret_chat_cta");
-    if (!settingsErr && settingsData && settingsData.length > 0) {
-      const row = settingsData[0];
-      if (Array.isArray(row.value)) {
-        ctaButtons = row.value;
-      } else if (typeof row.value === "string") {
-        try {
-          ctaButtons = JSON.parse(row.value);
-        } catch (_) {}
-      } else if (row.value && typeof row.value === "object" && Array.isArray(row.value.buttons)) {
-        ctaButtons = row.value.buttons;
+    const { data: placementData, error: placementErr } = await supabase
+      .from("ad_placements")
+      .select(`
+        delivery_mode,
+        ad_placement_items (
+          sort_order,
+          session_ads ( image_url, link_url, is_active )
+        )
+      `)
+      .eq("key", "secret_chat")
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (!placementErr && placementData) {
+      const deliveryMode = placementData.delivery_mode ?? "random_one";
+
+      if (deliveryMode === "random_one") {
+        const { data: allAds, error: allAdsError } = await supabase
+          .from("session_ads")
+          .select("image_url, link_url")
+          .eq("is_active", true);
+
+        if (!allAdsError && allAds && allAds.length > 0) {
+          ads = [allAds[Math.floor(Math.random() * allAds.length)]];
+        }
+      } else if (deliveryMode === "ordered") {
+        const items = placementData.ad_placement_items ?? [];
+        const first = items
+          .filter((item) => item.session_ads?.is_active === true)
+          .sort((a, b) => a.sort_order - b.sort_order)[0];
+
+        if (first && first.session_ads) {
+          ads = [{
+            image_url: first.session_ads.image_url,
+            link_url: first.session_ads.link_url,
+          }];
+        }
       }
     }
   } catch (e) {
-    console.error("[secret-chat] fetch site_settings error:", e);
+    console.error("[secret-chat] fetch ad_placements error:", e);
   }
+
   return { ads, ctaButtons };
 }
 

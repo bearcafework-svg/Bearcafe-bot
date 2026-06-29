@@ -156,22 +156,21 @@ client.on("interactionCreate", async (interaction) => {
   handleRoomPanelInteraction(interaction).catch(console.error);
 });
 
-if (process.env.PORT) {
-  http
-    .createServer((req, res) => {
-      if (req.url === "/health") {
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ ok: true }));
-        return;
-      }
+const port = process.env.PORT || 8000;
+http
+  .createServer((req, res) => {
+    if (req.url === "/health") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: true }));
+      return;
+    }
 
-      res.writeHead(200, { "Content-Type": "text/plain" });
-      res.end("Bear Cafe bot is running");
-    })
-    .listen(Number(process.env.PORT), "0.0.0.0", () => {
-      console.log(`Health server listening on port ${process.env.PORT}`);
-    });
-}
+    res.writeHead(200, { "Content-Type": "text/plain" });
+    res.end("Bear Cafe bot is running");
+  })
+  .listen(Number(port), "0.0.0.0", () => {
+    console.log(`Health server listening on port ${port}`);
+  });
 
 // ── Error handling ─────────────────────────────────────────────────
 client.on("error", (e) => console.error("Discord client error:", e));

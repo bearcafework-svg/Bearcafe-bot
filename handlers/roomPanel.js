@@ -32,6 +32,7 @@ const CUSTOM_IDS = {
   unblock: "p_314733300217905153",
   kick: "p_314733387149479938",
   delete: "p_314733640162480141",
+  permissionsList: "p_permissions_list",
   selectTrust: "room_panel_select_trust",
   selectUntrust: "room_panel_select_untrust",
   selectBlock: "room_panel_select_block",

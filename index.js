@@ -168,7 +168,7 @@ if (process.env.PORT) {
       res.writeHead(200, { "Content-Type": "text/plain" });
       res.end("Bear Cafe bot is running");
     })
-    .listen(Number(process.env.PORT), () => {
+    .listen(Number(process.env.PORT), "0.0.0.0", () => {
       console.log(`Health server listening on port ${process.env.PORT}`);
     });
 }

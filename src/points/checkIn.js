@@ -132,6 +132,8 @@ function setupCheckIn(client) {
     const contentText = message.content.trim();
     if (contentText !== 'เช็กอิน' && contentText !== 'เช็คอิน') return;
 
+    message.react('1358584609087946867').catch(() => {});
+
     const member = message.member;
     const userId = message.author.id;
 

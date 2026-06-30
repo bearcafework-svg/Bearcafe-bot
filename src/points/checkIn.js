@@ -130,7 +130,7 @@ function setupCheckIn(client) {
     
     // ต้องพิมพ์คำว่า "เช็กอิน" หรือ "เช็คอิน" เป๊ะๆ
     const contentText = message.content.trim();
-    if (contentText !== 'เช็กอิน' && contentText !== 'เช็คอิน') return;
+    if (contentText !== 'เช็กอิน' && contentText !== 'เช็กอิน') return;
 
     const member = message.member;
     const userId = message.author.id;

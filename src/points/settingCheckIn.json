@@ -1,0 +1,61 @@
+{
+  "channel_id": "1209457041756921906",
+  "role_blacklist": [
+    "1156930837573546126",
+    "1156930842434752614"
+  ],
+  "roles": {
+    "premium_4h": "1520598680690884644",
+    "premium_2h": "1520600682179199116"
+  },
+  "cooldown_ms": {
+    "normal": 28800000,
+    "premium_4h": 14400000,
+    "premium_2h": 7200000
+  },
+  "loading_gif": "https://cdn.discordapp.com/attachments/1144675871798591569/1521339161594953878/GIF_20260630_091808_652.gif",
+  "random_messages": [
+    "วันนี้เธอจะได้รับรางวัลอะไรนะ หรืออาจเป็นแจ็กพอตก็ได้",
+    "ลองกดรับรางวัลดูสิ เผื่อวันนี้โชคจะเข้าข้างเธอ",
+    "ไม่มีใครรู้ว่ากล่องรางวัลของเธอซ่อนอะไรไว้ บางทีอาจเป็นแจ็กพอต",
+    "ทุกการเช็กอินคือโอกาสของเธอ วันนี้อาจเป็นวันที่ดวงดีที่สุดก็ได้นะ",
+    "มาดูกันว่าครั้งนี้โชคจะมอบรางวัลอะไรให้เธอ บางทีแจ็กพอตอาจกำลังรออยู่"
+  ],
+  "point_icon": {
+    "id": "1520439075100688614",
+    "name": "strawberryv2",
+    "animated": false
+  },
+  "tiers": [
+    {
+      "name": "Common",
+      "points": 50,
+      "rate": 85.00,
+      "url": "https://cdn.discordapp.com/attachments/1144675871798591569/1521339360975257600/9.png"
+    },
+    {
+      "name": "Rare",
+      "points": 250,
+      "rate": 10.00,
+      "url": "https://cdn.discordapp.com/attachments/1144675871798591569/1521339361260736583/10.png"
+    },
+    {
+      "name": "Epic",
+      "points": 500,
+      "rate": 4.00,
+      "url": "https://cdn.discordapp.com/attachments/1144675871798591569/1521339360627134615/13.png"
+    },
+    {
+      "name": "Legendary",
+      "points": 1000,
+      "rate": 0.99,
+      "url": "https://cdn.discordapp.com/attachments/1144675871798591569/1521339361881227364/12.png"
+    },
+    {
+      "name": "Jackpot",
+      "points": 9999,
+      "rate": 0.01,
+      "url": "https://cdn.discordapp.com/attachments/1144675871798591569/1521339361575178312/11.png"
+    }
+  ]
+}

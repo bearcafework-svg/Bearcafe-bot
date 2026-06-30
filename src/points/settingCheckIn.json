@@ -13,7 +13,7 @@
     "premium_4h": 14400000,
     "premium_2h": 7200000
   },
-  "loading_gif": "https://cdn.discordapp.com/attachments/1144675871798591569/1521339161594953878/GIF_20260630_091808_652.gif",
+  "loading_gif": "https://cdn.discordapp.com/attachments/1144675871798591569/1521345414194794526/GIF_20260630_094301_610.gif",
   "random_messages": [
     "วันนี้เธอจะได้รับรางวัลอะไรนะ หรืออาจเป็นแจ็กพอตก็ได้",
     "ลองกดรับรางวัลดูสิ เผื่อวันนี้โชคจะเข้าข้างเธอ",
@@ -31,31 +31,31 @@
       "name": "Common",
       "points": 50,
       "rate": 85.00,
-      "url": "https://cdn.discordapp.com/attachments/1144675871798591569/1521339360975257600/9.png"
+      "url": "https://cdn.discordapp.com/attachments/1144675871798591569/1521344570707804290/9.png"
     },
     {
       "name": "Rare",
       "points": 250,
       "rate": 10.00,
-      "url": "https://cdn.discordapp.com/attachments/1144675871798591569/1521339361260736583/10.png"
+      "url": "https://cdn.discordapp.com/attachments/1144675871798591569/1521344571114655835/10.png"
     },
     {
       "name": "Epic",
       "points": 500,
       "rate": 4.00,
-      "url": "https://cdn.discordapp.com/attachments/1144675871798591569/1521339360627134615/13.png"
+      "url": "https://cdn.discordapp.com/attachments/1144675871798591569/1521344570355486732/13.png"
     },
     {
       "name": "Legendary",
       "points": 1000,
       "rate": 0.99,
-      "url": "https://cdn.discordapp.com/attachments/1144675871798591569/1521339361881227364/12.png"
+      "url": "https://cdn.discordapp.com/attachments/1144675871798591569/1521344572142387333/12.png"
     },
     {
       "name": "Jackpot",
       "points": 9999,
       "rate": 0.01,
-      "url": "https://cdn.discordapp.com/attachments/1144675871798591569/1521339361575178312/11.png"
+      "url": "https://cdn.discordapp.com/attachments/1144675871798591569/1521344571655716954/11.png"
     }
   ]
 }

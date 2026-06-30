@@ -132,8 +132,6 @@ function setupCheckIn(client) {
     const contentText = message.content.trim();
     if (contentText !== 'เช็กอิน' && contentText !== 'เช็คอิน') return;
 
-    message.react('1358584609087946867').catch(() => {});
-
     const member = message.member;
     const userId = message.author.id;
 
@@ -158,10 +156,11 @@ function setupCheckIn(client) {
     
     if (now < cdExpiry) {
       const readyTimestamp = Math.floor(cdExpiry / 1000);
-      const sent = await message.reply({ content: cooldownContent(userId, readyTimestamp), flags: FLAG_EPHEMERAL });
-      setTimeout(() => sent.delete().catch(() => {}), 5000);
+      await message.reply({ content: cooldownContent(userId, readyTimestamp) });
       return;
     }
+
+    message.react('1358584609087946867').catch(() => {});
 
     // ตั้งค่า Cooldown ล่วงหน้า ป้องกันคนสแปมส่งข้อความรัวๆ
     const nextExpiry = now + cdDuration;

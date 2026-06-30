@@ -102,7 +102,7 @@ function buildClaimPayload(tier, nextCooldownTimestamp, premiumRoleInfo) {
       style: 5,
       label: "︲คลิกเพื่อเช็กแต้ม",
       emoji: { id: "1256669436350562355", name: "bee20000", animated: false },
-      url: "https://discord.com/channels/1144251788493602848/1202239170219868190"
+      url: "https://discord.com/channels/1144251788493602848/1145305334806741122"
     }]
   });
 

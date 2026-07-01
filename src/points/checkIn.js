@@ -7,7 +7,7 @@ const cfg = require('./settingCheckIn.json');
 const { blacklistPayload, cooldownContent } = require('../features/shared/tarotComponents');
 
 // ─── Cooldown store (in-memory) ───────────────────────────────────────────────
-const cooldowns = new Map();
+const { getCooldown, setCooldown } = require('../utils/cooldownManager');
 
 const FLAG_V2 = MessageFlags.IsComponentsV2; // 32768
 const FLAG_EPHEMERAL = MessageFlags.Ephemeral; // 64
@@ -152,7 +152,7 @@ function setupCheckIn(client) {
     else if (has4h) cdDuration = cfg.cooldown_ms.premium_4h;
 
     const now = Date.now();
-    const cdExpiry = cooldowns.get(userId) ?? 0;
+    const cdExpiry = await getCooldown(supabase, userId, 'checkIn');
     
     if (now < cdExpiry) {
       const readyTimestamp = Math.floor(cdExpiry / 1000);
@@ -164,7 +164,7 @@ function setupCheckIn(client) {
 
     // ตั้งค่า Cooldown ล่วงหน้า ป้องกันคนสแปมส่งข้อความรัวๆ
     const nextExpiry = now + cdDuration;
-    cooldowns.set(userId, nextExpiry);
+    await setCooldown(supabase, userId, 'checkIn', nextExpiry);
 
     // ── แสดงข้อความ Loading ────────────────────────────────────────────────
     const randomMsgIndex = Math.floor(Math.random() * cfg.random_messages.length);

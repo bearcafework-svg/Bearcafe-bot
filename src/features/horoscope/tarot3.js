@@ -9,7 +9,7 @@ const infotarot = require('./Infotarot.json');
 const { blacklistPayload, cooldownContent, otherCommandsPayload } = require('../shared/tarotComponents');
 
 // ─── Cooldown store (in-memory) ───────────────────────────────────────────────
-const cooldowns = new Map();
+const { getCooldown, setCooldown } = require('../../utils/cooldownManager');
 
 // ─── Flag constants ───────────────────────────────────────────────────────────
 const FLAG_V2        = MessageFlags.IsComponentsV2;  // 32768
@@ -283,13 +283,13 @@ function setupTarot3(client) {
     const isPremium  = cfg.role_premium.some(id => member.roles.cache.has(id));
     const cdDuration = isPremium ? cfg.cooldown_premium_ms : cfg.cooldown_normal_ms;
     const now        = Date.now();
-    const cdExpiry   = cooldowns.get(userId) ?? 0;
+    const cdExpiry   = await getCooldown(supabase, userId, 'tarot3');
 
     if (now < cdExpiry) {
       await message.reply({ content: cooldownContent(userId, Math.floor(cdExpiry / 1000)) });
       return;
     }
-    cooldowns.set(userId, now + cdDuration);
+    await setCooldown(supabase, userId, 'tarot3', now + cdDuration);
 
     // ── ส่ง Loading reply ────────────────────────────────────────────────────
     const loadingMsg = await message.reply(buildLoadingPayload());

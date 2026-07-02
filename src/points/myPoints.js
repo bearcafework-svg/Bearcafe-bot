@@ -38,8 +38,9 @@ function buildMainPayload(interaction, points, cakes, maxPoints, page = 1) {
   const rolesList = page === 1 ? cfg.roles_exchange : cfg.roles_exchange_page2;
   
   for (const role of rolesList) {
+    const roleName = interaction.guild?.roles.cache.get(role.id)?.name || 'Unknown Role';
     options.push({
-      label: " ", // label cannot be completely empty, but we can use space or fallback
+      label: roleName,
       value: role.id,
       emoji: { id: role.emoji_id, name: role.emoji_name, animated: false }
     });
@@ -201,8 +202,9 @@ function setupMyPoints(client) {
       if (selectedValue === 'next_page') {
         const optionsPage2 = [];
         for (const role of cfg.roles_exchange_page2) {
+          const roleName = interaction.guild?.roles.cache.get(role.id)?.name || 'Unknown Role';
           optionsPage2.push({
-            label: " ",
+            label: roleName,
             value: role.id,
             emoji: { id: role.emoji_id, name: role.emoji_name, animated: false }
           });

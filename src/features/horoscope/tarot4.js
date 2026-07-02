@@ -171,7 +171,7 @@ function buildCombinedPayload(card, earnedPoints, tarotPoint, isComplete) {
             content:
               `## ${cfg.emojis.gift}︲__\` 𝖬𝗂𝗌𝗌𝗂𝗈𝗇 ₊ ภารกิจรับยศฟรี! 𓂃 \`__\n` +
               `- **ภารกิจของเธอ:** เพียงใช้คำสั่งดูดวง คำสั่งไหนก็ได้รวมกัน ${cfg.mission_target} ครั้ง ก็รับยศพิเศษจากคาเฟ่หมีไปเลย ${cfg.emojis.sparkles}\n` +
-              `- **ยศที่คุณจะได้รับ:** **\`@ヽเจ้าหมีสายมู ✱\` + ${pointIconStr()}${cfg.mission_reward_points}**\n\n` +
+              `- **ยศที่คุณจะได้รับ:** **\`@ヽเจ้าหมีสายมู ✱\` + ${pointIconStr()} ${cfg.mission_reward_points}**\n\n` +
               `**ความคืบหน้า ${tarotPoint}/${cfg.mission_target}**\n` +
               `## ${buildProgressBar(tarotPoint)}`
           }],

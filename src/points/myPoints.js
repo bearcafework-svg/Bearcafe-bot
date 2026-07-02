@@ -64,7 +64,7 @@ function buildMainPayload(interaction, points, cakes, maxPoints, page = 1) {
   } else if (points < 750) {
     claimButton = {
       style: 4, type: 2, custom_id: "mypoints_claim_not_enough", disabled: true,
-      label: `︲ขาดอีก ${750 - points} แต้มเพื่อแลกเค้ก`,
+      label: `︲ขาดอีก ${(750 - points).toLocaleString()} แต้มเพื่อแลกเค้ก`,
       emoji: { id: "1358584606911369226", name: "68440x", animated: false }
     };
   } else {
@@ -86,7 +86,7 @@ function buildMainPayload(interaction, points, cakes, maxPoints, page = 1) {
           type: 9,
           components: [{
             type: 10,
-            content: `## <:bagpack_icon:1522154708200849449>︲__\` 𝖬𝗒 𝗉𝗈𝗂𝗇𝗍𝗌 ₊ ${username} \`__\n-# สะสมเค้กครบ 4 ชิ้น รับฟรี 1 ยศ เลือกได้จากคลังยศกว่า **30 ยศ** เปลี่ยนสไตล์ให้โปรไฟล์ของคุณได้ตามใจ พร้อมสะสมต่อเพื่อปลดล็อกรางวัลอีกมากมาย <:cuteplant:1152834055528783872>\n\n> <:bee20000:1256669436350562355>︰แต้มตอนนี้ของคุณ \`${points}\` / \`${maxPoints}\`\n> <a:59217leaf:1512014878796152862>︰สะสมแต้ม <:strawberryv2:1520439075100688614> **750 แต้ม** เพื่อรับเค้ก <:cake_point:1522152896035033098> **1 ชิ้น** สำหรับแลกยศฟรี!`
+            content: `## <:bagpack_icon:1522154708200849449>︲__\` 𝖬𝗒 𝗉𝗈𝗂𝗇𝗍𝗌 ₊ ${username} \`__\n-# สะสมเค้กครบ 4 ชิ้น รับฟรี 1 ยศ เลือกได้จากคลังยศกว่า **30 ยศ** เปลี่ยนสไตล์ให้โปรไฟล์ของคุณได้ตามใจ พร้อมสะสมต่อเพื่อปลดล็อกรางวัลอีกมากมาย <:cuteplant:1152834055528783872>\n\n> <:bee20000:1256669436350562355>︰แต้มตอนนี้ของคุณ \`${points.toLocaleString()}\` / \`${maxPoints.toLocaleString()}\`\n> <a:59217leaf:1512014878796152862>︰สะสมแต้ม <:strawberryv2:1520439075100688614> **750 แต้ม** เพื่อรับเค้ก <:cake_point:1522152896035033098> **1 ชิ้น** สำหรับแลกยศฟรี!`
           }],
           accessory: { type: 11, media: { url: avatarUrl } }
         },
@@ -187,7 +187,7 @@ function setupMyPoints(client) {
 
           payload.components[0].components[2].components[0].content = payload.components[0].components[2].components[0].content.replace(
             "> <a:59217leaf:1512014878796152862>︰สะสมแต้ม <:strawberryv2:1520439075100688614> **750 แต้ม** เพื่อรับเค้ก <:cake_point:1522152896035033098> **1 ชิ้น** สำหรับแลกยศฟรี!",
-            `> <a:59217leaf:1512014878796152862>︰คุณแลกเค้กไม่สำเร็จ แต่ได้รับแต้มคืน <:strawberryv2:1520439075100688614> **${refund} แต้ม** ลองใหม่อีกครั้งนะ!`
+            `> <a:59217leaf:1512014878796152862>︰คุณแลกเค้กไม่สำเร็จ แต่ได้รับแต้มคืน <:strawberryv2:1520439075100688614> **${refund.toLocaleString()} แต้ม** ลองใหม่อีกครั้งนะ!`
           );
 
           await interaction.update(payload);

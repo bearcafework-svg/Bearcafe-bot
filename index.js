@@ -44,6 +44,7 @@ setupFeature("tarot5", "./src/features/horoscope/tarot5", "setupTarot5", supabas
 setupFeature("tarot6", "./src/features/horoscope/tarot6", "setupTarot6", supabaseEnvKeys);
 setupFeature("voicePoints", "./src/features/voicePoints", "setupVoicePoints");
 setupFeature("checkIn", "./src/points/checkIn", "setupCheckIn", supabaseEnvKeys);
+setupFeature("myPoints", "./src/points/myPoints", "setupMyPoints", supabaseEnvKeys);
 
 function setupFeature(name, modulePath, setupName, requiredEnv = []) {
   const missing = requiredEnv.filter((key) => !process.env[key]);

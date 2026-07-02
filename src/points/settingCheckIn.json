@@ -30,19 +30,19 @@
     {
       "name": "Common",
       "points": 50,
-      "rate": 85.00,
+      "rate": 85,
       "url": "https://cdn.discordapp.com/attachments/1144675871798591569/1521344570707804290/9.png"
     },
     {
       "name": "Rare",
       "points": 250,
-      "rate": 10.00,
+      "rate": 10,
       "url": "https://cdn.discordapp.com/attachments/1144675871798591569/1521344571114655835/10.png"
     },
     {
       "name": "Epic",
       "points": 500,
-      "rate": 4.00,
+      "rate": 4,
       "url": "https://cdn.discordapp.com/attachments/1144675871798591569/1521344570355486732/13.png"
     },
     {
@@ -56,6 +56,182 @@
       "points": 9999,
       "rate": 0.01,
       "url": "https://cdn.discordapp.com/attachments/1144675871798591569/1521344571655716954/11.png"
+    }
+  ],
+  "cake_images": [
+    "https://media.discordapp.net/attachments/1144675871798591569/1484536611206074449/1.png",
+    "https://media.discordapp.net/attachments/1144675871798591569/1484536611642413166/2.png",
+    "https://media.discordapp.net/attachments/1144675871798591569/1484536618374402119/3.png",
+    "https://media.discordapp.net/attachments/1144675871798591569/1484536610384122019/4.png",
+    "https://media.discordapp.net/attachments/1144675871798591569/1484536610799485048/5.png"
+  ],
+  "ROLE_CAPS": {
+    "1144701122053951498": 1000,
+    "1211006403569786923": 1500,
+    "1144701288257433781": 2000,
+    "1144701473549201419": 2500,
+    "1211007323456274592": 3000,
+    "1211007327348592723": 4000,
+    "1144701644479676569": 5000,
+    "1211007334755864576": 6000,
+    "1144701834842361927": 7500,
+    "1211007331219804171": 9000,
+    "1144702027474149447": 10000,
+    "1211007338321023026": 12000
+  },
+  "DEFAULT_CAP": 750,
+  "roles_exchange": [
+    {
+      "id": "1144705166038278260",
+      "emoji_id": "1396431213127794768",
+      "emoji_name": "nerdybearplush"
+    },
+    {
+      "id": "1185950408447885384",
+      "emoji_id": "1185955777790353408",
+      "emoji_name": "sushicat"
+    },
+    {
+      "id": "1185943853417648148",
+      "emoji_id": "1185955807532155030",
+      "emoji_name": "6568robloxmancat"
+    },
+    {
+      "id": "1144705601419620452",
+      "emoji_id": "1185956354385510461",
+      "emoji_name": "emoji18"
+    },
+    {
+      "id": "1185951421602988062",
+      "emoji_id": "1396431210468868106",
+      "emoji_name": "teddybearrainbow"
+    },
+    {
+      "id": "1144705217305268245",
+      "emoji_id": "1185956334722621501",
+      "emoji_name": "emoji10"
+    },
+    {
+      "id": "1185942211448279073",
+      "emoji_id": "1396431195729956864",
+      "emoji_name": "91cutie"
+    },
+    {
+      "id": "1144705462130983134",
+      "emoji_id": "1185956344126263396",
+      "emoji_name": "emoji15"
+    },
+    {
+      "id": "1144705023691980961",
+      "emoji_id": "1396431193175621672",
+      "emoji_name": "milk01"
+    },
+    {
+      "id": "1185943363116085278",
+      "emoji_id": "1185955795968471140",
+      "emoji_name": "brainless"
+    },
+    {
+      "id": "1185950101034778734",
+      "emoji_id": "1396431190239608945",
+      "emoji_name": "pinkmarbleheart"
+    },
+    {
+      "id": "1144705419936288838",
+      "emoji_id": "1185955791858057359",
+      "emoji_name": "kittyy"
+    },
+    {
+      "id": "1144705324717191329",
+      "emoji_id": "1396431187270172713",
+      "emoji_name": "jeffderp"
+    },
+    {
+      "id": "1144705508738085016",
+      "emoji_id": "1396437470538633217",
+      "emoji_name": "cakecat1"
+    },
+    {
+      "id": "1144705556330840105",
+      "emoji_id": "1396431207788707840",
+      "emoji_name": "microsoftword"
+    },
+    {
+      "id": "1210916410709114900",
+      "emoji_id": "1396431171952447630",
+      "emoji_name": "cowuwu"
+    },
+    {
+      "id": "1210916385765593088",
+      "emoji_id": "1396431162649346068",
+      "emoji_name": "loathingcat"
+    },
+    {
+      "id": "1210916389750181888",
+      "emoji_id": "1210925798891061338",
+      "emoji_name": "realtoothless"
+    },
+    {
+      "id": "1210916399279505429",
+      "emoji_id": "1210928687172681758",
+      "emoji_name": "yeaok"
+    },
+    {
+      "id": "1396132572131622922",
+      "emoji_id": "1396434906057281596",
+      "emoji_name": "imsupersurprised"
+    },
+    {
+      "id": "1396132577173045299",
+      "emoji_id": "1396431159445033072",
+      "emoji_name": "pepe_bearhug1"
+    },
+    {
+      "id": "1396132582449479700",
+      "emoji_id": "1396431080143327232",
+      "emoji_name": "17740childeplead"
+    },
+    {
+      "id": "1396132587046436934",
+      "emoji_id": "1396435752010649640",
+      "emoji_name": "83909gummyy"
+    },
+    {
+      "id": "1396132592129937520",
+      "emoji_id": "1396431204516892692",
+      "emoji_name": "imaggemoji1"
+    }
+  ],
+  "roles_exchange_page2": [
+    {
+      "id": "1396132598270660670",
+      "emoji_id": "1396431076867702896",
+      "emoji_name": "8084_Money_Dinero_rico"
+    },
+    {
+      "id": "1396426101160415363",
+      "emoji_id": "1185956780472283249",
+      "emoji_name": "pepebear"
+    },
+    {
+      "id": "1396426106764136519",
+      "emoji_id": "1396431069892448357",
+      "emoji_name": "6895pinkllama"
+    },
+    {
+      "id": "1403255763341676645",
+      "emoji_id": "1403276763026685982",
+      "emoji_name": "bunnyhearteye"
+    },
+    {
+      "id": "1403257958535659610",
+      "emoji_id": "1403276760681811998",
+      "emoji_name": "prettymoon"
+    },
+    {
+      "id": "1403268681026506752",
+      "emoji_id": "1403276757364244611",
+      "emoji_name": "blackapple"
     }
   ]
 }

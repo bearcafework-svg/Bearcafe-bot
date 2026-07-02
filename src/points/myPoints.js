@@ -183,7 +183,7 @@ function setupMyPoints(client) {
           let payload = buildMainPayload(interaction, points, cakes, maxPoints, 1);
 
           // Replace content for failure
-          payload.components[0].components[0].items[0].media.url = "https://cdn.discordapp.com/attachments/1144675871798591569/1212272613540364358/9.png";
+          payload.components[0].components[0].items[0].media.url = "https://cdn.discordapp.com/attachments/1144675871798591569/1484555089682370650/ec9c6c23727474db.png";
 
           payload.components[0].components[2].components[0].content = payload.components[0].components[2].components[0].content.replace(
             "> <a:59217leaf:1512014878796152862>︰สะสมแต้ม <:strawberryv2:1520439075100688614> **750 แต้ม** เพื่อรับเค้ก <:cake_point:1522152896035033098> **1 ชิ้น** สำหรับแลกยศฟรี!",

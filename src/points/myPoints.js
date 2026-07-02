@@ -36,7 +36,7 @@ function buildMainPayload(interaction, points, cakes, maxPoints, page = 1) {
 
   const options = [];
   const rolesList = page === 1 ? cfg.roles_exchange : cfg.roles_exchange_page2;
-  
+
   for (const role of rolesList) {
     const roleName = interaction.guild?.roles.cache.get(role.id)?.name || 'Unknown Role';
     options.push({
@@ -58,7 +58,7 @@ function buildMainPayload(interaction, points, cakes, maxPoints, page = 1) {
   let claimButton = {};
   if (cakes >= 4) {
     claimButton = {
-      style: 4, type: 2, custom_id: "mypoints_claim_max", disabled: true,
+      style: 1, type: 2, custom_id: "mypoints_claim_max", disabled: true,
       label: "︲คุณสามารถแลกยศได้แล้ว", emoji: { name: "⬆️" }
     };
   } else if (points < 750) {
@@ -179,12 +179,12 @@ function setupMyPoints(client) {
           const refund = Math.floor(Math.random() * (375 - 100 + 1)) + 100;
           points = points - 750 + refund;
           await supabase.from('user_points').upsert({ discord_id: userId, points }, { onConflict: 'discord_id' });
-          
+
           let payload = buildMainPayload(interaction, points, cakes, maxPoints, 1);
-          
+
           // Replace content for failure
           payload.components[0].components[0].items[0].media.url = "https://cdn.discordapp.com/attachments/1144675871798591569/1212272613540364358/9.png";
-          
+
           payload.components[0].components[2].components[0].content = payload.components[0].components[2].components[0].content.replace(
             "> <a:59217leaf:1512014878796152862>︰สะสมแต้ม <:strawberryv2:1520439075100688614> **750 แต้ม** เพื่อรับเค้ก <:cake_point:1522152896035033098> **1 ชิ้น** สำหรับแลกยศฟรี!",
             `> <a:59217leaf:1512014878796152862>︰คุณแลกเค้กไม่สำเร็จ แต่ได้รับแต้มคืน <:strawberryv2:1520439075100688614> **${refund} แต้ม** ลองใหม่อีกครั้งนะ!`
@@ -198,7 +198,7 @@ function setupMyPoints(client) {
     if (interaction.isStringSelectMenu() && interaction.customId === 'mypoints_role_select') {
       const selectedValue = interaction.values[0];
       const userId = interaction.user.id;
-      
+
       if (selectedValue === 'next_page') {
         const optionsPage2 = [];
         for (const role of cfg.roles_exchange_page2) {
@@ -271,7 +271,7 @@ function setupMyPoints(client) {
     if (interaction.isButton() && interaction.customId.startsWith('mypoints_confirm_')) {
       const roleId = interaction.customId.replace('mypoints_confirm_', '');
       const userId = interaction.user.id;
-      
+
       const { cakes } = await getUserData(supabase, userId);
       if (cakes < 4) {
         return interaction.reply({ content: "## <:bear7:1148271118709436416>︲เค้กของคุณไม่พอ", flags: FLAG_EPHEMERAL });
@@ -284,7 +284,7 @@ function setupMyPoints(client) {
       try {
         await interaction.member.roles.add(roleId);
         await supabase.from('user_points').update({ cakes: 0 }).eq('discord_id', userId);
-        
+
         const successPayload = {
           flags: FLAG_V2 | FLAG_EPHEMERAL,
           components: [{

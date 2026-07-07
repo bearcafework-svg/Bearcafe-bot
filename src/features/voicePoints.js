@@ -1,7 +1,7 @@
 const axios = require("axios");
 const crypto = require("crypto");
 
-const EXCLUDED_CATEGORY_ID = "1145057060686397611";
+const EXCLUDED_CATEGORY_ID = "1524122689604816986";
 const HEARTBEAT_INTERVAL_MS = 15 * 60 * 1000;
 
 const webhookQueue = [];

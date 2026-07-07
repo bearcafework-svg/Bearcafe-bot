@@ -139,7 +139,7 @@ function setupMyPoints(client) {
 
   client.on('interactionCreate', async (interaction) => {
     if (interaction.isChatInputCommand() && interaction.commandName === 'แต้มของฉัน') {
-      if (interaction.channelId !== '1145305334806741122') {
+      if (interaction.channelId !== '1524123727724417276') {
         return interaction.reply({ content: 'คำสั่งนี้ใช้ได้เฉพาะห้อง <#1145305334806741122> เท่านั้นนะคะ', flags: FLAG_EPHEMERAL });
       }
 

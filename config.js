@@ -14,7 +14,7 @@ module.exports = {
 
   // Category ID สำหรับห้องที่บอทสร้างใหม่ทั้งหมด
   // ถ้ายังไม่กรอก บอทจะใช้ Category เดียวกับ lobby ของโซนนั้นเหมือนเดิม
-  roomsCategoryId: "1419939195715063950",
+  roomsCategoryId: "1524122788015636682",
 
   separatorPermissions: {
     visibleNoConnectIds: [
@@ -37,7 +37,7 @@ module.exports = {
     {
       id: "vip",
       name: "VIP",
-      lobbyChannelId: "1517125951757226135",
+      lobbyChannelId: "1524122963904036945",
       separatorChannelId: null,
       separatorName: "〔𝖵𝖨𝖯〕𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃",
       nameThemes: ["⭐︲VIP username"],
@@ -47,7 +47,7 @@ module.exports = {
       name: "ห้องโต๊ะชิล",
 
       // Channel ID ของปุ่มกด "➕ สร้างห้องพูดคุย"
-      lobbyChannelId: "1361386743223550159",
+      lobbyChannelId: "1524122945428127914",
 
       // บอทจะเติมให้เองตอน sync separator — ไม่ต้องกรอก
       separatorChannelId: null,
@@ -106,7 +106,7 @@ module.exports = {
     {
       id: "game",
       name: "เกม",
-      lobbyChannelId: "1517172169501835384",
+      lobbyChannelId: "1524124494099255356",
       separatorChannelId: null,
       separatorName: "〔𝖦𝖠𝖬𝖤〕𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃",
       nameThemes: ["🎮︲โต๊ะเกม username"],
@@ -114,7 +114,7 @@ module.exports = {
     {
       id: "music",
       name: "เพลง",
-      lobbyChannelId: "1517172198580682844",
+      lobbyChannelId: "1524124359768277193",
       separatorChannelId: null,
       separatorName: "〔𝖬𝖴𝖲𝖨𝖢〕𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃",
       nameThemes: ["🎶︲โต๊ะเพลง username"],
@@ -122,7 +122,7 @@ module.exports = {
     {
       id: "work",
       name: "ทำงาน",
-      lobbyChannelId: "1517172231510163466",
+      lobbyChannelId: "1524123845886476428",
       separatorChannelId: null,
       separatorName: "〔𝖶𝖮𝖱𝖪〕𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃",
       nameThemes: ["💼︲โต๊ะทำงาน username"],

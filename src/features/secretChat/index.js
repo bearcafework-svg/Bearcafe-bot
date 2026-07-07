@@ -33,7 +33,7 @@ const RATING_TIMEOUT_MS = 30 * 1000;
 const TOPIC_EXPAND_MS = 60 * 1000;
 
 const BLOCKED_ROLES = ["1156930837573546126", "1156930842434752614"];
-const STAFF_ALERT_CHANNEL_ID = "1145314688800927744";
+const STAFF_ALERT_CHANNEL_ID = "1524123393291583639";
 
 // ── ห้ามสุ่มเจอกัน ────────────────────────────────────────────────────────────
 const BLOCKED_PAIRS = new Set([

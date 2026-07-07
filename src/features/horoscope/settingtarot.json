@@ -1,5 +1,5 @@
 {
-  "channel_id": "1144590277693149214",
+  "channel_id": "1524122936183754893",
   "role_blacklist": [
     "1156930837573546126",
     "1156930842434752614"
@@ -40,7 +40,7 @@
     "checkmark": "<:50121checkmark:1358584609087946867>"
   },
   "channels": {
-    "punishment_channel": "1144586054817562644",
-    "horoscope_info_channel": "1487427879246626896"
+    "punishment_channel": "1524123185325543587",
+    "horoscope_info_channel": "1524123052307120259"
   }
 }

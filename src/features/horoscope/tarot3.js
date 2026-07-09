@@ -20,21 +20,21 @@ const MISSION_CLAIM_ID  = 'tarot3_mission_claim';
 
 // ─── Siamsee card image URLs (1–15) ──────────────────────────────────────────
 const CARD_IMAGES = {
-  1:  'https://cdn.discordapp.com/attachments/1144675871798591569/1422920724883968010/1.png',
-  2:  'https://cdn.discordapp.com/attachments/1144675871798591569/1422920725286617128/2.png',
-  3:  'https://cdn.discordapp.com/attachments/1144675871798591569/1422920725689536562/3.png',
-  4:  'https://cdn.discordapp.com/attachments/1144675871798591569/1422920726104510544/4.png',
-  5:  'https://cdn.discordapp.com/attachments/1144675871798591569/1422920726448439378/5.png',
-  6:  'https://cdn.discordapp.com/attachments/1144675871798591569/1422920726918467636/6.png',
-  7:  'https://cdn.discordapp.com/attachments/1144675871798591569/1422920727346024458/7.png',
-  8:  'https://cdn.discordapp.com/attachments/1144675871798591569/1422920727752868033/8.png',
-  9:  'https://cdn.discordapp.com/attachments/1144675871798591569/1422920728206118952/9.png',
-  10: 'https://cdn.discordapp.com/attachments/1144675871798591569/1422920728583475230/10.png',
-  11: 'https://cdn.discordapp.com/attachments/1144675871798591569/1422920744739934238/11.png',
-  12: 'https://cdn.discordapp.com/attachments/1144675871798591569/1422920745134067752/12.png',
-  13: 'https://cdn.discordapp.com/attachments/1144675871798591569/1422920745566339163/13.png',
-  14: 'https://cdn.discordapp.com/attachments/1144675871798591569/1422920745939505193/14.png',
-  15: 'https://cdn.discordapp.com/attachments/1144675871798591569/1422920746329444362/15.png',
+  1:  'https://cdn.discordapp.com/attachments/1524704267015819274/1524712387913973780/-_1.png',
+  2:  'https://cdn.discordapp.com/attachments/1524704267015819274/1524712387607920660/-_2.png',
+  3:  'https://cdn.discordapp.com/attachments/1524704267015819274/1524712387268186173/-_3.png',
+  4:  'https://cdn.discordapp.com/attachments/1524704267015819274/1524712386949414912/-_4.png',
+  5:  'https://cdn.discordapp.com/attachments/1524704267015819274/1524712386660143154/-_5.png',
+  6:  'https://cdn.discordapp.com/attachments/1524704267015819274/1524712373850472579/-_6.png',
+  7:  'https://cdn.discordapp.com/attachments/1524704267015819274/1524712373481639996/-_7.png',
+  8:  'https://cdn.discordapp.com/attachments/1524704267015819274/1524712373104021595/-_8.png',
+  9:  'https://cdn.discordapp.com/attachments/1524704267015819274/1524712372692975678/-_9.png',
+  10: 'https://cdn.discordapp.com/attachments/1524704267015819274/1524712372101582910/-_10.png',
+  11: 'https://cdn.discordapp.com/attachments/1524704267015819274/1524712370986025022/-_11.png',
+  12: 'https://cdn.discordapp.com/attachments/1524704267015819274/1524712370369204324/-_12.png',
+  13: 'https://cdn.discordapp.com/attachments/1524704267015819274/1524712370050699366/-_13.png',
+  14: 'https://cdn.discordapp.com/attachments/1524704267015819274/1524712369731797002/-_14.png',
+  15: 'https://cdn.discordapp.com/attachments/1524704267015819274/1524712369354178691/-_15.png',
 };
 
 // ─── Helper: random int ───────────────────────────────────────────────────────
@@ -107,7 +107,7 @@ function buildLoadingPayload() {
       type: 17,
       components: [
         { type: 14, spacing: 2 },
-        { type: 12, items: [{ media: { url: 'https://cdn.discordapp.com/attachments/1144675871798591569/1422919451422101546/siamsee.gif' } }] },
+        { type: 12, items: [{ media: { url: 'https://cdn.discordapp.com/attachments/1524704267015819274/1524711467289673769/cd.gif?ex=6a50bdb5&is=6a4f6c35&hm=6dc22a97f0c8aa5c3fa34e4438e6c1643b0d99cebfea2247baf4348819d9bd03&' } }] },
         { type: 14, spacing: 2 },
         {
           type: 10,

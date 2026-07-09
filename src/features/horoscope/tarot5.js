@@ -21,9 +21,9 @@ const MISSION_CLAIM_ID  = 'tarot5_mission_claim';
 
 // ─── ภาพหมีตามปุ่มที่กด ────────────────────────────────────────────
 const BEAR_IMAGES = {
-  'tarot5_bear_1': 'https://cdn.discordapp.com/attachments/1144675871798591569/1515372890797904044/2.png',
-  'tarot5_bear_2': 'https://cdn.discordapp.com/attachments/1144675871798591569/1515372891376586812/3.png',
-  'tarot5_bear_3': 'https://cdn.discordapp.com/attachments/1144675871798591569/1515372890214629558/4.png',
+  'tarot5_bear_1': 'https://cdn.discordapp.com/attachments/1524704267015819274/1524718425652330606/pick_a_card_-_1.png',
+  'tarot5_bear_2': 'https://cdn.discordapp.com/attachments/1524704267015819274/1524718425979748444/pick_a_card_-_2.png',
+  'tarot5_bear_3': 'https://cdn.discordapp.com/attachments/1524704267015819274/1524718426440990760/pick_a_card_-_3.png',
 };
 
 // ─── Helper: random int ────────────────────────────────────────────────────────
@@ -97,7 +97,7 @@ function buildLoadingPayload() {
       type: 17,
       components: [
         { type: 14, spacing: 2 },
-        { type: 12, items: [{ media: { url: 'https://cdn.discordapp.com/attachments/1144675871798591569/1515372383605751848/GIF_20260613_220800_767.gif' } }] },
+        { type: 12, items: [{ media: { url: 'https://cdn.discordapp.com/attachments/1524704267015819274/1524713967073759252/GIF_20260613_220800_767.gif?ex=6a50c009&is=6a4f6e89&hm=fb75d1b023044c4011128ff7c78ba579d5eb7fb5fb288a731afbc09746fc00b9&' } }] },
         { type: 14, spacing: 2 },
         {
           type: 10,

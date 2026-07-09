@@ -106,7 +106,7 @@ function buildMainPayload(interaction, points, cakes, maxPoints, page = 1) {
           type: 1,
           components: [
             claimButton,
-            { type: 2, style: 5, label: "︲สุ่มรางวัลเช็กอิน (ฟรี)", emoji: { id: "1301541277992485005", name: "secret_box", animated: true }, url: "https://discord.com/channels/1144251788493602848/1359232430455783564" },
+            { type: 2, style: 5, label: "︲สุ่มรางวัลเช็กอิน (ฟรี)", emoji: { id: "1301541277992485005", name: "secret_box", animated: true }, url: "https://discord.com/channels/1144251788493602848/1524122838775238777" },
             { type: 2, style: 5, label: "︲ปฎิทินเช็กอิน 28 วัน (ฟรี)", emoji: { id: "1276130500410605609", name: "68492gift", animated: false }, url: "https://bearcafe4commu.vercel.app/" }
           ]
         }
@@ -183,7 +183,7 @@ function setupMyPoints(client) {
           let payload = buildMainPayload(interaction, points, cakes, maxPoints, 1);
 
           // Replace content for failure
-          payload.components[0].components[0].items[0].media.url = "https://cdn.discordapp.com/attachments/1144675871798591569/1484555089682370650/ec9c6c23727474db.png";
+          payload.components[0].components[0].items[0].media.url = "https://cdn.discordapp.com/attachments/1524704267015819274/1524741224517472406/425f72edbda608d3.png";
 
           payload.components[0].components[2].components[0].content = payload.components[0].components[2].components[0].content.replace(
             "> <a:59217leaf:1512014878796152862>︰สะสมแต้ม <:strawberryv2:1520439075100688614> **750 แต้ม** เพื่อรับเค้ก <:cake_point:1522152896035033098> **1 ชิ้น** สำหรับแลกยศฟรี!",

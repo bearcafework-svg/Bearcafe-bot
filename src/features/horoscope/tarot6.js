@@ -93,7 +93,7 @@ function buildLoadingPayload() {
       type: 17,
       components: [
         { type: 14, spacing: 2 },
-        { type: 12, items: [{ media: { url: 'https://cdn.discordapp.com/attachments/1144675871798591569/1488193657080385699/44153cc8c9a88df0.gif' } }] },
+        { type: 12, items: [{ media: { url: 'https://cdn.discordapp.com/attachments/1524704267015819274/1524719085114490880/6166a23919b0f8ec.gif?ex=6a50c4cd&is=6a4f734d&hm=bc481beb865b1d665971e77be73971776fba968bdb38a425ee64070b57003411&' } }] },
         { type: 14, spacing: 2 },
         {
           type: 10,

@@ -12,7 +12,7 @@ const { blacklistPayload, cooldownContent, otherCommandsPayload } = require('../
 // ─── Cooldown store (in-memory) ───────────────────────────────────────────────
 const { getCooldown, setCooldown } = require('../../utils/cooldownManager');
 
-// ─── Flag constants ────────────────────────────────────────────────────────[...[...]
+// ─── Flag constants ────────────────────────────────────────────────────────[...]
 const FLAG_V2        = MessageFlags.IsComponentsV2;  // 32768
 const FLAG_EPHEMERAL = MessageFlags.Ephemeral;        // 64
 const FLAG_V2_EPH    = FLAG_V2 | FLAG_EPHEMERAL;      // Component v2 + ephemeral
@@ -82,7 +82,7 @@ function pointIconStr() {
   return pi.animated ? `<a:${pi.name}:${pi.id}>` : `<:${pi.name}:${pi.id}>`;
 }
 
-// ─── Payload: Loading ──────────────────────────────────────────────────────────[...]
+// ─── Payload: Loading ───────────────────────────────────────────────────────[...]
 function buildLoadingPayload() {
   return {
     flags: FLAG_V2,
@@ -95,7 +95,7 @@ function buildLoadingPayload() {
           type: 10,
           content:
             `## ${cfg.emojis.loading}︲__\` คำทำนายกำลังจะปรากฎ! 𓂃 \`__\n` +
-            `คคำทำนายนี้เป็นเพียงการคาดการณ์ อาจไม่ตรงกับความเป็นจริง ขอให้ใ──[...]
+            `คคำทำนายนี้เป็นเพียงการคาดการณ์ อาจไม่ตรงกับความเป็นจริง ขอให้ใช้เพื่อความสนุกสนานเท่านั้น 𓂃`
         },
         { type: 14, spacing: 2 }
       ]
@@ -175,14 +175,14 @@ function buildCombinedPayload(card, earnedPoints, tarotPoint, isComplete) {
             type: 10,
             content:
               `## ${cfg.emojis.gift}︲__\` 𝖬𝗂𝗌𝗌𝗂𝗈𝗇 ₊ ภารกิจรับยศฟรี! 𓂃 \`__\n` +
-              `- **ภารกิจของเธอ:** เพียงใช้คำสั่งดูดวง คำสั่งไหนก็ได้รวมกัน ${cfg.mission_tar[...]
+              `- **ภารกิจของเธอ:** เพียงใช้คำสั่งดูดวง คำสั่งไหนก็ได้รวมกัน ${cfg.mission_target} ครั้ง\n` +
               `- **ยศที่คุณจะได้รับ:** **\`@ヽเจ้าหมีสายมู ✱\` + ${pointIconStr()} ${cfg.mission_reward_points}**\n\n` +
               `**ความคืบหน้า ${tarotPoint}/${cfg.mission_target}**\n` +
               `## ${buildProgressBar(tarotPoint)}`
           }],
           accessory: {
             type: 11,
-            media: { url: 'https://media.discordapp.net/attachments/1144675871798591569/1377501031541506162/64603-purpleween.png?ex=6a2793ce&is=6a26424e&hm=aaa4a4ffaa1643c61b7de85b7ba56bca75dbc88[...]
+            media: { url: 'https://cdn.discordapp.com/attachments/1524704267015819274/1524727868662480976/64603-purpleween.png?ex=6a50ccfb&is=6a4f7b7b&hm=d76a4fa4455b54b794b5879e1aeaaccc3370dff4facfaf1362a71299d413161f&' }
           }
         },
         { type: 14, spacing: 1, divider: false },
@@ -197,9 +197,9 @@ function buildCombinedPayload(card, earnedPoints, tarotPoint, isComplete) {
             flow:      { actions: [] }
           }]
         },
-        // ── Separator ─────────────────────────────────────────────────────────[...]
+        // ── Separator ─────────────────────────────────────────────────────────
         { type: 14, spacing: 2 },
-        // ── Card block ───────────────────────────────────────────────────────–[...]
+        // ── Card block ───────────────────────────────────────────────────────
         { type: 12, items: [{ media: { url: imgUrl } }] },
         { type: 14, spacing: 2 },
         {
@@ -246,7 +246,7 @@ function buildCombinedPayload(card, earnedPoints, tarotPoint, isComplete) {
   };
 }
 
-// ─��─ Setup ──────────────────────────────────────────────────────────–[...]
+// ─── Setup ──────────────────────────────────────────────────────────–
 function setupTarot1(client) {
 
   const supabase = createClient(
@@ -255,7 +255,7 @@ function setupTarot1(client) {
     { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
   );
 
-  // ── Listener: ข้อความ "ดูคำทำนาย" ────────────────────────────────────────–[...]
+  // ── Listener: ข้อความ "ดูคำทำนาย" ────────────────────────────────────────
   client.on('messageCreate', async (message) => {
     if (!message.guild)     return;
     if (message.author.bot) return;
@@ -273,7 +273,7 @@ function setupTarot1(client) {
       return;
     }
 
-    // ── ตรวจ Cooldown ─────────────────────────────────────────────────────[...]
+    // ── ตรวจ Cooldown ─────────────────────────────────────────────────────
     const isPremium  = cfg.role_premium.some(id => member.roles.cache.has(id));
     const cdDuration = isPremium ? cfg.cooldown_premium_ms : cfg.cooldown_normal_ms;
     const now        = Date.now();
@@ -295,7 +295,7 @@ function setupTarot1(client) {
     ]);
     const tarotPoint = userRow.tarot_point ?? 0;
 
-    // ── สุ่มไพ่ + แต้ม ────────────────────────────────────────────────[...]
+    // ── สุ่มไพ่ + แต้ม ────────────────────────────────────────────────
     const cardId       = String(randInt(1, 78));
     const card         = infotarot.cards[cardId];
     card.cardId = cardId; // เก็บ ID ไว้ใช้ดึง img
@@ -330,7 +330,7 @@ function setupTarot1(client) {
 
     const { customId, user, member } = interaction;
 
-    // ── ปุ่ม: ดูดวงแบบอื่น ───────────────────────────────────────────–[...]
+    // ── ปุ่ม: ดูดวงแบบอื่น ───────────────────────────────────────────
     if (customId === OTHER_COMMANDS_ID) {
       // ✅ ใช้ flags: FLAG_V2_EPH แทน ephemeral: true (deprecated)
       const payload = otherCommandsPayload();

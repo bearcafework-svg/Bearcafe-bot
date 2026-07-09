@@ -13,7 +13,7 @@
     "premium_4h": 14400000,
     "premium_2h": 7200000
   },
-  "loading_gif": "https://cdn.discordapp.com/attachments/1144675871798591569/1521345414194794526/GIF_20260630_094301_610.gif",
+  "loading_gif": "https://cdn.discordapp.com/attachments/1524704267015819274/1524706441133297715/GIF_20260630_094301_610.gif?ex=6a50b907&is=6a4f6787&hm=c0f86fee11f84d5cd71375c7b16816f190057f86fa041441c81e899b57889b1f&" ,
   "random_messages": [
     "วันนี้เธอจะได้รับรางวัลอะไรนะ หรืออาจเป็นแจ็กพอตก็ได้",
     "ลองกดรับรางวัลดูสิ เผื่อวันนี้โชคจะเข้าข้างเธอ",
@@ -31,31 +31,31 @@
       "name": "Common",
       "points": 50,
       "rate": 85,
-      "url": "https://cdn.discordapp.com/attachments/1144675871798591569/1521344570707804290/9.png"
+      "url": "https://cdn.discordapp.com/attachments/1524704267015819274/1524706441946992740/20260630_094223_0000.png?ex=6a50b907&is=6a4f6787&hm=ba96a383e81434a8728b796d0a99c75220e05d31f17c11e0ba80c5412c80e394&"
     },
     {
       "name": "Rare",
       "points": 250,
       "rate": 10,
-      "url": "https://cdn.discordapp.com/attachments/1144675871798591569/1521344571114655835/10.png"
+      "url": "https://cdn.discordapp.com/attachments/1524704267015819274/1524706442266021888/20260630_094223_0001.png?ex=6a50b907&is=6a4f6787&hm=7ded7a712674cffe0f6acd97a7d65297ac8e9eb1526f39956c055e58a1a5e793&"
     },
     {
       "name": "Epic",
       "points": 500,
       "rate": 4,
-      "url": "https://cdn.discordapp.com/attachments/1144675871798591569/1521344570355486732/13.png"
+      "url": "https://cdn.discordapp.com/attachments/1524704267015819274/1524706441502527518/20260630_094224_0004.png?ex=6a50b907&is=6a4f6787&hm=7c5c381f939e9f22c13cbcba4c5cbb5ac3e7b6a01f13f252fc254c575db09240&"
     },
     {
       "name": "Legendary",
       "points": 1000,
       "rate": 0.99,
-      "url": "https://cdn.discordapp.com/attachments/1144675871798591569/1521344572142387333/12.png"
+      "url": "https://cdn.discordapp.com/attachments/1524704267015819274/1524706442798698496/20260630_094223_0003.png?ex=6a50b907&is=6a4f6787&hm=5d77e70c673b2eb2a26a287d776032e77eb340f75cf204b9cd0736030649ec5e&"
     },
     {
       "name": "Jackpot",
       "points": 9999,
       "rate": 0.01,
-      "url": "https://cdn.discordapp.com/attachments/1144675871798591569/1521344571655716954/11.png"
+      "url": "https://cdn.discordapp.com/attachments/1524704267015819274/1524706442521739344/20260630_094223_0002.png?ex=6a50b907&is=6a4f6787&hm=05b10c96fdc2db21cdb711d40c103c285daf39c51e349a283a07b24f1af2566a&"
     }
   ],
   "cake_images": [

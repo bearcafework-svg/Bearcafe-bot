@@ -88,7 +88,7 @@ function buildLoadingPayload() {
       type: 17,
       components: [
         { type: 14, spacing: 2 },
-        { type: 12, items: [{ media: { url: 'https://cdn.discordapp.com/attachments/1144675871798591569/1514627685249454140/GIF_20260611_204048_725.gif' } }] },
+        { type: 12, items: [{ media: { url: 'https://cdn.discordapp.com/attachments/1524704267015819274/1524713966767702107/GIF_20260611_204048_725.gif?ex=6a50c009&is=6a4f6e89&hm=af723123bd42b8401e344ee7e0291f433826fbb9bf14de90c511c63507a07020&' } }] },
         { type: 14, spacing: 2 },
         {
           type: 10,

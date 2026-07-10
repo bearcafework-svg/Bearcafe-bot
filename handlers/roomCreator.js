@@ -48,7 +48,7 @@ async function moveToExistingOwnerRoom(guild, member, zone) {
 
   if (existingRoom.zoneId !== zone.id) return existingChannel;
 
-  if (member.voice.channel && member.voice.channelId !== existingChannel.id) {
+  if (member.voice.channelId && member.voice.channelId !== existingChannel.id) {
     await safeMoveMember(member, existingChannel, "Move owner to existing smart room");
   }
 
@@ -138,7 +138,7 @@ async function createRoomWithLock(guild, member, zone) {
     const [, existingRoom] = existingRoomEntry;
     const existingChannel = guild.channels.cache.get(existingChannelId);
     if (existingChannel && existingRoom.zoneId === zone.id) {
-      if (member.voice.channel) {
+      if (member.voice.channelId) {
         await safeMoveMember(member, existingChannel, "Move owner to existing smart room");
       }
       console.log(`Skip duplicate room for ${member.user.tag}: moved to existing room "${existingChannel.name}"`);
@@ -185,7 +185,11 @@ async function createRoomWithLock(guild, member, zone) {
   };
 
   await saveRoom(newChannel.id, zone.id, member.id, settings);
-  await applyRoomPermissions(newChannel, room);
+  try {
+    await applyRoomPermissions(newChannel, room);
+  } catch (e) {
+    console.error(`[roomCreator] Failed to apply room permissions for "${roomName}":`, e.message);
+  }
 
   try {
     const moved = await safeMoveMember(member, newChannel, "Create smart room");

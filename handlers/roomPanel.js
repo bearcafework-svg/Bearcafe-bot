@@ -595,14 +595,16 @@ function getDefaultRoomOverwrites(channel, room, settings) {
     allow: ownerAllowPermissions(),
   });
 
-  for (const userId of settings.trustedUserIds) {
+  const trustedIds = (settings.trustedUserIds || []).filter(id => typeof id === "string" && /^\d{17,20}$/.test(id));
+  for (const userId of trustedIds) {
     overwrites.set(userId, {
       id: userId,
       allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect],
     });
   }
 
-  for (const userId of settings.blockedUserIds) {
+  const blockedIds = (settings.blockedUserIds || []).filter(id => typeof id === "string" && /^\d{17,20}$/.test(id));
+  for (const userId of blockedIds) {
     overwrites.set(userId, {
       id: userId,
       deny: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.Speak],
@@ -621,7 +623,7 @@ function getVipRoomOverwrites(channel, room, settings) {
     },
   ];
 
-  if (vipPermissions.memberId) {
+  if (vipPermissions.memberId && channel.guild.roles.cache.has(vipPermissions.memberId)) {
     const deniedPermissions = [
       ...(settings.hidden ? [PermissionFlagsBits.ViewChannel] : []),
       ...(settings.locked ? [PermissionFlagsBits.Connect] : []),
@@ -634,7 +636,7 @@ function getVipRoomOverwrites(channel, room, settings) {
     });
   }
 
-  if (vipPermissions.coffee1Id) {
+  if (vipPermissions.coffee1Id && channel.guild.roles.cache.has(vipPermissions.coffee1Id)) {
     overwrites.push({
       id: vipPermissions.coffee1Id,
       allow: [PermissionFlagsBits.ViewChannel],
@@ -642,7 +644,7 @@ function getVipRoomOverwrites(channel, room, settings) {
     });
   }
 
-  if (vipPermissions.coffee2Id) {
+  if (vipPermissions.coffee2Id && channel.guild.roles.cache.has(vipPermissions.coffee2Id)) {
     overwrites.push({
       id: vipPermissions.coffee2Id,
       deny: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.Speak],
@@ -654,14 +656,16 @@ function getVipRoomOverwrites(channel, room, settings) {
     allow: vipOwnerAllowPermissions(),
   });
 
-  for (const userId of settings.trustedUserIds) {
+  const trustedIds = (settings.trustedUserIds || []).filter(id => typeof id === "string" && /^\d{17,20}$/.test(id));
+  for (const userId of trustedIds) {
     overwrites.push({
       id: userId,
       allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect],
     });
   }
 
-  for (const userId of settings.blockedUserIds) {
+  const blockedIds = (settings.blockedUserIds || []).filter(id => typeof id === "string" && /^\d{17,20}$/.test(id));
+  for (const userId of blockedIds) {
     overwrites.push({
       id: userId,
       deny: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.Speak],

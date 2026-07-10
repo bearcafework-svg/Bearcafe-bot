@@ -92,7 +92,7 @@ async function safeDeleteChannel(channel, reason) {
 }
 
 async function safeMoveMember(member, channel, reason) {
-  if (!member?.voice?.channel || !channel) return false;
+  if (!member?.voice?.channelId || !channel) return false;
 
   try {
     await member.voice.setChannel(channel, reason);
@@ -106,7 +106,7 @@ async function safeMoveMember(member, channel, reason) {
 }
 
 async function safeDisconnectMember(member, reason) {
-  if (!member?.voice?.channel) return false;
+  if (!member?.voice?.channelId) return false;
 
   try {
     await member.voice.disconnect(reason);

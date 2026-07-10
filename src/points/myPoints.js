@@ -69,7 +69,7 @@ function buildMainPayload(interaction, points, cakes, maxPoints, page = 1) {
     };
   } else {
     claimButton = {
-      style: 3, type: 2, custom_id: "mypoints_claim_cake", disabled: false,
+      style: 3, type: 2, custom_id: `mypoints_claim_cake_${interaction.user.id}`, disabled: false,
       label: "︲แต้มครบ! คลิกเพื่อแลกเค้ก",
       emoji: { id: "1358584609087946867", name: "50121checkmark", animated: false }
     };
@@ -140,7 +140,7 @@ function setupMyPoints(client) {
   client.on('interactionCreate', async (interaction) => {
     if (interaction.isChatInputCommand() && interaction.commandName === 'แต้มของฉัน') {
       if (interaction.channelId !== '1524123727724417276') {
-        return interaction.reply({ content: 'คำสั่งนี้ใช้ได้เฉพาะห้อง <#1145305334806741122> เท่านั้นนะคะ', flags: FLAG_EPHEMERAL });
+        return interaction.reply({ content: 'คำสั่งนี้ใช้ได้เฉพาะห้อง <#1524123727724417276> เท่านั้นนะคะ', flags: FLAG_EPHEMERAL });
       }
 
       const isBlacklisted = cfg.role_blacklist.some(id => interaction.member.roles.cache.has(id));
@@ -157,8 +157,14 @@ function setupMyPoints(client) {
     }
 
     if (interaction.isButton()) {
-      if (interaction.customId === 'mypoints_claim_cake') {
+      if (interaction.customId.startsWith('mypoints_claim_cake_')) {
+        const ownerId = interaction.customId.replace('mypoints_claim_cake_', '');
         const userId = interaction.user.id;
+
+        if (userId !== ownerId) {
+          return interaction.reply({ content: '## <:bear7:1148271118709436416>︲ปุ่มนี้กดได้เฉพาะเจ้าของคำสั่งเท่านั้นนะคะ ꒰⑅ᵕ༚ᵕ꒱˖\u2661', flags: FLAG_EPHEMERAL });
+        }
+
         let { points, cakes } = await getUserData(supabase, userId);
         const maxPoints = getMaxPoints(interaction.member);
 

@@ -126,7 +126,7 @@ function buildCardPayload(card, earnedPoints) {
             style: 5,
             label: `ได้รับ +${earnedPoints} แต้ม`,
             emoji: { id: pi.id, name: pi.name, animated: pi.animated },
-            url:   'https://discord.com/channels/1144251788493602848/1145305334806741122'
+            url:   'https://discord.com/channels/1144251788493602848/1524123727724417276'
           }
         },
         { type: 14, spacing: 2 },
@@ -177,7 +177,7 @@ function buildCombinedPayload(card, earnedPoints, tarotPoint, isComplete) {
           }],
           accessory: {
             type: 11,
-            media: { url: 'https://media.discordapp.net/attachments/1144675871798591569/1377501031541506162/64603-purpleween.png?ex=6a2793ce&is=6a26424e&hm=aaa4a4ffaa1643c61b7de85b7ba56bca75dbc88d0c1116f39d2692991e6e7709&format=webp&quality=lossless&width=160&height=160&' }
+            media: { url: 'https://cdn.discordapp.com/attachments/1524704267015819274/1524727868662480976/64603-purpleween.png?ex=6a50ccfb&is=6a4f7b7b&hm=d76a4fa4455b54b794b5879e1aeaaccc3370dff4facfaf1362a71299d413161f&' }
           }
         },
         { type: 14, spacing: 1, divider: false },
@@ -211,7 +211,7 @@ function buildCombinedPayload(card, earnedPoints, tarotPoint, isComplete) {
             style: 5,
             label: `ได้รับ +${earnedPoints} แต้ม`,
             emoji: { id: pi.id, name: pi.name, animated: pi.animated },
-            url:   'https://discord.com/channels/1144251788493602848/1145305334806741122'
+            url:   'https://discord.com/channels/1144251788493602848/1524123727724417276'
           }
         },
         { type: 14, spacing: 2 },

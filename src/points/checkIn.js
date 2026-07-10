@@ -79,7 +79,7 @@ function buildClaimPayload(tier, nextCooldownTimestamp, premiumRoleInfo) {
   const iconStr = pi.animated ? `<a:${pi.name}:${pi.id}>` : `<:${pi.name}:${pi.id}>`;
 
   let content = `## ${iconStr}︲__\` 𝖢𝗅𝖺𝗂𝗆 𝖱𝖾𝗐𝖺𝗋𝖽 ₊ ยินดีด้วยคุณได้รับ ${tier.points.toLocaleString()} 𓂃 \`__\n` +
-    `> <a:27073hispeechbubble:1518217054711189644>︰คุณสามารถเช็กแต้มและแลกยศตกแต่งได้ที่ <#1145305334806741122>\n` +
+    `> <a:27073hispeechbubble:1518217054711189644>︰คุณสามารถเช็กแต้มและแลกยศตกแต่งได้ที่ <#1524123727724417276>\n` +
     `> <a:7596clock:1160230591892029510>︰กลับมาเช็กอินได้ใน <t:${nextCooldownTimestamp}:R> <:cuteplant:1152834055528783872>\n`;
 
   if (premiumRoleInfo) {

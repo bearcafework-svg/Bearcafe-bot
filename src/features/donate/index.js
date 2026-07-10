@@ -4,8 +4,8 @@
 const { createClient } = require("@supabase/supabase-js");
 const { safeDeferReply, safeRespond } = require("../../../utils/discordSafety");
 
-const GUILD_ID          = "1144251788493602848";
-const EXCLUDED_USER_ID  = "944920660759707658"; // ไม่จัดอันดับ แต่ดูยอดตัวเองได้
+const GUILD_ID = "1144251788493602848";
+const EXCLUDED_USER_ID = "944920660759707658"; // ไม่จัดอันดับ แต่ดูยอดตัวเองได้
 
 // Cooldown 24 ชม. (ms)
 const REFRESH_COOLDOWN_MS = 24 * 60 * 60 * 1000;
@@ -25,7 +25,7 @@ async function safeDeferUpdate(interaction) {
 }
 
 // ── ตัวเลข Unicode Math Sans-Serif ──────────────────────────
-const MATH_DIGITS = ["𝟢","𝟣","𝟤","𝟥","𝟦","𝟧","𝟨","𝟩","𝟪","𝟫"];
+const MATH_DIGITS = ["𝟢", "𝟣", "𝟤", "𝟥", "𝟦", "𝟧", "𝟨", "𝟩", "𝟪", "𝟫"];
 
 /**
  * แปลงตัวเลขปกติ → Unicode math digits พร้อม comma ทุก 3 หลัก
@@ -102,8 +102,8 @@ async function fetchUserDonation(supabase, userId) {
 async function buildTopDonateComponents(guild, supabase) {
   const top10 = await fetchTopDonors(supabase, 10);
 
-  const rankEmojis = ["1️⃣","2️⃣","3️⃣","4️⃣","5️⃣","6️⃣","7️⃣","8️⃣","9️⃣","🔟"];
-  const topEmojis  = [
+  const rankEmojis = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"];
+  const topEmojis = [
     "<a:top_one:1150848398774247564>",
     "<a:top_two:1150848396190568448>",
     "<a:top_three:1150849072299769896>",
@@ -115,7 +115,7 @@ async function buildTopDonateComponents(guild, supabase) {
       type: 12,
       items: [{
         media: {
-          url: "https://cdn.discordapp.com/attachments/1164188104182210670/1185678831219126355/TopDonate_-_bearcafe.png?ex=6a160176&is=6a14aff6&hm=43f5b048b2a25b0c576626e0f81a7c983e7e5a269884235626b9f87a832a984b&"
+          url: "https://cdn.discordapp.com/attachments/1524742861223100416/1525087837467316284/NewsBoard_-_bearcafe.png?ex=6a521c3b&is=6a50cabb&hm=970815e328022459e7aec5d4b11e615adbc19cb3115fd010fbacecb5f81e2647&"
         }
       }]
     },
@@ -238,12 +238,12 @@ function setupDonate(client) {
     }
 
     try {
-      await message.delete().catch(() => {});
+      await message.delete().catch(() => { });
       const guild = message.guild;
       await sendOrUpdateTopDonate(message.channel, guild, supabase);
     } catch (err) {
       console.error("[donate] reset-donate error:", err);
-      message.channel.send("❌ เกิดข้อผิดพลาดในการโหลดข้อมูลค่ะ").catch(() => {});
+      message.channel.send("❌ เกิดข้อผิดพลาดในการโหลดข้อมูลค่ะ").catch(() => { });
     }
   });
 
@@ -298,7 +298,7 @@ function setupDonate(client) {
 
         const { total, latestAmount, latestDate } = result;
         const avatarUrl = await getAvatarUrl(guild, userId);
-        const username  = await getUsername(guild, userId);
+        const username = await getUsername(guild, userId);
 
         // หา rank ของ user นี้
         let rankText = "x";

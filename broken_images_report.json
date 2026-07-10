@@ -1,0 +1,752 @@
+﻿[
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\donate\\index.js",
+        "Line":  118,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1164188104182210670/1185678831219126355/TopDonate_-_bearcafe.png?ex=6a160176\u0026is=6a14aff6\u0026hm=43f5b048b2a25b0c576626e0f81a7c983e7e5a269884235626b9f87a832a984b\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot.json",
+        "Line":  2,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1144675871798591569/1461434477514330162/Bear_Cafe_1.png?ex=696b332b\u0026is=6969e1ab\u0026hm=7309c0a2148642ff068ab9df8c9f8b4ee138eba1695d4ed88cf89a41d13a27bd\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot2.json",
+        "Line":  2,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1144675871798591569/1461434477514330162/Bear_Cafe_1.png?ex=696b332b\u0026is=6969e1ab\u0026hm=7309c0a2148642ff068ab9df8c9f8b4ee138eba1695d4ed88cf89a41d13a27bd\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot2.json",
+        "Line":  8,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524714865556459553/-_1.png?ex=6a50c0df\u0026is=6a4f6f5f\u0026hm=1e0228f594462ac449ba0bd8d0a7a8d5340c564e6e13098d4d02c49d70ef5312\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot2.json",
+        "Line":  14,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524714865858576445/-_2.png?ex=6a50c0df\u0026is=6a4f6f5f\u0026hm=2622ab483f54faa22d4e78466d1a1e6ffce35207732267b8cfb211bbf525f829\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot2.json",
+        "Line":  20,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524714866214965308/-_3.png?ex=6a50c0df\u0026is=6a4f6f5f\u0026hm=e9baf6041a4521fe4487f9aa8afff4f2241c39e13479617cbc8fad9e625c5176\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot2.json",
+        "Line":  26,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524714866580127775/-_4.png?ex=6a50c0e0\u0026is=6a4f6f60\u0026hm=0255f15f68ceb751a59f3323e3a7ee8aa0a7e5f98c8cae8777255326876d1194\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot2.json",
+        "Line":  32,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524714866869276752/-_5.png?ex=6a50c0e0\u0026is=6a4f6f60\u0026hm=4c450961d66d596edb9d1e99f5c1b60bda3170304fa22b254d2a9dbd9117e8eb\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot2.json",
+        "Line":  38,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524714867225919569/-_6.png?ex=6a50c0e0\u0026is=6a4f6f60\u0026hm=c3c18ce02bafec359afbdd416a68bb9df0764e7ccc9252fb22445265d89bbd24\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot2.json",
+        "Line":  44,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524714867523588179/-_7.png?ex=6a50c0e0\u0026is=6a4f6f60\u0026hm=86e370def528b22662f2f7511c697ea5788b894f3bb322840e4b6665d4c5ab2d\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot2.json",
+        "Line":  50,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524714867830034482/-_8.png?ex=6a50c0e0\u0026is=6a4f6f60\u0026hm=b164e001bc239c1057e365079236c58aab4967475d82a4a3ec587a77671646ff\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot2.json",
+        "Line":  56,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524714868127694999/-_9.png?ex=6a50c0e0\u0026is=6a4f6f60\u0026hm=86bf5c0f8a3d7fd02558de78f5f83da2eff192b3a54ed720f83f7664f29b00ac\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot2.json",
+        "Line":  62,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524714868454985758/-_10.png?ex=6a50c0e0\u0026is=6a4f6f60\u0026hm=4f8762407c0ed17d9480ae295b9c02d1411da92f8ba2abc6d6d796b2ec970f4f\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot2.json",
+        "Line":  68,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524714917553504288/-_11.png?ex=6a50c0ec\u0026is=6a4f6f6c\u0026hm=ee7b79e54b678bc3a3c7d671eaa1858741cda98d50c85d47f5c81f83b1e56ed8\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot2.json",
+        "Line":  74,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524714917813555290/-_12.png?ex=6a50c0ec\u0026is=6a4f6f6c\u0026hm=87753b6c7d85db7655c3fcf466277a0af219e90e205dbcabcfe9c6d8ccdd9fdf\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot2.json",
+        "Line":  80,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524714918123798580/-_13.png?ex=6a50c0ec\u0026is=6a4f6f6c\u0026hm=8e02bdae3c8c14ff67862f5ad65850207dfb6e6038917d93b7afc59670be3a60\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot2.json",
+        "Line":  86,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524714918459474002/-_14.png?ex=6a50c0ec\u0026is=6a4f6f6c\u0026hm=ed2f5584a3ba49ad8c40c58be91d6cf342bd9a9d0dc61a42e21311b93b734b62\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot2.json",
+        "Line":  92,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524714918790561973/-_15.png?ex=6a50c0ec\u0026is=6a4f6f6c\u0026hm=b358bbbb49b980ddd65ed206252697a845a06165e025c42ef3d85de00694973d\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot2.json",
+        "Line":  98,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524714919080103986/-_16.png?ex=6a50c0ec\u0026is=6a4f6f6c\u0026hm=145a4609543a4835296ea566394fbadf1b1c2112ec1012ae531757d9df4e0c31\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot2.json",
+        "Line":  104,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524714919549993022/-_17.png?ex=6a50c0ec\u0026is=6a4f6f6c\u0026hm=8981c70e6629300c40759f5d81ea7b3d85d7fac369e479ae9b67cfb9c0c02425\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot2.json",
+        "Line":  110,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524714919843598346/-_18.png?ex=6a50c0ec\u0026is=6a4f6f6c\u0026hm=8057c1675180875e370a5ca53dbcd4ac977b523041d1876f3f1f539a401f49f3\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot2.json",
+        "Line":  116,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524714920132874310/-_19.png?ex=6a50c0ec\u0026is=6a4f6f6c\u0026hm=cede3678b7810510c062cf98e68932526a573e5c1d526fde65a4958bc3383e93\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot2.json",
+        "Line":  122,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524714920472739923/-_20.png?ex=6a50c0ec\u0026is=6a4f6f6c\u0026hm=5b88ab64a07aeb7ba8bd1f334463d36eedd4da26c6acc3f5b982d348c2f964d5\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot3.json",
+        "Line":  2,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1144675871798591569/1461434477514330162/Bear_Cafe_1.png?ex=696b332b\u0026is=6969e1ab\u0026hm=7309c0a2148642ff068ab9df8c9f8b4ee138eba1695d4ed88cf89a41d13a27bd\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot4.json",
+        "Line":  27,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524723780906254428/ver2_-_Fehu.png?ex=6a50c92d\u0026is=6a4f77ad\u0026hm=0c23df42796f917f732e03a4d9aec29c191fee80e41b5b4933681b33d973cce7\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot4.json",
+        "Line":  35,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524723781245861949/ver2_-_Uruz.png?ex=6a50c92d\u0026is=6a4f77ad\u0026hm=d45b10973e1a87019f7a11c1ca183aa25a861449d3654fc498f2bc9cb2200533\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot4.json",
+        "Line":  43,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524723781547855962/ver2_-_Thurisaz.png?ex=6a50c92d\u0026is=6a4f77ad\u0026hm=e98d73f42122123c04f0fdd48860728df8d8825a781809555123bdcba4cc95aa\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot4.json",
+        "Line":  51,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524723781895979048/ver2_-_Ansuz.png?ex=6a50c92d\u0026is=6a4f77ad\u0026hm=0caff009b74837150065807e0961b768d5eb130140de93b079b73289912746f0\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot4.json",
+        "Line":  59,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524723782156292216/ver2_-_Raidho.png?ex=6a50c92d\u0026is=6a4f77ad\u0026hm=1230cad0cae951432f8b8cd563ff5fdbf2b05732b9fec6e02026681049bb4da7\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot4.json",
+        "Line":  67,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524723782470598677/ver2_-_Kenaz.png?ex=6a50c92d\u0026is=6a4f77ad\u0026hm=c624730a8bac4360b4cc7fa6631118e27ab4e61fa24bd99ae8169676666d74f3\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot4.json",
+        "Line":  75,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524723782785433801/ver2_-_Gebo.png?ex=6a50c92d\u0026is=6a4f77ad\u0026hm=fbb85bfc31977e80a43e1c281dbab4fe460ea64a03f698be7c5d7258c794befc\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot4.json",
+        "Line":  83,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524723783607390238/ver2_-_Wunjo.png?ex=6a50c92e\u0026is=6a4f77ae\u0026hm=bae1ba10d774875069b73e4fb2cd6e1bc9249c8593421b448c7ac917721f96eb\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot4.json",
+        "Line":  91,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524723783997587456/ver2_-_Hagalaz.png?ex=6a50c92e\u0026is=6a4f77ae\u0026hm=b06bc72f67f4268b219b2f6bf48f29200cac824289e69b1d2139a74384c52262\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot4.json",
+        "Line":  99,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524723784353841183/ver2_-_Nauthiz.png?ex=6a50c92e\u0026is=6a4f77ae\u0026hm=0c17d9749080bbdf3cbc902d2265663852a5c379a57dd52351d957d48142411e\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot4.json",
+        "Line":  107,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524723809373130772/ver2_-_Isa.png?ex=6a50c934\u0026is=6a4f77b4\u0026hm=37cb171df47e08034f2be9938f641748abad02d4b973ebe2f244d30f2d7cb53d\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot4.json",
+        "Line":  115,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524723809805012992/ver2_-_Jera.png?ex=6a50c934\u0026is=6a4f77b4\u0026hm=4ba3ae65a207f68fea6820b7e5db0547c910625d47ed8b60855daacd66df2aa5\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot4.json",
+        "Line":  123,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524723810123649075/ver2_-_Eihwaz.png?ex=6a50c934\u0026is=6a4f77b4\u0026hm=c4078c2a9a0156363b06e448233f4ff2112b9a718b6e8cc9d8b5b8af3fa4145f\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot4.json",
+        "Line":  131,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524723810459324457/ver2_-_Perthro.png?ex=6a50c934\u0026is=6a4f77b4\u0026hm=424309bd5672d5431ccfd75b1c5137fc18dd24f677ce0fbf8259c26b2b3e0028\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot4.json",
+        "Line":  139,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524723810774024305/ver2_-_Algiz.png?ex=6a50c934\u0026is=6a4f77b4\u0026hm=5c77dd93f77bf8985013ddaf9a1e95f58b8bcdd567b7d254bfbc26cf0cf539eb\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot4.json",
+        "Line":  147,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524723811130277968/ver2_-_Sowilo.png?ex=6a50c934\u0026is=6a4f77b4\u0026hm=2ccaf43163432e90a91b0f7f63f122496116c5bb5fd979d5b262013da767c01a\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot4.json",
+        "Line":  155,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524723811466084433/ver2_-_Tiwaz.png?ex=6a50c934\u0026is=6a4f77b4\u0026hm=08bc3c160172a58253c03e953f343705965d1b2225397817eeb59e3e065003df\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot4.json",
+        "Line":  163,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524723811851829248/ver2_-_Berkana.png?ex=6a50c934\u0026is=6a4f77b4\u0026hm=86d09c2a45a2121f6904469bbf59d38d977e1552ec7f94517a9a48e76ffd7800\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot4.json",
+        "Line":  171,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524723812241768538/ver2_-_Ehwaz.png?ex=6a50c934\u0026is=6a4f77b4\u0026hm=c34cd06b830726af24394d693c242a76991c99de0417537b6e2acd5c3394fd63\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot4.json",
+        "Line":  179,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524723812648878080/ver2_-_Mannaz.png?ex=6a50c934\u0026is=6a4f77b4\u0026hm=c233db6731f1f01686337ddb699705831a450900aa8687ce6a61b76e31789a13\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot4.json",
+        "Line":  187,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524723821624561775/ver2_-_Laguz.png?ex=6a50c937\u0026is=6a4f77b7\u0026hm=ca47768a904f47a53ef73b1cd27b4d39ab77411d55860313a8d75875ce22de6a\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot4.json",
+        "Line":  195,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524723821926682645/ver2_-_Ingwaz.png?ex=6a50c937\u0026is=6a4f77b7\u0026hm=d45f28e46a1f3b16ffc54d2c4afe56afcb4ac19dda58c6cd7df08db206e8157e\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot4.json",
+        "Line":  203,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524723822199308319/ver2_-_Dagaz.png?ex=6a50c937\u0026is=6a4f77b7\u0026hm=d1615f8c05d98c38ffec94b87c498a4f939b5e7faf79d7fb342886aa4cdb63bf\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\Infotarot4.json",
+        "Line":  211,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524723822480195616/ver2_-_Othala.png?ex=6a50c937\u0026is=6a4f77b7\u0026hm=9045447299b0b4dac2f0ce302de4e353b09f9708034eec2b85a31d6c380b0e43\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot1.js",
+        "Line":  92,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1144675871798591569/1462062737537372337/GIF_20260117_193001_429.gif"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot2.js",
+        "Line":  23,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524707505656172605/-_quest1.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot2.js",
+        "Line":  24,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524707505316429935/-_quest2.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot2.js",
+        "Line":  25,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524707505018769490/-_quest3.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot2.js",
+        "Line":  26,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524707504724901909/-_quest4.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot2.js",
+        "Line":  27,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524707504473510018/-_quest5.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot2.js",
+        "Line":  28,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524707504238497892/-_quest6.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot2.js",
+        "Line":  29,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524707503982641252/-_quest7.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot2.js",
+        "Line":  30,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524707503743701032/-_quest8.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot2.js",
+        "Line":  31,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524707503458357288/-_quest9.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot2.js",
+        "Line":  32,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524707503156363264/-_quest10.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot2.js",
+        "Line":  33,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524707474488164373/-_quest11.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot2.js",
+        "Line":  34,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524707474232574083/-_quest12.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot2.js",
+        "Line":  35,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524707473888645150/-_quest13.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot2.js",
+        "Line":  36,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524707473603166328/-_quest14.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot2.js",
+        "Line":  37,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524707473271951392/-_quest15.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot2.js",
+        "Line":  38,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524707472940732538/-_quest16.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot2.js",
+        "Line":  39,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524707472676487208/-_quest17.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot2.js",
+        "Line":  40,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524707472441475104/-_quest18.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot2.js",
+        "Line":  41,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524707472151941270/-_quest19.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot2.js",
+        "Line":  42,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524707471833432094/-_quest20.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot2.js",
+        "Line":  43,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524707422990499900/-_quest21.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot2.js",
+        "Line":  44,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524707422651023360/-_quest22.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot2.js",
+        "Line":  45,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524707422193717298/-_quest23.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot2.js",
+        "Line":  46,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524707421761568808/-_quest24.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot2.js",
+        "Line":  47,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524707421417771059/-_quest25.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot2.js",
+        "Line":  48,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524707421107257364/-_quest26.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot2.js",
+        "Line":  49,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524707420767780975/-_quest27.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot2.js",
+        "Line":  50,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524707420482310275/-_quest28.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot2.js",
+        "Line":  51,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524707420134441071/-_quest29.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot2.js",
+        "Line":  52,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524707419849101392/-_quest30.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot2.js",
+        "Line":  53,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524707372394614826/-_quest31.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot2.js",
+        "Line":  54,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524707371895754902/-_quest32.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot2.js",
+        "Line":  55,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524707371509874738/-_quest33.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot2.js",
+        "Line":  56,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524707371203428484/-_quest34.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot2.js",
+        "Line":  57,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524707370960293968/-_quest35.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot2.js",
+        "Line":  58,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524707370637197383/-_quest36.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot2.js",
+        "Line":  59,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524707370301788170/-_quest37.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot2.js",
+        "Line":  60,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524707370058387526/-_quest38.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot2.js",
+        "Line":  61,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524707369760854097/-_quest39.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot2.js",
+        "Line":  62,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524707369496481792/-_quest40.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot2.js",
+        "Line":  135,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524707310168182884/GIF_20250415_195548_457.gif?ex=6a50b9d6\u0026is=6a4f6856\u0026hm=b9f44d9e66e0d52409ce0af3ba50a32bb9f45c8fa1c6d96c59f9e0a0c7db94b8\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot3.js",
+        "Line":  23,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524712387913973780/-_1.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot3.js",
+        "Line":  24,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524712387607920660/-_2.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot3.js",
+        "Line":  25,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524712387268186173/-_3.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot3.js",
+        "Line":  26,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524712386949414912/-_4.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot3.js",
+        "Line":  27,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524712386660143154/-_5.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot3.js",
+        "Line":  28,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524712373850472579/-_6.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot3.js",
+        "Line":  29,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524712373481639996/-_7.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot3.js",
+        "Line":  30,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524712373104021595/-_8.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot3.js",
+        "Line":  31,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524712372692975678/-_9.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot3.js",
+        "Line":  32,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524712372101582910/-_10.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot3.js",
+        "Line":  33,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524712370986025022/-_11.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot3.js",
+        "Line":  34,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524712370369204324/-_12.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot3.js",
+        "Line":  35,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524712370050699366/-_13.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot3.js",
+        "Line":  36,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524712369731797002/-_14.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot3.js",
+        "Line":  37,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524712369354178691/-_15.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot3.js",
+        "Line":  110,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524711467289673769/cd.gif?ex=6a50bdb5\u0026is=6a4f6c35\u0026hm=6dc22a97f0c8aa5c3fa34e4438e6c1643b0d99cebfea2247baf4348819d9bd03\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot4.js",
+        "Line":  91,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524713966767702107/GIF_20260611_204048_725.gif?ex=6a50c009\u0026is=6a4f6e89\u0026hm=af723123bd42b8401e344ee7e0291f433826fbb9bf14de90c511c63507a07020\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot5.js",
+        "Line":  24,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524718425652330606/pick_a_card_-_1.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot5.js",
+        "Line":  25,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524718425979748444/pick_a_card_-_2.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot5.js",
+        "Line":  26,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524718426440990760/pick_a_card_-_3.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot5.js",
+        "Line":  100,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524713967073759252/GIF_20260613_220800_767.gif?ex=6a50c009\u0026is=6a4f6e89\u0026hm=fb75d1b023044c4011128ff7c78ba579d5eb7fb5fb288a731afbc09746fc00b9\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\horoscope\\tarot6.js",
+        "Line":  96,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524719085114490880/6166a23919b0f8ec.gif?ex=6a50c4cd\u0026is=6a4f734d\u0026hm=bc481beb865b1d665971e77be73971776fba968bdb38a425ee64070b57003411\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\features\\secretChat\\index.js",
+        "Line":  474,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1144675871798591569/1513091311111241828/NewsBoard_-_bearcafe_14.png?ex=6a267798\u0026is=6a252618\u0026hm=6153e81758c050fa6e74fd917baa4b28e63acc91bf60cc8180d1e054fc3dee2d\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\points\\myPoints.js",
+        "Line":  186,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524741224517472406/425f72edbda608d3.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\points\\settingCheckIn.json",
+        "Line":  16,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524706441133297715/GIF_20260630_094301_610.gif?ex=6a50b907\u0026is=6a4f6787\u0026hm=c0f86fee11f84d5cd71375c7b16816f190057f86fa041441c81e899b57889b1f\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\points\\settingCheckIn.json",
+        "Line":  34,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524706441946992740/20260630_094223_0000.png?ex=6a50b907\u0026is=6a4f6787\u0026hm=ba96a383e81434a8728b796d0a99c75220e05d31f17c11e0ba80c5412c80e394\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\points\\settingCheckIn.json",
+        "Line":  40,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524706442266021888/20260630_094223_0001.png?ex=6a50b907\u0026is=6a4f6787\u0026hm=7ded7a712674cffe0f6acd97a7d65297ac8e9eb1526f39956c055e58a1a5e793\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\points\\settingCheckIn.json",
+        "Line":  46,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524706441502527518/20260630_094224_0004.png?ex=6a50b907\u0026is=6a4f6787\u0026hm=7c5c381f939e9f22c13cbcba4c5cbb5ac3e7b6a01f13f252fc254c575db09240\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\points\\settingCheckIn.json",
+        "Line":  52,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524706442798698496/20260630_094223_0003.png?ex=6a50b907\u0026is=6a4f6787\u0026hm=5d77e70c673b2eb2a26a287d776032e77eb340f75cf204b9cd0736030649ec5e\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\points\\settingCheckIn.json",
+        "Line":  58,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524706442521739344/20260630_094223_0002.png?ex=6a50b907\u0026is=6a4f6787\u0026hm=05b10c96fdc2db21cdb711d40c103c285daf39c51e349a283a07b24f1af2566a\u0026"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\points\\settingCheckIn.json",
+        "Line":  62,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524740290886500463/-_1.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\points\\settingCheckIn.json",
+        "Line":  63,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524740291372777542/-_2.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\points\\settingCheckIn.json",
+        "Line":  64,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524740291758919762/-_3.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\points\\settingCheckIn.json",
+        "Line":  65,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524740292081750046/-_4.png"
+    },
+    {
+        "File":  "D:\\bearcafe-bot\\src\\points\\settingCheckIn.json",
+        "Line":  66,
+        "Status":  "Error: NotFound (404)",
+        "Url":  "https://cdn.discordapp.com/attachments/1524704267015819274/1524740292446650408/-_5.png"
+    }
+]

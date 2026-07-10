@@ -112,6 +112,7 @@ function setupVoicePoints(client) {
   async function trackJoinState(guild) {
     for (const [memberId, voiceState] of guild.voiceStates.cache) {
       if (!voiceState.channelId || voiceState.member?.user?.bot) continue;
+      if (voiceJoinTimes.has(memberId)) continue;
 
       voiceJoinTimes.set(memberId, {
         joinedAt: Date.now(),
@@ -132,7 +133,7 @@ function setupVoicePoints(client) {
     }
   }
 
-  client.once("clientReady", async () => {
+  client.once("ready", async () => {
     for (const guild of client.guilds.cache.values()) {
       await trackJoinState(guild);
     }

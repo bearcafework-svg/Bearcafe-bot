@@ -95,7 +95,7 @@ function buildMainPayload(interaction, points, cakes, maxPoints, page = 1) {
           type: 1,
           components: [{
             type: 3,
-            custom_id: "mypoints_role_select",
+            custom_id: `mypoints_role_select_${interaction.user.id}`,
             options: options,
             placeholder: "🐻︲เลือกยศที่ต้องการแลก",
             min_values: 1, max_values: 1, disabled: false
@@ -122,7 +122,7 @@ function setupMyPoints(client) {
     { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
   );
 
-  client.once('clientReady', async () => {
+  client.once('ready', async () => {
     try {
       const guild = client.guilds.cache.get('1144251788493602848');
       if (guild) {
@@ -201,9 +201,15 @@ function setupMyPoints(client) {
       }
     }
 
-    if (interaction.isStringSelectMenu() && interaction.customId === 'mypoints_role_select') {
-      const selectedValue = interaction.values[0];
+    if (interaction.isStringSelectMenu() && interaction.customId.startsWith('mypoints_role_select_')) {
+      const ownerId = interaction.customId.replace('mypoints_role_select_', '');
       const userId = interaction.user.id;
+
+      if (userId !== ownerId) {
+        return interaction.reply({ content: '## <:bear7:1148271118709436416>︲เมนูนี้ใช้ได้เฉพาะเจ้าของคำสั่งเท่านั้นนะคะ ꒰⑅ᵕ༚ᵕ꒱˖♡', flags: FLAG_EPHEMERAL });
+      }
+
+      const selectedValue = interaction.values[0];
 
       if (selectedValue === 'next_page') {
         const optionsPage2 = [];
@@ -225,7 +231,7 @@ function setupMyPoints(client) {
                 type: 1,
                 components: [{
                   type: 3,
-                  custom_id: "mypoints_role_select",
+                  custom_id: `mypoints_role_select_${ownerId}`,
                   options: optionsPage2,
                   placeholder: "🐻︲เลือกยศที่ต้องการแลก",
                   min_values: 1, max_values: 1, disabled: false

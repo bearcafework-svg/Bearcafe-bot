@@ -58,7 +58,7 @@ function setupFeature(name, modulePath, setupName, requiredEnv = []) {
 }
 
 // ── ตอนบอท ready ──────────────────────────────────────────────────
-client.once("clientReady", async () => {
+client.once("ready", async () => {
   console.log(`✅ บอท "${client.user.tag}" พร้อมใช้งานแล้ว!`);
 
   // โหลด separator IDs จาก Redis

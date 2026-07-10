@@ -573,6 +573,7 @@ function getDefaultRoomOverwrites(channel, room, settings) {
   for (const overwrite of channel.parent?.permissionOverwrites.cache.values() || []) {
     overwrites.set(overwrite.id, {
       id: overwrite.id,
+      type: overwrite.type,
       allow: overwrite.allow.bitfield,
       deny: overwrite.deny.bitfield,
     });
@@ -582,6 +583,7 @@ function getDefaultRoomOverwrites(channel, room, settings) {
   const current = overwrites.get(everyoneId) || { id: everyoneId, allow: [], deny: [] };
   overwrites.set(everyoneId, {
     id: everyoneId,
+    type: 'role',
     allow: current.allow,
     deny: [
       current.deny,
@@ -592,6 +594,7 @@ function getDefaultRoomOverwrites(channel, room, settings) {
 
   overwrites.set(room.ownerId, {
     id: room.ownerId,
+    type: 'member',
     allow: ownerAllowPermissions(),
   });
 
@@ -599,6 +602,7 @@ function getDefaultRoomOverwrites(channel, room, settings) {
   for (const userId of trustedIds) {
     overwrites.set(userId, {
       id: userId,
+      type: 'member',
       allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect],
     });
   }
@@ -607,6 +611,7 @@ function getDefaultRoomOverwrites(channel, room, settings) {
   for (const userId of blockedIds) {
     overwrites.set(userId, {
       id: userId,
+      type: 'member',
       deny: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.Speak],
     });
   }
@@ -619,6 +624,7 @@ function getVipRoomOverwrites(channel, room, settings) {
   const overwrites = [
     {
       id: channel.guild.roles.everyone.id,
+      type: 'role',
       deny: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.SendMessages],
     },
   ];
@@ -631,6 +637,7 @@ function getVipRoomOverwrites(channel, room, settings) {
 
     overwrites.push({
       id: vipPermissions.memberId,
+      type: 'role',
       allow: ownerAllowPermissions().filter((permission) => !deniedPermissions.includes(permission)),
       deny: deniedPermissions,
     });
@@ -639,6 +646,7 @@ function getVipRoomOverwrites(channel, room, settings) {
   if (vipPermissions.coffee1Id && channel.guild.roles.cache.has(vipPermissions.coffee1Id)) {
     overwrites.push({
       id: vipPermissions.coffee1Id,
+      type: 'role',
       allow: [PermissionFlagsBits.ViewChannel],
       deny: [PermissionFlagsBits.Connect, PermissionFlagsBits.Speak],
     });
@@ -647,12 +655,14 @@ function getVipRoomOverwrites(channel, room, settings) {
   if (vipPermissions.coffee2Id && channel.guild.roles.cache.has(vipPermissions.coffee2Id)) {
     overwrites.push({
       id: vipPermissions.coffee2Id,
+      type: 'role',
       deny: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.Speak],
     });
   }
 
   overwrites.push({
     id: room.ownerId,
+    type: 'member',
     allow: vipOwnerAllowPermissions(),
   });
 
@@ -660,6 +670,7 @@ function getVipRoomOverwrites(channel, room, settings) {
   for (const userId of trustedIds) {
     overwrites.push({
       id: userId,
+      type: 'member',
       allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect],
     });
   }
@@ -668,6 +679,7 @@ function getVipRoomOverwrites(channel, room, settings) {
   for (const userId of blockedIds) {
     overwrites.push({
       id: userId,
+      type: 'member',
       deny: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.Speak],
     });
   }
@@ -711,6 +723,7 @@ function ensureBotOverwrite(channel, overwrites) {
 
   const botOverwrite = {
     id: botId,
+    type: 'member',
     allow: botPanelPermissions(),
   };
 
@@ -719,6 +732,7 @@ function ensureBotOverwrite(channel, overwrites) {
     if (existingIndex >= 0) {
       overwrites[existingIndex] = {
         ...overwrites[existingIndex],
+        type: 'member',
         allow: mergePermissions(overwrites[existingIndex].allow, botOverwrite.allow),
       };
     } else {
@@ -729,7 +743,7 @@ function ensureBotOverwrite(channel, overwrites) {
 
   const existing = overwrites.get(botId);
   overwrites.set(botId, existing
-    ? { ...existing, allow: mergePermissions(existing.allow, botOverwrite.allow) }
+    ? { ...existing, type: 'member', allow: mergePermissions(existing.allow, botOverwrite.allow) }
     : botOverwrite
   );
 }

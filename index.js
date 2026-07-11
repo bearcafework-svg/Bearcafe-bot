@@ -33,6 +33,7 @@ const client = new Client({
     GatewayIntentBits.DirectMessages,
   ],
 });
+client.setMaxListeners(30);
 
 setupFeature("secretChat", "./src/features/secretChat", "setupSecretChat", supabaseEnvKeys);
 setupFeature("donate", "./src/features/donate", "setupDonate", supabaseEnvKeys);
@@ -60,7 +61,7 @@ function setupFeature(name, modulePath, setupName, requiredEnv = []) {
 }
 
 // ── ตอนบอท ready ──────────────────────────────────────────────────
-client.once("ready", async () => {
+client.once("clientReady", async () => {
   console.log(`✅ บอท "${client.user.tag}" พร้อมใช้งานแล้ว!`);
 
   // โหลด separator IDs จาก Redis

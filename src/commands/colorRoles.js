@@ -137,8 +137,7 @@ function buildMainPanel() {
                 })),
                 placeholder: "🐻︲เลือกสีที่คุณต้องการเปลี่ยน",
                 min_values: 1,
-                max_values: 1,
-                flows: {}
+                max_values: 1
               }
             ]
           },
@@ -168,8 +167,7 @@ function buildMainPanel() {
                 ],
                 placeholder: "🐻︲เครื่องมือเพิ่มเติม",
                 min_values: 1,
-                max_values: 1,
-                flows: {}
+                max_values: 1
               }
             ]
           },
@@ -189,17 +187,13 @@ function buildMainPanel() {
                   name: "bearcafe_star",
                   animated: false
                 },
-                custom_id: RANDOM_BUTTON_ID,
-                flow: {
-                  actions: []
-                }
+                custom_id: RANDOM_BUTTON_ID
               },
               {
                 type: 2,
                 style: 5,
                 label: "สนใจซื้อยศ",
-                url: "https://discord.com/channels/1144251788493602848/1524124116053917747",
-                custom_id: "p_322753015486353409"
+                url: "https://discord.com/channels/1144251788493602848/1524124116053917747"
               }
             ]
           }
@@ -254,6 +248,7 @@ function setupColorRoles(client) {
   client.on("messageCreate", async (message) => {
     if (message.author.bot) return;
     if (message.content.trim().toLowerCase() !== "b!reset-color") return;
+    if (!message.guild) return;
 
     const OWNER_ID = process.env.OWNER_ID;
     if (message.author.id !== OWNER_ID) {
@@ -283,6 +278,8 @@ function setupColorRoles(client) {
     ) {
       return;
     }
+
+    if (!interaction.guild || !member) return;
 
     // ── ตรวจสอบ Blacklist ───────────────────────────────────────────
     const isBlacklisted = cfg.role_blacklist.some(id => member.roles.cache.has(id));

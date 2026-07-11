@@ -212,7 +212,7 @@ async function handleColorChange(interaction, targetColorValue, supabase) {
   const colorObj = await changeColorRole(member, targetColorValue, supabase);
   if (!colorObj) {
     return safeRespond(interaction, {
-      flags: FLAG_V2_EPH,
+      flags: FLAG_EPHEMERAL,
       content: "❌ เกิดข้อผิดพลาดในการตั้งค่ายศสีนี้ กรุณาติดต่อแอดมินค่ะ"
     });
   }
@@ -312,8 +312,8 @@ function setupColorRoles(client) {
       const isWhitelisted = cfg.role_whitelist.some(id => member.roles.cache.has(id));
       if (!isWhitelisted) {
         return safeRespond(interaction, {
-          flags: FLAG_V2_EPH,
-          content: "คุณต้องซื้อยศก่อนใช้งานน้า <#1202239170219868190>"
+          flags: FLAG_EPHEMERAL,
+          content: "คุณต้องซื้อยศก่อนใช้งานน้า <#1524124116053917747>"
         });
       }
     }
@@ -324,9 +324,20 @@ function setupColorRoles(client) {
     if (now < cdExpiry) {
       const readyTimestamp = Math.floor(cdExpiry / 1000);
       return safeRespond(interaction, {
-        flags: FLAG_V2_EPH,
+        flags: FLAG_EPHEMERAL,
         content: cooldownContent(member.id, readyTimestamp)
       });
+    }
+
+    // หากผ่านการตรวจสอบทั้งหมดแล้ว และเป็น Select Menu ให้รีเซ็ตสถานะหน้าต่างหลักเพื่อไม่ให้เมนูค้าง
+    if (interaction.isStringSelectMenu()) {
+      try {
+        await interaction.update({
+          components: buildMainPanel().components
+        });
+      } catch (err) {
+        console.error("[colorRoles] Failed to reset select menu:", err.message);
+      }
     }
 
     // ตั้งค่า Cooldown 10 วินาทีล่วงหน้า ป้องกันสแปม

@@ -41,7 +41,7 @@ function hasStaffPermission(member) {
  */
 function buildBillingMessage(userId, amount, channelId) {
   const a = amount;
-  const b = amount / 100;
+  const b = Math.floor(amount / 100);
   const c = amount + 5;
 
   return {

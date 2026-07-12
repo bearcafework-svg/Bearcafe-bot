@@ -47,6 +47,7 @@ setupFeature("voicePoints", "./src/features/voicePoints", "setupVoicePoints");
 setupFeature("checkIn", "./src/points/checkIn", "setupCheckIn", supabaseEnvKeys);
 setupFeature("myPoints", "./src/points/myPoints", "setupMyPoints", supabaseEnvKeys);
 setupFeature("colorRoles", "./src/commands/colorRoles", "setupColorRoles", supabaseEnvKeys);
+setupFeature("totalAmount", "./src/commands/totalAmount", "setupTotalAmount");
 
 
 function setupFeature(name, modulePath, setupName, requiredEnv = []) {

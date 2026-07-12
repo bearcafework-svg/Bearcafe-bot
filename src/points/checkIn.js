@@ -4,6 +4,9 @@
 const { createClient } = require('@supabase/supabase-js');
 const { MessageFlags } = require('discord.js');
 const cfg = require('./settingCheckIn.json');
+const sharedConfig = require('../sharedSettings.json');
+cfg.role_blacklist = sharedConfig.role_blacklist;
+cfg.point_icon = sharedConfig.point_icon;
 const { blacklistPayload, cooldownContent } = require('../features/shared/tarotComponents');
 
 // ─── Cooldown store (in-memory) ───────────────────────────────────────────────

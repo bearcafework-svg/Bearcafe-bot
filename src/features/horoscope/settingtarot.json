@@ -1,9 +1,5 @@
 {
   "channel_id": "1524122936183754893",
-  "role_blacklist": [
-    "1156930837573546126",
-    "1156930842434752614"
-  ],
   "role_premium": ["1520600682179199116"],
   "cooldown_normal_ms": 60000,
   "cooldown_premium_ms": 5000,
@@ -12,11 +8,6 @@
   "mission_target": 50,
   "mission_reward_points": 500,
   "mission_reward_role": "1377499722578923651",
-  "point_icon": {
-    "id": "1520439075100688614",
-    "name": "strawberryv2",
-    "animated": false
-  },
   "progress_bar": {
     "max_points": 50,
     "slots": 10,

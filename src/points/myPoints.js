@@ -1,6 +1,8 @@
 const { createClient } = require('@supabase/supabase-js');
 const { MessageFlags } = require('discord.js');
 const cfg = require('./settingCheckIn.json');
+const sharedConfig = require('../sharedSettings.json');
+cfg.role_blacklist = sharedConfig.role_blacklist;
 const { blacklistPayload } = require('../features/shared/tarotComponents');
 
 const FLAG_V2 = 32768; // MessageFlags.IsComponentsV2

@@ -5,6 +5,8 @@
 const { createClient } = require("@supabase/supabase-js");
 const { MessageFlags } = require("discord.js");
 const cfg = require("./settingColorRoles.json");
+const sharedConfig = require("../sharedSettings.json");
+cfg.role_blacklist = sharedConfig.role_blacklist;
 const { safeRespond } = require("../../utils/discordSafety");
 const { getCooldown, setCooldown } = require("../utils/cooldownManager");
 const { cooldownContent, blacklistPayload } = require("../features/shared/tarotComponents");

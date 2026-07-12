@@ -5,6 +5,9 @@ const { createClient } = require('@supabase/supabase-js');
 const { safeRespond } = require("../../../utils/discordSafety");
 const { MessageFlags }  = require('discord.js');
 const cfg        = require('./settingtarot.json');
+const sharedConfig = require('../../sharedSettings.json');
+cfg.role_blacklist = sharedConfig.role_blacklist;
+cfg.point_icon = sharedConfig.point_icon;
 const infotarot2 = require('./Infotarot2.json');
 const { blacklistPayload, cooldownContent, otherCommandsPayload } = require('../shared/tarotComponents');
 

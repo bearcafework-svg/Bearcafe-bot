@@ -48,6 +48,8 @@ setupFeature("checkIn", "./src/points/checkIn", "setupCheckIn", supabaseEnvKeys)
 setupFeature("myPoints", "./src/points/myPoints", "setupMyPoints", supabaseEnvKeys);
 setupFeature("colorRoles", "./src/commands/colorRoles", "setupColorRoles", supabaseEnvKeys);
 setupFeature("totalAmount", "./src/commands/totalAmount", "setupTotalAmount");
+setupFeature("createPersonalRole", "./src/commands/createPersonalRole", "setupCreatePersonalRole", supabaseEnvKeys);
+setupFeature("createRentHouse", "./src/commands/createRentHouse", "setupCreateRentHouse");
 
 
 function setupFeature(name, modulePath, setupName, requiredEnv = []) {

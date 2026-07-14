@@ -22,7 +22,7 @@ const supabase = createClient(
 );
 
 // Constants
-const VERIFY_CHANNEL_ID = process.env.VERIFY_CHANNEL_ID || "1144291017911185408";
+const VERIFY_CHANNEL_ID = process.env.VERIFY_CHANNEL_ID || "1524124097448116477";
 const WELCOME_CHANNEL_ID = "1524124134387224828";
 const MEMBER_ROLE_ID = "1144700895020462200";
 const BLOCKED_ROLES = sharedConfig.role_blacklist || [];
@@ -391,10 +391,9 @@ function setupVerification(client) {
         await interaction.reply(notifyPayload);
       }
 
-      // ─── Interaction: Select Menu Notification Preferences ──────────
+      // ─── Select Menu: เลือกรับการแจ้งเตือน ──────────────────────────
       if (interaction.isStringSelectMenu() && interaction.customId === "p_324120127182213152") {
-        await interaction.deferReply({ ephemeral: true });
-
+        await interaction.deferReply({ flags: 64 });
         const userId = interaction.user.id;
         const username = interaction.user.username;
         const selectedValues = interaction.values || [];

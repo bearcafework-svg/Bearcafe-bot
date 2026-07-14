@@ -195,7 +195,7 @@ function buildV2Welcome(userAId, userBId, endTimeUnix, ads = [], ctaButtons = []
         },
       ],
     });
-    
+
     let adRowComponents = [];
     if (ad.link_url) {
       adRowComponents.push({
@@ -276,7 +276,7 @@ function buildV2WelcomeDisabled(userAId, userBId, endTimeUnix, reporterUsername,
         },
       ],
     });
-    
+
     let adRowComponents = [];
     if (ad.link_url) {
       adRowComponents.push({
@@ -472,7 +472,7 @@ function buildV2Lobby() {
     components: [{
       type: 17,
       components: [
-        { type: 12, items: [{ media: { url: "https://cdn.discordapp.com/attachments/1144675871798591569/1513091311111241828/NewsBoard_-_bearcafe_14.png?ex=6a267798&is=6a252618&hm=6153e81758c050fa6e74fd917baa4b28e63acc91bf60cc8180d1e054fc3dee2d&" } }] },
+        { type: 12, items: [{ media: { url: "https://cdn.discordapp.com/attachments/1524704267015819274/1525088207958704188/NewsBoard_-_bearcafe_2.png?ex=6a56b9d3&is=6a556853&hm=311639427e24c8e604981d00f2249aef008d1745a54aaa0f656d522e40b74949&" } }] },
         { type: 14, spacing: 2 },
         {
           type: 10, content:
@@ -594,7 +594,7 @@ function buildV2NoMatch() {
 
 function buildV2Notify(roleIds, msg, ads = [], ctaButtons = []) {
   const mention = roleIds.map(id => `<@&${id}>`).join(" ");
-  
+
   const containerChildren = [
     { type: 14, spacing: 1, divider: false },
     {
@@ -621,7 +621,7 @@ function buildV2Notify(roleIds, msg, ads = [], ctaButtons = []) {
         },
       ],
     });
-    
+
     let adRowComponents = [];
     if (ad.link_url) {
       adRowComponents.push({

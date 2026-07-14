@@ -75,17 +75,23 @@ async function checkBannedName(member) {
       return null;
     }
 
-    if (!wordsData || wordsData.length === 0) return null;
+    if (!wordsData || wordsData.length === 0) {
+      console.log("[verification] No banned words found in public.banned_words table.");
+      return null;
+    }
 
     const username = member.user.username.toLowerCase();
     const displayName = member.displayName.toLowerCase();
     const nickname = member.nickname ? member.nickname.toLowerCase() : "";
+
+    console.log(`[verification] Checking member name. User: ${member.user.tag}. Username: "${username}", DisplayName: "${displayName}", Nickname: "${nickname}"`);
 
     for (const item of wordsData) {
       const bannedWord = item.word.toLowerCase().trim();
       if (!bannedWord) continue;
 
       if (username.includes(bannedWord) || displayName.includes(bannedWord) || nickname.includes(bannedWord)) {
+        console.log(`[verification] Match detected! Banned word: "${bannedWord}" inside user: ${member.user.tag}`);
         return item.word;
       }
     }
@@ -307,8 +313,16 @@ function setupVerification(client) {
     try {
       // ─── Button: ลงทะเบียน ──────────────────────────────────────────
       if (interaction.isButton() && interaction.customId === "p_323843380868026369") {
+        // Fetch fresh member details to bypass stale cache
+        let member = interaction.member;
+        try {
+          member = await interaction.guild.members.fetch(interaction.user.id);
+        } catch (fetchErr) {
+          console.warn("[verification] Failed to fetch fresh member, using cached member details:", fetchErr);
+        }
+
         // 1. Check blacklist roles
-        const hasBlacklisted = interaction.member.roles.cache.some(r => BLOCKED_ROLES.includes(r.id));
+        const hasBlacklisted = member.roles.cache.some(r => BLOCKED_ROLES.includes(r.id));
         if (hasBlacklisted) {
           return interaction.reply({
             content: "❌ ขออภัยค่ะ คุณไม่สามารถใช้งานระบบลงทะเบียนนี้ได้เนื่องจากติดสถานะบัญชีดำ (Blacklist)",
@@ -317,7 +331,7 @@ function setupVerification(client) {
         }
 
         // 2. Check banned words
-        const bannedWord = await checkBannedName(interaction.member);
+        const bannedWord = await checkBannedName(member);
         if (bannedWord) {
           return interaction.reply({
             content: `❌ ชื่อของคุณมีคำไม่เหมาะสมที่ระบบไม่อนุญาตค่ะ (ตรวจพบคำว่า: **${bannedWord}**)\n\n**กรุณาเปลี่ยนชื่อใหม่ของคุณก่อนกดลงทะเบียนอีกครั้งนะคะ!**\n*หากพบว่าหลังจากเข้ากลุ่มมีการเปลี่ยนชื่อกลับไปเป็นชื่อที่ไม่ดีหรือแฝงคำไม่สุภาพ จะถูกลงโทษตามกฎของเซิร์ฟเวอร์ทันทีค่ะ*`,

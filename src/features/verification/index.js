@@ -67,7 +67,7 @@ const WELCOME_BUTTON_POOL = [
 async function checkBannedName(member) {
   try {
     const { data: wordsData, error } = await supabase
-      .from("banned_words")
+      .from("banned_name")
       .select("word");
 
     if (error) {

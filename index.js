@@ -68,8 +68,8 @@ function setupFeature(name, modulePath, setupName, requiredEnv = []) {
 client.once(Events.ClientReady, async () => {
   console.log(`✅ บอท "${client.user.tag}" พร้อมใช้งานแล้ว!`);
 
-  // ตั้งค่าสถานะบอทเริ่มต้นและตั้งเวลาอัปเดตทุก 10 นาที
-  updateBotPresence(client);
+  // ตั้งค่าสถานะบอทเริ่มต้น (รอ 5 วินาทีให้ cache พร้อม) และตั้งเวลาอัปเดตทุก 10 นาที
+  setTimeout(() => updateBotPresence(client), 5000);
   setInterval(() => updateBotPresence(client), 10 * 60 * 1000);
 
   // โหลด separator IDs จาก Redis
@@ -204,9 +204,13 @@ http
 async function updateBotPresence(client) {
   try {
     const guildId = process.env.GUILD_ID || "1144251788493602848";
-    const guild = client.guilds.cache.get(guildId);
+    let guild = client.guilds.cache.get(guildId);
     if (!guild) {
-      console.warn(`[presence] Guild with ID ${guildId} not found in cache.`);
+      guild = client.guilds.cache.first();
+    }
+    
+    if (!guild) {
+      console.warn(`[presence] No guilds found in client cache yet.`);
       return;
     }
 

@@ -62,18 +62,34 @@ async function getUsername(guild, userId) {
 
 // ── ดึงข้อมูลยอดโดเนทรวม Top N จาก Supabase ────────────────
 async function fetchTopDonors(supabase, limit = 10) {
-  const { data, error } = await supabase
+  const { data: legacyData, error: legacyError } = await supabase
     .from("trading_history")
     .select("member_id, amount")
     .neq("member_id", EXCLUDED_USER_ID);
 
-  if (error) throw new Error(error.message);
+  if (legacyError) throw new Error(legacyError.message);
+
+  const { data: newOrdersData, error: newOrdersError } = await supabase
+    .from("orders")
+    .select("member_id, total_amount")
+    .neq("member_id", EXCLUDED_USER_ID);
+
+  if (newOrdersError) throw new Error(newOrdersError.message);
 
   // รวม amount ต่อ member_id
   const totals = {};
-  for (const row of data) {
+  for (const row of legacyData || []) {
     const mid = row.member_id;
-    totals[mid] = (totals[mid] || 0) + parseFloat(row.amount || 0);
+    if (mid) {
+      totals[mid] = (totals[mid] || 0) + parseFloat(row.amount || 0);
+    }
+  }
+
+  for (const row of newOrdersData || []) {
+    const mid = row.member_id;
+    if (mid) {
+      totals[mid] = (totals[mid] || 0) + parseFloat(row.total_amount || 0);
+    }
   }
 
   // เรียงมากไปน้อย
@@ -84,18 +100,80 @@ async function fetchTopDonors(supabase, limit = 10) {
 
 // ── ดึงยอดรวม + รายการล่าสุด ของ user คนนึง ─────────────────
 async function fetchUserDonation(supabase, userId) {
-  const { data, error } = await supabase
+  const { data: legacyData, error: legacyError } = await supabase
     .from("trading_history")
-    .select("member_id, amount, transaction")
-    .eq("member_id", userId)
-    .order("transaction", { ascending: false });
+    .select("amount, transaction, log_timestamp")
+    .eq("member_id", userId);
 
-  if (error) throw new Error(error.message);
-  if (!data || data.length === 0) return null;
+  if (legacyError) throw new Error(legacyError.message);
 
-  const total = data.reduce((s, r) => s + parseFloat(r.amount || 0), 0);
-  const latest = data[0]; // รายการล่าสุด
-  return { total, latestAmount: parseFloat(latest.amount || 0), latestDate: latest.transaction };
+  const { data: newOrdersData, error: newOrdersError } = await supabase
+    .from("orders")
+    .select("total_amount, transaction_date, log_timestamp")
+    .eq("member_id", userId);
+
+  if (newOrdersError) throw new Error(newOrdersError.message);
+
+  const hasLegacy = legacyData && legacyData.length > 0;
+  const hasNew = newOrdersData && newOrdersData.length > 0;
+
+  if (!hasLegacy && !hasNew) return null;
+
+  const legacyTotal = hasLegacy ? legacyData.reduce((s, r) => s + parseFloat(r.amount || 0), 0) : 0;
+  const newTotal = hasNew ? newOrdersData.reduce((s, r) => s + parseFloat(r.total_amount || 0), 0) : 0;
+  const total = legacyTotal + newTotal;
+
+  // หาข้อมูลล่าสุด
+  let latestAmount = 0;
+  let latestDate = null;
+
+  const parseTxDate = (raw) => {
+    if (!raw) return null;
+    const slashMatch = raw.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})$/);
+    if (slashMatch) {
+      const [, day, month, yearStr] = slashMatch;
+      let year = parseInt(yearStr);
+      if (year > 2400) year -= 543;
+      const d = new Date(year, parseInt(month) - 1, parseInt(day));
+      if (!isNaN(d.getTime())) return d;
+    }
+    const d = new Date(raw);
+    return isNaN(d.getTime()) ? null : d;
+  };
+
+  const allRecords = [];
+
+  if (hasLegacy) {
+    for (const r of legacyData) {
+      const d = parseTxDate(r.transaction) || (r.log_timestamp ? new Date(r.log_timestamp) : new Date(0));
+      allRecords.push({
+        amount: parseFloat(r.amount || 0),
+        date: d,
+        rawDate: r.transaction
+      });
+    }
+  }
+
+  if (hasNew) {
+    for (const r of newOrdersData) {
+      const d = parseTxDate(r.transaction_date) || (r.log_timestamp ? new Date(r.log_timestamp) : new Date(0));
+      allRecords.push({
+        amount: parseFloat(r.total_amount || 0),
+        date: d,
+        rawDate: r.transaction_date
+      });
+    }
+  }
+
+  // เรียงลำดับจากล่าสุดไปหาเก่าสุด
+  allRecords.sort((a, b) => b.date.getTime() - a.date.getTime());
+
+  if (allRecords.length > 0) {
+    latestAmount = allRecords[0].amount;
+    latestDate = allRecords[0].rawDate || null;
+  }
+
+  return { total, latestAmount, latestDate };
 }
 
 // ── สร้าง Component body สำหรับ Top Donate ──────────────────

@@ -183,20 +183,30 @@ function setupCreatePersonalRole(client) {
         has30Days = joinedDurationMs >= requiredDurationMs;
       }
 
-      // ตรวจสอบเงื่อนไข 2: โดเนทสะสมครบ 250 บาทขึ้นไปผ่านฐานข้อมูล Supabase
+      // ตรวจสอบเงื่อนไข 2: โดเนทสะสมครบ 250 บาทขึ้นไปผ่านฐานข้อมูล Supabase (ตารางเก่า trading_history + ตารางใหม่ orders)
       let hasDonate250 = false;
       try {
-        const { data, error } = await supabase
+        const { data: legacyData, error: legacyError } = await supabase
           .from("trading_history")
           .select("amount")
           .eq("member_id", targetUserId);
 
-        if (error) {
-          console.error(`[createPersonalRole] DB Error checking donations:`, error.message);
-        } else if (data) {
-          const totalAmount = data.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-          hasDonate250 = totalAmount >= 250;
+        const { data: newOrdersData, error: newOrdersError } = await supabase
+          .from("orders")
+          .select("total_amount")
+          .eq("member_id", targetUserId);
+
+        if (legacyError) {
+          console.error(`[createPersonalRole] DB Error checking legacy donations:`, legacyError.message);
         }
+        if (newOrdersError) {
+          console.error(`[createPersonalRole] DB Error checking new orders donations:`, newOrdersError.message);
+        }
+
+        const legacySum = legacyData ? legacyData.reduce((sum, item) => sum + Number(item.amount || 0), 0) : 0;
+        const newOrdersSum = newOrdersData ? newOrdersData.reduce((sum, item) => sum + Number(item.total_amount || 0), 0) : 0;
+        const totalAmount = legacySum + newOrdersSum;
+        hasDonate250 = totalAmount >= 250;
       } catch (dbErr) {
         console.error(`[createPersonalRole] Database exception:`, dbErr.message);
       }

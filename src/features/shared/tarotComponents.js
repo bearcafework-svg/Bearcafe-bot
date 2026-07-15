@@ -59,4 +59,18 @@ function otherCommandsPayload() {
   };
 }
 
-module.exports = { blacklistPayload, cooldownContent, otherCommandsPayload };
+// ─── DM Closed Payload ────────────────────────────────────────────────────────
+function dmClosedPayload() {
+  return {
+    content:
+      `❌ **ไม่สามารถทำรายการได้ เนื่องจากคุณยังไม่ได้เปิดรับข้อความส่วนตัว (DM) ค่ะ**\n\n` +
+      `**วิธีเปิดใช้งาน DM เพื่อรับข่าวสาร:**\n` +
+      `1. คลิกที่ **ชื่อเซิร์ฟเวอร์ Bear Cafe** (บริเวณซ้ายบนของหน้าจอ)\n` +
+      `2. เลือกเมนู **Privacy Settings (การตั้งค่าความเป็นส่วนตัว)**\n` +
+      `3. เปิดการตั้งค่า **Allow Direct Messages (อนุญาตข้อความส่วนตัว)** สำหรับเซิร์ฟเวอร์นี้\n` +
+      `4. เมื่อเปิดใช้งานเสร็จเรียบร้อยแล้ว กรุณากดทำรายการใหม่อีกครั้งเพื่อบันทึกค่ะ!`,
+    flags: 64 // Ephemeral
+  };
+}
+
+module.exports = { blacklistPayload, cooldownContent, otherCommandsPayload, dmClosedPayload };

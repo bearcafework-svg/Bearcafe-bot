@@ -13,7 +13,7 @@ const {
 const { createClient } = require("@supabase/supabase-js");
 const sharedConfig = require("../../sharedSettings.json");
 const { startQueueProcessor } = require("./queueProcessor");
-const { blacklistPayload } = require("../shared/tarotComponents");
+const { blacklistPayload, dmClosedPayload } = require("../shared/tarotComponents");
 
 // Supabase client initialization
 const supabase = createClient(
@@ -393,7 +393,29 @@ function setupVerification(client) {
           return interaction.reply(payload);
         }
 
+        // Defer reply since sending a test DM might take longer than 3 seconds
+        await interaction.deferReply({ flags: 64 });
+
         const userId = interaction.user.id;
+        const username = interaction.user.username;
+
+        // Check if member DM is open
+        try {
+          await interaction.user.send(
+            "🔔 **ทดสอบการเปิด DM (Bear Cafe)**\n\nระบบกำลังเปิดหน้าเลือกรับการแจ้งเตือนให้กับคุณค่ะ (หากได้รับข้อความนี้แสดงว่าคุณเปิด DM เรียบร้อยแล้วค่ะ)"
+          );
+        } catch (dmErr) {
+          // Update status in member_dm_status
+          await supabase.from("member_dm_status").upsert({
+            user_id: userId,
+            username: username,
+            dm_status: "closed",
+            last_checked_at: new Date().toISOString(),
+            last_error: dmErr.message || "Cannot DM user"
+          });
+          return interaction.editReply(dmClosedPayload());
+        }
+
         try {
           // Load current user options from DB
           const { data, error } = await supabase
@@ -406,12 +428,11 @@ function setupVerification(client) {
           const activeOptions = data ? data.map(r => r.option_value) : [];
           const notifyPayload = buildNoticeSelectorPayload(userId, activeOptions);
 
-          await interaction.reply(notifyPayload);
+          await interaction.editReply(notifyPayload);
         } catch (err) {
           console.error("[verification] Error loading notice choices:", err.message);
-          await interaction.reply({
-            content: "❌ เกิดข้อผิดพลาดในการโหลดข้อมูลการรับแจ้งเตือน กรุณาลองอีกครั้งในภายหลังค่ะ",
-            flags: 64
+          await interaction.editReply({
+            content: "❌ เกิดข้อผิดพลาดในการโหลดข้อมูลการรับแจ้งเตือน กรุณาลองอีกครั้งในภายหลังค่ะ"
           }).catch(() => {});
         }
         return;
@@ -603,9 +624,7 @@ function setupVerification(client) {
             last_error: dmErr.message || "Cannot DM user"
           });
 
-          return interaction.editReply({
-            content: `❌ **ไม่สามารถบันทึกการรับแจ้งเตือนได้ เนื่องจากคุณยังไม่ได้เปิดรับข้อความส่วนตัว (DM) ค่ะ**\n\n**วิธีเปิดใช้งาน DM เพื่อรับข่าวสาร:**\n1. คลิกที่ **ชื่อเซิร์ฟเวอร์ Bear Cafe** (บริเวณซ้ายบนของหน้าจอ)\n2. เลือกเมนู **Privacy Settings (การตั้งค่าความเป็นส่วนตัว)**\n3. เปิดการตั้งค่า **Allow Direct Messages (อนุญาตข้อความส่วนตัว)** สำหรับเซิร์ฟเวอร์นี้\n4. เมื่อเปิดใช้งานเสร็จเรียบร้อยแล้ว กรุณากดเลือกหัวข้อแจ้งเตือนใหม่อีกครั้งเพื่อบันทึกค่ะ!`
-          });
+          return interaction.editReply(dmClosedPayload());
         }
 
         // DM success, update DB dms_options & member_dm_status

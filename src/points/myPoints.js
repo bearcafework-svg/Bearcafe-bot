@@ -124,7 +124,7 @@ function setupMyPoints(client) {
     { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
   );
 
-  client.once('ready', async () => {
+  client.once('clientReady', async () => {
     try {
       const guild = client.guilds.cache.get('1144251788493602848');
       if (guild) {

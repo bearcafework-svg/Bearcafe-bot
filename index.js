@@ -65,7 +65,7 @@ function setupFeature(name, modulePath, setupName, requiredEnv = []) {
 }
 
 // ── ตอนบอท ready ──────────────────────────────────────────────────
-client.once(Events.ClientReady, async () => {
+client.once("clientReady", async () => {
   console.log(`✅ บอท "${client.user.tag}" พร้อมใช้งานแล้ว!`);
 
   // ตั้งค่าสถานะบอทเริ่มต้น (รอ 5 วินาทีให้ cache พร้อม) และตั้งเวลาอัปเดตทุก 10 นาที
@@ -215,14 +215,15 @@ async function updateBotPresence(client) {
     }
 
     const memberCount = guild.memberCount;
+    const formattedCount = memberCount.toLocaleString();
     client.user.setPresence({
       activities: [{
-        name: `นั่งเลี้ยงลูกหมี ${memberCount} ตัว`,
+        name: `นั่งเลี้ยงลูกหมี ${formattedCount} ตัว`,
         type: ActivityType.Streaming,
         url: "https://www.twitch.tv/bearcafe"
       }]
     });
-    console.log(`[presence] Updated presence: นั่งเลี้ยงลูกหมี ${memberCount} ตัว`);
+    console.log(`[presence] Updated presence: นั่งเลี้ยงลูกหมี ${formattedCount} ตัว`);
   } catch (err) {
     console.error("[presence] Failed to update presence:", err.message);
   }

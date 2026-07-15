@@ -29,7 +29,7 @@ function hasStaffPermission(member) {
  */
 function setupCreateRentHouse(client) {
   // 1. ลงทะเบียน Slash Command เมื่อบอทพร้อม
-  client.once(Events.ClientReady, async () => {
+  client.once("clientReady", async () => {
     try {
       const guildId = process.env.GUILD_ID || "1144251788493602848";
       const guild = client.guilds.cache.get(guildId) || client.guilds.cache.first();

@@ -107,7 +107,7 @@ async function checkBannedName(member) {
  */
 async function completeVerification(interaction) {
   const member = interaction.member;
-  
+
   try {
     // 1. Assign role
     await member.roles.add(MEMBER_ROLE_ID);
@@ -142,7 +142,7 @@ async function completeVerification(interaction) {
     const welcomeChannel = interaction.guild.channels.cache.get(WELCOME_CHANNEL_ID);
     if (welcomeChannel) {
       const welcomeMsg = await welcomeChannel.send(welcomePayload);
-      
+
       // Delete welcome message after 5 minutes
       setTimeout(async () => {
         try {
@@ -257,7 +257,7 @@ function setupVerification(client) {
                 },
                 {
                   type: 10,
-                  content: "# <:bee20000:1256669436350562355>︲__` 𝖦𝖾𝗍 𝗋𝖾𝗀𝗂𝗌𝗍𝖾𝗋 ₊ ลงทะเบียนค้าบ 𓂃 `__"
+                  content: "## <:bee20000:1256669436350562355>︲__` 𝖦𝖾𝗍 𝗋𝖾𝗀𝗂𝗌𝗍𝖾𝗋 ₊ ลงทะเบียนค้าบ 𓂃 `__"
                 },
                 {
                   type: 12,
@@ -301,7 +301,7 @@ function setupVerification(client) {
         // Delete setup command
         try {
           await message.delete();
-        } catch (e) {}
+        } catch (e) { }
 
       } catch (err) {
         console.error("[verification] Failed to send registration panel:", err);
@@ -365,7 +365,7 @@ function setupVerification(client) {
         await message.channel.send(payload);
         try {
           await message.delete();
-        } catch (e) {}
+        } catch (e) { }
       } catch (err) {
         console.error("[verification] Failed to send notification panel:", err);
       }
@@ -405,7 +405,7 @@ function setupVerification(client) {
         try {
           const dm = await interaction.user.createDM();
           const testMsg = await dm.send({ content: "\u200b" });
-          await testMsg.delete().catch(() => {});
+          await testMsg.delete().catch(() => { });
           dmOpen = true;
         } catch (err) {
           dmOpen = false;
@@ -450,7 +450,7 @@ function setupVerification(client) {
           console.error("[verification] Error loading notice choices:", err.message);
           await interaction.editReply({
             content: "❌ เกิดข้อผิดพลาดในการโหลดข้อมูลการรับแจ้งเตือน กรุณาลองอีกครั้งในภายหลังค่ะ"
-          }).catch(() => {});
+          }).catch(() => { });
         }
         return;
       }
@@ -618,7 +618,7 @@ function setupVerification(client) {
             await interaction.reply({
               content: "❌ เกิดข้อผิดพลาดในการบันทึกข้อมูลการรับแจ้งเตือน กรุณาลองอีกครั้งในภายหลังค่ะ",
               flags: 64
-            }).catch(() => {});
+            }).catch(() => { });
           }
           return;
         }
@@ -631,7 +631,7 @@ function setupVerification(client) {
         try {
           const dm = await interaction.user.createDM();
           const testMsg = await dm.send({ content: "\u200b" });
-          await testMsg.delete().catch(() => {});
+          await testMsg.delete().catch(() => { });
           dmOpen = true;
         } catch (err) {
           dmOpen = false;
@@ -751,7 +751,7 @@ function setupVerification(client) {
           }
 
           const answer = isAdd ? (num1 + num2) : (num1 - num2);
-          
+
           const modal = new ModalBuilder()
             .setCustomId(`modal_math:${answer}`)
             .setTitle("บวกลบเลขอนุบาล");
@@ -807,9 +807,9 @@ function setupVerification(client) {
                       {
                         media: {
                           url: "https://cdn.discordapp.com/attachments/1525750929775923210/1526532707255980073/43878e9184706de393fd84369e4fa092.jpg?ex=6a575ddf&is=6a560c5f&hm=7dcb1dcf0dc72c6ad6620b72188a294e60c321d3d22fdd6e1614bfc2a3ea13a6&"
+                        }
                       }
-                    }
-                  ]
+                    ]
                   },
                   {
                     type: 14,
@@ -833,9 +833,9 @@ function setupVerification(client) {
       }
 
       // ─── Button: How many bears (any button is correct) ───────────────
-      if (interaction.isButton() && 
-         (interaction.customId === "p_324129479838404611" || 
-          interaction.customId === "p_324129553377136644" || 
+      if (interaction.isButton() &&
+        (interaction.customId === "p_324129479838404611" ||
+          interaction.customId === "p_324129553377136644" ||
           interaction.customId === "p_324129614886604805")) {
         await completeVerification(interaction);
       }

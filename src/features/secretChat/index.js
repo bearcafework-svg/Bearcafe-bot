@@ -13,6 +13,7 @@ const crypto = require("crypto");
 const { createClient } = require("@supabase/supabase-js");
 const { safeDeleteChannel, safeDeferReply, safeRespond } = require("../../../utils/discordSafety");
 const ws = require("ws");
+const { dmClosedPayload } = require("../shared/tarotComponents");
 
 // ============================================================================
 // SYSTEM CONFIGURATION & CONSTANTS
@@ -605,7 +606,7 @@ function buildV2Notify(roleIds, msg, ads = [], ctaButtons = []) {
     },
     {
       type: 1, components: [
-        { type: 2, style: 5, label: "กดเพื่อไปสุ่มแชทคุย", url: "https://discord.com/channels/1144251788493602848/1507027734097039442" },
+        { type: 2, style: 5, label: "กดเพื่อไปสุ่มแชทคุย", url: "https://discord.com/channels/1144251788493602848/1524124222555947109" },
       ]
     }
   ];
@@ -1340,13 +1341,7 @@ async function handleJoinQueue(interaction) {
   const dmOpen = await checkDmOpen(interaction.user);
   console.log(`[debug] DM open result: ${dmOpen}`);
   if (!dmOpen) {
-    return await interaction.editReply({
-      content:
-        "📩 **กรุณาเปิดรับ DM ก่อนใช้งานนะคะ!**\n\n" +
-        "ระบบจำเป็นต้องส่ง DM เพื่อแจ้งเตือนเมื่อจับคู่สำเร็จค่ะ\n\n" +
-        "**วิธีเปิด DM:**\n" +
-        "⚙️ Settings → Privacy & Safety → Allow direct messages from server members ✅"
-    });
+    return await interaction.editReply(dmClosedPayload());
   }
 
   const presence = interaction.guild?.members?.cache.get(userId)?.presence;

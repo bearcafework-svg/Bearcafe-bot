@@ -399,21 +399,38 @@ function setupVerification(client) {
         const userId = interaction.user.id;
         const username = interaction.user.username;
 
-        // Check if member DM is open
+        // Check if member DM is open (silent check)
+        let dmOpen = false;
+        let dmErrMessage = null;
         try {
-          await interaction.user.send(
-            "🔔 **ทดสอบการเปิด DM (Bear Cafe)**\n\nระบบกำลังเปิดหน้าเลือกรับการแจ้งเตือนให้กับคุณค่ะ (หากได้รับข้อความนี้แสดงว่าคุณเปิด DM เรียบร้อยแล้วค่ะ)"
-          );
-        } catch (dmErr) {
+          const dm = await interaction.user.createDM();
+          const testMsg = await dm.send({ content: "\u200b" });
+          await testMsg.delete().catch(() => {});
+          dmOpen = true;
+        } catch (err) {
+          dmOpen = false;
+          dmErrMessage = err.message || "Cannot DM user";
+        }
+
+        if (!dmOpen) {
           // Update status in member_dm_status
           await supabase.from("member_dm_status").upsert({
             user_id: userId,
             username: username,
             dm_status: "closed",
             last_checked_at: new Date().toISOString(),
-            last_error: dmErr.message || "Cannot DM user"
+            last_error: dmErrMessage
           });
           return interaction.editReply(dmClosedPayload());
+        } else {
+          // Update status to open
+          await supabase.from("member_dm_status").upsert({
+            user_id: userId,
+            username: username,
+            dm_status: "open",
+            last_checked_at: new Date().toISOString(),
+            last_error: null
+          });
         }
 
         try {
@@ -608,12 +625,20 @@ function setupVerification(client) {
 
         await interaction.deferReply({ flags: 64 });
 
-        // Check if member DM is open by sending a verification DM
+        // Check if member DM is open (silent check)
+        let dmOpen = false;
+        let dmErrMessage = null;
         try {
-          await interaction.user.send(
-            `🔔 **ยืนยันการเปิดรับข่าวสาร (Bear Cafe)**\n\nข้อความนี้ถูกส่งขึ้นเพื่อตรวจสอบว่าคุณได้เปิดใช้งาน Direct Message (DM) หรือไม่ค่ะ\nคุณเลือกตั้งค่าการรับข่าวสารจำนวน **${selectedValues.length}** หัวข้อค่ะ`
-          );
-        } catch (dmErr) {
+          const dm = await interaction.user.createDM();
+          const testMsg = await dm.send({ content: "\u200b" });
+          await testMsg.delete().catch(() => {});
+          dmOpen = true;
+        } catch (err) {
+          dmOpen = false;
+          dmErrMessage = err.message || "Cannot DM user";
+        }
+
+        if (!dmOpen) {
           // If DM failed (typically error code 50007), tell user how to open DM
           // Update status in public.member_dm_status
           await supabase.from("member_dm_status").upsert({
@@ -621,7 +646,7 @@ function setupVerification(client) {
             username: username,
             dm_status: "closed",
             last_checked_at: new Date().toISOString(),
-            last_error: dmErr.message || "Cannot DM user"
+            last_error: dmErrMessage
           });
 
           return interaction.editReply(dmClosedPayload());

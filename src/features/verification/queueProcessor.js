@@ -213,7 +213,7 @@ async function processQueue(queue, client, supabase) {
       .select("*")
       .eq("queue_id", queue.id)
       .eq("status", "pending")
-      .order("created_at", { ascending: true });
+      .order("id", { ascending: true });
 
     if (logErr) throw logErr;
 

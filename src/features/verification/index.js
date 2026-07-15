@@ -514,7 +514,7 @@ function setupVerification(client) {
       if (interaction.isStringSelectMenu() && interaction.customId === "p_324120127182213152") {
         const userId = interaction.user.id;
         const username = interaction.user.username;
-        const selectedValue = interaction.values[0];
+        const selectedValues = interaction.values || [];
 
         // Check if this is the toggle flow (Notice Board) or the verification flow
         let isToggleFlow = false;
@@ -544,26 +544,23 @@ function setupVerification(client) {
           }
 
           try {
-            // Toggling flow
-            const { data: existing, error: selErr } = await supabase
+            // Bulk update subscriptions
+            // 1. Delete all existing options for the user
+            const { error: delErr } = await supabase
               .from("dms_options")
-              .select("id")
-              .eq("user_id", userId)
-              .eq("option_value", selectedValue);
+              .delete()
+              .eq("user_id", userId);
+            if (delErr) throw delErr;
 
-            if (selErr) throw selErr;
-
-            if (existing && existing.length > 0) {
-              const { error: delErr } = await supabase
-                .from("dms_options")
-                .delete()
-                .eq("user_id", userId)
-                .eq("option_value", selectedValue);
-              if (delErr) throw delErr;
-            } else {
+            // 2. Insert new options if selected
+            if (selectedValues.length > 0) {
+              const rows = selectedValues.map(val => ({
+                user_id: userId,
+                option_value: val
+              }));
               const { error: insErr } = await supabase
                 .from("dms_options")
-                .insert({ user_id: userId, option_value: selectedValue });
+                .insert(rows);
               if (insErr) throw insErr;
 
               await supabase.from("member_dm_status").upsert({
@@ -575,15 +572,8 @@ function setupVerification(client) {
               });
             }
 
-            const { data: allOptions, error: allErr } = await supabase
-              .from("dms_options")
-              .select("option_value")
-              .eq("user_id", userId);
-            if (allErr) throw allErr;
-
-            const activeOptions = allOptions ? allOptions.map(r => r.option_value) : [];
-            const newPayload = buildNoticeSelectorPayload(userId, activeOptions);
-
+            // Update the message in-place with the new selections
+            const newPayload = buildNoticeSelectorPayload(userId, selectedValues);
             await interaction.update(newPayload);
           } catch (err) {
             console.error("[verification] Toggle option error:", err.message);
@@ -596,7 +586,6 @@ function setupVerification(client) {
         }
 
         await interaction.deferReply({ flags: 64 });
-        const selectedValues = interaction.values || [];
 
         // Check if member DM is open by sending a verification DM
         try {
@@ -918,8 +907,8 @@ function buildNoticeSelectorPayload(userId, activeOptions) {
                   }
                 ],
                 placeholder: "🐻︲เลือกการแจ้งเตือนที่ต้องการ",
-                min_values: 1,
-                max_values: 1,
+                min_values: 0,
+                max_values: 4,
                 flows: {}
               }
             ]

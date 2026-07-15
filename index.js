@@ -5,7 +5,7 @@
 require("dotenv").config();
 
 const http = require("http");
-const { Client, GatewayIntentBits } = require("discord.js");
+const { Client, GatewayIntentBits, ActivityType, Events } = require("discord.js");
 const { startMonitor } = require("./handlers/roomMonitor");
 const { destroyRoom } = require("./handlers/roomDestroyer");
 const { handleRoomPanel, handleRoomPanelInteraction } = require("./handlers/roomPanel");
@@ -65,8 +65,12 @@ function setupFeature(name, modulePath, setupName, requiredEnv = []) {
 }
 
 // ── ตอนบอท ready ──────────────────────────────────────────────────
-client.once("clientReady", async () => {
+client.once(Events.ClientReady, async () => {
   console.log(`✅ บอท "${client.user.tag}" พร้อมใช้งานแล้ว!`);
+
+  // ตั้งค่าสถานะบอทเริ่มต้นและตั้งเวลาอัปเดตทุก 10 นาที
+  updateBotPresence(client);
+  setInterval(() => updateBotPresence(client), 10 * 60 * 1000);
 
   // โหลด separator IDs จาก Redis
   try {
@@ -165,6 +169,21 @@ client.on("interactionCreate", async (interaction) => {
   handleRoomPanelInteraction(interaction).catch(console.error);
 });
 
+// ── อัปเดตสถานะเมื่อสมาชิกเข้า/ออกจาก Guild ───────────────────────
+client.on("guildMemberAdd", (member) => {
+  const guildId = process.env.GUILD_ID || "1144251788493602848";
+  if (member.guild.id === guildId) {
+    updateBotPresence(client);
+  }
+});
+
+client.on("guildMemberRemove", (member) => {
+  const guildId = process.env.GUILD_ID || "1144251788493602848";
+  if (member.guild.id === guildId) {
+    updateBotPresence(client);
+  }
+});
+
 const port = process.env.PORT || 8000;
 http
   .createServer((req, res) => {
@@ -180,6 +199,30 @@ http
   .listen(Number(port), "0.0.0.0", () => {
     console.log(`Health server listening on port ${port}`);
   });
+
+// ── อัปเดตสถานะบอท Streaming ──────────────────────────────────────────
+async function updateBotPresence(client) {
+  try {
+    const guildId = process.env.GUILD_ID || "1144251788493602848";
+    const guild = client.guilds.cache.get(guildId);
+    if (!guild) {
+      console.warn(`[presence] Guild with ID ${guildId} not found in cache.`);
+      return;
+    }
+
+    const memberCount = guild.memberCount;
+    client.user.setPresence({
+      activities: [{
+        name: `นั่งเลี้ยงลูกหมี ${memberCount} ตัว`,
+        type: ActivityType.Streaming,
+        url: "https://www.twitch.tv/bearcafe"
+      }]
+    });
+    console.log(`[presence] Updated presence: นั่งเลี้ยงลูกหมี ${memberCount} ตัว`);
+  } catch (err) {
+    console.error("[presence] Failed to update presence:", err.message);
+  }
+}
 
 // ── Error handling ─────────────────────────────────────────────────
 client.on("error", (e) => console.error("Discord client error:", e));

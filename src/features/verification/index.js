@@ -885,25 +885,29 @@ function buildNoticeSelectorPayload(userId, activeOptions) {
                     label: "กิจกรรม",
                     value: "49B40A9yBS",
                     description: "ลุ้นของรางวัล อีเวนต์ และกิจกรรมพิเศษ",
-                    emoji: { name: "🎉" }
+                    emoji: { name: "🎉" },
+                    default: activeOptions.includes("49B40A9yBS")
                   },
                   {
                     label: "ประกาศสำคัญ",
                     value: "JNySCX80ja",
                     description: "ข่าวสำคัญที่อาจส่งผลต่อการใช้งานเซิร์ฟเวอร์",
-                    emoji: { name: "📢" }
+                    emoji: { name: "📢" },
+                    default: activeOptions.includes("JNySCX80ja")
                   },
                   {
                     label: "ข่าวสารทั่วไป",
                     value: "DsMHlVrjze",
                     description: "อัปเดตฟีเจอร์และความเคลื่อนไหวของ Bear Cafe",
-                    emoji: { name: "📑" }
+                    emoji: { name: "📑" },
+                    default: activeOptions.includes("DsMHlVrjze")
                   },
                   {
                     label: "โปรโมชันและโฆษณา",
                     value: "6io1xnaMWJ",
                     description: "โปรโมชัน และสิทธิพิเศษสำหรับสมาชิก",
-                    emoji: { name: "🎁" }
+                    emoji: { name: "🎁" },
+                    default: activeOptions.includes("6io1xnaMWJ")
                   }
                 ],
                 placeholder: "🐻︲เลือกการแจ้งเตือนที่ต้องการ",

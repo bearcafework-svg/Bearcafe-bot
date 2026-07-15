@@ -127,6 +127,9 @@ async function initializeQueue(queue, client, supabase) {
 
       if (subErr) throw subErr;
       targetUserIds = (subs || []).map((s) => s.user_id);
+    } else if (queue.target_type === "test" && queue.target_value) {
+      console.log(`[queue-processor] Fetching test targets: ${queue.target_value}`);
+      targetUserIds = queue.target_value.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
     }
 
     // Remove duplicates

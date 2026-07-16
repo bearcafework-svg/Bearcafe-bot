@@ -9,7 +9,6 @@ const sharedConfig = require('../../sharedSettings.json');
 cfg.role_blacklist = sharedConfig.role_blacklist;
 cfg.point_icon = sharedConfig.point_icon;
 const infotarot = require('./Infotarot.json');
-const tarotImages = require('./tarotImages.json');
 const { blacklistPayload, cooldownContent, otherCommandsPayload } = require('../shared/tarotComponents');
 
 // ─── Cooldown store (in-memory) ───────────────────────────────────────────────
@@ -109,7 +108,7 @@ function buildLoadingPayload() {
 // ─── Payload: Card Only (กรณีกดรับรางวัลไปแล้ว tarot_point >= mission_target) ─
 function buildCardPayload(card, earnedPoints) {
   const pi = cfg.point_icon;
-  const imgUrl = tarotImages.cards[card.cardId];
+  const imgUrl = card.img;
   return {
     flags: FLAG_V2,
     components: [{
@@ -164,7 +163,7 @@ function buildCardPayload(card, earnedPoints) {
 // ─── Payload: Mission + Card รวมกัน (ส่ง reply เดียว) ────────────────────────
 function buildCombinedPayload(card, earnedPoints, tarotPoint, isComplete) {
   const pi = cfg.point_icon;
-  const imgUrl = tarotImages.cards[card.cardId];
+  const imgUrl = card.img;
   return {
     flags: FLAG_V2,
     components: [{

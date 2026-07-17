@@ -124,8 +124,7 @@ function setupHealing(client) {
                       name: "27073hispeechbubble",
                       animated: true
                     },
-                    url: "https://bearcafe4commu.vercel.app/healing-message",
-                    custom_id: "p_325245404381712388"
+                    url: "https://bearcafe4commu.vercel.app/healing-message"
                   }
                 ]
               }

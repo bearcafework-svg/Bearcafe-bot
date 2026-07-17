@@ -402,6 +402,7 @@ function setupVerification(client) {
         // Check if member DM is open (silent check)
         let dmOpen = false;
         let dmErrMessage = null;
+        let isQuarantined = false;
         try {
           const dm = await interaction.user.createDM();
           const testMsg = await dm.send({ content: "\u200b" });
@@ -411,6 +412,15 @@ function setupVerification(client) {
           console.error(`[Verification] DM check failed for user ${username} (${userId}):`, err);
           dmOpen = false;
           dmErrMessage = err.message || "Cannot DM user";
+          if (err.code === 20026 || (err.message && (err.message.includes("anti-spam") || err.message.includes("abusive behavior") || err.message.includes("quarantine")))) {
+            isQuarantined = true;
+          }
+        }
+
+        if (isQuarantined) {
+          return interaction.editReply({
+            content: "❌ ระบบส่งข้อความของบอทขัดข้องชั่วคราว (ถูกจำกัดสิทธิ์ชั่วคราวโดย Discord) ทีมงานกำลังยื่นเรื่องขอปลดล็อกค่ะ กรุณาลองใหม่อีกครั้งในภายหลังนะคะ"
+          });
         }
 
         if (!dmOpen) {
@@ -629,6 +639,7 @@ function setupVerification(client) {
         // Check if member DM is open (silent check)
         let dmOpen = false;
         let dmErrMessage = null;
+        let isQuarantined = false;
         try {
           const dm = await interaction.user.createDM();
           const testMsg = await dm.send({ content: "\u200b" });
@@ -638,6 +649,15 @@ function setupVerification(client) {
           console.error(`[Verification/Interaction] DM check failed for user ${username} (${userId}):`, err);
           dmOpen = false;
           dmErrMessage = err.message || "Cannot DM user";
+          if (err.code === 20026 || (err.message && (err.message.includes("anti-spam") || err.message.includes("abusive behavior") || err.message.includes("quarantine")))) {
+            isQuarantined = true;
+          }
+        }
+
+        if (isQuarantined) {
+          return interaction.editReply({
+            content: "❌ ระบบส่งข้อความของบอทขัดข้องชั่วคราว (ถูกจำกัดสิทธิ์ชั่วคราวโดย Discord) ทีมงานกำลังยื่นเรื่องขอปลดล็อกค่ะ กรุณาลองใหม่อีกครั้งในภายหลังนะคะ"
+          });
         }
 
         if (!dmOpen) {

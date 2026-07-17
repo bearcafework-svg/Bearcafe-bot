@@ -931,6 +931,9 @@ async function checkDmOpen(user) {
     return true;
   } catch (err) {
     console.error(`[checkDmOpen] DM check failed for user ${user.tag || user.id}:`, err);
+    if (err.code === 20026 || (err.message && (err.message.includes("anti-spam") || err.message.includes("abusive behavior") || err.message.includes("quarantine")))) {
+      throw new Error("BOT_QUARANTINED");
+    }
     return false;
   }
 }
@@ -1339,10 +1342,19 @@ async function handleJoinQueue(interaction) {
   }
 
   console.log(`[debug] checking DM open...`);
-  const dmOpen = await checkDmOpen(interaction.user);
-  console.log(`[debug] DM open result: ${dmOpen}`);
-  if (!dmOpen) {
-    return await interaction.editReply(dmClosedPayload());
+  try {
+    const dmOpen = await checkDmOpen(interaction.user);
+    console.log(`[debug] DM open result: ${dmOpen}`);
+    if (!dmOpen) {
+      return await interaction.editReply(dmClosedPayload());
+    }
+  } catch (err) {
+    if (err.message === "BOT_QUARANTINED") {
+      return await interaction.editReply({
+        content: "❌ ระบบส่งข้อความทางเทคนิคของบอทกำลังขัดข้องชั่วคราว (บอทถูกจำกัดการส่งโดย Discord) ทีมงานกำลังเร่งแก้ไขค่ะ กรุณาลองใหม่อีกครั้งภายหลังนะคะ"
+      });
+    }
+    return await interaction.editReply({ content: "เกิดข้อผิดพลาดในการตรวจสอบสถานะ DM ของคุณค่ะ" });
   }
 
   const presence = interaction.guild?.members?.cache.get(userId)?.presence;

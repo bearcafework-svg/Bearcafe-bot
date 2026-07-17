@@ -46,6 +46,50 @@ function destroySecondaryClient() {
 }
 
 /**
+ * Check if the bot has exceeded sending limits (100/hour or 1000/day)
+ * @returns {Promise<{ allowed: boolean, reason: string | null }>}
+ */
+async function checkThrottleLimits(supabase) {
+  const now = new Date();
+
+  // 1. Check hourly limit (last 60 minutes)
+  const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+  const { count: hourlyCount, error: hourErr } = await supabase
+    .from("dm_broadcast_logs")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "success")
+    .gte("sent_at", oneHourAgo.toISOString());
+
+  if (hourErr) {
+    console.error("[queue-processor] Hourly count query error:", hourErr.message);
+    return { allowed: false, reason: "Database error" };
+  }
+
+  if (hourlyCount >= 100) {
+    return { allowed: false, reason: `Hourly limit reached (${hourlyCount}/100 in the last hour)` };
+  }
+
+  // 2. Check daily limit (last 24 hours)
+  const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const { count: dailyCount, error: dayErr } = await supabase
+    .from("dm_broadcast_logs")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "success")
+    .gte("sent_at", oneDayAgo.toISOString());
+
+  if (dayErr) {
+    console.error("[queue-processor] Daily count query error:", dayErr.message);
+    return { allowed: false, reason: "Database error" };
+  }
+
+  if (dailyCount >= 1000) {
+    return { allowed: false, reason: `Daily limit reached (${dailyCount}/1000 in the last 24 hours)` };
+  }
+
+  return { allowed: true, reason: null };
+}
+
+/**
  * Starts the polling loop for background DM broadcast queues
  * @param {Client} client Main bot client
  * @param {SupabaseClient} supabase Supabase client
@@ -74,7 +118,34 @@ function startQueueProcessor(client, supabase) {
         return;
       }
 
-      // 2. If no processing queue, check for pending queue to initialize
+      // 2. If no processing queue, check for any paused queue to see if we can resume it
+      const { data: pausedQueues, error: pausedErr } = await supabase
+        .from("dm_broadcast_queues")
+        .select("*")
+        .eq("status", "paused")
+        .order("created_at", { ascending: true })
+        .limit(1);
+
+      if (pausedErr) throw pausedErr;
+
+      if (pausedQueues && pausedQueues.length > 0) {
+        const throttle = await checkThrottleLimits(supabase);
+        if (throttle.allowed) {
+          console.log(`[queue-processor] Resuming paused queue: "${pausedQueues[0].title}"`);
+          await supabase
+            .from("dm_broadcast_queues")
+            .update({ status: "processing", updated_at: new Date().toISOString() })
+            .eq("id", pausedQueues[0].id);
+          
+          isProcessingQueue = true;
+          const resumedQueue = { ...pausedQueues[0], status: "processing" };
+          await processQueue(resumedQueue, client, supabase);
+          isProcessingQueue = false;
+          return;
+        }
+      }
+
+      // 3. If no active/paused queue, check for pending queue to initialize
       const { data: pendingQueues, error: pendErr } = await supabase
         .from("dm_broadcast_queues")
         .select("*")
@@ -189,6 +260,17 @@ async function initializeQueue(queue, client, supabase) {
 async function processQueue(queue, client, supabase) {
   console.log(`[queue-processor] Processing queue: "${queue.title}" (${queue.id})`);
 
+  // Initial safety limit check
+  const initialThrottle = await checkThrottleLimits(supabase);
+  if (!initialThrottle.allowed) {
+    console.log(`[queue-processor] Queue "${queue.title}" cannot be processed right now: ${initialThrottle.reason}. Pausing.`);
+    await supabase
+      .from("dm_broadcast_queues")
+      .update({ status: "paused", updated_at: new Date().toISOString() })
+      .eq("id", queue.id);
+    return;
+  }
+
   let activeClient = client;
   let useSecondary = queue.token_type === "token2";
 
@@ -229,8 +311,24 @@ async function processQueue(queue, client, supabase) {
       return;
     }
 
+    // Fetch closed DM statuses for the user IDs in this batch
+    const userIds = pendingLogs.map(log => log.user_id);
+    const { data: closedStatuses, error: statusFetchErr } = await supabase
+      .from("member_dm_status")
+      .select("user_id")
+      .in("user_id", userIds)
+      .eq("dm_status", "closed");
+
+    if (statusFetchErr) {
+      console.error("[queue-processor] Error fetching closed statuses from member_dm_status:", statusFetchErr.message);
+    }
+
+    const closedUserIds = new Set((closedStatuses || []).map(item => item.user_id));
+    console.log(`[queue-processor] Found ${closedUserIds.size} users with known closed DMs out of ${userIds.length} targets.`);
+
     let sent = queue.sent_count;
     let failed = queue.failed_count;
+    let processedInSession = 0;
 
     for (const log of pendingLogs) {
       // Check if queue has been cancelled in the database
@@ -246,6 +344,47 @@ async function processQueue(queue, client, supabase) {
         console.log(`[queue-processor] Queue status changed to: ${freshQueue.status}. Aborting loop.`);
         if (useSecondary) destroySecondaryClient();
         return;
+      }
+
+      // Check if user has closed DMs
+      if (closedUserIds.has(log.user_id)) {
+        console.log(`[queue-processor] Skipping user ${log.user_id} (DM is closed in database)`);
+
+        await supabase
+          .from("dm_broadcast_logs")
+          .update({
+            status: "failed",
+            error_message: "Skipped: DM status is closed in database",
+            sent_at: new Date().toISOString()
+          })
+          .eq("id", log.id);
+
+        failed++;
+
+        await supabase
+          .from("dm_broadcast_queues")
+          .update({
+            failed_count: failed,
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", queue.id);
+
+        continue; // Immediately proceed to the next target
+      }
+
+      // Check throttle limits every 5 attempts
+      processedInSession++;
+      if (processedInSession % 5 === 0) {
+        const throttleStatus = await checkThrottleLimits(supabase);
+        if (!throttleStatus.allowed) {
+          console.log(`[queue-processor] Throttling triggered: ${throttleStatus.reason}. Pausing queue.`);
+          await supabase
+            .from("dm_broadcast_queues")
+            .update({ status: "paused", updated_at: new Date().toISOString() })
+            .eq("id", queue.id);
+          if (useSecondary) destroySecondaryClient();
+          return;
+        }
       }
 
       // Try sending the DM

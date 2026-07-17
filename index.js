@@ -51,6 +51,7 @@ setupFeature("totalAmount", "./src/commands/totalAmount", "setupTotalAmount");
 setupFeature("createPersonalRole", "./src/commands/createPersonalRole", "setupCreatePersonalRole", supabaseEnvKeys);
 setupFeature("createRentHouse", "./src/commands/createRentHouse", "setupCreateRentHouse");
 setupFeature("verification", "./src/features/verification", "setupVerification", supabaseEnvKeys);
+setupFeature("healing", "./src/features/horoscope/healing", "setupHealing", supabaseEnvKeys);
 
 
 function setupFeature(name, modulePath, setupName, requiredEnv = []) {

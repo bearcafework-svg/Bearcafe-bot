@@ -408,6 +408,7 @@ function setupVerification(client) {
           await testMsg.delete().catch(() => { });
           dmOpen = true;
         } catch (err) {
+          console.error(`[Verification] DM check failed for user ${username} (${userId}):`, err);
           dmOpen = false;
           dmErrMessage = err.message || "Cannot DM user";
         }
@@ -533,9 +534,9 @@ function setupVerification(client) {
                   type: 1,
                   components: [
                     {
-                      style: 4, // Danger/Red
+                      style: 3, // Green
                       type: 2,
-                      label: "ข้ามไปลงทะเบียน",
+                      label: "คลิกเพื่อลงทะเบียน",
                       custom_id: "p_324121851091488771"
                     }
                   ]
@@ -634,6 +635,7 @@ function setupVerification(client) {
           await testMsg.delete().catch(() => { });
           dmOpen = true;
         } catch (err) {
+          console.error(`[Verification/Interaction] DM check failed for user ${username} (${userId}):`, err);
           dmOpen = false;
           dmErrMessage = err.message || "Cannot DM user";
         }

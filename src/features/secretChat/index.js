@@ -930,6 +930,7 @@ async function checkDmOpen(user) {
     await testMsg.delete().catch(() => { });
     return true;
   } catch (err) {
+    console.error(`[checkDmOpen] DM check failed for user ${user.tag || user.id}:`, err);
     return false;
   }
 }

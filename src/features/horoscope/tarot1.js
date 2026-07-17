@@ -3,8 +3,8 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const { safeRespond } = require("../../../utils/discordSafety");
-const { MessageFlags }  = require('discord.js');
-const cfg       = require('./settingtarot.json');
+const { MessageFlags } = require('discord.js');
+const cfg = require('./settingtarot.json');
 const sharedConfig = require('../../sharedSettings.json');
 cfg.role_blacklist = sharedConfig.role_blacklist;
 cfg.point_icon = sharedConfig.point_icon;
@@ -15,11 +15,11 @@ const { blacklistPayload, cooldownContent, otherCommandsPayload } = require('../
 const { getCooldown, setCooldown } = require('../../utils/cooldownManager');
 
 // ─── Flag constants ────────────────────────────────────────────────────────[...]
-const FLAG_V2        = MessageFlags.IsComponentsV2;  // 32768
+const FLAG_V2 = MessageFlags.IsComponentsV2;  // 32768
 const FLAG_EPHEMERAL = MessageFlags.Ephemeral;        // 64
-const FLAG_V2_EPH    = FLAG_V2 | FLAG_EPHEMERAL;      // Component v2 + ephemeral
+const FLAG_V2_EPH = FLAG_V2 | FLAG_EPHEMERAL;      // Component v2 + ephemeral
 const OTHER_COMMANDS_ID = 'tarot1_other_commands';
-const MISSION_CLAIM_ID  = 'tarot1_mission_claim';
+const MISSION_CLAIM_ID = 'tarot1_mission_claim';
 
 // ─── Helper: random int ──────────────────────────────────────────────────────
 function randInt(min, max) {
@@ -44,15 +44,15 @@ async function getUserRow(supabase, userId) {
 // ─── Helper: atomic upsert แต้ม ──────────────────────────────────────────────
 async function addPoints(supabase, userId, pointsDelta, tarotPointDelta = 0) {
   const { data, error } = await supabase.rpc('add_tarot_points', {
-    p_discord_id:   userId,
+    p_discord_id: userId,
     p_points_delta: pointsDelta,
-    p_tarot_delta:  tarotPointDelta,
+    p_tarot_delta: tarotPointDelta,
   });
   if (error) {
     console.error('[tarot1] addPoints RPC error:', error.message);
     // fallback non-atomic (กรณียังไม่ได้สร้าง RPC)
     const row = await getUserRow(supabase, userId);
-    const newPoints     = (row.points      ?? 0) + pointsDelta;
+    const newPoints = (row.points ?? 0) + pointsDelta;
     const newTarotPoint = (row.tarot_point ?? 0) + tarotPointDelta;
     await supabase.from('user_points').upsert(
       { discord_id: userId, points: newPoints, tarot_point: newTarotPoint },
@@ -66,14 +66,14 @@ async function addPoints(supabase, userId, pointsDelta, tarotPointDelta = 0) {
 
 // ─── Helper: Progress Bar ─────────────────────────────────────────────────────
 function buildProgressBar(tarotPoint) {
-  const pb     = cfg.progress_bar;
+  const pb = cfg.progress_bar;
   const filled = Math.min(Math.floor((tarotPoint / pb.max_points) * pb.slots), pb.slots);
   let bar = '';
   for (let i = 0; i < pb.slots; i++) {
     const isFill = i < filled;
-    if (i === 0)                 bar += isFill ? pb.left_fill   : pb.left_empty;
-    else if (i === pb.slots - 1) bar += isFill ? pb.right_fill  : pb.right_empty;
-    else                         bar += isFill ? pb.middle_fill : pb.middle_empty;
+    if (i === 0) bar += isFill ? pb.left_fill : pb.left_empty;
+    else if (i === pb.slots - 1) bar += isFill ? pb.right_fill : pb.right_empty;
+    else bar += isFill ? pb.middle_fill : pb.middle_empty;
   }
   return bar;
 }
@@ -91,7 +91,7 @@ function buildLoadingPayload() {
     components: [{
       type: 17,
       components: [
-        { type: 12, items: [{ media: { url: 'https://cdn.discordapp.com/attachments/1144675871798591569/1462062737537372337/GIF_20260117_193001_429.gif' } }] },
+        { type: 12, items: [{ media: { url: 'https://cdn.discordapp.com/attachments/1524704267015819274/1527617190520422490/GIF_20260117_193001_429.gif?ex=6a5b4fdf&is=6a59fe5f&hm=ba4f22b707891006b63604d956db7740d10dff7b6b532d58e030790d9aa302fd&' } }] },
         { type: 14, spacing: 2 },
         {
           type: 10,
@@ -127,11 +127,11 @@ function buildCardPayload(card, earnedPoints) {
           }],
           // Link button ห้ามมี custom_id
           accessory: {
-            type:  2,
+            type: 2,
             style: 5,
             label: `ได้รับ +${earnedPoints} แต้ม`,
             emoji: { id: pi.id, name: pi.name, animated: pi.animated },
-            url:   'https://discord.com/channels/1144251788493602848/1524123727724417276'
+            url: 'https://discord.com/channels/1144251788493602848/1524123727724417276'
           }
         },
         { type: 14, spacing: 2 },
@@ -139,19 +139,19 @@ function buildCardPayload(card, earnedPoints) {
           type: 1,
           components: [
             {
-              type:      2,
-              style:     1,
+              type: 2,
+              style: 1,
               custom_id: OTHER_COMMANDS_ID,
-              label:     '︲ดูดวงแบบอื่น',
-              emoji:     { id: '1256669436350562355', name: 'bee20000', animated: false },
-              flow:      { actions: [] }
+              label: '︲ดูดวงแบบอื่น',
+              emoji: { id: '1256669436350562355', name: 'bee20000', animated: false },
+              flow: { actions: [] }
             },
             {
               // Link button ห้ามมี custom_id
-              type:  2,
+              type: 2,
               style: 5,
               label: 'ดูดวงฟรี!',
-              url:   `https://discord.com/channels/1144251788493602848/${cfg.channels.horoscope_info_channel}`
+              url: `https://discord.com/channels/1144251788493602848/${cfg.channels.horoscope_info_channel}`
             }
           ]
         }
@@ -191,12 +191,12 @@ function buildCombinedPayload(card, earnedPoints, tarotPoint, isComplete) {
         {
           type: 1,
           components: [{
-            type:      2,
-            style:     isComplete ? 3 : 1,
+            type: 2,
+            style: isComplete ? 3 : 1,
             custom_id: MISSION_CLAIM_ID,
-            label:     'กดรับรางวัล',
-            disabled:  !isComplete,
-            flow:      { actions: [] }
+            label: 'กดรับรางวัล',
+            disabled: !isComplete,
+            flow: { actions: [] }
           }]
         },
         // ── Separator ─────────────────────────────────────────────────────────
@@ -215,11 +215,11 @@ function buildCombinedPayload(card, earnedPoints, tarotPoint, isComplete) {
           }],
           // Link button ห้ามมี custom_id
           accessory: {
-            type:  2,
+            type: 2,
             style: 5,
             label: `ได้รับ +${earnedPoints} แต้ม`,
             emoji: { id: pi.id, name: pi.name, animated: pi.animated },
-            url:   'https://discord.com/channels/1144251788493602848/1524123727724417276'
+            url: 'https://discord.com/channels/1144251788493602848/1524123727724417276'
           }
         },
         { type: 14, spacing: 2 },
@@ -227,19 +227,19 @@ function buildCombinedPayload(card, earnedPoints, tarotPoint, isComplete) {
           type: 1,
           components: [
             {
-              type:      2,
-              style:     1,
+              type: 2,
+              style: 1,
               custom_id: OTHER_COMMANDS_ID,
-              label:     '︲ดูดวงแบบอื่น',
-              emoji:     { id: '1256669436350562355', name: 'bee20000', animated: false },
-              flow:      { actions: [] }
+              label: '︲ดูดวงแบบอื่น',
+              emoji: { id: '1256669436350562355', name: 'bee20000', animated: false },
+              flow: { actions: [] }
             },
             {
               // Link button ห้ามมี custom_id
-              type:  2,
+              type: 2,
               style: 5,
               label: 'ดูดวงฟรี!',
-              url:   `https://discord.com/channels/1144251788493602848/${cfg.channels.horoscope_info_channel}`
+              url: `https://discord.com/channels/1144251788493602848/${cfg.channels.horoscope_info_channel}`
             }
           ]
         }
@@ -259,7 +259,7 @@ function setupTarot1(client) {
 
   // ── Listener: ข้อความ "ดูคำทำนาย" ────────────────────────────────────────
   client.on('messageCreate', async (message) => {
-    if (!message.guild)     return;
+    if (!message.guild) return;
     if (message.author.bot) return;
     if (message.channel.id !== cfg.channel_id) return;
     if (message.content.trim() !== 'ดูคำทำนาย') return;
@@ -271,15 +271,15 @@ function setupTarot1(client) {
     const isBlacklisted = cfg.role_blacklist.some(id => member.roles.cache.has(id));
     if (isBlacklisted) {
       const sent = await message.reply(blacklistPayload(userId));
-      setTimeout(() => sent.delete().catch(() => {}), 5000);
+      setTimeout(() => sent.delete().catch(() => { }), 5000);
       return;
     }
 
     // ── ตรวจ Cooldown ─────────────────────────────────────────────────────
-    const isPremium  = cfg.role_premium.some(id => member.roles.cache.has(id));
+    const isPremium = cfg.role_premium.some(id => member.roles.cache.has(id));
     const cdDuration = isPremium ? cfg.cooldown_premium_ms : cfg.cooldown_normal_ms;
-    const now        = Date.now();
-    const cdExpiry   = await getCooldown(supabase, userId, 'tarot1');
+    const now = Date.now();
+    const cdExpiry = await getCooldown(supabase, userId, 'tarot1');
 
     if (now < cdExpiry) {
       await message.reply({ content: cooldownContent(userId, Math.floor(cdExpiry / 1000)) });
@@ -298,8 +298,8 @@ function setupTarot1(client) {
     const tarotPoint = userRow.tarot_point ?? 0;
 
     // ── สุ่มไพ่ + แต้ม ────────────────────────────────────────────────
-    const cardId       = String(randInt(1, 78));
-    const card         = infotarot.cards[cardId];
+    const cardId = String(randInt(1, 78));
+    const card = infotarot.cards[cardId];
     card.cardId = cardId; // เก็บ ID ไว้ใช้ดึง img
     const earnedPoints = randInt(cfg.point_reward_min, cfg.point_reward_max);
 
@@ -310,9 +310,9 @@ function setupTarot1(client) {
     // ── บันทึกแต้มลง Supabase (atomic) ──────────────────────────────────────
     // tarot_point หยุดนับที่ mission_target เพื่อป้องกัน 49→51
     // กรณียังไม่กดรับ: บวกได้สูงสุดถึง mission_target เท่านั้น
-    const tarotDelta        = alreadyClaimed ? 0 : Math.min(1, cfg.mission_target - tarotPoint);
+    const tarotDelta = alreadyClaimed ? 0 : Math.min(1, cfg.mission_target - tarotPoint);
     const { newTarotPoint } = await addPoints(supabase, userId, earnedPoints, tarotDelta);
-    const missionComplete   = newTarotPoint >= cfg.mission_target;
+    const missionComplete = newTarotPoint >= cfg.mission_target;
 
     // ── ลบ loading + ส่ง result พร้อมกัน (ไม่มี gap) ─────────────────────────
     const deletePromise = loadingMsg.deletable
@@ -337,7 +337,7 @@ function setupTarot1(client) {
       // ✅ ใช้ flags: FLAG_V2_EPH แทน ephemeral: true (deprecated)
       const payload = otherCommandsPayload();
       await safeRespond(interaction, {
-        flags:      FLAG_V2_EPH,   // Component v2 (32768) | Ephemeral (64) = 32832
+        flags: FLAG_V2_EPH,   // Component v2 (32768) | Ephemeral (64) = 32832
         components: payload.components
       });
       return;
@@ -351,13 +351,13 @@ function setupTarot1(client) {
         await interaction.deferUpdate();
 
         // 2. ค่อยไปดึงข้อมูลจาก Database
-        const userRow    = await getUserRow(supabase, user.id);
+        const userRow = await getUserRow(supabase, user.id);
         const tarotPoint = userRow.tarot_point ?? 0;
 
         if (tarotPoint < cfg.mission_target) {
           // เนื่องจากเรา deferUpdate ไปแล้ว การส่งข้อความแจ้งเตือนต้องใช้ followUp แทน reply
           await interaction.followUp({
-            flags:   FLAG_EPHEMERAL,
+            flags: FLAG_EPHEMERAL,
             content: '❌ แต้มดูดวงของคุณยังไม่ครบนะคะ!'
           });
           return;
@@ -386,10 +386,10 @@ function setupTarot1(client) {
             if (comp.custom_id === MISSION_CLAIM_ID) {
               return {
                 ...comp,
-                label:    '︲รับรางวัลเรียบร้อย!',
-                emoji:    { id: '1358584609087946867', name: '50121checkmark', animated: false },
+                label: '︲รับรางวัลเรียบร้อย!',
+                emoji: { id: '1358584609087946867', name: '50121checkmark', animated: false },
                 disabled: true,
-                style:    1
+                style: 1
               };
             }
 
@@ -404,7 +404,7 @@ function setupTarot1(client) {
 
         // 6. อัปเดต UI กลับไป
         await interaction.editReply({
-          flags: FLAG_V2, 
+          flags: FLAG_V2,
           components: updatedComponents
         });
 

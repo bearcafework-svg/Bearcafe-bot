@@ -13,19 +13,31 @@ const stickyConfigs = new Map();
 const activeStickySessions = new Map();
 
 function setupStickyPanels(client) {
-  const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY,
-    { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
-  );
+  console.log("[stickyPanels] Initializing setupStickyPanels...");
+
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    console.error("[stickyPanels] Critical: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is missing from environment variables.");
+    return;
+  }
+
+  const supabase = createClient(supabaseUrl, supabaseKey, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+  });
 
   // ส่งบอร์ดใหม่ลง Discord ทันที (ลบแผ่นเก่าออกและส่งใหม่)
   async function triggerInstantSend(channelId, payload) {
+    console.log(`[stickyPanels] triggerInstantSend called for channel: ${channelId}`);
     try {
       const channel = client.channels.cache.get(channelId) || 
-                      await client.channels.fetch(channelId).catch(() => null);
+                      await client.channels.fetch(channelId).catch((fetchErr) => {
+                        console.error(`[stickyPanels] Failed to fetch channel ${channelId}:`, fetchErr.message);
+                        return null;
+                      });
       if (!channel) {
-        console.error(`[stickyPanels] Channel ${channelId} not found for instant resend.`);
+        console.error(`[stickyPanels] Channel ${channelId} not found in client cache or API fetch.`);
         return;
       }
 
@@ -37,6 +49,7 @@ function setupStickyPanels(client) {
 
       // A. เคลียร์ Timeout เก่าที่อาจจะรันค้างอยู่
       if (session.timeoutId) {
+        console.log(`[stickyPanels] Clearing pending timeout for channel ${channelId}`);
         clearTimeout(session.timeoutId);
         session.timeoutId = null;
       }
@@ -45,16 +58,23 @@ function setupStickyPanels(client) {
       if (session.lastBotMessageId) {
         const msgToDeleteId = session.lastBotMessageId;
         session.lastBotMessageId = null;
+        console.log(`[stickyPanels] Attempting to delete old message ${msgToDeleteId} in channel ${channelId}`);
         channel.messages.fetch(msgToDeleteId)
           .then((oldMsg) => {
-            oldMsg.delete().catch(() => {});
+            oldMsg.delete()
+              .then(() => console.log(`[stickyPanels] Successfully deleted old message ${msgToDeleteId}`))
+              .catch((delErr) => console.log(`[stickyPanels] Failed to delete message ${msgToDeleteId} (maybe already deleted):`, delErr.message));
           })
-          .catch(() => {});
+          .catch((fetchMsgErr) => {
+            console.log(`[stickyPanels] Old message ${msgToDeleteId} not found in channel history:`, fetchMsgErr.message);
+          });
       }
 
       // C. ส่งประกาศบอร์ดใหม่ทันที
+      console.log(`[stickyPanels] Sending new sticky payload to channel ${channelId}...`);
       const sentMsg = await channel.send(payload);
       session.lastBotMessageId = sentMsg.id;
+      console.log(`[stickyPanels] New sticky message sent successfully! ID: ${sentMsg.id}`);
     } catch (err) {
       console.error(`[stickyPanels] Failed to send instant sticky message to channel ${channelId}:`, err.message);
     }
@@ -63,6 +83,7 @@ function setupStickyPanels(client) {
   // 1. ดึงการตั้งค่าห้องจาก DB ตอนบอทเริ่มทำงาน
   async function loadInitialConfigs() {
     try {
+      console.log("[stickyPanels] Querying initial configurations from sticky_channels table...");
       const { data, error } = await supabase
         .from("sticky_channels")
         .select("channel_id, delay_ms, payload, refresh_trigger");
@@ -86,13 +107,16 @@ function setupStickyPanels(client) {
 
   // 2. สมัครรับการแจ้งเตือน Realtime เพื่อซิงค์หน่วยความจำบอทและสั่งทำงานแบบ Instant
   function setupRealtimeSync() {
-    supabase
+    console.log("[stickyPanels] Subscribing to Supabase Realtime changes for sticky_channels...");
+    
+    const realtimeChannel = supabase
       .channel("sticky_channels_realtime")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "sticky_channels" },
         async (payload) => {
           const { eventType, new: newRow, old: oldRow } = payload;
+          console.log(`[stickyPanels] Realtime Event Received: ${eventType} on table sticky_channels`);
           
           if (eventType === "INSERT" || eventType === "UPDATE") {
             const oldConfig = stickyConfigs.get(newRow.channel_id);
@@ -103,22 +127,19 @@ function setupStickyPanels(client) {
             });
 
             // ตรวจสอบว่าเป็นเคสที่ต้องอัปเดตและส่งทันที
-            // เคสที่ 1: เพิ่งใส่ช่องแชทเข้ามาใหม่ครั้งแรก (INSERT)
-            // เคสที่ 2: เป็นการแก้ไขและสั่ง Force Refresh (เช็กเลข refresh_trigger ที่ต่างจากตัวแปรเดิมในแรม)
             const isInsert = eventType === "INSERT";
             const isForceRefresh = eventType === "UPDATE" && 
-                                   oldConfig && 
-                                   (newRow.refresh_trigger || 0) !== (oldConfig.refreshTrigger || 0);
+                                   (!oldConfig || (newRow.refresh_trigger || 0) !== (oldConfig.refreshTrigger || 0));
 
             if (isInsert || isForceRefresh) {
-              console.log(`[stickyPanels] Realtime Sync: Triggering instant resend for channel ${newRow.channel_id}`);
+              console.log(`[stickyPanels] Triggering instant resend for channel ${newRow.channel_id} (isInsert: ${isInsert}, isForceRefresh: ${isForceRefresh})`);
               await triggerInstantSend(newRow.channel_id, newRow.payload);
             } else {
-              console.log(`[stickyPanels] Realtime Sync: Silently updated config for channel ${newRow.channel_id}`);
+              console.log(`[stickyPanels] Silently updated config in memory for channel ${newRow.channel_id}`);
             }
           } else if (eventType === "DELETE") {
             stickyConfigs.delete(oldRow.channel_id);
-            console.log(`[stickyPanels] Realtime Sync: Removed sticky config for channel ${oldRow.channel_id}`);
+            console.log(`[stickyPanels] Removed sticky config for channel ${oldRow.channel_id}`);
             
             // เคลียร์เวลารอส่งที่ค้างอยู่ของช่องนั้นออก
             const session = activeStickySessions.get(oldRow.channel_id);
@@ -130,8 +151,14 @@ function setupStickyPanels(client) {
             }
           }
         }
-      )
-      .subscribe();
+      );
+
+    realtimeChannel.subscribe((status, err) => {
+      console.log(`[stickyPanels] Realtime subscription status: ${status}`);
+      if (err) {
+        console.error("[stickyPanels] Realtime subscription error details:", err);
+      }
+    });
   }
 
   // เรียกโหลดข้อมูลและสมัครสมาชิกเรียลไทม์

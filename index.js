@@ -53,7 +53,7 @@ setupFeature("createRentHouse", "./src/commands/createRentHouse", "setupCreateRe
 setupFeature("verification", "./src/features/verification", "setupVerification", supabaseEnvKeys);
 setupFeature("healing", "./src/features/horoscope/healing", "setupHealing", supabaseEnvKeys);
 setupFeature("boostNotification", "./src/features/boostNotification", "setupBoostNotification", supabaseEnvKeys);
-setupFeature("stickyPanels", "./src/features/stickyPanels", "setupStickyPanels");
+setupFeature("stickyPanels", "./src/features/stickyPanels", "setupStickyPanels", supabaseEnvKeys);
 
 
 function setupFeature(name, modulePath, setupName, requiredEnv = []) {

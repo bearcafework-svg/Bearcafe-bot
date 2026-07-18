@@ -120,15 +120,13 @@ function setupBoostNotification(client) {
                     type: 2, // Button
                     style: 5, // Link
                     label: "คลิกเพื่อรับสิทธิพิเศษ!",
-                    url: "https://discord.com/channels/1144251788493602848/1524123002575523892",
-                    custom_id: "p_323370489093296137"
+                    url: "https://discord.com/channels/1144251788493602848/1524123002575523892"
                   },
                   {
                     type: 2, // Button
                     style: 5, // Link
                     label: "เช็กแต้มของคุณ",
-                    url: "https://discord.com/channels/1144251788493602848/1524123727724417276",
-                    custom_id: "p_325586173281964046"
+                    url: "https://discord.com/channels/1144251788493602848/1524123727724417276"
                   }
                 ]
               }

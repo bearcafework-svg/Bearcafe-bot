@@ -134,6 +134,7 @@ module.exports = {
       roomsCategoryId: "1524122737172414555",
       userLimit: 1,
       skipSeparator: true,
+      skipLayout: true,
       nameThemes: ["🤍︲นอนเดี่ยว {username}"],
     },
     {
@@ -143,6 +144,7 @@ module.exports = {
       roomsCategoryId: "1524122737172414555",
       userLimit: 2,
       skipSeparator: true,
+      skipLayout: true,
       nameThemes: ["🤍︲นอนคู่ {username}"],
     },
     {
@@ -152,6 +154,7 @@ module.exports = {
       roomsCategoryId: "1524122737172414555",
       userLimit: 3,
       skipSeparator: true,
+      skipLayout: true,
       nameThemes: ["🤍︲นอนกลุ่ม {username}"],
     },
 

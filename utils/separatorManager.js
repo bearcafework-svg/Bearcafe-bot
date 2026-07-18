@@ -218,13 +218,14 @@ async function showSeparator(guild, zone) {
 async function syncCategoryLayout(guild, rooms) {
   const categoryIds = new Set(
     config.zones
+      .filter((zone) => zone.skipLayout !== true)
       .map((zone) => getLayoutCategoryId(guild, zone))
       .filter(Boolean)
   );
 
   for (const categoryId of categoryIds) {
     const zonesInCategory = config.zones.filter(
-      (zone) => getLayoutCategoryId(guild, zone) === categoryId
+      (zone) => zone.skipLayout !== true && getLayoutCategoryId(guild, zone) === categoryId
     );
 
     const orderedChannels = [];

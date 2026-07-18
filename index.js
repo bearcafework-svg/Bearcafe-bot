@@ -52,6 +52,8 @@ setupFeature("createPersonalRole", "./src/commands/createPersonalRole", "setupCr
 setupFeature("createRentHouse", "./src/commands/createRentHouse", "setupCreateRentHouse");
 setupFeature("verification", "./src/features/verification", "setupVerification", supabaseEnvKeys);
 setupFeature("healing", "./src/features/horoscope/healing", "setupHealing", supabaseEnvKeys);
+setupFeature("boostNotification", "./src/features/boostNotification", "setupBoostNotification", supabaseEnvKeys);
+setupFeature("stickyPanels", "./src/features/stickyPanels", "setupStickyPanels");
 
 
 function setupFeature(name, modulePath, setupName, requiredEnv = []) {

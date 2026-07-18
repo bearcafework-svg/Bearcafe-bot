@@ -16,7 +16,7 @@ function getSeparatorNames(zone) {
 }
 
 function shouldSkipSeparator(zone) {
-  return false;
+  return zone.skipSeparator === true;
 }
 
 function getZoneCategoryId(guild, zone) {

@@ -127,6 +127,33 @@ module.exports = {
       separatorName: "〔𝖶𝖮𝖱𝖪〕𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃",
       nameThemes: ["💼︲โต๊ะทำงาน username"],
     },
+    {
+      id: "sleep_single",
+      name: "นอนเดี่ยว",
+      lobbyChannelId: "1524256451059519659",
+      roomsCategoryId: "1524122737172414555",
+      userLimit: 1,
+      skipSeparator: true,
+      nameThemes: ["🤍︲นอนเดี่ยว {username}"],
+    },
+    {
+      id: "sleep_double",
+      name: "นอนคู่",
+      lobbyChannelId: "1524257410548498452",
+      roomsCategoryId: "1524122737172414555",
+      userLimit: 2,
+      skipSeparator: true,
+      nameThemes: ["🤍︲นอนคู่ {username}"],
+    },
+    {
+      id: "sleep_group",
+      name: "นอนกลุ่ม",
+      lobbyChannelId: "1524257891815526440",
+      roomsCategoryId: "1524122737172414555",
+      userLimit: 3,
+      skipSeparator: true,
+      nameThemes: ["🤍︲นอนกลุ่ม {username}"],
+    },
 
     // เพิ่มโซนใหม่: copy block นี้แล้วแก้
     // {

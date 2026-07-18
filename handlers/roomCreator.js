@@ -170,7 +170,9 @@ async function createRoomWithLock(guild, member, zone) {
     name: roomName,
     type: ChannelType.GuildVoice,
     parent: categoryId,
-    userLimit: Number.isInteger(settings.limit) ? settings.limit : config.softCap,
+    userLimit: Number.isInteger(settings.limit)
+      ? settings.limit
+      : (Number.isInteger(zone.userLimit) ? zone.userLimit : config.softCap),
   });
 
   if (zone.id !== "vip") {

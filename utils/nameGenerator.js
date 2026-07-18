@@ -6,7 +6,7 @@
 // ถ้าชื่อซ้ำกับห้องที่มีอยู่แล้ว จะเติม #2, #3 ต่อท้าย
 function formatThemeName(theme, member) {
   const username = member?.user?.username || member?.displayName || "username";
-  return theme.replace(/username/g, username);
+  return theme.replace(/{username}/g, username).replace(/username/g, username);
 }
 
 function makeUniqueName(base, existingNames) {

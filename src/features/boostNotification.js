@@ -2,6 +2,7 @@
 // ระบบแจ้งเตือนเมื่อสมาชิกทำการบูสต์เซิร์ฟเวอร์ และเพิ่มแต้ม 500 แต้ม
 
 const { createClient } = require("@supabase/supabase-js");
+const sharedConfig = require("../sharedSettings.json");
 
 const TARGET_CHANNEL_ID = "1524124428454203553";
 const BOOST_POINTS_REWARD = 500;
@@ -39,7 +40,7 @@ async function addPoints(supabase, userId, pointsDelta) {
       .select("points")
       .eq("discord_id", userId)
       .single();
-      
+
     const newPoints = (row?.points ?? 0) + pointsDelta;
     await supabase.from("user_points").upsert(
       { discord_id: userId, points: newPoints },
@@ -60,7 +61,7 @@ function setupBoostNotification(client) {
   client.on("messageCreate", async (message) => {
     // Check if it's in a guild, not sent by a user bot (system messages are usually sent by Discord system/user/author)
     if (!message.guild) return;
-    
+
     // Check if the message type is one of the boost notification types
     if (!BOOST_MESSAGE_TYPES.includes(message.type)) return;
 
@@ -83,13 +84,16 @@ function setupBoostNotification(client) {
 
     // 2. Send Component v2 Notification to TARGET_CHANNEL_ID
     try {
-      const channel = client.channels.cache.get(TARGET_CHANNEL_ID) || 
-                      await client.channels.fetch(TARGET_CHANNEL_ID).catch(() => null);
+      const channel = client.channels.cache.get(TARGET_CHANNEL_ID) ||
+        await client.channels.fetch(TARGET_CHANNEL_ID).catch(() => null);
 
       if (!channel) {
         console.error(`[boostNotification] Target channel ${TARGET_CHANNEL_ID} not found.`);
         return;
       }
+
+      const pi = sharedConfig.point_icon;
+      const iconStr = pi.animated ? `<a:${pi.name}:${pi.id}>` : `<:${pi.name}:${pi.id}>`;
 
       await channel.send({
         flags: 32768, // FLAG_V2 / MessageFlags.IsComponentsV2
@@ -110,7 +114,7 @@ function setupBoostNotification(client) {
               { type: 14, spacing: 2 }, // Separator
               {
                 type: 10, // Text
-                content: `## <:bee20000:1256669436350562355>︲__\` 𝖳𝗁𝗑 𝟦 𝖻𝗈𝗈𝗌𝗍 ₊ ขอบคุณสำหรับบูสต์นะ! 𓂃 \`__\n-# ขอบคุณที่มอบบูสต์ให้กับคาเฟ่หมีนะคะ การสนับสนุนของเธอมีความหมายกับพวกเรามาก ขอให้รวย สาธุ สาธุ สาธุ! <:cuteplant:1152834055528783872>\n\n> (👤)︰<@${userId}>\n> (<a:3dboost:1144706367433756672>)︰ตอนนี้คุณบูสต์ไปแล้ว **${boostCount} เม็ด**\n> 🍓︰รับแต้ม +500 ต่อการบูสต์ 1 ครั้ง`
+                content: `## <:bee20000:1256669436350562355>︲__\` 𝖳𝗁𝗑 𝟦 𝖻𝗈𝗈𝗌𝗍 ₊ ขอบคุณสำหรับบูสต์นะ! 𓂃 \`__\n-# ขอบคุณที่มอบบูสต์ให้กับคาเฟ่หมีนะคะ การสนับสนุนของเธอมีความหมายกับพวกเรามาก ขอให้รวย สาธุ สาธุ สาธุ! <:cuteplant:1152834055528783872>\n\n> (👤)︰<@${userId}>\n> (<a:3dboost:1144706367433756672>)︰ตอนนี้คุณบูสต์ไปแล้ว **${boostCount} เม็ด**\n> (${iconStr})︰รับแต้ม +500 ต่อการบูสต์ 1 ครั้ง`
               },
               { type: 14, spacing: 2 }, // Separator
               {

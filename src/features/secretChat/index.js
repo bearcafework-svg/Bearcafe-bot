@@ -35,6 +35,9 @@ const TOPIC_EXPAND_MS = 60 * 1000;
 const sharedConfig = require("../../sharedSettings.json");
 const BLOCKED_ROLES = sharedConfig.role_blacklist;
 const STAFF_ALERT_CHANNEL_ID = "1524123393291583639";
+const POINT_ICON = sharedConfig.point_icon.animated
+  ? `<a:${sharedConfig.point_icon.name}:${sharedConfig.point_icon.id}>`
+  : `<:${sharedConfig.point_icon.name}:${sharedConfig.point_icon.id}>`;
 
 // ── ห้ามสุ่มเจอกัน ────────────────────────────────────────────────────────────
 const BLOCKED_PAIRS = new Set([
@@ -372,10 +375,10 @@ function buildV2Warning1Min(userAId, userBId, endTs, canExtend) {
     { style: 1, type: 2, custom_id: REPORT_USER_CUSTOM_ID, label: "แจ้งรีพอร์ต" },
   ];
   if (canExtend) {
-    buttons.push({ style: 3, type: 2, custom_id: EXTEND_TIME_CUSTOM_ID, label: "ต่อเวลา +3 นาที (150 แต้ม)", emoji: { name: "⏰" } });
+    buttons.push({ style: 3, type: 2, custom_id: EXTEND_TIME_CUSTOM_ID, label: `ต่อเวลา +3 นาที (${EXTEND_COST_POINTS} แต้ม)`, emoji: { name: "⏰" } });
   }
   const bodyText = canExtend
-    ? `คุณสามารถใช้ <:strawbear:1280194407014076447> **150** แต้มต่อเพื่อเวลาได้ +3 นาที <a:99322sparkles:1372427884479778908>`
+    ? `คุณสามารถใช้ ${POINT_ICON} **${EXTEND_COST_POINTS}** แต้มต่อเพื่อเวลาได้ +3 นาที <a:99322sparkles:1372427884479778908>`
     : `ต่อเวลาได้ครบ ${MAX_EXTENDS} ครั้งแล้วค่ะ ห้องจะปิดเมื่อหมดเวลา <a:99322sparkles:1372427884479778908>`;
   return {
     flags: 32768,
@@ -457,7 +460,7 @@ function buildV2ExtendConfirm(userId, newEndUnix, remainText) {
           type: 10, content:
             `## <:50121checkmark:1358584609087946867>︲<@${userId}> __\` กดต่อเวลาแล้วค่ะ! 𓂃 \`__\n\n` +
             `สนทนากำลังสิ้นสุดภายในเวลา <t:${newEndUnix}:R>\n` +
-            `ใช้ <:strawbear:1280194407014076447> **-150 แต้ม** เพื่อต่อเวลา +3 นาที <a:99322sparkles:1372427884479778908>\n` +
+            `ใช้ ${POINT_ICON} **-${EXTEND_COST_POINTS} แต้ม** เพื่อต่อเวลา +3 นาที <a:99322sparkles:1372427884479778908>\n` +
             `*${remainText}*`
         },
         { type: 14, spacing: 2 },

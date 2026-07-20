@@ -13,7 +13,6 @@ const crypto = require("crypto");
 const { createClient } = require("@supabase/supabase-js");
 const { safeDeleteChannel, safeDeferReply, safeRespond } = require("../../../utils/discordSafety");
 const ws = require("ws");
-const { dmClosedPayload } = require("../shared/tarotComponents");
 
 // ============================================================================
 // SYSTEM CONFIGURATION & CONSTANTS
@@ -585,9 +584,15 @@ function buildV2NoMatch() {
         {
           type: 10, content:
             `## <:68440x:1358584606911369226>︲__\` 𝖭𝗈 𝖬𝖺𝗍𝖼𝗁 ₊ ไม่พบคู่สนทนา 𓂃 \`__\n` +
-            `ระบบนำคุณออกจากคิวอัตโนมัติแล้ว กรุณาตรวจสอบ DM จากบอทค่ะ <:cuteplant:1152834055528783872>`
+            `ไม่พบผู้ใช้ที่พร้อมจับคู่ภายใน 5 นาที ระบบจึงนำคุณออกจากคิวอัตโนมัติค่ะ <:cuteplant:1152834055528783872>\n` +
+            `**สามารถกดเข้าคิวใหม่ได้ทันที** เพื่อรอจับคู่กับผู้ใช้คนอื่น <a:99322sparkles:1372427884479778908>\n`
         },
         { type: 14, spacing: 2 },
+        {
+          type: 1, components: [
+            { type: 2, style: 5, label: "สุ่มอีกครั้ง", url: "https://discord.com/channels/1144251788493602848/1507027734097039442" },
+          ]
+        },
       ]
     }]
   };
@@ -744,29 +749,7 @@ async function getAdsAndCta() {
   return { ads, ctaButtons };
 }
 
-function buildV2DmNoMatch() {
-  return {
-    flags: 32768,
-    components: [{
-      type: 17,
-      components: [
-        { type: 14, spacing: 2 },
-        {
-          type: 10, content:
-            `## <:68440x:1358584606911369226>︲__\` 𝖭𝗈 𝖬𝖺𝗍𝖼𝗁 ₊ ไม่พบคู่สนทนา 𓂃 \`__\n` +
-            `ไม่พบผู้ใช้ที่พร้อมจับคู่ภายใน 5 นาที ระบบจึงนำคุณออกจากคิวอัตโนมัติค่ะ <:cuteplant:1152834055528783872>\n` +
-            `**สามารถกดเข้าคิวใหม่ได้ทันที** เพื่อรอจับคู่กับผู้ใช้คนอื่น <a:99322sparkles:1372427884479778908>\n`
-        },
-        { type: 14, spacing: 2 },
-        {
-          type: 1, components: [
-            { type: 2, style: 5, label: "สุ่มอีกครั้ง", url: "https://discord.com/channels/1144251788493602848/1507027734097039442" },
-          ]
-        },
-      ]
-    }]
-  };
-}
+
 
 // ============================================================================
 // OPERATING HOURS CHECK (18:00 – 23:00 Thailand Time / UTC+7)
@@ -921,40 +904,8 @@ async function safeReply(interaction, options) {
 }
 
 // ============================================================================
-// DM HELPERS
+// DM HELPERS (Removed due to BOT_QUARANTINED issues)
 // ============================================================================
-async function checkDmOpen(user) {
-  try {
-    const dm = await user.createDM();
-    const testMsg = await dm.send({ content: "\u200b" });
-    await testMsg.delete().catch(() => { });
-    return true;
-  } catch (err) {
-    console.error(`[checkDmOpen] DM check failed for user ${user.tag || user.id}:`, err);
-    if (err.code === 20026 || (err.message && (err.message.includes("anti-spam") || err.message.includes("abusive behavior") || err.message.includes("quarantine")))) {
-      throw new Error("BOT_QUARANTINED");
-    }
-    return false;
-  }
-}
-
-async function sendMatchDm(client, userId, channelId, guildId) {
-  try {
-    const user = await client.users.fetch(userId);
-    await user.send(buildV2MatchSuccess(channelId, guildId));
-  } catch (err) {
-    console.warn(`[secret-chat] sendMatchDm failed for ${userId}:`, err.message);
-  }
-}
-
-async function sendQueueTimeoutDm(client, userId) {
-  try {
-    const user = await client.users.fetch(userId);
-    await user.send(buildV2DmNoMatch());
-  } catch (err) {
-    console.warn(`[secret-chat] sendQueueTimeoutDm failed for ${userId}:`, err.message);
-  }
-}
 
 // ============================================================================
 // TOPIC HELPERS
@@ -1341,21 +1292,7 @@ async function handleJoinQueue(interaction) {
     return await interaction.editReply({ content: "คุณทำรายการบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่ค่ะ ⏳" });
   }
 
-  console.log(`[debug] checking DM open...`);
-  try {
-    const dmOpen = await checkDmOpen(interaction.user);
-    console.log(`[debug] DM open result: ${dmOpen}`);
-    if (!dmOpen) {
-      return await interaction.editReply(dmClosedPayload());
-    }
-  } catch (err) {
-    if (err.message === "BOT_QUARANTINED") {
-      return await interaction.editReply({
-        content: "❌ ระบบส่งข้อความทางเทคนิคของบอทกำลังขัดข้องชั่วคราว (บอทถูกจำกัดการส่งโดย Discord) ทีมงานกำลังเร่งแก้ไขค่ะ กรุณาลองใหม่อีกครั้งภายหลังนะคะ"
-      });
-    }
-    return await interaction.editReply({ content: "เกิดข้อผิดพลาดในการตรวจสอบสถานะ DM ของคุณค่ะ" });
-  }
+
 
   const presence = interaction.guild?.members?.cache.get(userId)?.presence;
   console.log(`[debug] presence status: ${presence?.status}`);
@@ -1405,10 +1342,6 @@ async function handleTopicSelect(interaction) {
       const matchPayload = buildV2MatchSuccess(channel.id, interaction.guildId);
       if (waitInt) { try { await waitInt.editReply(matchPayload); } catch (_) { } }
       try { await newInteraction.editReply(matchPayload); } catch (_) { }
-      await Promise.allSettled([
-        sendMatchDm(interaction.client, waitingUserId, channel.id, interaction.guildId),
-        sendMatchDm(interaction.client, newUserId, channel.id, interaction.guildId),
-      ]);
     } catch (err) {
       console.error("[secret-chat] create room error:", err);
       activeUsers.delete(waitingUserId);
@@ -1456,7 +1389,6 @@ async function handleTopicSelect(interaction) {
     queue.splice(stillInQueue, 1);
     cleanupQueueTimers(userId);
     await updateLobbyEmbed();
-    await sendQueueTimeoutDm(interaction.client, userId);
     try { await interaction.editReply(buildV2NoMatch()); } catch (_) { }
   }, QUEUE_DM_KICK_MS);
   queueDmTimers.set(userId, dmKickTimer);

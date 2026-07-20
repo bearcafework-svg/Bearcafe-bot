@@ -1200,6 +1200,12 @@ async function createSecretChatChannel(guild, userAId, userBId) {
   tableActionMessages.set(channel.id, sentMsg);
   reportedByUsers.set(channel.id, new Set());
 
+  try {
+    await channel.send({ content: `🤝 <@${userAId}> และ <@${userBId}> ห้องแชทลับของพวกคุณพร้อมใช้งานแล้วค่ะ! เริ่มบทสนทนากันได้เลย ☕` });
+  } catch (err) {
+    console.error("[secret-chat] failed to send text ping:", err.message);
+  }
+
   setupSessionTimers(channel.id, userAId, userBId, channel);
   sessionStartTimes.set(channel.id, Date.now());
 

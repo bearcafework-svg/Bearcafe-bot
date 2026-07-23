@@ -46,10 +46,10 @@ function destroySecondaryClient() {
 }
 
 /**
- * Check if the bot has exceeded sending limits (100/hour or 1000/day)
+ * Check if the bot has exceeded sending limits (default: 50/hour or 500/day)
  * @returns {Promise<{ allowed: boolean, reason: string | null }>}
  */
-async function checkThrottleLimits(supabase) {
+async function checkThrottleLimits(supabase, hourlyLimit = 50, dailyLimit = 500) {
   const now = new Date();
 
   // 1. Check hourly limit (last 60 minutes)
@@ -65,8 +65,8 @@ async function checkThrottleLimits(supabase) {
     return { allowed: false, reason: "Database error" };
   }
 
-  if (hourlyCount >= 100) {
-    return { allowed: false, reason: `Hourly limit reached (${hourlyCount}/100 in the last hour)` };
+  if (hourlyCount >= hourlyLimit) {
+    return { allowed: false, reason: `Hourly limit reached (${hourlyCount}/${hourlyLimit} in the last hour)` };
   }
 
   // 2. Check daily limit (last 24 hours)
@@ -82,8 +82,8 @@ async function checkThrottleLimits(supabase) {
     return { allowed: false, reason: "Database error" };
   }
 
-  if (dailyCount >= 1000) {
-    return { allowed: false, reason: `Daily limit reached (${dailyCount}/1000 in the last 24 hours)` };
+  if (dailyCount >= dailyLimit) {
+    return { allowed: false, reason: `Daily limit reached (${dailyCount}/${dailyLimit} in the last 24 hours)` };
   }
 
   return { allowed: true, reason: null };
@@ -129,7 +129,8 @@ function startQueueProcessor(client, supabase) {
       if (pausedErr) throw pausedErr;
 
       if (pausedQueues && pausedQueues.length > 0) {
-        const throttle = await checkThrottleLimits(supabase);
+        const queueOpts = pausedQueues[0].message_payload?.options || {};
+        const throttle = await checkThrottleLimits(supabase, queueOpts.hourly_limit || 50, queueOpts.daily_limit || 500);
         if (throttle.allowed) {
           console.log(`[queue-processor] Resuming paused queue: "${pausedQueues[0].title}"`);
           await supabase
@@ -206,6 +207,25 @@ async function initializeQueue(queue, client, supabase) {
     // Remove duplicates
     targetUserIds = [...new Set(targetUserIds)];
 
+    // Deduplication filter: Exclude users who already received any broadcast successfully in the past
+    const options = queue.message_payload?.options || {};
+    const excludePreviousSuccess = options.exclude_previous_success !== false; // default true
+
+    if (excludePreviousSuccess && targetUserIds.length > 0) {
+      console.log(`[queue-processor] Deduplication enabled: Checking previously successful recipients...`);
+      const { data: prevSuccess, error: prevErr } = await supabase
+        .from("dm_broadcast_logs")
+        .select("user_id")
+        .eq("status", "success");
+
+      if (!prevErr && prevSuccess && prevSuccess.length > 0) {
+        const successUserIds = new Set(prevSuccess.map((row) => row.user_id));
+        const originalCount = targetUserIds.length;
+        targetUserIds = targetUserIds.filter((uid) => !successUserIds.has(uid));
+        console.log(`[queue-processor] Excluded ${originalCount - targetUserIds.length} already-successful users. Remaining targets: ${targetUserIds.length}`);
+      }
+    }
+
     console.log(`[queue-processor] Target users count: ${targetUserIds.length}`);
 
     if (targetUserIds.length === 0) {
@@ -260,8 +280,15 @@ async function initializeQueue(queue, client, supabase) {
 async function processQueue(queue, client, supabase) {
   console.log(`[queue-processor] Processing queue: "${queue.title}" (${queue.id})`);
 
+  const options = queue.message_payload?.options || {};
+  const minDelaySec = options.min_delay_sec || 15;
+  const maxDelaySec = options.max_delay_sec || 35;
+  const hourlyLimit = options.hourly_limit || 50;
+  const dailyLimit = options.daily_limit || 500;
+  const maxConsecutiveFailures = options.consecutive_failure_limit || 5;
+
   // Initial safety limit check
-  const initialThrottle = await checkThrottleLimits(supabase);
+  const initialThrottle = await checkThrottleLimits(supabase, hourlyLimit, dailyLimit);
   if (!initialThrottle.allowed) {
     console.log(`[queue-processor] Queue "${queue.title}" cannot be processed right now: ${initialThrottle.reason}. Pausing.`);
     await supabase
@@ -329,6 +356,7 @@ async function processQueue(queue, client, supabase) {
     let sent = queue.sent_count;
     let failed = queue.failed_count;
     let processedInSession = 0;
+    let consecutiveFailures = 0;
 
     for (const log of pendingLogs) {
       // Check if queue has been cancelled in the database
@@ -375,7 +403,7 @@ async function processQueue(queue, client, supabase) {
       // Check throttle limits every 5 attempts
       processedInSession++;
       if (processedInSession % 5 === 0) {
-        const throttleStatus = await checkThrottleLimits(supabase);
+        const throttleStatus = await checkThrottleLimits(supabase, hourlyLimit, dailyLimit);
         if (!throttleStatus.allowed) {
           console.log(`[queue-processor] Throttling triggered: ${throttleStatus.reason}. Pausing queue.`);
           await supabase
@@ -397,14 +425,19 @@ async function processQueue(queue, client, supabase) {
         username = userObj.username;
         
         // Parse message payload (if it's Component V2 JSON, check format)
-        let payload = queue.message_payload;
-        if (payload && payload.data) {
-          payload = payload.data;
+        let payloadToSend = queue.message_payload;
+        if (payloadToSend && payloadToSend.data) {
+          payloadToSend = payloadToSend.data;
+        }
+        if (payloadToSend && payloadToSend.options) {
+          const { options: _opts, ...cleanPayload } = payloadToSend;
+          payloadToSend = cleanPayload;
         }
         
         // Discord.js allows sending raw components or V2 payloads if we structure them properly
-        await userObj.send(payload);
+        await userObj.send(payloadToSend);
         success = true;
+        consecutiveFailures = 0; // Reset counter on success
         
         // Update user DM status in db to open
         await supabase.from("member_dm_status").upsert({
@@ -417,7 +450,8 @@ async function processQueue(queue, client, supabase) {
 
       } catch (sendErr) {
         errorMsg = sendErr.message || "Failed to send DM";
-        console.warn(`[queue-processor] DM Failed to user ${log.user_id}: ${errorMsg}`);
+        consecutiveFailures++;
+        console.warn(`[queue-processor] DM Failed (${consecutiveFailures}/${maxConsecutiveFailures} consecutive) to user ${log.user_id}: ${errorMsg}`);
         
         // Check if DM is closed (50007)
         if (sendErr.code === 50007) {
@@ -455,8 +489,25 @@ async function processQueue(queue, client, supabase) {
         })
         .eq("id", queue.id);
 
-      // Safe rate-limit delay: 1.5 seconds (1500 ms)
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      // Auto-Pause protection if consecutive failures exceed threshold
+      if (consecutiveFailures >= maxConsecutiveFailures) {
+        console.warn(`[queue-processor] Triggering Auto-Pause: ${consecutiveFailures} consecutive failures reached.`);
+        await supabase
+          .from("dm_broadcast_queues")
+          .update({
+            status: "paused",
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", queue.id);
+
+        if (useSecondary) destroySecondaryClient();
+        return;
+      }
+
+      // Safe randomized delay: minDelaySec to maxDelaySec
+      const delayMs = Math.floor(Math.random() * ((maxDelaySec - minDelaySec) * 1000 + 1)) + (minDelaySec * 1000);
+      console.log(`[queue-processor] Waiting ${(delayMs / 1000).toFixed(1)}s before next DM...`);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
 
     // Re-evaluate if there are any remaining pending logs

@@ -72,13 +72,21 @@ function setupVoicePoints(client) {
       }
     } catch (err) {
       const status = err.response?.status;
-      const retryAfterSeconds = Number(err.response?.data?.retry_after);
-      const retryAfterMs = Number.isFinite(retryAfterSeconds)
-        ? Math.ceil(retryAfterSeconds * 1000)
-        : 1000 * (attempt + 1);
+      const responseData = err.response?.data;
+      const errorCode = responseData?.code;
+      const isDegraded = errorCode === "SUPABASE_EDGE_RUNTIME_SERVICE_DEGRADED" || (typeof responseData?.message === "string" && responseData.message.includes("Service is temporarily unavailable"));
 
-      if (status === 429 && attempt < 3) {
-        await delay(Math.min(retryAfterMs + 250, 10000));
+      // Retry on 429 (Rate Limit), network timeouts, 5xx server errors, or Supabase Degraded status
+      const isRetryable = status === 429 || !status || status >= 500 || isDegraded;
+
+      const retryAfterSeconds = Number(responseData?.retry_after);
+      const retryWaitMs = Number.isFinite(retryAfterSeconds)
+        ? Math.ceil(retryAfterSeconds * 1000)
+        : Math.min(1000 * Math.pow(2, attempt) + Math.floor(Math.random() * 500), 10000);
+
+      if (isRetryable && attempt < 3) {
+        console.warn(`[voice-points] Webhook attempt ${attempt + 1}/3 failed (${status || errorCode || err.message}). Retrying in ${retryWaitMs}ms...`);
+        await delay(retryWaitMs);
         return await postWebhook(payload, attempt + 1);
       }
 

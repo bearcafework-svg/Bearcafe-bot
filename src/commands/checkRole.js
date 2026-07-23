@@ -1,6 +1,6 @@
 // src/commands/checkRole.js
 // ระบบตรวจสอบและจัดการบทบาท (Check Role System)
-// ใช้ Discord Component V2 และอนุญาตเฉพาะ Owner และบทบาท 1144696486815342673
+// ใช้ Discord Component V2 อนุญาตเฉพาะ Owner และบทบาท 1144696486815342673
 
 const {
   ModalBuilder,
@@ -22,12 +22,12 @@ const ALLOWED_ROLE_ID = "1144696486815342673";
 // Emojis ธีม Bear Cafe Bot
 const EMOJIS = {
   bee: "<:bee20000:1256669436350562355>",
-  star: "<:bear_star1:1152782839671169184>",
-  plant: "<:cuteplant:1152834055528783872>",
   line: "<:line:1144701793989840997>",
+  exclamation: "<a:3602exclamationmarkbubble:1372837492205555812>",
+  backpack: "<:bagpack_icon:1522154708200849449>",
   pass: "<:50121checkmark:1358584609087946867>",
   fail: "<:68440x:1358584606911369226>",
-  bear: "<:bear7:1148271118709436416>"
+  plant: "<:cuteplant:1152834055528783872>"
 };
 
 /**
@@ -44,96 +44,101 @@ function isAuthorized(interaction) {
 }
 
 /**
- * สร้าง Component V2 Payload แสดงรายละเอียดบทบาท
+ * สร้าง Component V2 Payload แสดงรายละเอียดบทบาทตามโครงสร้างใหม่
  * @param {Role} role 
  * @returns {object}
  */
 function buildRolePayload(role) {
-  const hexColor = role.hexColor.toUpperCase();
-  const hoistStr = role.hoist ? "เปิดใช้งาน (Yes)" : "ปิดใช้งาน (No)";
-  const mentionableStr = role.mentionable ? "เปิดใช้งาน (Yes)" : "ปิดใช้งาน (No)";
-  const managedStr = role.managed ? "ระบบจัดสรร (Integration/Bot)" : "สร้างโดยผู้ใช้ (Normal)";
-  const iconEmoji = role.unicodeEmoji ? ` ${role.unicodeEmoji}` : "";
   const iconUrl = role.iconURL({ extension: "png", size: 512 });
 
-  const containerComponents = [
-    {
-      type: 14,
-      spacing: 2
-    },
-    {
-      type: 10,
-      content:
-        `## ${EMOJIS.bee}︲__\` 𝖱𝗈𝗅𝖾 𝖨𝗇𝖿𝗈𝗋𝗆𝖺𝗍𝗂𝗈𝗇 ₊ ตรวจสอบบทบาท \`__\n` +
-        `-# รายละเอียดและการจัดการบทบาทภายในคาเฟ่หมี ${EMOJIS.plant}\n\n` +
-        `### ${EMOJIS.star}︲__\` ข้อมูลทั่วไปของบทบาท \`__\n` +
-        `${EMOJIS.line} **บทบาท**: <@&${role.id}> (${role.name})${iconEmoji}\n` +
-        `${EMOJIS.line} **รหัสบทบาท (ID)**: \`${role.id}\` \n` +
-        `${EMOJIS.line} **โค้ดสี (HEX)**: \`${hexColor}\` \n` +
-        `${EMOJIS.line} **จำนวนคนใส่อยศ**: **${role.members.size}** คน\n\n` +
-        `### ${EMOJIS.star}︲__\` การตั้งค่าสไตล์ (Role Style) \`__\n` +
-        `${EMOJIS.line} **แยกแสดงสมาชิก**: ${hoistStr}\n` +
-        `${EMOJIS.line} **อนุญาตให้แท็ก**: ${mentionableStr}\n` +
-        `${EMOJIS.line} **ลำดับยศ (Position)**: \`${role.position}\` \n` +
-        `${EMOJIS.line} **ประเภทบทบาท**: ${managedStr}`
-    }
-  ];
+  // รายชื่อสมาชิกที่ใส่อยศนี้
+  let membersListText = "";
+  const membersArray = Array.from(role.members.values());
 
-  // ถ้ามี Icon รูปภาพของ Role ให้แนบกี่เป็น Media Gallery
-  if (iconUrl) {
-    containerComponents.push(
-      { type: 14, spacing: 2 },
-      {
-        type: 12,
-        items: [{ media: { url: iconUrl } }]
-      }
-    );
+  if (membersArray.length === 0) {
+    membersListText = "-# ไม่มีสมาชิกในบทบาทนี้";
+  } else {
+    const maxDisplay = 15;
+    const displayedMembers = membersArray.slice(0, maxDisplay);
+    membersListText = displayedMembers.map((m, index) => `${index + 1}. <@${m.id}>`).join("\n");
+
+    if (membersArray.length > maxDisplay) {
+      membersListText += `\n-# ...และอีก ${membersArray.length - maxDisplay} คน`;
+    }
   }
 
-  // ปุ่มกดจัดการบทบาท (Edit, Add, Remove, Refresh)
-  containerComponents.push(
-    { type: 14, spacing: 2 },
-    {
-      type: 1,
-      components: [
-        {
-          type: 2,
-          style: 1, // Primary
-          custom_id: `checkrole_edit_${role.id}`,
-          label: "แก้ไขบทบาท",
-          emoji: { name: "✏️" }
-        },
-        {
-          type: 2,
-          style: 3, // Success
-          custom_id: `checkrole_add_btn_${role.id}`,
-          label: "เพิ่มคนใส่อยศ",
-          emoji: { name: "➕" }
-        },
-        {
-          type: 2,
-          style: 4, // Danger
-          custom_id: `checkrole_remove_btn_${role.id}`,
-          label: "ลบคนใส่อยศ",
-          emoji: { name: "➖" }
-        },
-        {
-          type: 2,
-          style: 2, // Secondary
-          custom_id: `checkrole_refresh_${role.id}`,
-          label: "รีเฟรช",
-          emoji: { name: "🔄" }
-        }
-      ]
-    }
-  );
+  const textContent =
+    `## ${EMOJIS.bee}︲ข้อมูลบทบาท: <@&${role.id}>\n` +
+    `${EMOJIS.line}\n` +
+    `> (${EMOJIS.exclamation})⠀ไอดีบทบาท: \`${role.id}\` \n` +
+    `> (${EMOJIS.backpack})⠀จำนวนคน: **${role.members.size} คน**\n\n` +
+    `${membersListText}\n`;
+
+  const sectionComponent = {
+    type: 9,
+    components: [
+      {
+        type: 10,
+        content: textContent
+      }
+    ]
+  };
+
+  // แนบ accessory แสดงรูปภาพยศหากมี
+  if (iconUrl) {
+    sectionComponent.accessory = {
+      type: 11,
+      media: {
+        url: iconUrl
+      }
+    };
+  }
 
   return {
     flags: FLAG_V2,
     components: [
       {
         type: 17,
-        components: containerComponents
+        components: [
+          sectionComponent,
+          {
+            type: 14,
+            spacing: 2
+          },
+          {
+            type: 1,
+            components: [
+              {
+                style: 1, // Primary
+                type: 2,
+                custom_id: `checkrole_edit_${role.id}`,
+                label: "แก้ไขบทบาท",
+                emoji: { name: "✏️" }
+              },
+              {
+                style: 3, // Success
+                type: 2,
+                custom_id: `checkrole_add_btn_${role.id}`,
+                label: "เพิ่มคนใส่อยศ",
+                emoji: { name: "➕" }
+              },
+              {
+                style: 4, // Danger
+                type: 2,
+                custom_id: `checkrole_remove_btn_${role.id}`,
+                label: "ลบคนใส่อยศ",
+                emoji: { name: "➖" }
+              },
+              {
+                style: 2, // Secondary
+                type: 2,
+                custom_id: `checkrole_refresh_${role.id}`,
+                label: "รีเฟรช",
+                emoji: { name: "🔄" }
+              }
+            ]
+          }
+        ]
       }
     ]
   };
@@ -155,7 +160,7 @@ function buildAddUserSelectPayload(role) {
             type: 10,
             content:
               `## ${EMOJIS.bee}︲__\` เพิ่มสมาชิกเข้าบทบาท \`__\n` +
-              `กรุณาเลือกสมาชิกที่ต้องการยัดบทบาท <@&${role.id}> (${EMOJIS.plant} สามารถเลือกพร้อมกันได้สูงสุด 10 คน)`
+              `กรุณาเลือกสมาชิกที่ต้องการมอบบทบาท <@&${role.id}> (${EMOJIS.plant} เลือกได้สูงสุด 10 คน)`
           },
           { type: 14, spacing: 2 },
           {
@@ -192,7 +197,7 @@ function buildRemoveUserSelectPayload(role) {
             type: 10,
             content:
               `## ${EMOJIS.bee}︲__\` ถอดสมาชิกออกจากบทบาท \`__\n` +
-              `กรุณาเลือกสมาชิกที่ต้องการถอดบทบาท <@&${role.id}> ออก (${EMOJIS.plant} สามารถเลือกพร้อมกันได้สูงสุด 10 คน)`
+              `กรุณาเลือกสมาชิกที่ต้องการถอดบทบาท <@&${role.id}> ออก (${EMOJIS.plant} เลือกได้สูงสุด 10 คน)`
           },
           { type: 14, spacing: 2 },
           {
@@ -278,7 +283,7 @@ function setupCheckRole(client) {
         });
       }
 
-      // ปุ่มแก้ไขบทบาท -> แสดง Modal
+      // ปุ่มแก้ไขบทบาท -> แสดง Modal แก้ไขเฉพาะชื่อบทบาท
       if (interaction.customId.startsWith("checkrole_edit_")) {
         const roleId = interaction.customId.replace("checkrole_edit_", "");
         const role = interaction.guild?.roles.cache.get(roleId);
@@ -292,42 +297,16 @@ function setupCheckRole(client) {
 
         const modal = new ModalBuilder()
           .setCustomId(`checkrole_modal_${role.id}`)
-          .setTitle(`แก้ไขบทบาท: ${role.name.slice(0, 30)}`);
+          .setTitle("แก้ไขชื่อบทบาท");
 
         const nameInput = new TextInputBuilder()
           .setCustomId("role_name")
-          .setLabel("ชื่อบทบาท")
+          .setLabel("ชื่อบทบาทใหม่")
           .setStyle(TextInputStyle.Short)
           .setValue(role.name)
           .setRequired(true);
 
-        const colorInput = new TextInputBuilder()
-          .setCustomId("role_color")
-          .setLabel("โค้ดสี HEX (เช่น #FF5733 หรือ Default)")
-          .setStyle(TextInputStyle.Short)
-          .setValue(role.hexColor)
-          .setRequired(false);
-
-        const hoistInput = new TextInputBuilder()
-          .setCustomId("role_hoist")
-          .setLabel("แยกแสดงสมาชิกในแถบข้าง (เปิด / ปิด)")
-          .setStyle(TextInputStyle.Short)
-          .setValue(role.hoist ? "เปิด" : "ปิด")
-          .setRequired(false);
-
-        const mentionableInput = new TextInputBuilder()
-          .setCustomId("role_mentionable")
-          .setLabel("อนุญาตให้แท็กบทบาท (เปิด / ปิด)")
-          .setStyle(TextInputStyle.Short)
-          .setValue(role.mentionable ? "เปิด" : "ปิด")
-          .setRequired(false);
-
-        modal.addComponents(
-          new ActionRowBuilder().addComponents(nameInput),
-          new ActionRowBuilder().addComponents(colorInput),
-          new ActionRowBuilder().addComponents(hoistInput),
-          new ActionRowBuilder().addComponents(mentionableInput)
-        );
+        modal.addComponents(new ActionRowBuilder().addComponents(nameInput));
 
         return interaction.showModal(modal);
       }
@@ -392,32 +371,15 @@ function setupCheckRole(client) {
       }
 
       const newName = interaction.fields.getTextInputValue("role_name").trim();
-      const newColorInput = interaction.fields.getTextInputValue("role_color")?.trim();
-      const newHoistInput = interaction.fields.getTextInputValue("role_hoist")?.trim().toLowerCase();
-      const newMentionableInput = interaction.fields.getTextInputValue("role_mentionable")?.trim().toLowerCase();
-
-      // แปลงค่า Hoist & Mentionable
-      const newHoist = newHoistInput === "เปิด" || newHoistInput === "1" || newHoistInput === "yes" || newHoistInput === "true";
-      const newMentionable = newMentionableInput === "เปิด" || newMentionableInput === "1" || newMentionableInput === "yes" || newMentionableInput === "true";
-
-      const editData = {};
-      if (newName) editData.name = newName;
-      if (newColorInput) {
-        if (newColorInput.toLowerCase() === "default") {
-          editData.color = 0;
-        } else {
-          editData.color = newColorInput.startsWith("#") ? newColorInput : `#${newColorInput}`;
-        }
-      }
-      editData.hoist = newHoist;
-      editData.mentionable = newMentionable;
 
       try {
-        await role.edit(editData);
+        if (newName) {
+          await role.setName(newName);
+        }
         // อัปเดตการแสดงผลบนข้อความหลัก
         return interaction.update(buildRolePayload(role));
       } catch (err) {
-        console.error("[checkRole] Failed to edit role:", err.message);
+        console.error("[checkRole] Failed to edit role name:", err.message);
         return interaction.reply({
           content: `## ${EMOJIS.fail}︲__\` ไม่สามารถแก้ไขบทบาทได้ \`__\n${err.message.includes("Privilege") || err.message.includes("Hierarchy") ? "บทบาทนี้อยู่สูงกว่าหรือเท่ากับบทบาทของบอท จึงไม่สามารถแก้ไขได้ค่ะ" : err.message}`,
           flags: FLAG_EPHEMERAL

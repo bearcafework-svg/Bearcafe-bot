@@ -31,6 +31,35 @@ async function getSecondaryClient() {
 }
 
 /**
+ * Helper to log Thai system status messages to Supabase dm_broadcast_system_logs
+ */
+async function logBroadcast(supabase, level, messageTh, queueId = null) {
+  try {
+    const timeStr = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const formattedMessage = `[${timeStr}] ${messageTh}`;
+    console.log(`[queue-processor] ${messageTh}`);
+
+    await supabase.from("dm_broadcast_system_logs").insert({
+      queue_id: queueId,
+      level: level,
+      message_th: formattedMessage
+    });
+
+    // Auto-cleanup: keep only latest 500 logs if count exceeds 500
+    const { count } = await supabase.from("dm_broadcast_system_logs").select("id", { count: "exact", head: true });
+    if (count && count > 500) {
+      const { data: oldest } = await supabase.from("dm_broadcast_system_logs").select("id").order("id", { ascending: true }).limit(count - 500);
+      if (oldest && oldest.length > 0) {
+        const oldestIds = oldest.map(o => o.id);
+        await supabase.from("dm_broadcast_system_logs").delete().in("id", oldestIds);
+      }
+    }
+  } catch (err) {
+    console.error("[queue-processor] Error logging to system logs table:", err.message);
+  }
+}
+
+/**
  * Destroys the secondary bot client to free resources
  */
 function destroySecondaryClient() {
@@ -113,6 +142,7 @@ function startQueueProcessor(client, supabase) {
 
       if (processingQueues && processingQueues.length > 0) {
         isProcessingQueue = true;
+        await logBroadcast(supabase, "info", `🟢 บอทเริ่มประมวลผลคิวบรอดแคสต์: "${processingQueues[0].title}"`, processingQueues[0].id);
         await processQueue(processingQueues[0], client, supabase);
         isProcessingQueue = false;
         return;
@@ -132,7 +162,7 @@ function startQueueProcessor(client, supabase) {
         const queueOpts = pausedQueues[0].message_payload?.options || {};
         const throttle = await checkThrottleLimits(supabase, queueOpts.hourly_limit || 50, queueOpts.daily_limit || 500);
         if (throttle.allowed) {
-          console.log(`[queue-processor] Resuming paused queue: "${pausedQueues[0].title}"`);
+          await logBroadcast(supabase, "info", `⏯️ บอทเริ่มประมวลผลต่อสำหรับคิวที่เคยพักไว้: "${pausedQueues[0].title}"`, pausedQueues[0].id);
           await supabase
             .from("dm_broadcast_queues")
             .update({ status: "processing", updated_at: new Date().toISOString() })
@@ -158,6 +188,7 @@ function startQueueProcessor(client, supabase) {
 
       if (pendingQueues && pendingQueues.length > 0) {
         isProcessingQueue = true;
+        await logBroadcast(supabase, "info", `📋 บอทเตรียมตั้งต้นคิวบรอดแคสต์ใหม่: "${pendingQueues[0].title}"`, pendingQueues[0].id);
         await initializeQueue(pendingQueues[0], client, supabase);
         isProcessingQueue = false;
       }
@@ -222,7 +253,7 @@ async function initializeQueue(queue, client, supabase) {
         const successUserIds = new Set(prevSuccess.map((row) => row.user_id));
         const originalCount = targetUserIds.length;
         targetUserIds = targetUserIds.filter((uid) => !successUserIds.has(uid));
-        console.log(`[queue-processor] Excluded ${originalCount - targetUserIds.length} already-successful users. Remaining targets: ${targetUserIds.length}`);
+        await logBroadcast(supabase, "info", `🛡️ ระบบกันส่งซ้ำ: กรองสมาชิกที่เคยได้รับแล้วออก ${originalCount - targetUserIds.length} คน เหลือเป้าหมาย ${targetUserIds.length} คน`, queue.id);
       }
     }
 
@@ -235,7 +266,7 @@ async function initializeQueue(queue, client, supabase) {
         .update({ status: "completed", total_targets: 0, updated_at: new Date().toISOString() })
         .eq("id", queue.id);
       
-      console.log(`[queue-processor] Queue "${queue.title}" marked completed: No target users.`);
+      await logBroadcast(supabase, "info", `ℹ️ แคมเปญ "${queue.title}" ไม่มีผู้รับใหม่ที่ต้องส่ง (ส่งสำเร็จครบทุกคนแล้ว)`, queue.id);
       return;
     }
 
@@ -262,10 +293,11 @@ async function initializeQueue(queue, client, supabase) {
       if (insErr) throw insErr;
     }
 
-    console.log(`[queue-processor] Initialized ${logs.length} delivery log rows.`);
+    await logBroadcast(supabase, "info", `📋 จัดเตรียมคิวส่งย่อยเรียบร้อยแล้ว ${logs.length} รายการสำหรับ "${queue.title}"`, queue.id);
 
   } catch (err) {
     console.error(`[queue-processor] Failed to initialize queue ${queue.id}:`, err.message);
+    await logBroadcast(supabase, "error", `❌ ไม่สามารถสร้างคิวส่งได้: ${err.message}`, queue.id);
     // Mark as failed/cancelled
     await supabase
       .from("dm_broadcast_queues")
@@ -290,7 +322,7 @@ async function processQueue(queue, client, supabase) {
   // Initial safety limit check
   const initialThrottle = await checkThrottleLimits(supabase, hourlyLimit, dailyLimit);
   if (!initialThrottle.allowed) {
-    console.log(`[queue-processor] Queue "${queue.title}" cannot be processed right now: ${initialThrottle.reason}. Pausing.`);
+    await logBroadcast(supabase, "warn", `🛑 พักคิวชั่วคราว: ${initialThrottle.reason} (จะกลับมาส่งต่อเมื่อพ้นช่วงเวลา)`, queue.id);
     await supabase
       .from("dm_broadcast_queues")
       .update({ status: "paused", updated_at: new Date().toISOString() })
@@ -307,6 +339,7 @@ async function processQueue(queue, client, supabase) {
     }
   } catch (err) {
     console.error("[queue-processor] Failed to initialize Token 2 client:", err.message);
+    await logBroadcast(supabase, "error", `❌ ไม่สามารถเชื่อมต่อ Token 2 (บอทสำรอง) ได้`, queue.id);
     // Cancel the queue as we cannot connect
     await supabase
       .from("dm_broadcast_queues")
@@ -333,7 +366,7 @@ async function processQueue(queue, client, supabase) {
         .update({ status: "completed", updated_at: new Date().toISOString() })
         .eq("id", queue.id);
       
-      console.log(`[queue-processor] Queue "${queue.title}" processing completed.`);
+      await logBroadcast(supabase, "success", `🎉 แคมเปญ "${queue.title}" บรอดแคสต์เสร็จสิ้นเรียบร้อยแล้ว`, queue.id);
       if (useSecondary) destroySecondaryClient();
       return;
     }
@@ -405,7 +438,7 @@ async function processQueue(queue, client, supabase) {
       if (processedInSession % 5 === 0) {
         const throttleStatus = await checkThrottleLimits(supabase, hourlyLimit, dailyLimit);
         if (!throttleStatus.allowed) {
-          console.log(`[queue-processor] Throttling triggered: ${throttleStatus.reason}. Pausing queue.`);
+          await logBroadcast(supabase, "warn", `🛑 พักคิวชั่วคราว: ${throttleStatus.reason} (จะกลับมาส่งต่อเมื่อพ้นช่วงเวลา)`, queue.id);
           await supabase
             .from("dm_broadcast_queues")
             .update({ status: "paused", updated_at: new Date().toISOString() })
@@ -491,7 +524,7 @@ async function processQueue(queue, client, supabase) {
 
       // Auto-Pause protection if consecutive failures exceed threshold
       if (consecutiveFailures >= maxConsecutiveFailures) {
-        console.warn(`[queue-processor] Triggering Auto-Pause: ${consecutiveFailures} consecutive failures reached.`);
+        await logBroadcast(supabase, "error", `🚨 Auto-Pause ทำงาน: ส่งล้มเหลวติดต่อกัน ${consecutiveFailures} ครั้ง สั่งหยุดพักคิวเพื่อความปลอดภัย`, queue.id);
         await supabase
           .from("dm_broadcast_queues")
           .update({
@@ -506,7 +539,6 @@ async function processQueue(queue, client, supabase) {
 
       // Safe randomized delay: minDelaySec to maxDelaySec
       const delayMs = Math.floor(Math.random() * ((maxDelaySec - minDelaySec) * 1000 + 1)) + (minDelaySec * 1000);
-      console.log(`[queue-processor] Waiting ${(delayMs / 1000).toFixed(1)}s before next DM...`);
       await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
 
@@ -524,7 +556,7 @@ async function processQueue(queue, client, supabase) {
         .update({ status: "completed", updated_at: new Date().toISOString() })
         .eq("id", queue.id);
       
-      console.log(`[queue-processor] Queue "${queue.title}" processing completed (finished all items).`);
+      await logBroadcast(supabase, "success", `🎉 แคมเปญ "${queue.title}" บรอดแคสต์เสร็จสิ้นเรียบร้อยแล้ว`, queue.id);
       if (useSecondary) destroySecondaryClient();
     }
 

@@ -27,6 +27,59 @@ const VERIFY_CHANNEL_ID = process.env.VERIFY_CHANNEL_ID || "1524124097448116477"
 const WELCOME_CHANNEL_ID = "1524124134387224828";
 const MEMBER_ROLE_ID = "1144700895020462200";
 const BLOCKED_ROLES = sharedConfig.role_blacklist || [];
+const REGISTRATION_PANEL_IMAGE_URL = "https://cdn.discordapp.com/attachments/1504118856690569226/1526215897436524644/VER.2__Final.jpg?ex=6a64b751&is=6a6365d1&hm=25a22fbf5bf3741963bc480eee19c0b00d4fe5583ac6aa2221be0d4f29c6f5a2&";
+
+function getRegPanelPayload() {
+  return {
+    flags: 32768 | 64, // Ephemeral V2
+    components: [
+      {
+        type: 14,
+        spacing: 2
+      },
+      {
+        type: 10,
+        content: "## <:bee20000:1256669436350562355>︲__` 𝖦𝖾𝗍 𝗋𝖾𝗀𝗂𝗌𝗍𝖾𝗋 ₊ ลงทะเบียนค้าบ 𓂃 `__\n"
+      },
+      {
+        type: 17,
+        components: [
+          {
+            type: 12,
+            items: [
+              {
+                media: {
+                  url: REGISTRATION_PANEL_IMAGE_URL
+                }
+              }
+            ]
+          },
+          {
+            type: 14,
+            spacing: 2
+          },
+          {
+            type: 1,
+            components: [
+              {
+                type: 3, // Select Menu
+                custom_id: "p_323844351765516304",
+                placeholder: "🐻︲กดเลือกวิธีลงทะเบียนตรงนี้",
+                min_values: 1,
+                max_values: 1,
+                options: [
+                  { label: "บวกลบเลขอนุบาล", value: "HKTszMnwzB", emoji: { id: "1150302636990537858", name: "6322number1", animated: true } },
+                  { label: "ชื่อเจ้าของเซิร์ฟเวอร์?", value: "M5mdb7gwLF", emoji: { id: "1150302632611688509", name: "1656number2", animated: true } },
+                  { label: "หมีมีกี่ตัว?", value: "hp7I2ajKUR", emoji: { id: "1150302629071683668", name: "5370number3", animated: true } }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  };
+}
 
 // 4 Link buttons for greeting new members (we'll pick 2 at random)
 const WELCOME_BUTTON_POOL = [
@@ -252,22 +305,22 @@ function setupVerification(client) {
               type: 17,
               components: [
                 {
+                  type: 12,
+                  items: [
+                    {
+                      media: {
+                        url: REGISTRATION_PANEL_IMAGE_URL
+                      }
+                    }
+                  ]
+                },
+                {
                   type: 14,
                   spacing: 2
                 },
                 {
                   type: 10,
                   content: "## <:bee20000:1256669436350562355>︲__` 𝖦𝖾𝗍 𝗋𝖾𝗀𝗂𝗌𝗍𝖾𝗋 ₊ ลงทะเบียนค้าบ 𓂃 `__"
-                },
-                {
-                  type: 12,
-                  items: [
-                    {
-                      media: {
-                        url: "https://cdn.discordapp.com/attachments/1504118856690569226/1526215897436524644/VER.2__Final.jpg?ex=6a5636d1&is=6a54e551&hm=2574997880dfe85d2476bb29b49d56688dac44bba082cbf010d5c4993c35ea9f&"
-                      }
-                    }
-                  ]
                 },
                 {
                   type: 14,
@@ -519,24 +572,6 @@ function setupVerification(client) {
                   content: "## <:bee20000:1256669436350562355>︲__` 𝖭𝗈𝗍𝗂𝖿𝗂𝖼𝖺𝗍𝗂𝗈𝗇𝗌 ₊ เลือกการแจ้งเตือนที่ต้องการ 𓂃 `__\n-# เลือกรับการแจ้งเตือนเฉพาะหัวข้อที่คุณสนใจ เพื่อไม่ให้พลาดข่าวสารสำคัญและลดการแจ้งเตือนที่ไม่จำเป็น <:cuteplant:1152834055528783872>\n"
                 },
                 {
-                  type: 1,
-                  components: [
-                    {
-                      type: 3, // Select Menu
-                      custom_id: "p_324120127182213152",
-                      min_values: 0,
-                      max_values: 4,
-                      placeholder: "🐻︲เลือกการแจ้งเตือนที่ต้องการ",
-                      options: [
-                        { label: "กิจกรรม", value: "49B40A9yBS", description: "ลุ้นของรางวัล อีเวนต์ และกิจกรรมพิเศษ", emoji: { name: "🎉" } },
-                        { label: "ประกาศสำคัญ", value: "JNySCX80ja", description: "ข่าวสำคัญที่อาจส่งผลต่อการใช้งานเซิร์ฟเวอร์", emoji: { name: "📢" } },
-                        { label: "ข่าวสารทั่วไป", value: "DsMHlVrjze", description: "อัปเดตฟีเจอร์และความเคลื่อนไหวของ Bear Cafe", emoji: { name: "📑" } },
-                        { label: "โปรโมชันและโฆษณา", value: "6io1xnaMWJ", description: "โปรโมชัน และสิทธิพิเศษสำหรับสมาชิก", emoji: { name: "🎁" } }
-                      ]
-                    }
-                  ]
-                },
-                {
                   type: 14,
                   spacing: 2
                 },
@@ -544,10 +579,18 @@ function setupVerification(client) {
                   type: 1,
                   components: [
                     {
-                      style: 3, // Green
-                      type: 2,
-                      label: "คลิกเพื่อลงทะเบียน",
-                      custom_id: "p_324121851091488771"
+                      type: 3, // Select Menu
+                      custom_id: "p_324120127182213152",
+                      min_values: 0,
+                      max_values: 5,
+                      placeholder: "🐻︲เลือกการแจ้งเตือนที่ต้องการ",
+                      options: [
+                        { label: "กิจกรรม", value: "49B40A9yBS", description: "ลุ้นของรางวัล อีเวนต์ และกิจกรรมพิเศษ", emoji: { name: "🎉" } },
+                        { label: "ประกาศสำคัญ", value: "JNySCX80ja", description: "ข่าวสำคัญที่อาจส่งผลต่อการใช้งานเซิร์ฟเวอร์", emoji: { name: "📢" } },
+                        { label: "ข่าวสารทั่วไป", value: "DsMHlVrjze", description: "อัปเดตฟีเจอร์และความเคลื่อนไหวของ Bear Cafe", emoji: { name: "📑" } },
+                        { label: "โปรโมชันและโฆษณา", value: "6io1xnaMWJ", description: "โปรโมชัน และสิทธิพิเศษสำหรับสมาชิก", emoji: { name: "🎁" } },
+                        { label: "ข้ามไปลงทะเบียน", value: "skip_to_register", emoji: { name: "➡️" } }
+                      ]
                     }
                   ]
                 }
@@ -634,7 +677,7 @@ function setupVerification(client) {
           return;
         }
 
-        await interaction.deferReply({ flags: 64 });
+        await interaction.deferUpdate();
 
         // Check if member DM is open (silent check)
         let dmOpen = false;
@@ -688,71 +731,29 @@ function setupVerification(client) {
           // Delete existing subscriptions for this user
           await supabase.from("dms_options").delete().eq("user_id", userId);
 
-          // Insert new selected subscriptions
-          if (selectedValues.length > 0) {
-            const rows = selectedValues.map((val) => ({
+          // Insert new selected subscriptions (filtering out skip_to_register)
+          const validOptions = selectedValues.filter(val => val !== "skip_to_register");
+          if (validOptions.length > 0) {
+            const rows = validOptions.map((val) => ({
               user_id: userId,
               option_value: val
             }));
             await supabase.from("dms_options").insert(rows);
           }
 
-          await interaction.editReply({
-            content: `✅ **บันทึกการตั้งค่าการแจ้งเตือนเสร็จเรียบร้อยแล้วค่ะ!**\nบอทจะส่งข่าวสารที่คุณเลือกให้ทาง DM ค่ะ`
-          });
+          // Edit message from "เลือกการแจ้งเตือนที่ต้องการ" to "ลงทะเบียนค้าบ" Component v2
+          await interaction.editReply(getRegPanelPayload());
 
         } catch (dbErr) {
           console.error("[verification] DB Error updating dms_options:", dbErr.message);
-          await interaction.editReply({
-            content: "❌ เกิดข้อผิดพลาดในการบันทึกข้อมูลเข้าฐานข้อมูล กรุณาลองอีกครั้งในภายหลังค่ะ"
-          });
+          await interaction.editReply(getRegPanelPayload());
         }
       }
 
       // ─── Button: ข้ามไปลงทะเบียน ─────────────────────────────────────
       if (interaction.isButton() && interaction.customId === "p_324121851091488771") {
         // Edit original ephemeral Component v2 message to show registration options select menu
-        const regPanelPayload = {
-          flags: 32768 | 64, // Ephemeral V2
-          components: [
-            {
-              type: 17,
-              components: [
-                {
-                  type: 14,
-                  spacing: 2
-                },
-                {
-                  type: 10,
-                  content: "## <:bee20000:1256669436350562355>︲__` 𝖦𝖾𝗍 𝗋𝖾𝗀𝗂𝗌𝗍𝖾𝗋 ₊ ลงทะเบียนค้าบ 𓂃 `__\n"
-                },
-                {
-                  type: 1,
-                  components: [
-                    {
-                      type: 3, // Select Menu
-                      custom_id: "p_323844351765516304",
-                      placeholder: "🐻︲กดเลือกวิธีลงทะเบียนตรงนี้",
-                      min_values: 1,
-                      max_values: 1,
-                      options: [
-                        { label: "บวกลบเลขอนุบาล", value: "HKTszMnwzB", emoji: { id: "1150302636990537858", name: "6322number1", animated: true } },
-                        { label: "ชื่อเจ้าของเซิร์ฟเวอร์?", value: "M5mdb7gwLF", emoji: { id: "1150302632611688509", name: "1656number2", animated: true } },
-                        { label: "หมีมีกี่ตัว?", value: "hp7I2ajKUR", emoji: { id: "1150302629071683668", name: "5370number3", animated: true } }
-                      ]
-                    }
-                  ]
-                },
-                {
-                  type: 14,
-                  spacing: 2
-                }
-              ]
-            }
-          ]
-        };
-
-        await interaction.update(regPanelPayload);
+        await interaction.update(getRegPanelPayload());
       }
 
       // ─── Interaction: Select Menu Registration Method ─────────────────

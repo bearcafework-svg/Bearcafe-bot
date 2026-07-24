@@ -34,16 +34,16 @@ function getRegPanelPayload() {
     flags: 32768 | 64, // Ephemeral V2
     components: [
       {
-        type: 14,
-        spacing: 2
-      },
-      {
-        type: 10,
-        content: "## <:bee20000:1256669436350562355>︲__` 𝖦𝖾𝗍 𝗋𝖾𝗀𝗂𝗌𝗍𝖾𝗋 ₊ ลงทะเบียนค้าบ 𓂃 `__\n"
-      },
-      {
         type: 17,
         components: [
+          {
+            type: 14,
+            spacing: 2
+          },
+          {
+            type: 10,
+            content: "## <:bee20000:1256669436350562355>︲__` 𝖦𝖾𝗍 𝗋𝖾𝗀𝗂𝗌𝗍𝖾𝗋 ₊ ลงทะเบียนค้าบ 𓂃 `__\n"
+          },
           {
             type: 12,
             items: [

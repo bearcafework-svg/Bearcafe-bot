@@ -679,6 +679,19 @@ function setupVerification(client) {
 
         await interaction.deferUpdate();
 
+        const validOptions = selectedValues.filter(val => val !== "skip_to_register");
+
+        // If no notification options were selected (e.g. user selected "ข้ามไปลงทะเบียน" only)
+        // Skip DM test check completely as member does not request notification DMs
+        if (validOptions.length === 0) {
+          try {
+            await supabase.from("dms_options").delete().eq("user_id", userId);
+          } catch (e) {
+            console.error("[verification] DB Error clearing dms_options:", e.message);
+          }
+          return interaction.editReply(getRegPanelPayload());
+        }
+
         // Check if member DM is open (silent check)
         let dmOpen = false;
         let dmErrMessage = null;
@@ -731,15 +744,12 @@ function setupVerification(client) {
           // Delete existing subscriptions for this user
           await supabase.from("dms_options").delete().eq("user_id", userId);
 
-          // Insert new selected subscriptions (filtering out skip_to_register)
-          const validOptions = selectedValues.filter(val => val !== "skip_to_register");
-          if (validOptions.length > 0) {
-            const rows = validOptions.map((val) => ({
-              user_id: userId,
-              option_value: val
-            }));
-            await supabase.from("dms_options").insert(rows);
-          }
+          // Insert new selected subscriptions
+          const rows = validOptions.map((val) => ({
+            user_id: userId,
+            option_value: val
+          }));
+          await supabase.from("dms_options").insert(rows);
 
           // Edit message from "เลือกการแจ้งเตือนที่ต้องการ" to "ลงทะเบียนค้าบ" Component v2
           await interaction.editReply(getRegPanelPayload());

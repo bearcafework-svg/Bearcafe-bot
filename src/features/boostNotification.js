@@ -123,13 +123,15 @@ function setupBoostNotification(client) {
                   {
                     type: 2, // Button
                     style: 5, // Link
-                    label: "คลิกเพื่อรับสิทธิพิเศษ!",
+                    label: "︲คลิกเพื่อรับสิทธิพิเศษ!",
+                    emoji: { id: "1212856675053346897", name: "bearcafe_star", animated: false },
                     url: "https://discord.com/channels/1144251788493602848/1524123002575523892"
                   },
                   {
                     type: 2, // Button
                     style: 5, // Link
-                    label: "เช็กแต้มของคุณ",
+                    label: "︲เช็กแต้มของคุณ",
+                    emoji: { id: "1256669436350562355", name: "bee20000", animated: false },
                     url: "https://discord.com/channels/1144251788493602848/1524123727724417276"
                   }
                 ]

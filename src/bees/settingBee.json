@@ -1,0 +1,24 @@
+{
+  "channel_id": "1524123413122125964",
+  "auto_spawn_enabled": false,
+  "min_spawn_minutes": 5,
+  "max_spawn_minutes": 10,
+  "spawn_mode": "weighted_random",
+  "last_spawn_index": 0,
+  "bees": [
+    {
+      "id": "fat_round_bee",
+      "name": "เจ้าผึ้งอ้วนตัวกลม",
+      "enabled": true,
+      "spawn_weight": 1,
+      "sequence_order": 1,
+      "win_rate": 0.5,
+      "min_win_points": 15,
+      "max_win_points": 50,
+      "min_loss_points": 15,
+      "max_loss_points": 50,
+      "poison_loss_points": 150,
+      "button_delay_ms": 5000
+    }
+  ]
+}

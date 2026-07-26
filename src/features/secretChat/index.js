@@ -1900,13 +1900,29 @@ function setupSecretChat(client) {
   });
 
   client.on(Events.InteractionCreate, async (interaction) => {
-    if (interaction.customId) {
-      console.log(`[secret-chat] Interaction received: ${interaction.customId} from ${interaction.user.tag}`);
+    if (interaction.isStringSelectMenu()) {
+      if (interaction.customId === TOPIC_SELECT_CUSTOM_ID) {
+        console.log(`[secret-chat] Interaction received: ${interaction.customId} from ${interaction.user.tag}`);
+        await handleTopicSelect(interaction);
+      }
+      return;
     }
 
-    if (interaction.isStringSelectMenu()) {
-      if (interaction.customId === TOPIC_SELECT_CUSTOM_ID) await handleTopicSelect(interaction);
-      return;
+    if (!interaction.isButton()) return;
+
+    const isSecretChatButton =
+      interaction.customId === JOIN_QUEUE_CUSTOM_ID ||
+      interaction.customId === CANCEL_QUEUE_CUSTOM_ID ||
+      interaction.customId === LEAVE_TABLE_CUSTOM_ID ||
+      interaction.customId === EXTEND_TIME_CUSTOM_ID ||
+      interaction.customId === REPORT_USER_CUSTOM_ID ||
+      interaction.customId.startsWith(CLAIM_CASE_CUSTOM_ID + ":") ||
+      interaction.customId.startsWith(CONFIRM_LEAVE_CUSTOM_ID + ":") ||
+      interaction.customId.startsWith(CONFIRM_REPORT_CUSTOM_ID + ":") ||
+      interaction.customId.startsWith(RATING_CUSTOM_ID + ":");
+
+    if (isSecretChatButton) {
+      console.log(`[secret-chat] Interaction received: ${interaction.customId} from ${interaction.user.tag}`);
     }
 
     if (!interaction.isButton()) return;

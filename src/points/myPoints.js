@@ -19,15 +19,31 @@ function getMaxPoints(member) {
   return maxPoints;
 }
 
-async function getUserData(supabase, userId) {
+async function getUserData(supabase, userId, member = null) {
   const { data } = await supabase
     .from('user_points')
     .select('points, cakes')
     .eq('discord_id', userId)
     .single();
+
+  let points = data?.points ?? 0;
+  let cakes = data?.cakes ?? 0;
+
+  if (member) {
+    const maxPoints = getMaxPoints(member);
+    if (points > maxPoints) {
+      points = maxPoints;
+      await supabase
+        .from('user_points')
+        .update({ points: maxPoints })
+        .eq('discord_id', userId);
+      console.log(`[myPoints] User ${userId} points (${data?.points}) exceeded max cap (${maxPoints}). Automatically capped to ${maxPoints}.`);
+    }
+  }
+
   return {
-    points: data?.points ?? 0,
-    cakes: data?.cakes ?? 0
+    points,
+    cakes
   };
 }
 
@@ -151,7 +167,7 @@ function setupMyPoints(client) {
       }
 
       const userId = interaction.user.id;
-      const { points, cakes } = await getUserData(supabase, userId);
+      const { points, cakes } = await getUserData(supabase, userId, interaction.member);
       const maxPoints = getMaxPoints(interaction.member);
 
       const payload = buildMainPayload(interaction, points, cakes, maxPoints, 1);
@@ -167,7 +183,7 @@ function setupMyPoints(client) {
           return interaction.reply({ content: '## <:bear7:1148271118709436416>︲ปุ่มนี้กดได้เฉพาะเจ้าของคำสั่งเท่านั้นนะคะ ꒰⑅ᵕ༚ᵕ꒱˖\u2661', flags: FLAG_EPHEMERAL });
         }
 
-        let { points, cakes } = await getUserData(supabase, userId);
+        let { points, cakes } = await getUserData(supabase, userId, interaction.member);
         const maxPoints = getMaxPoints(interaction.member);
 
         if (cakes >= 4 || points < 750) {

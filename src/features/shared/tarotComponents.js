@@ -156,4 +156,32 @@ function dmClosedPayload() {
   };
 }
 
-module.exports = { blacklistPayload, cooldownContent, otherCommandsPayload, dmClosedPayload };
+// ─── Bee Info Payload ─────────────────────────────────────────────────────────
+function beeInfoPayload() {
+  const sharedSettings = require('../../sharedSettings.json');
+  const pi = sharedSettings.point_icon;
+  const iconStr = pi ? (pi.animated ? `<a:${pi.name}:${pi.id}>` : `<:${pi.name}:${pi.id}>`) : '<:strawberryv2:1520439075100688614>';
+
+  return {
+    flags: 32768 | 64, // Ephemeral V2
+    components: [
+      {
+        type: 17,
+        components: [
+          { type: 14, spacing: 2, divider: false },
+          {
+            type: 10,
+            content:
+              `## <:bee20000:1256669436350562355>︲__\` 𝖡𝖾𝖾 ₊ เจ้าผึ้งคืออะไร 𓂃 \`__\n` +
+              `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**คำอธิบายระบบเจ้าผึ้ง** : เจ้าผึ้งจะบินผ่านมาในสวนคาเฟ่หมีตามเวลาที่กำหนด คุณสามารถคลิกปุ่มเพื่อลุ้นรับหรือเสียสตรอว์เบอร์รีได้!\n` +
+              ` > (${iconStr})⠀**__\`𝗋𝗎𝗅𝖾𝗌\`__** : อัตราแพ้/ชนะ 50/50 | ชนะรับสตรอว์เบอร์รี +15 ถึง +50 | แพ้เสียสตรอว์เบอร์รี -15 ถึง -50 (หากมีสตรอว์เบอร์รี <= 0 จะติดพิษ เสียสตรอว์เบอร์รี -150)`
+          },
+          { type: 14, spacing: 2, divider: false }
+        ]
+      }
+    ]
+  };
+}
+
+module.exports = { blacklistPayload, cooldownContent, otherCommandsPayload, dmClosedPayload, beeInfoPayload };
+

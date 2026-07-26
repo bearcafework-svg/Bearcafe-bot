@@ -54,6 +54,17 @@ function rollReward() {
   return cfg.tiers[0]; // Fallback to common
 }
 
+function getMaxPoints(member) {
+  let maxPoints = cfg.DEFAULT_CAP || 750;
+  if (!member || !member.roles) return maxPoints;
+  for (const [roleId, cap] of Object.entries(cfg.ROLE_CAPS || {})) {
+    if (member.roles.cache.has(roleId)) {
+      if (cap > maxPoints) maxPoints = cap;
+    }
+  }
+  return maxPoints;
+}
+
 // ─── Payloads ─────────────────────────────────────────────────────────────────
 function buildLoadingPayload(randomMessage) {
   const containerComponents = [];
@@ -190,7 +201,14 @@ function setupCheckIn(client) {
 
     // ── สุ่มรางวัล & แจกแต้ม ──────────────────────────────────────────────────
     const rewardTier = rollReward();
-    await addPoints(supabase, userId, rewardTier.points);
+    const newPoints = await addPoints(supabase, userId, rewardTier.points);
+    const maxPoints = getMaxPoints(member);
+    if (newPoints > maxPoints) {
+      await supabase
+        .from('user_points')
+        .update({ points: maxPoints })
+        .eq('discord_id', userId);
+    }
 
     // ── สร้างข้อความเคลมรางวัลและอัปเดต ──────────────────────────────────────────
     let premiumRoleInfo = null;

@@ -1,8 +1,9 @@
 // src/features/stickyPanels.js
 // ระบบปักหมุดข้อความหนึบท้ายห้อง (Sticky Message) ประจำห้องแบบอัปเดตเรียลไทม์ผ่าน Supabase Realtime DB
-// รองรับแบบ Hybrid: โหลดความทรงจำเงียบ ๆ และรีเฟรชส่งใหม่ทันทีเมื่อแอดมินสั่ง Force Refresh / เพิ่มห้องใหม่
+// รองรับแบบ Hybrid: โหลดความทรงจำและจดจำ last_message_id บน DB เพื่อป้องกันการสแปมและรองรับกรณีบอทรีสตาร์ต
 
 const { createClient } = require("@supabase/supabase-js");
+const logger = require("../../utils/logger");
 
 // เก็บโครงสร้างการตั้งค่าของแต่ละแชนแนล (Sync กับ Database)
 // key: channelId, value: { delayMs: number, payload: any, refreshTrigger: number }
@@ -26,6 +27,42 @@ function setupStickyPanels(client) {
   const supabase = createClient(supabaseUrl, supabaseKey, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
   });
+
+  // ─── Helper: บันทึก last_message_id ลง Supabase Database ──────────────────
+  async function saveLastMessageId(channelId, messageId) {
+    try {
+      await supabase
+        .from("sticky_channels")
+        .update({ last_message_id: messageId })
+        .eq("channel_id", channelId);
+      console.log(`[stickyPanels] Persisted last_message_id (${messageId}) to DB for channel ${channelId}`);
+    } catch (err) {
+      console.warn(`[stickyPanels] Failed to save last_message_id for channel ${channelId}:`, err.message);
+    }
+  }
+
+  // ─── Helper: ลบข้อความเดิมในห้อง (พร้อมรองรับกรณีข้อความหาย/ลบไปแล้ว) ───────
+  async function deleteOldStickyMessage(channel, session) {
+    if (!session || !session.lastBotMessageId) return;
+
+    const msgToDeleteId = session.lastBotMessageId;
+    session.lastBotMessageId = null; // เคลียร์ออกก่อนเพื่อป้องกันการสั่งลบซ้ำซ้อน
+
+    try {
+      console.log(`[stickyPanels] Attempting to delete old sticky message ${msgToDeleteId} in channel ${channel.id}`);
+      const oldMsg = await channel.messages.fetch(msgToDeleteId).catch(() => null);
+      if (oldMsg) {
+        await oldMsg.delete().catch((delErr) => {
+          console.log(`[stickyPanels] Old message ${msgToDeleteId} delete failed (maybe already deleted):`, delErr.message);
+        });
+        console.log(`[stickyPanels] Successfully deleted old sticky message ${msgToDeleteId}`);
+      } else {
+        console.log(`[stickyPanels] Old sticky message ${msgToDeleteId} was missing or already deleted manually.`);
+      }
+    } catch (err) {
+      console.log(`[stickyPanels] Error checking old sticky message ${msgToDeleteId}:`, err.message);
+    }
+  }
 
   // ส่งบอร์ดใหม่ลง Discord ทันที (ลบแผ่นเก่าออกและส่งใหม่)
   async function triggerInstantSend(channelId, payload) {
@@ -55,38 +92,28 @@ function setupStickyPanels(client) {
       }
 
       // B. ลบข้อความเดิมในห้อง (ถ้ามี)
-      if (session.lastBotMessageId) {
-        const msgToDeleteId = session.lastBotMessageId;
-        session.lastBotMessageId = null;
-        console.log(`[stickyPanels] Attempting to delete old message ${msgToDeleteId} in channel ${channelId}`);
-        channel.messages.fetch(msgToDeleteId)
-          .then((oldMsg) => {
-            oldMsg.delete()
-              .then(() => console.log(`[stickyPanels] Successfully deleted old message ${msgToDeleteId}`))
-              .catch((delErr) => console.log(`[stickyPanels] Failed to delete message ${msgToDeleteId} (maybe already deleted):`, delErr.message));
-          })
-          .catch((fetchMsgErr) => {
-            console.log(`[stickyPanels] Old message ${msgToDeleteId} not found in channel history:`, fetchMsgErr.message);
-          });
-      }
+      await deleteOldStickyMessage(channel, session);
 
       // C. ส่งประกาศบอร์ดใหม่ทันที
       console.log(`[stickyPanels] Sending new sticky payload to channel ${channelId}...`);
       const sentMsg = await channel.send(payload);
       session.lastBotMessageId = sentMsg.id;
       console.log(`[stickyPanels] New sticky message sent successfully! ID: ${sentMsg.id}`);
+
+      // D. บันทึก Message ID ใหม่ลง Database ทันที
+      await saveLastMessageId(channelId, sentMsg.id);
     } catch (err) {
       console.error(`[stickyPanels] Failed to send instant sticky message to channel ${channelId}:`, err.message);
     }
   }
 
-  // 1. ดึงการตั้งค่าห้องจาก DB ตอนบอทเริ่มทำงาน
+  // 1. ดึงการตั้งค่าห้องและ last_message_id จาก DB ตอนบอทเริ่มทำงาน
   async function loadInitialConfigs() {
     try {
       console.log("[stickyPanels] Querying initial configurations from sticky_channels table...");
       const { data, error } = await supabase
         .from("sticky_channels")
-        .select("channel_id, delay_ms, payload, refresh_trigger");
+        .select("channel_id, delay_ms, payload, refresh_trigger, last_message_id");
 
       if (error) throw error;
 
@@ -97,6 +124,15 @@ function setupStickyPanels(client) {
             payload: row.payload,
             refreshTrigger: row.refresh_trigger || 0
           });
+
+          // โหลดและจดจำ last_message_id ล่าสุดข้ามการรีสตาร์ตบอท
+          if (row.last_message_id) {
+            activeStickySessions.set(row.channel_id, {
+              lastBotMessageId: row.last_message_id,
+              timeoutId: null
+            });
+            console.log(`[stickyPanels] Restored last_message_id (${row.last_message_id}) for channel ${row.channel_id} from database.`);
+          }
         }
         console.log(`[stickyPanels] Loaded ${stickyConfigs.size} sticky channel configs from database.`);
       }
@@ -125,6 +161,15 @@ function setupStickyPanels(client) {
               payload: newRow.payload,
               refreshTrigger: newRow.refresh_trigger || 0
             });
+
+            // ซิงค์ last_message_id ถ้ามีการอัปเดตจากที่อื่น
+            let session = activeStickySessions.get(newRow.channel_id);
+            if (!session) {
+              session = { lastBotMessageId: newRow.last_message_id || null, timeoutId: null };
+              activeStickySessions.set(newRow.channel_id, session);
+            } else if (newRow.last_message_id && newRow.last_message_id !== session.lastBotMessageId) {
+              session.lastBotMessageId = newRow.last_message_id;
+            }
 
             // ตรวจสอบว่าเป็นเคสที่ต้องอัปเดตและส่งทันที
             const isInsert = eventType === "INSERT";
@@ -155,8 +200,10 @@ function setupStickyPanels(client) {
 
     realtimeChannel.subscribe((status, err) => {
       console.log(`[stickyPanels] Realtime subscription status: ${status}`);
-      if (err) {
-        console.error("[stickyPanels] Realtime subscription error details:", err);
+      if (err && status !== "CHANNEL_ERROR") {
+        console.error("[stickyPanels] Realtime subscription error details:", err.message || err);
+      } else if (status === "CHANNEL_ERROR") {
+        console.warn("[stickyPanels] Realtime connection transport flicker (auto-reconnecting...)");
       }
     });
   }
@@ -183,19 +230,8 @@ function setupStickyPanels(client) {
       activeStickySessions.set(channelId, session);
     }
 
-    // A. สั่งลบข้อความบอทเดิมทันที (ถ้าจำไอดีได้)
-    if (session.lastBotMessageId) {
-      const msgToDeleteId = session.lastBotMessageId;
-      session.lastBotMessageId = null; // เคลียร์ออกก่อนเพื่อป้องกันการสั่งลบซ้ำซ้อน
-
-      message.channel.messages.fetch(msgToDeleteId)
-        .then((oldMsg) => {
-          oldMsg.delete().catch(() => {});
-        })
-        .catch(() => {
-          // ข้ามกรณีดึงข้อความเก่าไม่สำเร็จ (เช่น โดนลบไปก่อนแล้ว)
-        });
-    }
+    // A. สั่งลบข้อความบอทเดิมทันที (ถ้ามีจำไอดีไว้ในหน่วยความจำหรือ DB)
+    await deleteOldStickyMessage(message.channel, session);
 
     // B. ยกเลิกตัวจับเวลาการส่งเดิม (เพราะมีคนใหม่พิมพ์เข้ามาดันแชทแล้ว)
     if (session.timeoutId) {
@@ -209,6 +245,10 @@ function setupStickyPanels(client) {
       try {
         const sentMsg = await message.channel.send(channelConfig.payload);
         session.lastBotMessageId = sentMsg.id;
+        console.log(`[stickyPanels] Sent new sticky message ${sentMsg.id} in channel ${channelId}`);
+
+        // บันทึก Message ID ใหม่ลง Database ทันที
+        await saveLastMessageId(channelId, sentMsg.id);
       } catch (err) {
         console.error(`[stickyPanels] Failed to send sticky message to channel ${channelId}:`, err.message);
       }

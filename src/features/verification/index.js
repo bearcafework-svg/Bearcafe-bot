@@ -543,10 +543,14 @@ function setupVerification(client) {
           .setLabel("ข้อความต้อนรับของคุณ (10-100 ตัวอักษร)")
           .setStyle(TextInputStyle.Paragraph)
           .setPlaceholder("กรอกข้อความต้อนรับ...")
-          .setValue(currentNotes)
           .setMinLength(10)
           .setMaxLength(100)
           .setRequired(true);
+
+        if (currentNotes) {
+          const safeNotes = currentNotes.length > 100 ? currentNotes.slice(0, 100) : currentNotes;
+          notesInput.setValue(safeNotes);
+        }
 
         const row = new ActionRowBuilder().addComponents(notesInput);
         modal.addComponents(row);

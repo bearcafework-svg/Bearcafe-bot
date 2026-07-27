@@ -165,7 +165,28 @@ async function completeVerification(interaction) {
     // 1. Assign role
     await member.roles.add(MEMBER_ROLE_ID);
 
-    // 2. Generate and send welcome message with 2 random buttons
+    // 2. Fetch staff members to get random staff nickname & notes
+    let staffName = "ทีมงาน";
+    let staffNotes = "ยินดีต้อนรับนะ ขอให้เธอได้เจอเพื่อนดี ๆ มีความสุข สนุกกับทุกช่วงเวลา และสมหวังในทุกสิ่งที่ตั้งใจ <a:bearg23:1396016002818506754>";
+
+    try {
+      const { data: staffList, error: staffErr } = await supabase
+        .from("staff_members")
+        .select("nickname, notes");
+
+      if (!staffErr && staffList && staffList.length > 0) {
+        const validStaff = staffList.filter(s => s.notes && s.notes.trim().length > 0);
+        if (validStaff.length > 0) {
+          const randomStaff = validStaff[Math.floor(Math.random() * validStaff.length)];
+          staffName = randomStaff.nickname || "ทีมงาน";
+          staffNotes = randomStaff.notes.trim();
+        }
+      }
+    } catch (err) {
+      console.error("[verification] Error fetching staff_members for welcome notes:", err);
+    }
+
+    // 3. Generate and send welcome message with 2 random buttons
     const shuffled = [...WELCOME_BUTTON_POOL].sort(() => 0.5 - Math.random());
     const selectedButtons = shuffled.slice(0, 2);
 
@@ -177,7 +198,7 @@ async function completeVerification(interaction) {
           components: [
             {
               type: 10,
-              content: `## <a:bear_hi:1144698250306257037>︲<@${member.user.id}>  เธอคือหมีตัวใหม่หรอ ยินดีต้อนรับน้า!\n> (<:bearcafe_star:1212856675053346897>)⠀อย่าลืมอ่าน <#1524123185325543587> ด้วยนะคะ ขอบคุณค่ะ!\n> (<a:59217leaf:1512014878796152862>)⠀เปิดการมองเห็นห้อง <#1524122867178930237>`
+              content: `## <a:bear_hi:1144698250306257037>︲<@${member.user.id}>  เธอคือหมีตัวใหม่หรอ ยินดีต้อนรับน้า!\n> (<a:27073hispeechbubble:1518217054711189644>)⠀ข้อความจากทีมงาน (คุณ${staffName}): ${staffNotes}\n> (<:bearcafe_star:1212856675053346897>)⠀อย่าลืมอ่าน <#1524123185325543587> ด้วยนะคะ ขอบคุณค่ะ!\n> (<a:59217leaf:1512014878796152862>)⠀เปิดการมองเห็นห้อง <#1524122867178930237>`
             },
             {
               type: 14,
@@ -423,11 +444,181 @@ function setupVerification(client) {
         console.error("[verification] Failed to send notification panel:", err);
       }
     }
+
+    if (message.content.trim() === "b!reset-staff") {
+      // Check if Owner only
+      const isOwner = message.author.id === message.guild.ownerId;
+
+      if (!isOwner) {
+        return message.reply({
+          content: "❌ คำสั่งนี้สามารถใช้งานได้เฉพาะเจ้าของเซิร์ฟเวอร์ (Owner) เท่านั้นค่ะ"
+        });
+      }
+
+      try {
+        const payload = {
+          flags: 32768,
+          components: [
+            {
+              type: 17,
+              components: [
+                {
+                  type: 12,
+                  items: [
+                    {
+                      media: {
+                        url: "https://media.discordapp.net/attachments/1524704267015819274/1531288461514899637/NewsBoard_-_bearcafe_15.png?ex=6a68ab03&is=6a675983&hm=6d63d26048c723f924163c4194ec811b26d169897840392fdf606ef9b209126d&=&format=webp&quality=lossless"
+                      }
+                    }
+                  ]
+                },
+                {
+                  type: 14,
+                  spacing: 2
+                },
+                {
+                  type: 10,
+                  content: "## <:bee20000:1256669436350562355>︲__` 𝖲𝖾𝗍 𝗆𝖾𝗌𝗌𝖺𝗀𝖾 ₊ ตั้งค่าข้อความต้อนรับ 𓂃 `__"
+                },
+                {
+                  type: 1,
+                  components: [
+                    {
+                      style: 3,
+                      type: 2,
+                      label: "︲แก้ไขข้อความของคุณ",
+                      emoji: {
+                        id: "1372837492205555812",
+                        name: "3602exclamationmarkbubble",
+                        animated: true
+                      },
+                      flow: {
+                        actions: []
+                      },
+                      custom_id: "p_328884649147240449"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        };
+
+        await message.channel.send(payload);
+        try {
+          await message.delete();
+        } catch (e) { }
+      } catch (err) {
+        console.error("[verification] Failed to send reset-staff panel:", err);
+      }
+    }
   });
 
   // ── 3. Event: interactionCreate (Buttons, Select Menus, Modals) ───────
   client.on(Events.InteractionCreate, async (interaction) => {
     try {
+      // ─── Button: แก้ไขข้อความของคุณ (p_328884649147240449) ─────────────
+      if (interaction.isButton() && interaction.customId === "p_328884649147240449") {
+        let currentNotes = "";
+        try {
+          const { data: staffData } = await supabase
+            .from("staff_members")
+            .select("notes")
+            .eq("discord_id", interaction.user.id)
+            .maybeSingle();
+
+          if (staffData && staffData.notes) {
+            currentNotes = staffData.notes;
+          }
+        } catch (e) {
+          console.error("[verification] Error fetching staff notes for modal:", e);
+        }
+
+        const modal = new ModalBuilder()
+          .setCustomId("modal_staff_welcome_notes")
+          .setTitle("ตั้งค่าข้อความต้อนรับ");
+
+        const notesInput = new TextInputBuilder()
+          .setCustomId("staff_notes_input")
+          .setLabel("ข้อความต้อนรับของคุณ (10-100 ตัวอักษร)")
+          .setStyle(TextInputStyle.Paragraph)
+          .setPlaceholder("กรอกข้อความต้อนรับ...")
+          .setValue(currentNotes)
+          .setMinLength(10)
+          .setMaxLength(100)
+          .setRequired(true);
+
+        const row = new ActionRowBuilder().addComponents(notesInput);
+        modal.addComponents(row);
+
+        return await interaction.showModal(modal);
+      }
+
+      // ─── Modal Submit: แก้ไขข้อความต้อนรับของ staff ─────────────
+      if (interaction.isModalSubmit() && interaction.customId === "modal_staff_welcome_notes") {
+        const newNotes = interaction.fields.getTextInputValue("staff_notes_input").trim();
+
+        if (newNotes.length < 10 || newNotes.length > 100) {
+          return interaction.reply({
+            content: "❌ ข้อความต้อนรับต้องมีความยาวระหว่าง 10 ถึง 100 ตัวอักษรค่ะ",
+            flags: 64
+          });
+        }
+
+        const { data: staffRow, error: fetchErr } = await supabase
+          .from("staff_members")
+          .select("id")
+          .eq("discord_id", interaction.user.id)
+          .maybeSingle();
+
+        if (fetchErr) {
+          console.error("[verification] DB Error checking staff_member:", fetchErr);
+          return interaction.reply({
+            content: "❌ เกิดข้อผิดพลาดในการเชื่อมต่อฐานข้อมูล กรุณาลองใหม่อีกครั้งค่ะ",
+            flags: 64
+          });
+        }
+
+        if (!staffRow) {
+          return interaction.reply({
+            content: "❌ ไม่พบข้อมูลของคุณในระบบทีมงาน (`staff_members`) กรุณาแจ้งผู้ดูแลระบบเพื่อเพิ่มข้อมูลเข้าทีมงานก่อนนะคะ",
+            flags: 64
+          });
+        }
+
+        const { error: updateErr } = await supabase
+          .from("staff_members")
+          .update({ notes: newNotes })
+          .eq("discord_id", interaction.user.id);
+
+        if (updateErr) {
+          console.error("[verification] DB Error updating staff notes:", updateErr);
+          return interaction.reply({
+            content: "❌ บันทึกข้อมูลไม่สำเร็จ เกิดข้อผิดพลาดจากระบบฐานข้อมูลค่ะ",
+            flags: 64
+          });
+        }
+
+        const successPayload = {
+          flags: 32768 | 64, // Ephemeral V2
+          components: [
+            {
+              type: 17,
+              components: [
+                { type: 14, spacing: 2 },
+                {
+                  type: 10,
+                  content: `## <:50121checkmark:1358584609087946867>︲__\` ตั้งค่าข้อความต้อนรับสำเร็จ \`__\nบันทึกข้อความต้อนรับของคุณเป็น:\n**${newNotes}**\nเรียบร้อยแล้วค่ะ! ✨`
+                },
+                { type: 14, spacing: 2 }
+              ]
+            }
+          ]
+        };
+
+        return interaction.reply(successPayload);
+      }
+
       // ─── Button: คลิกเพื่อเลือกรับการแจ้งเตือน (Notice Board) ─────────
       if (interaction.isButton() && interaction.customId === "p_324458660380020737") {
         // Fetch fresh member details to bypass cache latency

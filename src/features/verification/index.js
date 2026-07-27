@@ -519,16 +519,22 @@ function setupVerification(client) {
     try {
       // ─── Button: แก้ไขข้อความของคุณ (p_328884649147240449) ─────────────
       if (interaction.isButton() && interaction.customId === "p_328884649147240449") {
-        let currentNotes = "";
+        const DEFAULT_WELCOME_NOTES = "ยินดีต้อนรับนะ ขอให้เธอได้เจอเพื่อนดี ๆ มีความสุข สนุกกับทุกช่วงเวลา และสมหวังในทุกสิ่งที่ตั้งใจ <a:bearg23:1396016002818506754>";
+        let currentNotes = DEFAULT_WELCOME_NOTES;
+
         try {
-          const { data: staffData } = await supabase
+          const { data: staffData, error: dbErr } = await supabase
             .from("staff_members")
             .select("notes")
             .eq("discord_id", interaction.user.id)
             .maybeSingle();
 
-          if (staffData && staffData.notes) {
-            currentNotes = staffData.notes;
+          if (dbErr) {
+            console.error("[verification] DB Error fetching staff notes for modal:", dbErr.message);
+          }
+
+          if (staffData && staffData.notes && staffData.notes.trim().length > 0) {
+            currentNotes = staffData.notes.trim();
           }
         } catch (e) {
           console.error("[verification] Error fetching staff notes for modal:", e);
@@ -547,8 +553,9 @@ function setupVerification(client) {
           .setMaxLength(100)
           .setRequired(true);
 
-        if (currentNotes) {
-          const safeNotes = currentNotes.length > 100 ? currentNotes.slice(0, 100) : currentNotes;
+        // Slice to max 100 characters so Discord API does not reject showModal
+        let safeNotes = currentNotes.length > 100 ? currentNotes.slice(0, 100) : currentNotes;
+        if (safeNotes && safeNotes.length >= 10) {
           notesInput.setValue(safeNotes);
         }
 
@@ -583,24 +590,37 @@ function setupVerification(client) {
           });
         }
 
-        if (!staffRow) {
-          return interaction.reply({
-            content: "❌ ไม่พบข้อมูลของคุณในระบบทีมงาน (`staff_members`) กรุณาแจ้งผู้ดูแลระบบเพื่อเพิ่มข้อมูลเข้าทีมงานก่อนนะคะ",
-            flags: 64
-          });
-        }
+        if (staffRow) {
+          const { error: updateErr } = await supabase
+            .from("staff_members")
+            .update({ notes: newNotes })
+            .eq("discord_id", interaction.user.id);
 
-        const { error: updateErr } = await supabase
-          .from("staff_members")
-          .update({ notes: newNotes })
-          .eq("discord_id", interaction.user.id);
+          if (updateErr) {
+            console.error("[verification] DB Error updating staff notes:", updateErr);
+            return interaction.reply({
+              content: "❌ บันทึกข้อมูลไม่สำเร็จ เกิดข้อผิดพลาดจากระบบฐานข้อมูลค่ะ",
+              flags: 64
+            });
+          }
+        } else {
+          // หากยังไม่มีแถวใน staff_members ให้เพิ่มแถวใหม่ให้อัตโนมัติ
+          const { error: insertErr } = await supabase
+            .from("staff_members")
+            .insert({
+              discord_id: interaction.user.id,
+              nickname: interaction.member?.displayName || interaction.user.username,
+              notes: newNotes,
+              status: "Active"
+            });
 
-        if (updateErr) {
-          console.error("[verification] DB Error updating staff notes:", updateErr);
-          return interaction.reply({
-            content: "❌ บันทึกข้อมูลไม่สำเร็จ เกิดข้อผิดพลาดจากระบบฐานข้อมูลค่ะ",
-            flags: 64
-          });
+          if (insertErr) {
+            console.error("[verification] DB Error inserting staff notes:", insertErr);
+            return interaction.reply({
+              content: "❌ บันทึกข้อมูลไม่สำเร็จ เกิดข้อผิดพลาดจากระบบฐานข้อมูลค่ะ",
+              flags: 64
+            });
+          }
         }
 
         const successPayload = {

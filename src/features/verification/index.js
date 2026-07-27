@@ -162,6 +162,15 @@ async function completeVerification(interaction) {
   const member = interaction.member;
 
   try {
+    // 0. Defer interaction immediately to prevent 3-second token expiration (10062 Unknown interaction)
+    if (!interaction.deferred && !interaction.replied) {
+      if (interaction.isModalSubmit()) {
+        await interaction.deferReply({ flags: 32768 | 64 }).catch(() => {});
+      } else {
+        await interaction.deferUpdate().catch(() => {});
+      }
+    }
+
     // 1. Assign role
     await member.roles.add(MEMBER_ROLE_ID);
 
@@ -229,7 +238,7 @@ async function completeVerification(interaction) {
       console.error(`[verification] Welcome channel ${WELCOME_CHANNEL_ID} not found.`);
     }
 
-    // 3. Inform user of success (ephemeral V2)
+    // 4. Inform user of success (ephemeral V2)
     const successPayload = {
       flags: 32768 | 64, // Ephemeral V2
       components: [
@@ -247,19 +256,27 @@ async function completeVerification(interaction) {
       ]
     };
 
-    if (interaction.isModalSubmit()) {
-      await interaction.reply(successPayload);
+    if (interaction.deferred || interaction.replied) {
+      await interaction.editReply(successPayload).catch(async () => {
+        await interaction.followUp(successPayload).catch(() => {});
+      });
     } else {
-      await interaction.update(successPayload);
+      if (interaction.isModalSubmit()) {
+        await interaction.reply(successPayload).catch(() => {});
+      } else {
+        await interaction.update(successPayload).catch(() => {});
+      }
     }
 
   } catch (err) {
-    console.error("[verification] Failed to complete verification:", err);
+    if (err?.code !== 10062) {
+      console.error("[verification] Failed to complete verification:", err);
+    }
     const errText = "❌ เกิดข้อผิดพลาดระหว่างการรับยศลงทะเบียน กรุณาติดต่อผู้ดูแลระบบค่ะ";
     if (interaction.deferred || interaction.replied) {
-      await interaction.followUp({ content: errText, flags: 64 });
+      await interaction.editReply({ content: errText, flags: 64 }).catch(() => {});
     } else {
-      await interaction.reply({ content: errText, flags: 64 });
+      await interaction.reply({ content: errText, flags: 64 }).catch(() => {});
     }
   }
 }

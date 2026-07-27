@@ -718,7 +718,19 @@ function setupResetForm(client) {
       const readyTimestamp = Math.floor(cdExpiry / 1000);
       return safeRespond(interaction, {
         flags: FLAG_V2_EPH,
-        content: cooldownContent(member.id, readyTimestamp)
+        components: [
+          {
+            type: 17,
+            components: [
+              { type: 14, spacing: 2 },
+              {
+                type: 10,
+                content: cooldownContent(member.id, readyTimestamp)
+              },
+              { type: 14, spacing: 2 }
+            ]
+          }
+        ]
       });
     }
 

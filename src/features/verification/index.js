@@ -514,12 +514,21 @@ function setupVerification(client) {
     }
   });
 
+function prepareNotesForModal(notes) {
+  if (!notes) return "";
+  let trimmed = notes.trim();
+  if (trimmed.length <= 100) return trimmed;
+  let sliced = trimmed.slice(0, 100);
+  sliced = sliced.replace(/<a?:?[a-zA-Z0-9_]*$/, "").trim();
+  return sliced;
+}
+
   // ── 3. Event: interactionCreate (Buttons, Select Menus, Modals) ───────
   client.on(Events.InteractionCreate, async (interaction) => {
     try {
       // ─── Button: แก้ไขข้อความของคุณ (p_328884649147240449) ─────────────
       if (interaction.isButton() && interaction.customId === "p_328884649147240449") {
-        const DEFAULT_WELCOME_NOTES = "ยินดีต้อนรับนะ ขอให้เธอได้เจอเพื่อนดี ๆ มีความสุข สนุกกับทุกช่วงเวลา และสมหวังในทุกสิ่งที่ตั้งใจ <a:bearg23:1396016002818506754>";
+        const DEFAULT_WELCOME_NOTES = "ยินดีต้อนรับนะ ขอให้เธอได้เจอเพื่อนดี ๆ มีความสุข สนุกกับทุกช่วงเวลา และสมหวังในทุกสิ่งที่ตั้งใจ";
         let currentNotes = DEFAULT_WELCOME_NOTES;
 
         try {
@@ -553,9 +562,8 @@ function setupVerification(client) {
           .setMaxLength(100)
           .setRequired(true);
 
-        // Slice to max 100 characters so Discord API does not reject showModal
-        let safeNotes = currentNotes.length > 100 ? currentNotes.slice(0, 100) : currentNotes;
-        if (safeNotes && safeNotes.length >= 10) {
+        const safeNotes = prepareNotesForModal(currentNotes);
+        if (safeNotes) {
           notesInput.setValue(safeNotes);
         }
 

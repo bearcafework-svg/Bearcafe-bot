@@ -551,8 +551,10 @@ function prepareNotesForModal(notes) {
         try {
           const { data: staffData, error: dbErr } = await supabase
             .from("staff_members")
-            .select("notes")
+            .select("notes, updated_at")
             .eq("discord_id", interaction.user.id)
+            .order("updated_at", { ascending: false })
+            .limit(1)
             .maybeSingle();
 
           if (dbErr) {
@@ -601,11 +603,10 @@ function prepareNotesForModal(notes) {
           });
         }
 
-        const { data: staffRow, error: fetchErr } = await supabase
+        const { data: staffRows, error: fetchErr } = await supabase
           .from("staff_members")
           .select("id")
-          .eq("discord_id", interaction.user.id)
-          .maybeSingle();
+          .eq("discord_id", interaction.user.id);
 
         if (fetchErr) {
           console.error("[verification] DB Error checking staff_member:", fetchErr);
@@ -615,10 +616,10 @@ function prepareNotesForModal(notes) {
           });
         }
 
-        if (staffRow) {
+        if (staffRows && staffRows.length > 0) {
           const { error: updateErr } = await supabase
             .from("staff_members")
-            .update({ notes: newNotes })
+            .update({ notes: newNotes, updated_at: new Date().toISOString() })
             .eq("discord_id", interaction.user.id);
 
           if (updateErr) {
@@ -636,7 +637,8 @@ function prepareNotesForModal(notes) {
               discord_id: interaction.user.id,
               nickname: interaction.member?.displayName || interaction.user.username,
               notes: newNotes,
-              status: "Active"
+              status: "Active",
+              updated_at: new Date().toISOString()
             });
 
           if (insertErr) {

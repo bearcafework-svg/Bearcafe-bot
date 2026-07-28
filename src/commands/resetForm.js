@@ -14,7 +14,7 @@ const FLAG_V2 = MessageFlags.IsComponentsV2; // 32768
 const FLAG_EPHEMERAL = MessageFlags.Ephemeral; // 64
 const FLAG_V2_EPH = FLAG_V2 | FLAG_EPHEMERAL; // 32832
 
-const COOLDOWN_MS = 5000; // Cooldown 5 วินาทีต่อการกดปุ่ม
+const COOLDOWN_MS = 3000; // Cooldown 5 วินาทีต่อการกดปุ่ม
 
 // ─── Component Payloads ──────────────────────────────────────────────────────
 
@@ -682,12 +682,12 @@ function setupResetForm(client) {
     }
 
     try {
-      await message.delete().catch(() => {});
+      await message.delete().catch(() => { });
       await message.channel.send(MAIN_PANEL_1);
       await message.channel.send(MAIN_PANEL_2);
     } catch (err) {
       console.error("[resetForm] reset-form panel error:", err);
-      message.channel.send("❌ เกิดข้อผิดพลาดในการสร้างแบบฟอร์มรับสมัครทีมงานค่ะ").catch(() => {});
+      message.channel.send("❌ เกิดข้อผิดพลาดในการสร้างแบบฟอร์มรับสมัครทีมงานค่ะ").catch(() => { });
     }
   });
 

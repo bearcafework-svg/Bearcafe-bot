@@ -169,10 +169,12 @@ function setupCheckIn(client) {
     // ── ตรวจสอบ Cooldown ──────────────────────────────────────────────────────
     const has2h = member.roles.cache.has(cfg.roles.premium_2h);
     const has4h = member.roles.cache.has(cfg.roles.premium_4h);
+    const has5h = member.roles.cache.has(cfg.roles.premium_5h);
     
     let cdDuration = cfg.cooldown_ms.normal;
     if (has2h) cdDuration = cfg.cooldown_ms.premium_2h;
     else if (has4h) cdDuration = cfg.cooldown_ms.premium_4h;
+    else if (has5h) cdDuration = cfg.cooldown_ms.premium_5h;
 
     const now = Date.now();
     const cdExpiry = await getCooldown(supabase, userId, 'checkIn');
@@ -221,6 +223,11 @@ function setupCheckIn(client) {
       premiumRoleInfo = {
         name: member.guild.roles.cache.get(cfg.roles.premium_4h)?.name || 'Premium',
         emoji: '<:SilverBean:1521243279159591083>'
+      };
+    } else if (has5h) {
+      premiumRoleInfo = {
+        name: member.guild.roles.cache.get(cfg.roles.premium_5h)?.name || 'Premium',
+        emoji: '<:BronzeBean:1521243258582335508>'
       };
     }
     

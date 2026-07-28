@@ -53,6 +53,7 @@ setupFeature("createPersonalRole", "./src/commands/createPersonalRole", "setupCr
 setupFeature("createRentHouse", "./src/commands/createRentHouse", "setupCreateRentHouse");
 setupFeature("checkRole", "./src/commands/checkRole", "setupCheckRole");
 setupFeature("resetForm", "./src/commands/resetForm", "setupResetForm", supabaseEnvKeys);
+setupFeature("randomQuestion", "./src/commands/randomQuestion", "setupRandomQuestion", supabaseEnvKeys);
 setupFeature("verification", "./src/features/verification", "setupVerification", supabaseEnvKeys);
 setupFeature("healing", "./src/features/horoscope/healing", "setupHealing", supabaseEnvKeys);
 setupFeature("boostNotification", "./src/features/boostNotification", "setupBoostNotification", supabaseEnvKeys);

@@ -11,7 +11,7 @@
     "premium_4h": 14400000,
     "premium_2h": 7200000
   },
-  "loading_gif": "https://cdn.discordapp.com/attachments/1524704267015819274/1524706441133297715/GIF_20260630_094301_610.gif?ex=6a50b907&is=6a4f6787&hm=c0f86fee11f84d5cd71375c7b16816f190057f86fa041441c81e899b57889b1f&" ,
+  "loading_gif": "https://cdn.discordapp.com/attachments/1524704267015819274/1524706441133297715/GIF_20260630_094301_610.gif?ex=6a50b907&is=6a4f6787&hm=c0f86fee11f84d5cd71375c7b16816f190057f86fa041441c81e899b57889b1f&",
   "random_messages": [
     "วันนี้เธอจะได้รับรางวัลอะไรนะ หรืออาจเป็นแจ็กพอตก็ได้",
     "ลองกดรับรางวัลดูสิ เผื่อวันนี้โชคจะเข้าข้างเธอ",
@@ -29,7 +29,7 @@
     {
       "name": "Rare",
       "points": 250,
-      "rate": 10,
+      "rate": 50,
       "url": "https://cdn.discordapp.com/attachments/1524704267015819274/1524706442266021888/20260630_094223_0001.png?ex=6a50b907&is=6a4f6787&hm=7ded7a712674cffe0f6acd97a7d65297ac8e9eb1526f39956c055e58a1a5e793&"
     },
     {

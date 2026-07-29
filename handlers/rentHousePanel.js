@@ -367,14 +367,38 @@ async function handleRentLockToggle(interaction) {
   const channel = interaction.channel;
   if (!channel) return false;
 
+  const supabase = getSupabase();
+  let currentSetting = null;
+  if (supabase) {
+    const { data } = await supabase
+      .from("rent_house_settings")
+      .select("*")
+      .eq("channel_id", channel.id)
+      .maybeSingle();
+    currentSetting = data;
+  }
+
   const everyoneRole = interaction.guild.roles.everyone;
-  const currentConnect = channel.permissionsFor(everyoneRole)?.has(PermissionFlagsBits.Connect);
-  const willLock = currentConnect !== false;
+  const everyoneOverwrite = channel.permissionOverwrites.cache.get(everyoneRole.id);
+  const isCurrentlyLocked = currentSetting ? !!currentSetting.locked : (everyoneOverwrite?.deny.has(PermissionFlagsBits.Connect) ?? false);
+  const willLock = !isCurrentlyLocked;
 
   try {
-    await channel.permissionOverwrites.edit(everyoneRole, { Connect: willLock ? false : null });
+    await channel.permissionOverwrites.edit(everyoneRole, { Connect: willLock ? false : true });
+
+    if (supabase) {
+      await supabase.from("rent_house_settings").upsert({
+        channel_id: channel.id,
+        owner_id: currentSetting?.owner_id || interaction.user.id,
+        locked: willLock,
+        updated_at: new Date().toISOString(),
+      });
+    }
+
     return await interaction.reply({
-      content: willLock ? "🔒 ล็อคบ้านเช่าเรียบร้อยแล้วค่ะ สมาชิกทั่วไปจะไม่สามารถเข้าได้" : "🔓 ปลดล็อคบ้านเช่าเรียบร้อยแล้วค่ะ สมาชิกทั่วไปสามารถเข้าได้",
+      content: willLock
+        ? "🔒 ล็อคบ้านเช่าเรียบร้อยแล้วค่ะ สมาชิกทั่วไปจะไม่สามารถเข้าได้"
+        : "🔓 ปลดล็อคบ้านเช่าเรียบร้อยแล้วค่ะ สมาชิกทั่วไปสามารถเข้าได้",
       flags: EPHEMERAL_FLAG,
     });
   } catch (err) {
@@ -389,14 +413,38 @@ async function handleRentHideToggle(interaction) {
   const channel = interaction.channel;
   if (!channel) return false;
 
+  const supabase = getSupabase();
+  let currentSetting = null;
+  if (supabase) {
+    const { data } = await supabase
+      .from("rent_house_settings")
+      .select("*")
+      .eq("channel_id", channel.id)
+      .maybeSingle();
+    currentSetting = data;
+  }
+
   const everyoneRole = interaction.guild.roles.everyone;
-  const currentView = channel.permissionsFor(everyoneRole)?.has(PermissionFlagsBits.ViewChannel);
-  const willHide = currentView !== false;
+  const everyoneOverwrite = channel.permissionOverwrites.cache.get(everyoneRole.id);
+  const isCurrentlyHidden = currentSetting ? !!currentSetting.hidden : (everyoneOverwrite?.deny.has(PermissionFlagsBits.ViewChannel) ?? false);
+  const willHide = !isCurrentlyHidden;
 
   try {
-    await channel.permissionOverwrites.edit(everyoneRole, { ViewChannel: willHide ? false : null });
+    await channel.permissionOverwrites.edit(everyoneRole, { ViewChannel: willHide ? false : true });
+
+    if (supabase) {
+      await supabase.from("rent_house_settings").upsert({
+        channel_id: channel.id,
+        owner_id: currentSetting?.owner_id || interaction.user.id,
+        hidden: willHide,
+        updated_at: new Date().toISOString(),
+      });
+    }
+
     return await interaction.reply({
-      content: willHide ? "👀 ซ่อนบ้านเช่าเรียบร้อยแล้วค่ะ สมาชิกทั่วไปจะไม่เห็นห้องนี้" : "👁️ เปิดมองเห็นบ้านเช่าเรียบร้อยแล้วค่ะ สมาชิกทั่วไปสามารถเห็นห้องนี้ได้",
+      content: willHide
+        ? "👀 ซ่อนบ้านเช่าเรียบร้อยแล้วค่ะ สมาชิกทั่วไปจะไม่เห็นห้องนี้"
+        : "👁️ เปิดมองเห็นบ้านเช่าเรียบร้อยแล้วค่ะ สมาชิกทั่วไปสามารถเห็นห้องนี้ได้",
       flags: EPHEMERAL_FLAG,
     });
   } catch (err) {
@@ -444,6 +492,20 @@ async function handleRentUserSelect(interaction) {
   const targetIds = interaction.values;
   if (!targetIds || targetIds.length === 0) return false;
 
+  const supabase = getSupabase();
+  let setting = null;
+  if (supabase) {
+    const { data } = await supabase
+      .from("rent_house_settings")
+      .select("*")
+      .eq("channel_id", channel.id)
+      .maybeSingle();
+    setting = data;
+  }
+
+  const trustedUserIds = new Set(setting?.trusted_user_ids || []);
+  const blockedUserIds = new Set(setting?.blocked_user_ids || []);
+
   const targetNames = [];
   const kickedNames = [];
 
@@ -453,12 +515,18 @@ async function handleRentUserSelect(interaction) {
     targetNames.push(name);
 
     if (interaction.customId === RENT_CUSTOM_IDS.selectTrust) {
+      trustedUserIds.add(targetId);
+      blockedUserIds.delete(targetId);
       await channel.permissionOverwrites.edit(targetId, { Connect: true, ViewChannel: true });
     } else if (interaction.customId === RENT_CUSTOM_IDS.selectUntrust) {
+      trustedUserIds.delete(targetId);
       await channel.permissionOverwrites.delete(targetId);
     } else if (interaction.customId === RENT_CUSTOM_IDS.selectBlock) {
+      blockedUserIds.add(targetId);
+      trustedUserIds.delete(targetId);
       await channel.permissionOverwrites.edit(targetId, { Connect: false, ViewChannel: false });
     } else if (interaction.customId === RENT_CUSTOM_IDS.selectUnblock) {
+      blockedUserIds.delete(targetId);
       await channel.permissionOverwrites.delete(targetId);
     } else if (interaction.customId === RENT_CUSTOM_IDS.selectKick) {
       await channel.permissionOverwrites.delete(targetId);
@@ -467,6 +535,16 @@ async function handleRentUserSelect(interaction) {
         kickedNames.push(name);
       }
     }
+  }
+
+  if (supabase) {
+    await supabase.from("rent_house_settings").upsert({
+      channel_id: channel.id,
+      owner_id: setting?.owner_id || interaction.user.id,
+      trusted_user_ids: Array.from(trustedUserIds),
+      blocked_user_ids: Array.from(blockedUserIds),
+      updated_at: new Date().toISOString(),
+    });
   }
 
   const formattedNames = targetNames.map((n) => `**${n}**`).join(", ");

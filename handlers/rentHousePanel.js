@@ -159,7 +159,7 @@ async function handleRentHousePanelInteraction(interaction) {
 
   // 1. ปุ่มดูข้อมูลสัญญาเช่า
   if (customId === RENT_CUSTOM_IDS.info) {
-    return await handleShowContractInfo(interaction);
+    return await handleRentInfo(interaction);
   }
 
   // 2. ระบบรหัสผ่าน (ตั้งรหัส / กรอกรหัส)

@@ -119,6 +119,20 @@ async function safeDisconnectMember(member, reason) {
   }
 }
 
+async function safeShowModal(interaction, modal) {
+  if (!interaction || interaction.replied || interaction.deferred) return false;
+
+  try {
+    await interaction.showModal(modal);
+    return true;
+  } catch (error) {
+    if (!isDiscordCode(error, [INTERACTION_ALREADY_ACKNOWLEDGED, UNKNOWN_INTERACTION])) {
+      console.error("[discordSafety] showModal failed:", error);
+    }
+    return false;
+  }
+}
+
 module.exports = {
   EPHEMERAL_FLAG,
   safeDeferReply,
@@ -128,4 +142,5 @@ module.exports = {
   safeFollowUp,
   safeMoveMember,
   safeRespond,
+  safeShowModal,
 };

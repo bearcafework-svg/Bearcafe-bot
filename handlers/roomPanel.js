@@ -76,6 +76,8 @@ async function handleRoomPanel(message) {
 }
 
 async function handleRoomPanelInteraction(interaction) {
+  if (!interaction.customId || typeof interaction.customId !== "string") return false;
+
   if (interaction.isButton() && interaction.customId === DEPRECATED_TRANSFER_ID) {
     return await respondEphemeral(interaction, { content: "ปุ่มเปลี่ยนเจ้าของห้องถูกปิดใช้งานแล้วค่ะ" });
   }

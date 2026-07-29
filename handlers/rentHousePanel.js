@@ -21,6 +21,8 @@ const {
   safeMoveMember,
 } = require("../utils/discordSafety");
 
+const MEMBER_ROLE_ID = "1144700895020462200";
+
 let supabaseClient;
 function getSupabase() {
   if (!supabaseClient && process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -143,8 +145,11 @@ async function sendRentHousePanel(channel, ownerMember) {
 
 async function handleRentHousePanelInteraction(interaction) {
   if (!interaction.guild) return false;
+  if (!interaction.isButton() && !interaction.isUserSelectMenu() && !interaction.isModalSubmit()) return false;
 
   const customId = interaction.customId;
+  if (!customId || typeof customId !== "string") return false;
+
   const isRentPanelAction =
     RENT_PANEL_IDS.has(customId) ||
     customId.startsWith("rh_select_") ||
@@ -378,13 +383,13 @@ async function handleRentLockToggle(interaction) {
     currentSetting = data;
   }
 
-  const everyoneRole = interaction.guild.roles.everyone;
-  const everyoneOverwrite = channel.permissionOverwrites.cache.get(everyoneRole.id);
-  const isCurrentlyLocked = currentSetting ? !!currentSetting.locked : (everyoneOverwrite?.deny.has(PermissionFlagsBits.Connect) ?? false);
+  const memberTarget = interaction.guild.roles.cache.get(MEMBER_ROLE_ID) || MEMBER_ROLE_ID;
+  const roleOverwrite = channel.permissionOverwrites.cache.get(MEMBER_ROLE_ID);
+  const isCurrentlyLocked = currentSetting ? !!currentSetting.locked : (roleOverwrite?.deny.has(PermissionFlagsBits.Connect) ?? false);
   const willLock = !isCurrentlyLocked;
 
   try {
-    await channel.permissionOverwrites.edit(everyoneRole, { Connect: willLock ? false : true });
+    await channel.permissionOverwrites.edit(memberTarget, { Connect: willLock ? false : true });
 
     if (supabase) {
       await supabase.from("rent_house_settings").upsert({
@@ -424,13 +429,13 @@ async function handleRentHideToggle(interaction) {
     currentSetting = data;
   }
 
-  const everyoneRole = interaction.guild.roles.everyone;
-  const everyoneOverwrite = channel.permissionOverwrites.cache.get(everyoneRole.id);
-  const isCurrentlyHidden = currentSetting ? !!currentSetting.hidden : (everyoneOverwrite?.deny.has(PermissionFlagsBits.ViewChannel) ?? false);
+  const memberTarget = interaction.guild.roles.cache.get(MEMBER_ROLE_ID) || MEMBER_ROLE_ID;
+  const roleOverwrite = channel.permissionOverwrites.cache.get(MEMBER_ROLE_ID);
+  const isCurrentlyHidden = currentSetting ? !!currentSetting.hidden : (roleOverwrite?.deny.has(PermissionFlagsBits.ViewChannel) ?? false);
   const willHide = !isCurrentlyHidden;
 
   try {
-    await channel.permissionOverwrites.edit(everyoneRole, { ViewChannel: willHide ? false : true });
+    await channel.permissionOverwrites.edit(memberTarget, { ViewChannel: willHide ? false : true });
 
     if (supabase) {
       await supabase.from("rent_house_settings").upsert({
@@ -586,7 +591,10 @@ async function handleRentModalSubmit(interaction) {
       });
     }
 
+    const memberTarget = interaction.guild.roles.cache.get(MEMBER_ROLE_ID) || MEMBER_ROLE_ID;
+
     if (!rawPass) {
+      await channel.permissionOverwrites.edit(memberTarget, { Connect: true });
       return await interaction.reply({
         content: "🔓 ยกเลิกรหัสผ่านบ้านเช่าเรียบร้อยแล้วค่ะ สมาชิกทั่วไปสามารถเข้าได้ตามปกติ",
         flags: EPHEMERAL_FLAG,
@@ -594,8 +602,7 @@ async function handleRentModalSubmit(interaction) {
     }
 
     // ล็อคห้องอัตโนมัติเมื่อตั้งรหัสผ่าน
-    const everyoneRole = interaction.guild.roles.everyone;
-    await channel.permissionOverwrites.edit(everyoneRole, { Connect: false });
+    await channel.permissionOverwrites.edit(memberTarget, { Connect: false });
 
     return await interaction.reply({
       content: `🔑 ตั้งรหัสผ่านบ้านเช่าเรียบร้อยแล้วค่ะ!\n- **รหัสผ่านของคุณ:** \`${rawPass}\`\n*(สมาชิกสามารถกดปุ่ม "กรอกรหัสผ่านเข้าบ้าน" เพื่อพิมพ์รหัสผ่านนี้ในการเข้าห้องได้เลยค่ะ)*`,

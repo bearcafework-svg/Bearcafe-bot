@@ -58,12 +58,17 @@ async function handleRoomPanel(message) {
 
   const context = await getOwnedRoomContextFromMessage(message);
   if (!context) {
-    try {
-      await message.reply("แผงตั้งค่าใช้ได้เฉพาะเจ้าของห้อง VIP ที่กำลังอยู่ในห้องของตัวเองเท่านั้นค่ะ");
-    } catch (err) {
-      if (err.code !== 10062) console.error("[roomPanel] reply error:", err.message);
+    // แจ้งเตือนเฉพาะเมื่อผู้ใช้พิมพ์คำสั่งที่สื่อถึงการเรียกแผงตั้งค่าเท่านั้น (เช่น panel, แผง, ตั้งค่า)
+    const isPanelKeyword = /panel|แผง|ตั้งค่า/i.test(message.content);
+    if (isPanelKeyword) {
+      try {
+        await message.reply("แผงตั้งค่าใช้ได้เฉพาะเจ้าของห้อง VIP ที่กำลังอยู่ในห้องของตัวเองเท่านั้นค่ะ");
+      } catch (err) {
+        if (err.code !== 10062) console.error("[roomPanel] reply error:", err.message);
+      }
+      return true;
     }
-    return true;
+    return false;
   }
 
   await sendRoomPanel(context.channel, message.member, context.room);
@@ -445,6 +450,16 @@ function createComponentV2PanelPayload(ownerMember, room) {
       {
         type: 17,
         components: [
+          {
+            type: 12,
+            items: [
+              {
+                media: {
+                  url: "https://cdn.discordapp.com/attachments/1524704267015819274/1532018949703729234/NewsBoard_-_bearcafe_17.png?ex=6a6b5355&is=6a6a01d5&hm=7f51d2a4e6791f5046fe887f0a1a23d91bc64806712520785e0209fd7c701b17&",
+                },
+              },
+            ],
+          },
           { type: 14, spacing: 2 },
           {
             type: 10,
@@ -487,6 +502,13 @@ function createComponentV2PanelPayload(ownerMember, room) {
 function createFallbackPanelPayload(ownerMember, room) {
   return {
     content: `${ownerMember} ห้อง VIP ของคุณพร้อมแล้วค่ะ\n${getPanelSummary(room)}`,
+    embeds: [
+      {
+        image: {
+          url: "https://cdn.discordapp.com/attachments/1524704267015819274/1532018949703729234/NewsBoard_-_bearcafe_17.png?ex=6a6b5355&is=6a6a01d5&hm=7f51d2a4e6791f5046fe887f0a1a23d91bc64806712520785e0209fd7c701b17&",
+        },
+      },
+    ],
     components: [
       new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId(CUSTOM_IDS.name).setLabel("เปลี่ยนชื่อห้อง").setEmoji("✏️").setStyle(ButtonStyle.Secondary),

@@ -135,12 +135,8 @@ function button(style, customId, label, emoji) {
 }
 
 async function sendRentHousePanel(channel, ownerMember) {
-  const payload = createRentHousePanelPayload(ownerMember);
-  try {
-    await channel.send(payload);
-  } catch (err) {
-    console.error("[rentHousePanel] Error sending panel:", err.message);
-  }
+  // ปิดใช้งานการส่งแผงควบคุมบ้านเช่าชั่วคราว
+  return null;
 }
 
 async function handleRentHousePanelInteraction(interaction) {
@@ -725,37 +721,8 @@ async function isRentHouseOwner(channel, userId) {
 }
 
 async function handleRentHousePanelMessage(message) {
-  if (message.author.bot || !message.guild) return false;
-  if (!message.mentions.users.has(message.client.user.id)) return false;
-
-  const channel = message.channel;
-  const voiceChannel = message.member?.voice?.channel;
-  let targetChannel = null;
-
-  if (channel?.parentId === RENT_HOUSE_CATEGORY_ID) {
-    targetChannel = channel;
-  } else if (voiceChannel?.parentId === RENT_HOUSE_CATEGORY_ID) {
-    targetChannel = voiceChannel;
-  }
-
-  if (!targetChannel) return false;
-
-  const isOwner = await isRentHouseOwner(targetChannel, message.author.id);
-  if (!isOwner) {
-    const isPanelKeyword = /panel|แผง|ตั้งค่า|บ้าน/i.test(message.content);
-    if (isPanelKeyword) {
-      try {
-        await message.reply("แผงตั้งค่าบ้านเช่าใช้ได้เฉพาะเจ้าของบ้านเช่าที่กำลังอยู่ในบ้านของตัวเองเท่านั้นค่ะ");
-      } catch (err) {
-        if (err.code !== 10062) console.error("[rentHousePanel] reply error:", err.message);
-      }
-      return true;
-    }
-    return false;
-  }
-
-  await sendRentHousePanel(targetChannel, message.member);
-  return true;
+  // ปิดใช้งานระบบแท็กเรียกแผงควบคุมบ้านเช่าชั่วคราว
+  return false;
 }
 
 module.exports = {

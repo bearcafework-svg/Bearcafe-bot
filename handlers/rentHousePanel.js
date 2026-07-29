@@ -678,4 +678,5 @@ module.exports = {
   handleRentHousePanelInteraction,
   handleRentHousePanelMessage,
   isRentHouseOwner,
+  RENT_HOUSE_CATEGORY_ID,
 };

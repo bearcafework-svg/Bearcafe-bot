@@ -7,7 +7,7 @@ const { createRoom } = require("../handlers/roomCreator");
 const { markRoomActive, destroyRoom } = require("../handlers/roomDestroyer");
 const { getAllRooms, deleteRoom } = require("../state/redisClient");
 const { sendRoomLog } = require("../utils/roomLogger");
-const { sendRentHousePanel, isRentHouseOwner } = require("../handlers/rentHousePanel");
+const { sendRentHousePanel, isRentHouseOwner, RENT_HOUSE_CATEGORY_ID } = require("../handlers/rentHousePanel");
 
 module.exports = {
   name: "voiceStateUpdate",

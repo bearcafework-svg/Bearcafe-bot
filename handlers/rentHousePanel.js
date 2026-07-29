@@ -367,12 +367,12 @@ async function handleRentLockToggle(interaction) {
   const channel = interaction.channel;
   if (!channel) return false;
 
-  const @everyone = interaction.guild.roles.everyone;
-  const currentConnect = channel.permissionsFor(@everyone)?.has(PermissionFlagsBits.Connect);
+  const everyoneRole = interaction.guild.roles.everyone;
+  const currentConnect = channel.permissionsFor(everyoneRole)?.has(PermissionFlagsBits.Connect);
   const willLock = currentConnect !== false;
 
   try {
-    await channel.permissionOverwrites.edit(@everyone, { Connect: willLock ? false : null });
+    await channel.permissionOverwrites.edit(everyoneRole, { Connect: willLock ? false : null });
     return await interaction.reply({
       content: willLock ? "🔒 ล็อคบ้านเช่าเรียบร้อยแล้วค่ะ สมาชิกทั่วไปจะไม่สามารถเข้าได้" : "🔓 ปลดล็อคบ้านเช่าเรียบร้อยแล้วค่ะ สมาชิกทั่วไปสามารถเข้าได้",
       flags: EPHEMERAL_FLAG,
@@ -389,12 +389,12 @@ async function handleRentHideToggle(interaction) {
   const channel = interaction.channel;
   if (!channel) return false;
 
-  const @everyone = interaction.guild.roles.everyone;
-  const currentView = channel.permissionsFor(@everyone)?.has(PermissionFlagsBits.ViewChannel);
+  const everyoneRole = interaction.guild.roles.everyone;
+  const currentView = channel.permissionsFor(everyoneRole)?.has(PermissionFlagsBits.ViewChannel);
   const willHide = currentView !== false;
 
   try {
-    await channel.permissionOverwrites.edit(@everyone, { ViewChannel: willHide ? false : null });
+    await channel.permissionOverwrites.edit(everyoneRole, { ViewChannel: willHide ? false : null });
     return await interaction.reply({
       content: willHide ? "👀 ซ่อนบ้านเช่าเรียบร้อยแล้วค่ะ สมาชิกทั่วไปจะไม่เห็นห้องนี้" : "👁️ เปิดมองเห็นบ้านเช่าเรียบร้อยแล้วค่ะ สมาชิกทั่วไปสามารถเห็นห้องนี้ได้",
       flags: EPHEMERAL_FLAG,
@@ -496,8 +496,8 @@ async function handleRentModalSubmit(interaction) {
     }
 
     // ล็อคห้องอัตโนมัติเมื่อตั้งรหัสผ่าน
-    const @everyone = interaction.guild.roles.everyone;
-    await channel.permissionOverwrites.edit(@everyone, { Connect: false });
+    const everyoneRole = interaction.guild.roles.everyone;
+    await channel.permissionOverwrites.edit(everyoneRole, { Connect: false });
 
     return await interaction.reply({
       content: `🔑 ตั้งรหัสผ่านบ้านเช่าเรียบร้อยแล้วค่ะ!\n- **รหัสผ่านของคุณ:** \`${rawPass}\`\n*(สมาชิกสามารถกดปุ่ม "กรอกรหัสผ่านเข้าบ้าน" เพื่อพิมพ์รหัสผ่านนี้ในการเข้าห้องได้เลยค่ะ)*`,

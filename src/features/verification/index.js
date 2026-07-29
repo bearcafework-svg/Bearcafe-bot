@@ -118,6 +118,27 @@ const WELCOME_BUTTON_POOL = [
  * @param {GuildMember} member 
  * @returns {Promise<string|null>} The matched banned word or null
  */
+function escapeRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function matchesBannedWord(text, bannedWord) {
+  if (!text || !bannedWord) return false;
+
+  // สำหรับคำภาษาอังกฤษ/ตัวเลขสั้นๆ (เช่น av, sex) ให้เช็คแบบ Word Boundary (\b) เพื่อไม่ให้ติดคำผสมอย่าง avy, avatar, heavy
+  if (/^[a-zA-Z0-9_]+$/.test(bannedWord)) {
+    const regex = new RegExp(`\\b${escapeRegex(bannedWord)}\\b`, "i");
+    return regex.test(text);
+  }
+
+  // สำหรับคำอื่นๆ หรือภาษาไทย เช็คขอบเขตของคำหรือสัญลักษณ์คั่น
+  const boundaryRegex = new RegExp(`(?:^|[^a-zA-Z0-9\\u0E00-\\u0E7F])${escapeRegex(bannedWord)}(?:$|[^a-zA-Z0-9\\u0E00-\\u0E7F])`, "i");
+  return boundaryRegex.test(text);
+}
+
+/**
+ * Check member username / nickname against banned_name table in Supabase
+ */
 async function checkBannedName(member) {
   try {
     const { data: wordsData, error } = await supabase
@@ -134,17 +155,21 @@ async function checkBannedName(member) {
       return null;
     }
 
-    const username = member.user.username.toLowerCase();
-    const displayName = member.displayName.toLowerCase();
-    const nickname = member.nickname ? member.nickname.toLowerCase() : "";
+    const username = member.user.username;
+    const displayName = member.displayName;
+    const nickname = member.nickname || "";
 
     console.log(`[verification] Checking member name. User: ${member.user.tag}. Username: "${username}", DisplayName: "${displayName}", Nickname: "${nickname}"`);
 
     for (const item of wordsData) {
-      const bannedWord = item.word.toLowerCase().trim();
+      const bannedWord = item.word.trim();
       if (!bannedWord) continue;
 
-      if (username.includes(bannedWord) || displayName.includes(bannedWord) || nickname.includes(bannedWord)) {
+      if (
+        matchesBannedWord(username, bannedWord) ||
+        matchesBannedWord(displayName, bannedWord) ||
+        matchesBannedWord(nickname, bannedWord)
+      ) {
         console.log(`[verification] Match detected! Banned word: "${bannedWord}" inside user: ${member.user.tag}`);
         return item.word;
       }

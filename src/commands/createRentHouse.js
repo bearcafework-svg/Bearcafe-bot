@@ -3,6 +3,7 @@
 // รองรับการทำงานผ่านระบบหลังบ้าน: สร้างช่องเสียงตามโหมดประเภทสิทธิ์ผู้ใช้, จัดการสิทธิ์การใช้งานผ่าน PermissionOverrides, และลิงก์ไปยังห้องส่วนตัว
 
 const { Events, ChannelType, PermissionFlagsBits } = require("discord.js");
+const { sendRentHousePanel } = require("../../handlers/rentHousePanel");
 
 // Role IDs ที่ได้รับอนุญาตให้ใช้คำสั่งนี้
 const COMMAND_ALLOWED_ROLES = [
@@ -121,7 +122,15 @@ function setupCreateRentHouse(client) {
           [PermissionFlagsBits.ManageWebhooks]: false
         });
 
-        // 5. แก้ไขข้อความ Content Message เป็นเสร็จเรียบร้อยและแนบลิงก์
+        // 5. ส่งแผงควบคุมบ้านเช่าเข้าห้องใหม่
+        try {
+          const targetMember = await guild.members.fetch(targetUserId).catch(() => null);
+          await sendRentHousePanel(createdChannel, targetMember || targetUser);
+        } catch (panelErr) {
+          console.error("[createRentHouse] Failed to send rent house panel:", panelErr.message);
+        }
+
+        // 6. แก้ไขข้อความ Content Message เป็นเสร็จเรียบร้อยและแนบลิงก์
         await interaction.editReply({
           content: `## <:2003on:1053984025666125874>︲<@${targetUserId}> ทำการสร้างบ้านหมีเรียบร้อยค่ะ!\n` +
             `- __\`𝐲𝐨𝐮𝐫 𝐡𝐨𝐮𝐬𝐞\`__: https://discord.com/channels/${guild.id}/${createdChannel.id}\n` +

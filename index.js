@@ -9,6 +9,8 @@ const { Client, GatewayIntentBits, ActivityType, Events } = require("discord.js"
 const { startMonitor } = require("./handlers/roomMonitor");
 const { destroyRoom } = require("./handlers/roomDestroyer");
 const { handleRoomPanel, handleRoomPanelInteraction } = require("./handlers/roomPanel");
+const { handleRentHousePanelInteraction } = require("./handlers/rentHousePanel");
+const { setupContractNotifier } = require("./src/services/contractNotifier");
 const voiceStateUpdate = require("./events/voiceStateUpdate");
 const { getAllRooms, getAllSeparators } = require("./state/redisClient");
 const { syncAllSeparators } = require("./utils/separatorManager");
@@ -51,6 +53,7 @@ setupFeature("colorRoles", "./src/commands/colorRoles", "setupColorRoles", supab
 setupFeature("totalAmount", "./src/commands/totalAmount", "setupTotalAmount");
 setupFeature("createPersonalRole", "./src/commands/createPersonalRole", "setupCreatePersonalRole", supabaseEnvKeys);
 setupFeature("createRentHouse", "./src/commands/createRentHouse", "setupCreateRentHouse");
+setupContractNotifier(client);
 setupFeature("checkRole", "./src/commands/checkRole", "setupCheckRole");
 setupFeature("resetForm", "./src/commands/resetForm", "setupResetForm", supabaseEnvKeys);
 setupFeature("randomQuestion", "./src/commands/randomQuestion", "setupRandomQuestion", supabaseEnvKeys);
@@ -175,7 +178,9 @@ client.on("messageCreate", async (message) => {
 });
 
 client.on("interactionCreate", async (interaction) => {
-  handleRoomPanelInteraction(interaction).catch(console.error);
+  const handledRoom = await handleRoomPanelInteraction(interaction).catch(console.error);
+  if (handledRoom) return;
+  await handleRentHousePanelInteraction(interaction).catch(console.error);
 });
 
 // ── อัปเดตสถานะเมื่อสมาชิกเข้า/ออกจาก Guild ───────────────────────

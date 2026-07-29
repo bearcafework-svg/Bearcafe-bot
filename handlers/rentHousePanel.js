@@ -179,19 +179,19 @@ async function handleRentHousePanelInteraction(interaction) {
     return await handleRentHideToggle(interaction);
   }
   if (customId === RENT_CUSTOM_IDS.trust) {
-    return await showUserSelectMenu(interaction, RENT_CUSTOM_IDS.selectTrust, "เลือกสมาชิกที่ต้องการให้อนุญาตเข้าห้อง");
+    return await showUserSelectMenu(interaction, RENT_CUSTOM_IDS.selectTrust, "เลือกสมาชิกที่ต้องการให้อนุญาตเข้าห้อง (เลือกได้หลายคน)", 25);
   }
   if (customId === RENT_CUSTOM_IDS.untrust) {
-    return await showUserSelectMenu(interaction, RENT_CUSTOM_IDS.selectUntrust, "เลือกสมาชิกที่ต้องการยกเลิกการอนุญาต");
+    return await showUserSelectMenu(interaction, RENT_CUSTOM_IDS.selectUntrust, "เลือกสมาชิกที่ต้องการยกเลิกการอนุญาต (เลือกได้หลายคน)", 25);
   }
   if (customId === RENT_CUSTOM_IDS.block) {
-    return await showUserSelectMenu(interaction, RENT_CUSTOM_IDS.selectBlock, "เลือกสมาชิกที่ต้องการซ่อนห้อง/บล็อก (Blacklist)");
+    return await showUserSelectMenu(interaction, RENT_CUSTOM_IDS.selectBlock, "เลือกสมาชิกที่ต้องการซ่อนห้อง/บล็อก (เลือกได้หลายคน)", 25);
   }
   if (customId === RENT_CUSTOM_IDS.unblock) {
-    return await showUserSelectMenu(interaction, RENT_CUSTOM_IDS.selectUnblock, "เลือกสมาชิกที่ต้องการยกเลิกซ่อนห้อง");
+    return await showUserSelectMenu(interaction, RENT_CUSTOM_IDS.selectUnblock, "เลือกสมาชิกที่ต้องการยกเลิกซ่อนห้อง (เลือกได้หลายคน)", 25);
   }
   if (customId === RENT_CUSTOM_IDS.kick) {
-    return await showUserSelectMenu(interaction, RENT_CUSTOM_IDS.selectKick, "เลือกสมาชิกที่ต้องการเตะออกจากห้อง");
+    return await showUserSelectMenu(interaction, RENT_CUSTOM_IDS.selectKick, "เลือกสมาชิกที่ต้องการเตะออกจากห้อง (เลือกได้หลายคน)", 25);
   }
   if (customId === RENT_CUSTOM_IDS.permissionsList) {
     return await handleRentPermissionsList(interaction);
@@ -278,7 +278,7 @@ async function showSetPasswordModal(interaction) {
       new ActionRowBuilder().addComponents(
         new TextInputBuilder()
           .setCustomId("house_password")
-          .setLabel("กำหนดรหัสผ่านบ้าน (4-10 หลัก หรือเว้นว่างเพื่อยกเลิก)")
+          .setLabel("กำหนดรหัสผ่านบ้าน (เว้นว่างเพื่อยกเลิก)")
           .setStyle(TextInputStyle.Short)
           .setMaxLength(10)
           .setRequired(false)
@@ -349,13 +349,13 @@ async function showRentLimitModal(interaction) {
   return true;
 }
 
-async function showUserSelectMenu(interaction, customId, placeholder) {
+async function showUserSelectMenu(interaction, customId, placeholder, maxValues = 25) {
   if (interaction.replied || interaction.deferred) return false;
   const select = new UserSelectMenuBuilder()
     .setCustomId(customId)
     .setPlaceholder(placeholder)
     .setMinValues(1)
-    .setMaxValues(1);
+    .setMaxValues(maxValues);
   await interaction.reply({
     components: [new ActionRowBuilder().addComponents(select)],
     flags: EPHEMERAL_FLAG,
@@ -441,33 +441,53 @@ async function handleRentPermissionsList(interaction) {
 
 async function handleRentUserSelect(interaction) {
   const channel = interaction.channel;
-  const targetId = interaction.values[0];
-  const targetMember = interaction.guild.members.cache.get(targetId);
-  const targetName = targetMember ? targetMember.user.tag : `<@${targetId}>`;
+  const targetIds = interaction.values;
+  if (!targetIds || targetIds.length === 0) return false;
+
+  const targetNames = [];
+  const kickedNames = [];
+
+  for (const targetId of targetIds) {
+    const targetMember = interaction.guild.members.cache.get(targetId);
+    const name = targetMember ? targetMember.user.tag : `<@${targetId}>`;
+    targetNames.push(name);
+
+    if (interaction.customId === RENT_CUSTOM_IDS.selectTrust) {
+      await channel.permissionOverwrites.edit(targetId, { Connect: true, ViewChannel: true });
+    } else if (interaction.customId === RENT_CUSTOM_IDS.selectUntrust) {
+      await channel.permissionOverwrites.delete(targetId);
+    } else if (interaction.customId === RENT_CUSTOM_IDS.selectBlock) {
+      await channel.permissionOverwrites.edit(targetId, { Connect: false, ViewChannel: false });
+    } else if (interaction.customId === RENT_CUSTOM_IDS.selectUnblock) {
+      await channel.permissionOverwrites.delete(targetId);
+    } else if (interaction.customId === RENT_CUSTOM_IDS.selectKick) {
+      await channel.permissionOverwrites.delete(targetId);
+      if (targetMember && targetMember.voice.channelId === channel.id) {
+        await targetMember.voice.disconnect("Kicked from rent house");
+        kickedNames.push(name);
+      }
+    }
+  }
+
+  const formattedNames = targetNames.map((n) => `**${n}**`).join(", ");
 
   if (interaction.customId === RENT_CUSTOM_IDS.selectTrust) {
-    await channel.permissionOverwrites.edit(targetId, { Connect: true, ViewChannel: true });
-    return await interaction.update({ content: `➕ อนุญาตสิทธิ์ถาวรให้ **${targetName}** เข้าบ้านเช่าได้เรียบร้อยแล้วค่ะ`, components: [] });
+    return await interaction.update({ content: `➕ อนุญาตสิทธิ์ถาวรให้ ${formattedNames} เข้าบ้านเช่าได้เรียบร้อยแล้วค่ะ`, components: [] });
   }
   if (interaction.customId === RENT_CUSTOM_IDS.selectUntrust) {
-    await channel.permissionOverwrites.delete(targetId);
-    return await interaction.update({ content: `➖ ลบสิทธิ์พิเศษของ **${targetName}** เรียบร้อยแล้วค่ะ`, components: [] });
+    return await interaction.update({ content: `➖ ลบสิทธิ์พิเศษของ ${formattedNames} เรียบร้อยแล้วค่ะ`, components: [] });
   }
   if (interaction.customId === RENT_CUSTOM_IDS.selectBlock) {
-    await channel.permissionOverwrites.edit(targetId, { Connect: false, ViewChannel: false });
-    return await interaction.update({ content: `🙈 ซ่อนบ้านเช่าและจัดใส่ **Blacklist (BL)** ให้ **${targetName}** เรียบร้อยแล้วค่ะ (แม้รู้รหัสผ่านก็ไม่สามารถเข้าได้)`, components: [] });
+    return await interaction.update({ content: `🙈 ซ่อนบ้านเช่าและจัดใส่ **Blacklist (BL)** ให้ ${formattedNames} เรียบร้อยแล้วค่ะ`, components: [] });
   }
   if (interaction.customId === RENT_CUSTOM_IDS.selectUnblock) {
-    await channel.permissionOverwrites.delete(targetId);
-    return await interaction.update({ content: `👁️ ยกเลิก Blacklist ให้ **${targetName}** เรียบร้อยแล้วค่ะ`, components: [] });
+    return await interaction.update({ content: `👁️ ยกเลิก Blacklist ให้ ${formattedNames} เรียบร้อยแล้วค่ะ`, components: [] });
   }
   if (interaction.customId === RENT_CUSTOM_IDS.selectKick) {
-    await channel.permissionOverwrites.delete(targetId);
-    if (targetMember && targetMember.voice.channelId === channel.id) {
-      await targetMember.voice.disconnect("Kicked from rent house");
-      return await interaction.update({ content: `📤 เตะและถอดสิทธิ์ชั่วคราวของ **${targetName}** ออกจากบ้านเช่าเรียบร้อยแล้วค่ะ`, components: [] });
+    if (kickedNames.length > 0) {
+      return await interaction.update({ content: `📤 เตะและถอดสิทธิ์ชั่วคราวของ ${formattedNames} ออกจากบ้านเช่าเรียบร้อยแล้วค่ะ`, components: [] });
     }
-    return await interaction.update({ content: `📤 ถอดสิทธิ์ชั่วคราวของ **${targetName}** เรียบร้อยแล้วค่ะ`, components: [] });
+    return await interaction.update({ content: `📤 ถอดสิทธิ์ชั่วคราวของ ${formattedNames} เรียบร้อยแล้วค่ะ`, components: [] });
   }
   return false;
 }
@@ -586,7 +606,76 @@ async function handleRentModalSubmit(interaction) {
   return false;
 }
 
+const RENT_HOUSE_CATEGORY_ID = "1524122689604816986";
+
+async function isRentHouseOwner(channel, userId) {
+  if (!channel || channel.parentId !== RENT_HOUSE_CATEGORY_ID) return false;
+
+  const supabase = getSupabase();
+  if (supabase) {
+    try {
+      const { data: setting } = await supabase
+        .from("rent_house_settings")
+        .select("owner_id")
+        .eq("channel_id", channel.id)
+        .maybeSingle();
+      if (setting && setting.owner_id === userId) return true;
+
+      const { data: contracts } = await supabase
+        .from("contracts")
+        .select("member_id")
+        .eq("type", "house")
+        .or(`room_link.ilike.%${channel.id}%,member_id.eq.${userId}`)
+        .limit(1);
+      if (contracts && contracts.length > 0 && contracts[0].member_id === userId) return true;
+    } catch (e) {
+      console.error("[rentHousePanel] Error checking rent house owner:", e.message);
+    }
+  }
+
+  const ow = channel.permissionOverwrites.cache.get(userId);
+  if (ow && ow.allow.has(PermissionFlagsBits.ManageChannels)) return true;
+
+  return false;
+}
+
+async function handleRentHousePanelMessage(message) {
+  if (message.author.bot || !message.guild) return false;
+  if (!message.mentions.users.has(message.client.user.id)) return false;
+
+  const channel = message.channel;
+  const voiceChannel = message.member?.voice?.channel;
+  let targetChannel = null;
+
+  if (channel?.parentId === RENT_HOUSE_CATEGORY_ID) {
+    targetChannel = channel;
+  } else if (voiceChannel?.parentId === RENT_HOUSE_CATEGORY_ID) {
+    targetChannel = voiceChannel;
+  }
+
+  if (!targetChannel) return false;
+
+  const isOwner = await isRentHouseOwner(targetChannel, message.author.id);
+  if (!isOwner) {
+    const isPanelKeyword = /panel|แผง|ตั้งค่า|บ้าน/i.test(message.content);
+    if (isPanelKeyword) {
+      try {
+        await message.reply("แผงตั้งค่าบ้านเช่าใช้ได้เฉพาะเจ้าของบ้านเช่าที่กำลังอยู่ในบ้านของตัวเองเท่านั้นค่ะ");
+      } catch (err) {
+        if (err.code !== 10062) console.error("[rentHousePanel] reply error:", err.message);
+      }
+      return true;
+    }
+    return false;
+  }
+
+  await sendRentHousePanel(targetChannel, message.member);
+  return true;
+}
+
 module.exports = {
   sendRentHousePanel,
   handleRentHousePanelInteraction,
+  handleRentHousePanelMessage,
+  isRentHouseOwner,
 };

@@ -9,7 +9,7 @@ const { Client, GatewayIntentBits, ActivityType, Events } = require("discord.js"
 const { startMonitor } = require("./handlers/roomMonitor");
 const { destroyRoom } = require("./handlers/roomDestroyer");
 const { handleRoomPanel, handleRoomPanelInteraction } = require("./handlers/roomPanel");
-const { handleRentHousePanelInteraction } = require("./handlers/rentHousePanel");
+const { handleRentHousePanelInteraction, handleRentHousePanelMessage } = require("./handlers/rentHousePanel");
 const { setupContractNotifier } = require("./src/services/contractNotifier");
 const voiceStateUpdate = require("./events/voiceStateUpdate");
 const { getAllRooms, getAllSeparators } = require("./state/redisClient");
@@ -174,6 +174,8 @@ client.on("voiceStateUpdate", (oldState, newState) => {
 });
 
 client.on("messageCreate", async (message) => {
+  const handledRent = await handleRentHousePanelMessage(message).catch(console.error);
+  if (handledRent) return;
   handleRoomPanel(message).catch(console.error);
 });
 

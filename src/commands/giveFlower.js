@@ -258,7 +258,11 @@ async function handleTimeoutSession(client, supabase, session) {
   } catch (err) {
     console.error("[giveFlower] Error handling timeout session:", err.message);
   } finally {
-    await supabase.from("flower_sessions").delete().eq("id", session.id).catch(() => null);
+    try {
+      await supabase.from("flower_sessions").delete().eq("id", session.id);
+    } catch (e) {
+      // ignore
+    }
   }
 }
 
@@ -491,7 +495,11 @@ function setupGiveFlower(client) {
         clearTimeout(activeTimers.get(sessionId));
         activeTimers.delete(sessionId);
       }
-      await supabase.from("flower_sessions").delete().eq("id", sessionId).catch(() => null);
+      try {
+        await supabase.from("flower_sessions").delete().eq("id", sessionId);
+      } catch (e) {
+        // ignore
+      }
 
       const flowerObj = getFlowerInfo(session.flower_key);
 

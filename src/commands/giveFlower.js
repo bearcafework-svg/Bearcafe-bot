@@ -425,9 +425,10 @@ function setupGiveFlower(client) {
 
         // Save session to Memory & DB
         inMemorySessions.set(sessionId, session);
-        await supabase.from("flower_sessions").insert(session).catch(err => {
-          console.warn("[giveFlower] Could not persist session to DB:", err.message);
-        });
+        const { error: insertErr } = await supabase.from("flower_sessions").insert(session);
+        if (insertErr) {
+          console.error("[giveFlower] Could not persist session to DB:", insertErr.message);
+        }
 
         // Schedule timeout
         scheduleSessionTimeout(client, supabase, session);

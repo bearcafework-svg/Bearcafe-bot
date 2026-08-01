@@ -15,8 +15,12 @@ CREATE TABLE IF NOT EXISTS public.flower_sessions (
 -- RLS (Row Level Security)
 ALTER TABLE public.flower_sessions ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Allow public read access to flower_sessions"
-  ON public.flower_sessions FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public Read/Write Access on flower_sessions" ON public.flower_sessions;
+DROP POLICY IF EXISTS "Allow public read access to flower_sessions" ON public.flower_sessions;
+DROP POLICY IF EXISTS "Allow service_role full access to flower_sessions" ON public.flower_sessions;
 
-CREATE POLICY "Allow service_role full access to flower_sessions"
-  ON public.flower_sessions FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public Read/Write Access on flower_sessions"
+  ON public.flower_sessions FOR ALL
+  TO public, anon, authenticated, service_role
+  USING (true)
+  WITH CHECK (true);

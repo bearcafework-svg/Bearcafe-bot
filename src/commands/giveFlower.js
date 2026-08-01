@@ -11,6 +11,7 @@ const FLAG_V2 = MessageFlags.IsComponentsV2 || 32768;
 const FLAG_EPHEMERAL = MessageFlags.Ephemeral || 64;
 
 const TARGET_ROLE_ID = "1288406430864511029"; // ยศพิเศษเมื่อรับดอกไม้
+const TARGET_CHANNEL_ID = "1524124280281890938"; // ห้องที่อนุญาตให้ใช้คำสั่ง
 const WITHERED_IMG = "https://cdn.discordapp.com/attachments/1524704267015819274/1532863674866470992/Flower.png?ex=6a6e660b&is=6a6d148b&hm=cfcd56b1a805ba7e1b3c12fb34e543c4a574dc2d3526911ff768e31a61b38c00&";
 
 const FLOWERS = {
@@ -67,6 +68,7 @@ const FLOWERS = {
 };
 
 const activeTimers = new Map();
+const inMemorySessions = new Map();
 
 function getFlowerInfo(key) {
   if (FLOWERS[key]) return FLOWERS[key];
@@ -245,6 +247,7 @@ function buildDeclinedPayload(senderId, targetId) {
 
 async function handleTimeoutSession(client, supabase, session) {
   try {
+    inMemorySessions.delete(session.id);
     const channel = await client.channels.fetch(session.channel_id).catch(() => null);
     if (channel) {
       const msg = await channel.messages.fetch(session.message_id).catch(() => null);
@@ -287,6 +290,7 @@ async function restoreSessionsFromDb(client, supabase) {
     if (data && data.length > 0) {
       console.log(`[giveFlower] Restoring ${data.length} active flower session(s) from DB...`);
       for (const session of data) {
+        inMemorySessions.set(session.id, session);
         scheduleSessionTimeout(client, supabase, session);
       }
     }
@@ -344,6 +348,14 @@ function setupGiveFlower(client) {
   client.on(Events.InteractionCreate, async (interaction) => {
     // ── 1. Slash Command Handling ──────────────────────────────────────────
     if (interaction.isChatInputCommand() && interaction.commandName === "มอบดอกไม้") {
+      // 1.0 Channel check
+      if (interaction.channelId !== TARGET_CHANNEL_ID) {
+        return interaction.reply({
+          content: `คำสั่งนี้ใช้ได้เฉพาะห้อง <#${TARGET_CHANNEL_ID}> เท่านั้นนะคะ`,
+          flags: FLAG_EPHEMERAL
+        });
+      }
+
       const member = interaction.member;
       const userId = interaction.user.id;
 
@@ -411,7 +423,8 @@ function setupGiveFlower(client) {
           expires_at: now + 5 * 60 * 1000
         };
 
-        // Save session to Supabase
+        // Save session to Memory & DB
+        inMemorySessions.set(sessionId, session);
         await supabase.from("flower_sessions").insert(session).catch(err => {
           console.warn("[giveFlower] Could not persist session to DB:", err.message);
         });
@@ -440,14 +453,23 @@ function setupGiveFlower(client) {
         return interaction.reply(payload);
       }
 
-      // Fetch session from DB or activeTimers
-      const { data: session, error } = await supabase
-        .from("flower_sessions")
-        .select("*")
-        .eq("id", sessionId)
-        .single();
+      // Fetch session from Memory first, then DB fallback
+      let session = inMemorySessions.get(sessionId);
 
-      if (error || !session) {
+      if (!session) {
+        try {
+          const { data } = await supabase
+            .from("flower_sessions")
+            .select("*")
+            .eq("id", sessionId)
+            .single();
+          if (data) session = data;
+        } catch (err) {
+          // Ignore DB error
+        }
+      }
+
+      if (!session) {
         return interaction.reply({
           content: "❌ ดอกไม้นี้ถูกดำเนินการไปแล้วหรือหมดเวลาแล้วค่ะ",
           flags: FLAG_EPHEMERAL
@@ -462,7 +484,8 @@ function setupGiveFlower(client) {
         });
       }
 
-      // Clear timer and remove from DB
+      // Clear memory, timer and remove from DB
+      inMemorySessions.delete(sessionId);
       if (activeTimers.has(sessionId)) {
         clearTimeout(activeTimers.get(sessionId));
         activeTimers.delete(sessionId);

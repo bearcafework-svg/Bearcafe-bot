@@ -527,14 +527,14 @@ function setupGiveFlower(client) {
           flowerObj.img
         );
 
-        await interaction.reply(acceptedPayload).catch(() => {
-          return interaction.channel.send(acceptedPayload);
+        await interaction.channel.send(acceptedPayload).catch(err => {
+          console.error("[giveFlower] Error sending accepted payload:", err.message);
         });
       } else if (action === "decline") {
         const declinedPayload = buildDeclinedPayload(session.sender_id, session.target_id);
 
-        await interaction.reply(declinedPayload).catch(() => {
-          return interaction.channel.send(declinedPayload);
+        await interaction.channel.send(declinedPayload).catch(err => {
+          console.error("[giveFlower] Error sending declined payload:", err.message);
         });
       }
     }

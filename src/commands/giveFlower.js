@@ -503,6 +503,9 @@ function setupGiveFlower(client) {
 
       const flowerObj = getFlowerInfo(session.flower_key);
 
+      // Delete old message containing slash command and buttons
+      await interaction.message.delete().catch(() => null);
+
       if (action === "accept") {
         // แอดบทบาท "1288406430864511029" ให้ผู้โดนแท็ก
         try {
@@ -524,14 +527,14 @@ function setupGiveFlower(client) {
           flowerObj.img
         );
 
-        await interaction.update(acceptedPayload).catch(err => {
-          console.error("[giveFlower] Failed to update interaction on accept:", err.message);
+        await interaction.reply(acceptedPayload).catch(() => {
+          return interaction.channel.send(acceptedPayload);
         });
       } else if (action === "decline") {
         const declinedPayload = buildDeclinedPayload(session.sender_id, session.target_id);
 
-        await interaction.update(declinedPayload).catch(err => {
-          console.error("[giveFlower] Failed to update interaction on decline:", err.message);
+        await interaction.reply(declinedPayload).catch(() => {
+          return interaction.channel.send(declinedPayload);
         });
       }
     }

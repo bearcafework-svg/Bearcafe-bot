@@ -28,6 +28,45 @@ function setupStickyPanels(client) {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
   });
 
+  // ─── Helper: ทำความสะอาดและตรวจเช็ก Payload ของ Discord ────────────────────
+  // แก้ไขปัญหา BUTTON_COMPONENT_CUSTOM_ID_URL_MUTUALLY_EXCLUSIVE
+  // ปุ่มประเภท Link (style: 5 หรือมี url) ห้ามมี custom_id ติดไปด้วยเด็ดขาด
+  function sanitizePayload(payload) {
+    if (!payload || typeof payload !== "object") return payload;
+
+    const clone = JSON.parse(JSON.stringify(payload));
+
+    function cleanComponent(comp) {
+      if (!comp || typeof comp !== "object") return comp;
+
+      // Type 2: Button
+      if (comp.type === 2) {
+        const isLinkButton = comp.style === 5 || (typeof comp.url === "string" && comp.url.trim().length > 0);
+        if (isLinkButton) {
+          comp.style = 5;
+          delete comp.custom_id;
+        } else {
+          delete comp.url;
+        }
+      }
+
+      if (Array.isArray(comp.components)) {
+        comp.components.forEach(cleanComponent);
+      }
+      if (Array.isArray(comp.items)) {
+        comp.items.forEach(cleanComponent);
+      }
+
+      return comp;
+    }
+
+    if (Array.isArray(clone.components)) {
+      clone.components.forEach(cleanComponent);
+    }
+
+    return clone;
+  }
+
   // ─── Helper: บันทึก last_message_id ลง Supabase Database ──────────────────
   async function saveLastMessageId(channelId, messageId) {
     try {
@@ -65,7 +104,7 @@ function setupStickyPanels(client) {
   }
 
   // ส่งบอร์ดใหม่ลง Discord ทันที (ลบแผ่นเก่าออกและส่งใหม่)
-  async function triggerInstantSend(channelId, payload) {
+  async function triggerInstantSend(channelId, rawPayload) {
     console.log(`[stickyPanels] triggerInstantSend called for channel: ${channelId}`);
     try {
       const channel = client.channels.cache.get(channelId) || 
@@ -94,7 +133,8 @@ function setupStickyPanels(client) {
       // B. ลบข้อความเดิมในห้อง (ถ้ามี)
       await deleteOldStickyMessage(channel, session);
 
-      // C. ส่งประกาศบอร์ดใหม่ทันที
+      // C. ทำความสะอาด Payload และส่งประกาศบอร์ดใหม่ทันที
+      const payload = sanitizePayload(rawPayload);
       console.log(`[stickyPanels] Sending new sticky payload to channel ${channelId}...`);
       const sentMsg = await channel.send(payload);
       session.lastBotMessageId = sentMsg.id;
@@ -121,7 +161,7 @@ function setupStickyPanels(client) {
         for (const row of data) {
           stickyConfigs.set(row.channel_id, {
             delayMs: row.delay_ms,
-            payload: row.payload,
+            payload: sanitizePayload(row.payload),
             refreshTrigger: row.refresh_trigger || 0
           });
 
@@ -156,9 +196,10 @@ function setupStickyPanels(client) {
           
           if (eventType === "INSERT" || eventType === "UPDATE") {
             const oldConfig = stickyConfigs.get(newRow.channel_id);
+            const sanitizedNewPayload = sanitizePayload(newRow.payload);
             stickyConfigs.set(newRow.channel_id, {
               delayMs: newRow.delay_ms,
-              payload: newRow.payload,
+              payload: sanitizedNewPayload,
               refreshTrigger: newRow.refresh_trigger || 0
             });
 
@@ -178,7 +219,7 @@ function setupStickyPanels(client) {
 
             if (isInsert || isForceRefresh) {
               console.log(`[stickyPanels] Triggering instant resend for channel ${newRow.channel_id} (isInsert: ${isInsert}, isForceRefresh: ${isForceRefresh})`);
-              await triggerInstantSend(newRow.channel_id, newRow.payload);
+              await triggerInstantSend(newRow.channel_id, sanitizedNewPayload);
             } else {
               console.log(`[stickyPanels] Silently updated config in memory for channel ${newRow.channel_id}`);
             }
@@ -243,7 +284,8 @@ function setupStickyPanels(client) {
     const delay = channelConfig.delayMs || 6000;
     session.timeoutId = setTimeout(async () => {
       try {
-        const sentMsg = await message.channel.send(channelConfig.payload);
+        const payload = sanitizePayload(channelConfig.payload);
+        const sentMsg = await message.channel.send(payload);
         session.lastBotMessageId = sentMsg.id;
         console.log(`[stickyPanels] Sent new sticky message ${sentMsg.id} in channel ${channelId}`);
 

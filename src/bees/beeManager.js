@@ -33,8 +33,8 @@ function getSupabase() {
   return supabaseClient;
 }
 
-// Helper: ดึง Local Setting Fallback
-function getLocalSetting() {
+// Helper: ดึงการตั้งค่าระบบผึ้งจาก JSON โดยตรง
+function getSettingBee() {
   try {
     const raw = fs.readFileSync(SETTING_PATH, 'utf8');
     return JSON.parse(raw);
@@ -43,36 +43,17 @@ function getLocalSetting() {
   }
 }
 
-// ─── Helper: ดึงการตั้งค่าระบบผึ้งล่าสุดจาก Supabase DB (หรือ Fallback) ──────
+// ─── Helper: ดึงการตั้งค่าระบบผึ้งจากไฟล์ settingBee.json ───────────────────────
 async function fetchBeeSystemConfig() {
-  const supabase = getSupabase();
-  let sysSetting = null;
-  let bees = [];
-
-  if (supabase) {
-    try {
-      const [{ data: sysData }, { data: beesData }] = await Promise.all([
-        supabase.from('bee_system_settings').select('*').eq('id', 1).single(),
-        supabase.from('bee_configs').select('*').order('sequence_order', { ascending: true })
-      ]);
-
-      if (sysData) sysSetting = sysData;
-      if (beesData && beesData.length > 0) bees = beesData;
-    } catch (e) {
-      console.warn('[bees] Failed to fetch bee config from Supabase, using local fallback:', e.message);
-    }
-  }
-
-  const local = getLocalSetting();
-
+  const local = getSettingBee();
   return {
-    channel_id: sysSetting?.channel_id || local.channel_id || '1524123413122125964',
-    auto_spawn_enabled: sysSetting?.auto_spawn_enabled ?? local.auto_spawn_enabled ?? true,
-    min_spawn_minutes: sysSetting?.min_spawn_minutes || local.min_spawn_minutes || 5,
-    max_spawn_minutes: sysSetting?.max_spawn_minutes || local.max_spawn_minutes || 10,
-    spawn_mode: sysSetting?.spawn_mode || local.spawn_mode || 'weighted_random',
-    garden_background_url: sysSetting?.garden_background_url || 'https://cdn.discordapp.com/attachments/1528780402544611348/1528780439836430487/Garden.png',
-    bees: bees.length > 0 ? bees : (local.bees || [])
+    channel_id: local.channel_id || '1524123413122125964',
+    auto_spawn_enabled: local.auto_spawn_enabled ?? false,
+    min_spawn_minutes: local.min_spawn_minutes || 5,
+    max_spawn_minutes: local.max_spawn_minutes || 10,
+    spawn_mode: local.spawn_mode || 'weighted_random',
+    garden_background_url: local.garden_background_url || 'https://cdn.discordapp.com/attachments/1528780402544611348/1528780439836430487/Garden.png',
+    bees: local.bees || []
   };
 }
 
@@ -332,6 +313,7 @@ async function handleBeeInteraction(interaction, client, supabase) {
 }
 
 module.exports = {
+  getSettingBee,
   fetchBeeSystemConfig,
   spawnBee,
   scheduleNextAutoSpawn,

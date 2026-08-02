@@ -101,7 +101,6 @@ function setupCreateRentHouse(client) {
           [PermissionFlagsBits.Speak]: true,
           [PermissionFlagsBits.Stream]: true,
           [PermissionFlagsBits.Connect]: true,
-          [PermissionFlagsBits.ManageChannels]: true,
           [PermissionFlagsBits.MoveMembers]: true,
           [PermissionFlagsBits.RequestToSpeak]: true,
           [PermissionFlagsBits.ReadMessageHistory]: true,
@@ -117,7 +116,6 @@ function setupCreateRentHouse(client) {
           [PermissionFlagsBits.UseExternalEmojis]: true,
           [PermissionFlagsBits.UseExternalStickers]: true,
           [PermissionFlagsBits.ManageMessages]: true,
-          [PermissionFlagsBits.ManageRoles]: true,
           [PermissionFlagsBits.AttachFiles]: true,
           [PermissionFlagsBits.ManageWebhooks]: false
         });

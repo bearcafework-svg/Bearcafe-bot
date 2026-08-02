@@ -133,6 +133,23 @@ async function safeShowModal(interaction, modal) {
   }
 }
 
+async function safeUpdate(interaction, payload = {}) {
+  if (!interaction) return false;
+  if (interaction.replied || interaction.deferred) {
+    return await safeRespond(interaction, payload);
+  }
+
+  try {
+    await interaction.update(payload);
+    return true;
+  } catch (error) {
+    if (!isDiscordCode(error, [INTERACTION_ALREADY_ACKNOWLEDGED, UNKNOWN_INTERACTION, UNKNOWN_CHANNEL])) {
+      console.error("[discordSafety] update failed:", error);
+    }
+    return false;
+  }
+}
+
 module.exports = {
   EPHEMERAL_FLAG,
   safeDeferReply,
@@ -143,4 +160,5 @@ module.exports = {
   safeMoveMember,
   safeRespond,
   safeShowModal,
+  safeUpdate,
 };

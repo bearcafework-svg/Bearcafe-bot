@@ -8,9 +8,8 @@
 
 เมื่อต้องการเพิ่มผึ้งตัวใหม่ หรือปรับแต่งรูปแบบผึ้ง ให้เข้าใจการทำงานของไฟล์หลักดังนี้:
 
-1. **[sql/create_bee_system.sql](file:///d:/bearcafe-bot/sql/create_bee_system.sql)**:
-   - ตาราง `bee_configs` บน Supabase เก็บรูปภาพ (`spawn_image_url`, `win_image_url`, `lose_image_url`, `poison_image_url`), อัตราชนะ (`win_rate`), แต้ม (+/-) และลำดับ (`sequence_order`)
-   - Storage Bucket `bee-assets` บน Supabase ใช้สำหรับอัปโหลด/ลบ/จัดการไฟล์รูปภาพ
+1. **[settingBee.json](file:///d:/bearcafe-bot/src/bees/settingBee.json)**:
+   - ไฟล์จัดเก็บการตั้งค่าระบบผึ้ง (Channel ID, Auto Spawn, และรายชื่อผึ้งทั้งหมด) สำหรับแก้ไขข้อมูลผึ้งโดยตรงในโค้ด
 
 2. **[beePayloads.js](file:///d:/bearcafe-bot/src/bees/beePayloads.js)**:
    - ฝังบทพูดข้อความ Component v2 และดีไซน์หน้าตาของผึ้งแต่ละประเภท
@@ -18,9 +17,6 @@
 
 3. **[beeManager.js](file:///d:/bearcafe-bot/src/bees/beeManager.js)**:
    - จัดการ Logic การสุ่ม/จัดลำดับผึ้ง, การดักจับ Interaction ปุ่มกด, การคำนวณแต้มในตาราง `user_points` และการตรวจ `role_blacklist`
-
-4. **[BeesManagement.tsx](file:///d:/bear-cafe-web/src/components/admin/BeesManagement.tsx)**:
-   - หน้า Web Dashboard ที่ `/admin` สำหรับเปิด/ปิดผึ้ง, อัปโหลด/ลบภาพจาก Supabase Bucket `bee-assets`, และบีบอัดภาพก่อนส่งขึ้น Cloud
 
 ---
 

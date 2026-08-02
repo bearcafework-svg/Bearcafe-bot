@@ -14,6 +14,7 @@ const { createClient } = require("@supabase/supabase-js");
 const sharedConfig = require("../../sharedSettings.json");
 const { startQueueProcessor } = require("./queueProcessor");
 const { blacklistPayload, dmClosedPayload } = require("../shared/tarotComponents");
+const { safeShowModal, safeUpdate } = require("../../../utils/discordSafety");
 
 // Supabase client initialization
 const supabase = createClient(
@@ -1030,7 +1031,7 @@ function prepareNotesForModal(notes) {
       // ─── Button: ข้ามไปลงทะเบียน ─────────────────────────────────────
       if (interaction.isButton() && interaction.customId === "p_324121851091488771") {
         // Edit original ephemeral Component v2 message to show registration options select menu
-        await interaction.update(getRegPanelPayload());
+        await safeUpdate(interaction, getRegPanelPayload());
       }
 
       // ─── Interaction: Select Menu Registration Method ─────────────────
@@ -1066,7 +1067,7 @@ function prepareNotesForModal(notes) {
           const row = new ActionRowBuilder().addComponents(answerInput);
           modal.addComponents(row);
 
-          await interaction.showModal(modal);
+          await safeShowModal(interaction, modal);
         }
 
         // 2. Server Owner Trivia
@@ -1086,7 +1087,7 @@ function prepareNotesForModal(notes) {
           const row = new ActionRowBuilder().addComponents(nameInput);
           modal.addComponents(row);
 
-          await interaction.showModal(modal);
+          await safeShowModal(interaction, modal);
         }
 
         // 3. How many bears
@@ -1128,7 +1129,7 @@ function prepareNotesForModal(notes) {
             ]
           };
 
-          await interaction.update(bearPayload);
+          await safeUpdate(interaction, bearPayload);
         }
       }
 

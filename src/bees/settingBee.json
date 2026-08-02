@@ -1,10 +1,11 @@
 {
-  "channel_id": "1524123413122125964",
-  "auto_spawn_enabled": false,
-  "min_spawn_minutes": 5,
-  "max_spawn_minutes": 10,
+  "channel_id": "1524124134387224828",
+  "auto_spawn_enabled": true,
+  "min_spawn_minutes": 45,
+  "max_spawn_minutes": 75,
   "spawn_mode": "weighted_random",
   "last_spawn_index": 0,
+  "garden_background_url": "https://cdn.discordapp.com/attachments/1528780402544611348/1528780439836430487/Garden.png",
   "bees": [
     {
       "id": "fat_round_bee",
@@ -18,7 +19,11 @@
       "min_loss_points": 15,
       "max_loss_points": 50,
       "poison_loss_points": 150,
-      "button_delay_ms": 5000
+      "button_delay_ms": 5000,
+      "spawn_image_url": "https://cdn.discordapp.com/attachments/1528780402544611348/1528812600765448222/bee1-3.png",
+      "win_image_url": "https://cdn.discordapp.com/attachments/1528780402544611348/1528782037371191336/bee1.png",
+      "lose_image_url": "https://cdn.discordapp.com/attachments/1528780402544611348/1528805982757453975/bee1-2.png",
+      "poison_image_url": "https://cdn.discordapp.com/attachments/1528780402544611348/1528805982757453975/bee1-2.png"
     }
   ]
 }

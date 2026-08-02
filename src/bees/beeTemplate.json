@@ -3,6 +3,7 @@
   "name": "ชื่อผึ้งตัวใหม่",
   "enabled": true,
   "spawn_weight": 1,
+  "sequence_order": 1,
   "win_rate": 0.5,
   "min_win_points": 15,
   "max_win_points": 50,
@@ -10,6 +11,10 @@
   "max_loss_points": 50,
   "poison_loss_points": 150,
   "button_delay_ms": 5000,
+  "spawn_image_url": "https://cdn.discordapp.com/attachments/1528780402544611348/1528780439836430487/Garden.png",
+  "win_image_url": "https://cdn.discordapp.com/attachments/1528780402544611348/1528780439836430487/Garden.png",
+  "lose_image_url": "https://cdn.discordapp.com/attachments/1528780402544611348/1528780439836430487/Garden.png",
+  "poison_image_url": "https://cdn.discordapp.com/attachments/1528780402544611348/1528780439836430487/Garden.png",
   "dialogues": {
     "spawn": "(บทพูดตอนผึ้งบินโผล่มาในสวน)",
     "win": "(บทพูดตอนผู้เล่นชนะได้แต้ม)",

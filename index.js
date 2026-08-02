@@ -62,7 +62,7 @@ setupFeature("verification", "./src/features/verification", "setupVerification",
 setupFeature("healing", "./src/features/horoscope/healing", "setupHealing", supabaseEnvKeys);
 setupFeature("boostNotification", "./src/features/boostNotification", "setupBoostNotification", supabaseEnvKeys);
 setupFeature("stickyPanels", "./src/features/stickyPanels", "setupStickyPanels", supabaseEnvKeys);
-// setupFeature("bees", "./src/bees", "setupBees", supabaseEnvKeys); // ปิดการทำงานระบบผึ้งชั่วคราว
+setupFeature("bees", "./src/bees", "setupBees", supabaseEnvKeys);
 
 
 
@@ -202,12 +202,6 @@ client.on("guildMemberRemove", (member) => {
 });
 
 const port = process.env.PORT || 8000;
-const {
-  getBeeDashboardData,
-  toggleBeeStatus,
-  updateBeeConfig
-} = require("./src/bees/beeDashboardApi");
-const { spawnBee, scheduleNextAutoSpawn } = require("./src/bees/beeManager");
 
 http
   .createServer((req, res) => {
@@ -226,71 +220,6 @@ http
     if (req.url === "/health") {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ ok: true }));
-      return;
-    }
-
-    // Web Dashboard API Endpoints
-    if (req.url === "/api/bees" && req.method === "GET") {
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify(getBeeDashboardData()));
-      return;
-    }
-
-    if (req.url === "/api/bees/toggle" && req.method === "POST") {
-      let body = "";
-      req.on("data", (chunk) => (body += chunk));
-      req.on("end", () => {
-        try {
-          const parsed = JSON.parse(body || "{}");
-          const result = toggleBeeStatus(parsed.beeId, parsed.enabled);
-          scheduleNextAutoSpawn(client);
-          res.writeHead(200, { "Content-Type": "application/json" });
-          res.end(JSON.stringify(result));
-        } catch (e) {
-          res.writeHead(400, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ success: false, error: e.message }));
-        }
-      });
-      return;
-    }
-
-    if (req.url === "/api/bees/config" && req.method === "POST") {
-      let body = "";
-      req.on("data", (chunk) => (body += chunk));
-      req.on("end", () => {
-        try {
-          const parsed = JSON.parse(body || "{}");
-          const result = updateBeeConfig(parsed.setting, parsed.images);
-          scheduleNextAutoSpawn(client);
-          res.writeHead(200, { "Content-Type": "application/json" });
-          res.end(JSON.stringify(result));
-        } catch (e) {
-          res.writeHead(400, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ success: false, error: e.message }));
-        }
-      });
-      return;
-    }
-
-    if (req.url === "/api/bees/spawn" && req.method === "POST") {
-      let body = "";
-      req.on("data", (chunk) => (body += chunk));
-      req.on("end", async () => {
-        try {
-          const parsed = JSON.parse(body || "{}");
-          const msg = await spawnBee(client, parsed.beeId);
-          if (!msg) {
-            res.writeHead(400, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ success: false, error: "ไม่สามารถส่งผึ้งลง Discord ได้ โปรดตรวจสอบ Channel ID หรือสิทธิ์การส่งข้อความของบอท" }));
-            return;
-          }
-          res.writeHead(200, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ success: true, messageId: msg.id }));
-        } catch (e) {
-          res.writeHead(500, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ success: false, error: e.message }));
-        }
-      });
       return;
     }
 

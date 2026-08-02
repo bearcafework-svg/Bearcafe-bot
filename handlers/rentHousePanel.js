@@ -179,6 +179,14 @@ async function sendRentHousePanel(channel, ownerMember) {
   }
 }
 
+async function sendInteractionResponse(interaction, payload) {
+  if (interaction.replied || interaction.deferred) {
+    return await interaction.followUp(payload);
+  } else {
+    return await interaction.reply(payload);
+  }
+}
+
 /**
  * จัดการ Interaction ทั้งหมดของแผงควบคุมบ้านเช่า
  */
@@ -199,16 +207,28 @@ async function handleRentHousePanelInteraction(interaction) {
     // ตรวจสอบสิทธิ์เจ้าของห้อง
     const isOwner = await isRentHouseOwner(channel, interaction.user.id);
     if (!isOwner) {
-      return await interaction.reply(createV2CardResponse("การเข้าถึงถูกปฏิเสธ", "> ❌ ขออภัยค่ะ เฉพาะเจ้าของบ้านเช่าหลังนี้เท่านั้นที่สามารถใช้งานแผงควบคุมได้ค่ะ", "🔒"));
+      await interaction.update(createRentHousePanelPayload(interaction.member)).catch(() => {});
+      return await sendInteractionResponse(interaction, createV2CardResponse("การเข้าถึงถูกปฏิเสธ", "> ❌ ขออภัยค่ะ เฉพาะเจ้าของบ้านเช่าหลังนี้เท่านั้นที่สามารถใช้งานแผงควบคุมได้ค่ะ", "🔒"));
     }
+
+    if (selected === "rh_opt_name") {
+      const res = await showRentNameModal(interaction);
+      await interaction.message?.edit(createRentHousePanelPayload(interaction.member)).catch(() => {});
+      return res;
+    }
+
+    if (selected === "rh_opt_limit") {
+      const res = await showRentLimitModal(interaction);
+      await interaction.message?.edit(createRentHousePanelPayload(interaction.member)).catch(() => {});
+      return res;
+    }
+
+    // รีเซ็ต Select Menu บนข้อความแผงควบคุมให้กลับเป็นค่าเริ่มต้น (Placeholder) ทันที
+    await interaction.update(createRentHousePanelPayload(interaction.member)).catch(() => {});
 
     switch (selected) {
       case "rh_opt_info":
         return await handleShowContractInfo(interaction);
-      case "rh_opt_name":
-        return await showRentNameModal(interaction);
-      case "rh_opt_limit":
-        return await showRentLimitModal(interaction);
       case "rh_opt_lock":
         return await handleRentLockToggle(interaction);
       case "rh_opt_hide":
@@ -244,7 +264,7 @@ async function handleRentHousePanelInteraction(interaction) {
 async function handleShowContractInfo(interaction) {
   const supabase = getSupabase();
   if (!supabase) {
-    return await interaction.reply(createV2CardResponse("ข้อผิดพลาดระบบ", "> ❌ ไม่สามารถเชื่อมต่อกับฐานข้อมูล Supabase ได้ในขณะนี้", "⚠️"));
+    return await sendInteractionResponse(interaction, createV2CardResponse("ข้อผิดพลาดระบบ", "> ❌ ไม่สามารถเชื่อมต่อกับฐานข้อมูล Supabase ได้ในขณะนี้", "⚠️"));
   }
 
   const channelId = interaction.channelId;
@@ -261,7 +281,7 @@ async function handleShowContractInfo(interaction) {
     if (error) throw error;
 
     if (!contracts || contracts.length === 0) {
-      return await interaction.reply(createV2CardResponse("ข้อมูลสัญญาเช่า", "> ℹ️ ไม่พบข้อมูลสัญญาเช่าบ้านสำหรับห้องนี้ในระบบตาราง `contracts` ค่ะ", "📜"));
+      return await sendInteractionResponse(interaction, createV2CardResponse("ข้อมูลสัญญาเช่า", "> ℹ️ ไม่พบข้อมูลสัญญาเช่าบ้านสำหรับห้องนี้ในระบบตาราง `contracts` ค่ะ", "📜"));
     }
 
     const contract = contracts[0];
@@ -278,10 +298,10 @@ async function handleShowContractInfo(interaction) {
       `> (📝)︰**วันที่สร้างสัญญา:** ${createdUnix ? `<t:${createdUnix}:F>` : "ไม่ได้ระบุ"}`,
     ];
 
-    return await interaction.reply(createV2CardResponse("ข้อมูลสัญญาเช่าบ้าน (Contract Info)", infoLines.join("\n"), "📜"));
+    return await sendInteractionResponse(interaction, createV2CardResponse("ข้อมูลสัญญาเช่าบ้าน (Contract Info)", infoLines.join("\n"), "📜"));
   } catch (err) {
     console.error("[rentHousePanel] Error fetching contract info:", err.message);
-    return await interaction.reply(createV2CardResponse("เกิดข้อผิดพลาด", `> ❌ เกิดข้อผิดพลาดในการดึงข้อมูลสัญญา: ${err.message}`, "⚠️"));
+    return await sendInteractionResponse(interaction, createV2CardResponse("เกิดข้อผิดพลาด", `> ❌ เกิดข้อผิดพลาดในการดึงข้อมูลสัญญา: ${err.message}`, "⚠️"));
   }
 }
 
@@ -327,7 +347,6 @@ async function showRentLimitModal(interaction) {
 }
 
 async function showUserSelectMenu(interaction, customId, placeholder, maxValues = 25) {
-  if (interaction.replied || interaction.deferred) return false;
   const selectMenu = new UserSelectMenuBuilder()
     .setCustomId(customId)
     .setPlaceholder(placeholder)
@@ -335,7 +354,7 @@ async function showUserSelectMenu(interaction, customId, placeholder, maxValues 
     .setMaxValues(maxValues);
 
   const row = new ActionRowBuilder().addComponents(selectMenu);
-  return await interaction.reply({
+  return await sendInteractionResponse(interaction, {
     flags: 32768 | 64, // Component v2 Ephemeral
     components: [
       {
@@ -460,7 +479,8 @@ async function handleRentLockToggle(interaction) {
 
     await syncRentHousePermissions(channel, newSetting);
 
-    return await interaction.reply(
+    return await sendInteractionResponse(
+      interaction,
       createV2CardResponse(
         willLock ? "สถานะห้อง: ล็อค" : "สถานะห้อง: ปลดล็อค",
         willLock
@@ -470,7 +490,8 @@ async function handleRentLockToggle(interaction) {
       )
     );
   } catch (err) {
-    return await interaction.reply(
+    return await sendInteractionResponse(
+      interaction,
       createV2CardResponse("เกิดข้อผิดพลาด", `> ❌ เกิดข้อผิดพลาดในการเปลี่ยนสิทธิ์ล็อค: ${err.message}`, "⚠️")
     );
   }
@@ -511,7 +532,8 @@ async function handleRentHideToggle(interaction) {
 
     await syncRentHousePermissions(channel, newSetting);
 
-    return await interaction.reply(
+    return await sendInteractionResponse(
+      interaction,
       createV2CardResponse(
         willHide ? "สถานะห้อง: ซ่อน" : "สถานะห้อง: เปิดมองเห็น",
         willHide
@@ -521,7 +543,8 @@ async function handleRentHideToggle(interaction) {
       )
     );
   } catch (err) {
-    return await interaction.reply(
+    return await sendInteractionResponse(
+      interaction,
       createV2CardResponse("เกิดข้อผิดพลาด", `> ❌ เกิดข้อผิดพลาดในการซ่อนห้อง: ${err.message}`, "⚠️")
     );
   }
@@ -554,7 +577,8 @@ async function handleRentPermissionsList(interaction) {
     `> ${trustedList}`,
   ];
 
-  return await interaction.reply(
+  return await sendInteractionResponse(
+    interaction,
     createV2CardResponse("รายการสิทธิ์สมาชิกในบ้านเช่า", contentLines.join("\n"), "📋")
   );
 }
@@ -615,16 +639,16 @@ async function handleRentUserSelect(interaction) {
   const formattedNames = processedNames.join(", ");
 
   if (interaction.customId === RENT_CUSTOM_IDS.selectTrust) {
-    return await interaction.update(createV2CardResponse("การจัดการสิทธิ์สำเร็จ", `> ➕ เพิ่มสิทธิ์อนุญาตให้ ${formattedNames} เรียบร้อยแล้วค่ะ`, "➕"));
+    return await sendInteractionResponse(interaction, createV2CardResponse("การจัดการสิทธิ์สำเร็จ", `> ➕ เพิ่มสิทธิ์อนุญาตให้ ${formattedNames} เรียบร้อยแล้วค่ะ`, "➕"));
   }
   if (interaction.customId === RENT_CUSTOM_IDS.selectUntrust) {
-    return await interaction.update(createV2CardResponse("การจัดการสิทธิ์สำเร็จ", `> ➖ ลบสิทธิ์พิเศษของ ${formattedNames} เรียบร้อยแล้วค่ะ`, "➖"));
+    return await sendInteractionResponse(interaction, createV2CardResponse("การจัดการสิทธิ์สำเร็จ", `> ➖ ลบสิทธิ์พิเศษของ ${formattedNames} เรียบร้อยแล้วค่ะ`, "➖"));
   }
   if (interaction.customId === RENT_CUSTOM_IDS.selectKick) {
     const msg = kickedNames.length > 0
       ? `> 📤 เตะและถอดสิทธิ์ชั่วคราวของ ${formattedNames} ออกจากบ้านเช่าเรียบร้อยแล้วค่ะ`
       : `> 📤 ถอดสิทธิ์ชั่วคราวของ ${formattedNames} เรียบร้อยแล้วค่ะ`;
-    return await interaction.update(createV2CardResponse("เตะสมาชิกสำเร็จ", msg, "📤"));
+    return await sendInteractionResponse(interaction, createV2CardResponse("เตะสมาชิกสำเร็จ", msg, "📤"));
   }
   return false;
 }
@@ -637,7 +661,7 @@ async function handleRentModalSubmit(interaction) {
     const newName = interaction.fields.getTextInputValue("room_name").trim();
     if (newName) {
       await safeSetChannelName(channel, newName);
-      return await interaction.reply(createV2CardResponse("เปลี่ยนชื่อห้องสำเร็จ", `> ✏️ เปลี่ยนชื่อบ้านเช่าเป็น **${newName}** เรียบร้อยแล้วค่ะ`, "✏️"));
+      return await sendInteractionResponse(interaction, createV2CardResponse("เปลี่ยนชื่อห้องสำเร็จ", `> ✏️ เปลี่ยนชื่อบ้านเช่าเป็น **${newName}** เรียบร้อยแล้วค่ะ`, "✏️"));
     }
   }
 
@@ -647,9 +671,9 @@ async function handleRentModalSubmit(interaction) {
     const limit = parseInt(rawLimit, 10);
     if (!isNaN(limit) && limit >= 0 && limit <= 99) {
       await channel.setUserLimit(limit);
-      return await interaction.reply(createV2CardResponse("เปลี่ยนจำนวนคนสำเร็จ", `> 👥 เปลี่ยนจำนวนคนที่เข้าบ้านเช่าเป็น **${limit || "ไม่จำกัด"}** เรียบร้อยแล้วค่ะ`, "👥"));
+      return await sendInteractionResponse(interaction, createV2CardResponse("เปลี่ยนจำนวนคนสำเร็จ", `> 👥 เปลี่ยนจำนวนคนที่เข้าบ้านเช่าเป็น **${limit || "ไม่จำกัด"}** เรียบร้อยแล้วค่ะ`, "👥"));
     }
-    return await interaction.reply(createV2CardResponse("ข้อมูลไม่ถูกต้อง", "> ❌ กรุณาระบุตัวเลขจำนวนคนระหว่าง 0 ถึง 99 ค่ะ", "⚠️"));
+    return await sendInteractionResponse(interaction, createV2CardResponse("ข้อมูลไม่ถูกต้อง", "> ❌ กรุณาระบุตัวเลขจำนวนคนระหว่าง 0 ถึง 99 ค่ะ", "⚠️"));
   }
 
   return false;

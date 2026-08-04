@@ -535,7 +535,7 @@ function buildV2Lobby() {
           },
           {
             type: 10,
-            content: "## <:bee20000:1256669436350562355>︲__` 𝖬𝖺𝗄𝖾 𝖿𝗋𝗂𝖾𝗇𝖽𝗌 ₊ สุ่มแชทหาเพื่อนคุย 𓂃 `__\n-# บรรยากาศในคาเฟ่วันนี้กำลังดีเลยค่ะ  บางทีการได้คุยกับใครสักคน ไม่ว่าจะเรื่องเล็ก ๆ ในชีวิตหรือเรื่องที่อยากแบ่งปัน อาจทำให้ช่วงเวลานี้พิเศษขึ้นก็ได้นะคะ <:cuteplant:1152834055528783872>\n\n**หากคุณกำลังหาเพื่อน:**\n> (💬)⠀คุยทั่วไป\n> (🫂)⠀ขอคำปรึกษา\n> (🫶)⠀ชอบรับฟัง\n> (📚)⠀สังคมวันเรียน\n> (💼)⠀สังคมวัยทำงาน\n> (🎳)⠀คุยเรื่องงานอดิเรก\n# <a:bearg15:1396016039925649438> ที่นี่เรามีหมด รออะไรอยู่ล่ะ เลือกเลย!\nหมายเหตุ: เนื่องจากระบบยังเป็นตัวทดลอง ทำให้ผู้เล่นยังน้อยในบางเวลา ต้องขออภัยในความไม่สะดวกด้วยนะคะ "
+            content: "## <:bee20000:1256669436350562355>︲__` 𝖬𝖺𝗄𝖾 𝖿𝗋𝗂𝖾𝗇𝖽𝗌 ₊ สุ่มแชทหาเพื่อนคุย 𓂃 `__\n-# - บรรยากาศในคาเฟ่วันนี้กำลังดีเลยค่ะ  บางทีการได้คุยกับใครสักคน ไม่ว่าจะเรื่องเล็ก ๆ ในชีวิตหรือเรื่องที่อยากแบ่งปัน อาจทำให้ช่วงเวลานี้พิเศษขึ้นก็ได้นะคะ\n-# - ภาพประกอบและคำอธิบายบางส่วนจัดทำขึ้นด้วย AI เพื่อช่วยให้สมาชิกเข้าใจรายละเอียดและกติกาการใช้งานระบบก่อนใช้งาน โดยไม่มีส่วนเกี่ยวข้องกับงานเชิงพาณิชย์หรือบริการอื่นภายในเซิร์ฟเวอร์ <:cuteplant:1152834055528783872>\n\n**หากคุณกำลังหาเพื่อน:**\n> (💬)⠀คุยทั่วไป\n> (🫂)⠀ขอคำปรึกษา\n> (🫶)⠀ชอบรับฟัง\n> (📚)⠀สังคมวันเรียน\n> (💼)⠀สังคมวัยทำงาน\n> (🎳)⠀คุยเรื่องงานอดิเรก\n# <a:bearg15:1396016039925649438> ที่นี่เรามีหมด รออะไรอยู่ล่ะ เลือกเลย!\nหมายเหตุ: เนื่องจากระบบยังเป็นตัวทดลอง ทำให้ผู้เล่นยังน้อยในบางเวลา ต้องขออภัยในความไม่สะดวกด้วยนะคะ "
           },
           {
             type: 14,
@@ -2034,44 +2034,160 @@ async function handleAfkRematch(interaction) {
 
   try { await interaction.deferUpdate(); } catch (_) { return; }
 
-  // 1. Record exclusion so they won't match again
+  // 1. Record exclusion so activeUser and ghostUser won't match again
   recentMatches.set(`${activeUserId}-${ghostUserId}`, Date.now());
   recentMatches.set(`${ghostUserId}-${activeUserId}`, Date.now());
 
-  // 2. Clear AFK prompt timers & state
+  // 2. Clear AFK prompt timers & state for this room
   const tCheck = afkCheckTimers.get(channelId);
   if (tCheck) clearTimeout(tCheck);
   const tPrompt = afkPromptTimers.get(channelId);
   if (tPrompt) clearTimeout(tPrompt);
   afkCheckTimers.delete(channelId);
   afkPromptTimers.delete(channelId);
-  afkPromptMessages.delete(channelId);
+
+  const promptMsg = afkPromptMessages.get(channelId);
+  if (promptMsg) {
+    try { await promptMsg.delete(); } catch (_) { }
+    afkPromptMessages.delete(channelId);
+  }
   roomMessageTracker.delete(channelId);
 
-  // 3. Clear room state for both users
-  clearSessionTimers(channelId);
-  clearSessionState(channelId, activeUserId, ghostUserId);
-  await updateLobbyEmbed();
-
-  // 4. Put activeUserId back into search queue at front (Priority)
-  if (!queue.includes(activeUserId)) {
-    queue.unshift(activeUserId);
-    queueJoinTimes.set(activeUserId, Date.now());
+  // 3. Check if there is an eligible partner waiting in queue
+  let partnerIndex = findMatchByTopic(activeUserId, false);
+  let isExpanded = false;
+  if (partnerIndex === -1) {
+    partnerIndex = findMatchByTopic(activeUserId, true);
+    if (partnerIndex !== -1) isExpanded = true;
   }
 
-  // 5. Delete old channel
+  // ── CASE A: NO QUEUE AVAILABLE -> FAST EXIT & CLOSE ────────────────────────
+  if (partnerIndex === -1) {
+    clearSessionTimers(channelId);
+    clearSessionState(channelId, activeUserId, ghostUserId);
+    await updateLobbyEmbed();
+
+    try {
+      await interaction.channel.send({
+        content: `❌ ขณะนี้ยังไม่มีผู้ใช้อื่นอยู่ในคิวค่ะ ระบบจึงทำการปิดโต๊ะสนทนานี้และคืนสถานะให้คุณเรียบร้อยแล้วค่ะ สามารถกดสุ่มใหม่ที่ <#1524124222555947109> ได้ทุกเมื่อนะคะ`
+      });
+    } catch (_) { }
+
+    setTimeout(async () => {
+      try {
+        await safeDeleteChannel(interaction.channel, `Fast-exit no queue for ${activeUserId}`);
+      } catch (_) { }
+    }, 4000);
+    return;
+  }
+
+  // ── CASE B: QUEUE AVAILABLE -> REUSE SAME ROOM ─────────────────────────────
+  const [newPartnerId] = queue.splice(partnerIndex, 1);
+  cleanupQueueTimers(newPartnerId);
+
+  const channel = interaction.channel;
+
+  // Revoke ghostUserId permissions & release from activeUsers
+  activeUsers.delete(ghostUserId);
   try {
-    await safeDeleteChannel(interaction.channel, `Rematch requested by ${activeUserId}`);
-  } catch (_) { }
-
-  // 6. Try immediate rematch for activeUserId
-  const partnerIndex = findMatchByTopic(activeUserId, false);
-  if (partnerIndex !== -1) {
-    const [waitingUserId] = queue.splice(partnerIndex, 1);
-    const myIdx = queue.indexOf(activeUserId);
-    if (myIdx !== -1) queue.splice(myIdx, 1);
-    await createSecretChatChannel(interaction.guild, waitingUserId, activeUserId, false);
+    await channel.permissionOverwrites.delete(ghostUserId);
+  } catch (err) {
+    console.error("[secret-chat] failed to delete ghost user overwrite:", err.message);
   }
+
+  // Add newPartnerId to activeUsers & grant room permissions
+  activeUsers.add(activeUserId);
+  activeUsers.add(newPartnerId);
+  tableMembers.set(channelId, new Set([activeUserId, newPartnerId]));
+  recentMatches.set(`${activeUserId}-${newPartnerId}`, Date.now());
+  recentMatches.set(`${newPartnerId}-${activeUserId}`, Date.now());
+
+  try {
+    await channel.permissionOverwrites.create(newPartnerId, buildAllowedPermissions());
+  } catch (err) {
+    console.error("[secret-chat] failed to add new partner overwrite:", err.message);
+  }
+
+  // Reset session timers (15 mins reset) & Supabase active room
+  clearSessionTimers(channelId);
+  const endTime = Date.now() + SESSION_DURATION_MS;
+  const endTimeUnix = Math.floor(endTime / 1000);
+  sessionEndTimes.set(channelId, endTime);
+  sessionExtendCount.set(channelId, 0);
+  sessionStartTimes.set(channelId, Date.now());
+  await persistActiveRoom(channel, activeUserId, newPartnerId, endTime);
+
+  // Reset AFK Tracker for the new partner
+  const msgTracker = new Map();
+  msgTracker.set(activeUserId, 1);
+  msgTracker.set(newPartnerId, 0);
+  roomMessageTracker.set(channelId, msgTracker);
+
+  // Schedule new session timers & new AFK check for new partner
+  setupSessionTimers(channelId, activeUserId, newPartnerId, channel);
+
+  const afkTimer = setTimeout(async () => {
+    if (!tableMembers.has(channelId)) return;
+    afkCheckTimers.delete(channelId);
+
+    const tracker = roomMessageTracker.get(channelId);
+    if (!tracker) return;
+
+    const countA = tracker.get(activeUserId) || 0;
+    const countB = tracker.get(newPartnerId) || 0;
+
+    if (countA >= 1 && countB >= 1) {
+      roomMessageTracker.delete(channelId);
+      return;
+    }
+    if (countA === 0 && countB === 0) return;
+
+    const actId = countA >= 1 ? activeUserId : newPartnerId;
+    const ghoId = countA >= 1 ? newPartnerId : activeUserId;
+
+    try {
+      const promptPayload = buildV2PartnerInactivePrompt(actId, ghoId, channelId);
+      const sentPrompt = await channel.send(promptPayload);
+      sentPrompt.activeUserId = actId;
+      sentPrompt.ghostUserId = ghoId;
+      afkPromptMessages.set(channelId, sentPrompt);
+
+      const promptTimer = setTimeout(async () => {
+        afkPromptTimers.delete(channelId);
+        afkPromptMessages.delete(channelId);
+        if (tableMembers.has(channelId)) {
+          await cleanupSession(channelId, actId, ghoId, channel, "afk_no_action");
+        }
+      }, AFK_PROMPT_TIMEOUT_MS);
+      afkPromptTimers.set(channelId, promptTimer);
+    } catch (err) {
+      console.error("[secret-chat] failed to send AFK prompt on rematch:", err);
+    }
+  }, AFK_CHECK_WINDOW_MS);
+  afkCheckTimers.set(channelId, afkTimer);
+
+  // Send Component V2 Welcome & Ping in existing room
+  const topicA = userTopics.get(activeUserId) ?? "chat";
+  const topicB = userTopics.get(newPartnerId) ?? "chat";
+  const { ads, ctaButtons } = await getAdsAndCta();
+
+  const sentMsg = await channel.send(buildV2Welcome(activeUserId, newPartnerId, endTimeUnix, ads, ctaButtons, topicA, topicB, isExpanded));
+  tableActionMessages.set(channelId, sentMsg);
+
+  try {
+    await channel.send({ content: `🎉 <@${activeUserId}> ได้คู่สนทนาใหม่แล้วค่ะ! ยินดีต้อนรับ <@${newPartnerId}> เข้าสู่โต๊ะสนทนานี้นะคะ ☕` });
+  } catch (err) {
+    console.error("[secret-chat] failed to send rematch ping:", err.message);
+  }
+
+  // Notify newPartner searching interaction if available
+  const newWaitInt = userSearchMsgToken.get(newPartnerId);
+  if (newWaitInt) {
+    try { await newWaitInt.editReply(buildV2MatchSuccess(channelId, channel.guildId)); } catch (_) { }
+  }
+
+  await updateLobbyEmbed();
+  console.log(`[secret-chat] Rematched in same room ${channel.name} for ${activeUserId} + ${newPartnerId}`);
 }
 
 async function handleAfkLeave(interaction) {

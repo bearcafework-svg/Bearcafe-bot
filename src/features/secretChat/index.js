@@ -198,7 +198,7 @@ function buildV2Welcome(userAId, userBId, endTimeUnix, ads = [], ctaButtons = []
     },
     {
       type: 1, components: [
-        { style: 4, type: 2, custom_id: LEAVE_TABLE_CUSTOM_ID, label: "︲ออกจากโต๊ะ", emoji: { id: "1510393581335089336", name: "576116exit", animated: false } },
+        { style: 2, type: 2, custom_id: LEAVE_TABLE_CUSTOM_ID, label: "︲ออกจากโต๊ะ", emoji: { id: "1510393581335089336", name: "576116exit", animated: false } },
         { style: 1, type: 2, custom_id: REPORT_USER_CUSTOM_ID, label: "︲แจ้งรีพอร์ต", emoji: { id: "1396016056035840140", name: "bearg11", animated: true } },
       ]
     }
@@ -216,25 +216,7 @@ function buildV2Welcome(userAId, userBId, endTimeUnix, ads = [], ctaButtons = []
       ],
     });
 
-    let adRowComponents = [];
-    if (ad.link_url) {
-      adRowComponents.push({
-        type: 2,
-        style: 5,
-        label: "︲ดูรายละเอียด",
-        emoji: { name: "🔎" },
-        url: ad.link_url,
-      });
-    }
-
-    adRowComponents.push(...ctaButtons.map((b) => ({
-      type: b.type || 2,
-      style: b.style || 5,
-      url: b.url,
-      label: b.label,
-      ...(b.emoji ? { emoji: b.emoji } : {}),
-    })));
-
+    const adRowComponents = buildAdRowComponents(ad, ctaButtons);
     if (adRowComponents.length > 0) {
       containerChildren.push({ type: 14, divider: false });
       containerChildren.push({
@@ -279,7 +261,7 @@ function buildV2WelcomeDisabled(userAId, userBId, endTimeUnix, reporterUsername,
     },
     {
       type: 1, components: [
-        { style: 4, type: 2, custom_id: LEAVE_TABLE_CUSTOM_ID, label: "︲ออกจากโต๊ะ (ถูกระงับ)", emoji: { id: "1510393581335089336", name: "576116exit", animated: false }, disabled: true },
+        { style: 2, type: 2, custom_id: LEAVE_TABLE_CUSTOM_ID, label: "︲ออกจากโต๊ะ (ถูกระงับ)", emoji: { id: "1510393581335089336", name: "576116exit", animated: false }, disabled: true },
         { style: 2, type: 2, custom_id: REPORT_USER_CUSTOM_ID, label: `︲แจ้งรีพอร์ตโดย ${reporterUsername}`, emoji: { id: "1256669436350562355", name: "bee20000", animated: false }, disabled: true },
       ]
     }
@@ -297,25 +279,7 @@ function buildV2WelcomeDisabled(userAId, userBId, endTimeUnix, reporterUsername,
       ],
     });
 
-    let adRowComponents = [];
-    if (ad.link_url) {
-      adRowComponents.push({
-        type: 2,
-        style: 5,
-        label: "︲ดูรายละเอียด",
-        emoji: { name: "🔎" },
-        url: ad.link_url,
-      });
-    }
-
-    adRowComponents.push(...ctaButtons.map((b) => ({
-      type: b.type || 2,
-      style: b.style || 5,
-      url: b.url,
-      label: b.label,
-      ...(b.emoji ? { emoji: b.emoji } : {}),
-    })));
-
+    const adRowComponents = buildAdRowComponents(ad, ctaButtons);
     if (adRowComponents.length > 0) {
       containerChildren.push({ type: 14, divider: false });
       containerChildren.push({
@@ -323,20 +287,6 @@ function buildV2WelcomeDisabled(userAId, userBId, endTimeUnix, reporterUsername,
         components: adRowComponents,
       });
     }
-  }
-
-  if (ads.length === 0 && ctaButtons.length > 0) {
-    containerChildren.push({ type: 14, divider: true, spacing: 2 });
-    containerChildren.push({
-      type: 1,
-      components: ctaButtons.map((b) => ({
-        type: b.type || 2,
-        style: b.style || 5,
-        url: b.url,
-        label: b.label,
-        ...(b.emoji ? { emoji: b.emoji } : {}),
-      })),
-    });
   }
 
   if (ads.length === 0 && ctaButtons.length > 0) {
@@ -388,7 +338,7 @@ function buildV2ReportConfirm(userId) {
 
 function buildV2Warning1Min(userAId, userBId, endTs, canExtend) {
   const buttons = [
-    { style: 4, type: 2, custom_id: LEAVE_TABLE_CUSTOM_ID, label: "︲ออกจากโต๊ะ", emoji: { id: "1510393581335089336", name: "576116exit", animated: false } },
+    { style: 2, type: 2, custom_id: LEAVE_TABLE_CUSTOM_ID, label: "︲ออกจากโต๊ะ", emoji: { id: "1510393581335089336", name: "576116exit", animated: false } },
     { style: 1, type: 2, custom_id: REPORT_USER_CUSTOM_ID, label: "︲แจ้งรีพอร์ต", emoji: { id: "1396016056035840140", name: "bearg11", animated: true } },
   ];
   if (canExtend) {
@@ -503,7 +453,7 @@ function buildV2PartnerInactivePrompt(activeUserId, ghostUserId, channelId) {
         {
           type: 1, components: [
             { style: 3, type: 2, custom_id: `${AFK_REMATCH_CUSTOM_ID}:${channelId}:${activeUserId}:${ghostUserId}`, label: "︲สุ่มหาเพื่อนใหม่", emoji: { id: "1533980215208968385", name: "977720question", animated: false } },
-            { style: 4, type: 2, custom_id: `${AFK_LEAVE_CUSTOM_ID}:${channelId}:${activeUserId}:${ghostUserId}`, label: "︲ออกจากโต๊ะ", emoji: { id: "1510393581335089336", name: "576116exit", animated: false } },
+            { style: 2, type: 2, custom_id: `${AFK_LEAVE_CUSTOM_ID}:${channelId}:${activeUserId}:${ghostUserId}`, label: "︲ออกจากโต๊ะ", emoji: { id: "1510393581335089336", name: "576116exit", animated: false } },
             { style: 2, type: 2, custom_id: `${AFK_WAIT_CUSTOM_ID}:${channelId}:${activeUserId}:${ghostUserId}`, label: "︲รอต่ออีก 1 นาที", emoji: { id: "1160230591892029510", name: "7596clock", animated: true } },
           ]
         }
@@ -628,7 +578,7 @@ function buildV2Searching(topicLabel, msgText) {
         { type: 14, spacing: 2 },
         {
           type: 1, components: [
-            { style: 4, type: 2, label: "︲ยกเลิกการหาเพื่อน", emoji: { id: "1510393581335089336", name: "576116exit", animated: false }, custom_id: CANCEL_QUEUE_CUSTOM_ID },
+            { style: 2, type: 2, label: "︲ยกเลิกการหาเพื่อน", emoji: { id: "1510393581335089336", name: "576116exit", animated: false }, custom_id: CANCEL_QUEUE_CUSTOM_ID },
           ]
         },
       ]
@@ -714,36 +664,7 @@ function buildV2Notify(roleIds, msg, ads = [], ctaButtons = []) {
       ],
     });
 
-    let adRowComponents = [];
-    if (ad.link_url && ad.has_button !== false) {
-      const btnObj = {
-        type: 2,
-        style: 5,
-        label: ad.button_label ? (ad.button_label.startsWith("︲") ? ad.button_label : `︲${ad.button_label}`) : "︲ดูรายละเอียด",
-        url: ad.link_url,
-      };
-
-      if (ad.button_emoji_id) {
-        btnObj.emoji = {
-          id: ad.button_emoji_id,
-          name: ad.button_emoji_name || "emoji",
-          animated: !!ad.button_emoji_animated,
-        };
-      } else if (ad.button_emoji) {
-        btnObj.emoji = { name: ad.button_emoji };
-      }
-
-      adRowComponents.push(btnObj);
-    }
-
-    adRowComponents.push(...ctaButtons.map((b) => ({
-      type: b.type || 2,
-      style: b.style || 5,
-      url: b.url,
-      label: b.label,
-      ...(b.emoji ? { emoji: b.emoji } : {}),
-    })));
-
+    const adRowComponents = buildAdRowComponents(ad, ctaButtons);
     if (adRowComponents.length > 0) {
       containerChildren.push({ type: 14, divider: false });
       containerChildren.push({
@@ -776,6 +697,42 @@ function buildV2Notify(roleIds, msg, ads = [], ctaButtons = []) {
   };
 }
 
+let nextAdIndex = 0;
+
+function buildAdRowComponents(ad, ctaButtons = []) {
+  let adRowComponents = [];
+  if (ad && ad.link_url && ad.has_button !== false) {
+    const btnObj = {
+      type: 2,
+      style: 5,
+      label: ad.button_label ? (ad.button_label.startsWith("︲") ? ad.button_label : `︲${ad.button_label}`) : "︲ดูรายละเอียด",
+      url: ad.link_url,
+    };
+
+    if (ad.button_emoji_id) {
+      btnObj.emoji = {
+        id: ad.button_emoji_id,
+        name: ad.button_emoji_name || "emoji",
+        animated: !!ad.button_emoji_animated,
+      };
+    } else if (ad.button_emoji) {
+      btnObj.emoji = { name: ad.button_emoji };
+    }
+
+    adRowComponents.push(btnObj);
+  }
+
+  adRowComponents.push(...ctaButtons.map((b) => ({
+    type: b.type || 2,
+    style: b.style || 5,
+    url: b.url,
+    label: b.label,
+    ...(b.emoji ? { emoji: b.emoji } : {}),
+  })));
+
+  return adRowComponents;
+}
+
 async function getAdsAndCta() {
   let ads = [];
   let ctaButtons = [];
@@ -798,7 +755,7 @@ async function getAdsAndCta() {
     console.error("[secret-chat] fetch global_cta_buttons error:", e);
   }
 
-  // 2. Fetch System Ads (session_ads) sequentially
+  // 2. Fetch System Ads (session_ads) sequentially (1 ad per call via round-robin)
   try {
     const { data: sessionAds, error: adsErr } = await supabase
       .from("session_ads")
@@ -806,8 +763,10 @@ async function getAdsAndCta() {
       .eq("is_active", true)
       .order("sort_order", { ascending: true });
 
-    if (!adsErr && sessionAds) {
-      ads = sessionAds;
+    if (!adsErr && sessionAds && sessionAds.length > 0) {
+      const selectedAd = sessionAds[nextAdIndex % sessionAds.length];
+      nextAdIndex = (nextAdIndex + 1) % sessionAds.length;
+      ads = [selectedAd];
     }
   } catch (e) {
     console.error("[secret-chat] fetch session_ads error:", e);

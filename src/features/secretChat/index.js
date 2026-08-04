@@ -336,6 +336,30 @@ function buildV2ReportConfirm(userId) {
   };
 }
 
+function buildV2LeaveConfirm(userId) {
+  return {
+    flags: 32768 | 64, // IS_COMPONENTS_V2 + EPHEMERAL
+    components: [{
+      type: 17,
+      components: [
+        { type: 14, spacing: 2 },
+        {
+          type: 10, content:
+            `## <a:3602exclamationmarkbubble:1372837492205555812>︲__\` ยืนยันการออกจากโต๊ะสนทนา 𓂃 \`__\n` +
+            `คุณ <@${userId}> ต้องการออกจากโต๊ะสนทนานี้จริงๆ ใช่หรือไม่คะ?\n` +
+            `-# เมื่อกดออกจากโต๊ะแล้ว ระบบจะทำการปิดห้องแชทลับนี้ทันทีค่ะ`
+        },
+        { type: 14, spacing: 2 },
+        {
+          type: 1, components: [
+            { style: 2, type: 2, custom_id: `${CONFIRM_LEAVE_CUSTOM_ID}:${userId}`, label: "︲ยืนยันออกจากโต๊ะ", emoji: { id: "1358584609087946867", name: "50121checkmark", animated: false } },
+          ]
+        },
+      ]
+    }]
+  };
+}
+
 function buildV2Warning1Min(userAId, userBId, endTs, canExtend) {
   const buttons = [
     { style: 2, type: 2, custom_id: LEAVE_TABLE_CUSTOM_ID, label: "︲ออกจากโต๊ะ", emoji: { id: "1510393581335089336", name: "576116exit", animated: false } },
@@ -852,6 +876,8 @@ function clearSessionState(channelId, userAId, userBId) {
   ratingMembers.delete(channelId);
   activeUsers.delete(userAId);
   activeUsers.delete(userBId);
+  userTopics.delete(userAId);
+  userTopics.delete(userBId);
 
   const tCheck = afkCheckTimers.get(channelId);
   if (tCheck) clearTimeout(tCheck);
@@ -943,16 +969,26 @@ async function safeReply(interaction, options) {
 // ============================================================================
 function findMatchByTopic(userId, forceWildcard = false) {
   const myTopic = userTopics.get(userId) ?? "chat";
-  const priorities = forceWildcard ? [null] : (TOPIC_MATCH_PRIORITY[myTopic] ?? [null]);
+  const now = Date.now();
+  const myJoinTime = queueJoinTimes.get(userId) ?? now;
+  const isMyTimeExpanded = forceWildcard || (now - myJoinTime >= TOPIC_EXPAND_MS);
+  const priorities = isMyTimeExpanded ? [null] : (TOPIC_MATCH_PRIORITY[myTopic] ?? [null]);
 
   for (const wantTopic of priorities) {
     const idx = queue.findIndex(id => {
       if (id === userId) return false;
       const last = recentMatches.get(`${userId}-${id}`);
-      if (last && Date.now() - last < 300000) return false;
+      if (last && now - last < 300000) return false;
       if (isBlockedPair(userId, id)) return false;
       if (wantTopic === null) return true;
-      return (userTopics.get(id) ?? "chat") === wantTopic;
+
+      const candTopic = userTopics.get(id) ?? "chat";
+      if (candTopic === wantTopic) return true;
+
+      const candJoinTime = queueJoinTimes.get(id) ?? now;
+      if (now - candJoinTime >= TOPIC_EXPAND_MS) return true;
+
+      return false;
     });
     if (idx !== -1) return idx;
   }
@@ -1600,15 +1636,8 @@ async function handleLeaveTable(interaction) {
     });
   }
 
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId(`${CONFIRM_LEAVE_CUSTOM_ID}:${interaction.user.id}`)
-      .setLabel("︲ยืนยันออกจากโต๊ะ")
-      .setStyle(ButtonStyle.Danger)
-      .setEmoji({ id: "1358584609087946867", name: "50121checkmark", animated: false })
-  );
-
-  await safeReply(interaction, { content: `<@${interaction.user.id}> ต้องการออกจากโต๊ะจริง ๆ ใช่มั้ยคะ`, components: [row] });
+  const confirmPayload = buildV2LeaveConfirm(interaction.user.id);
+  await safeRespond(interaction, confirmPayload);
 }
 
 // ============================================================================
@@ -2042,6 +2071,7 @@ async function handleAfkRematch(interaction) {
 
   // ── CASE B: QUEUE AVAILABLE -> REUSE SAME ROOM ─────────────────────────────
   const [newPartnerId] = queue.splice(partnerIndex, 1);
+  const newWaitInt = userSearchMsgToken.get(newPartnerId);
   cleanupQueueTimers(newPartnerId);
 
   const channel = interaction.channel;
@@ -2062,7 +2092,11 @@ async function handleAfkRematch(interaction) {
   recentMatches.set(`${newPartnerId}-${activeUserId}`, Date.now());
 
   try {
-    await channel.permissionOverwrites.create(newPartnerId, buildAllowedPermissions());
+    await channel.permissionOverwrites.create(newPartnerId, {
+      ViewChannel: true,
+      SendMessages: true,
+      ReadMessageHistory: true,
+    });
   } catch (err) {
     console.error("[secret-chat] failed to add new partner overwrite:", err.message);
   }
@@ -2140,7 +2174,6 @@ async function handleAfkRematch(interaction) {
   }
 
   // Notify newPartner searching interaction if available
-  const newWaitInt = userSearchMsgToken.get(newPartnerId);
   if (newWaitInt) {
     try { await newWaitInt.editReply(buildV2MatchSuccess(channelId, channel.guildId)); } catch (_) { }
   }

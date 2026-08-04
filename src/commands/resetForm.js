@@ -70,7 +70,8 @@ const MAIN_PANEL_1 = {
           accessory: {
             style: 3,
             type: 2,
-            label: "สนใจตำหน่ง",
+            label: "︲สนใจตำหน่ง",
+            emoji: { id: "1372837492205555812", name: "3602exclamationmarkbubble", animated: true },
             flow: {
               actions: []
             },
@@ -103,7 +104,8 @@ const MAIN_PANEL_1 = {
           accessory: {
             style: 3,
             type: 2,
-            label: "สนใจตำหน่ง",
+            label: "︲สนใจตำหน่ง",
+            emoji: { id: "1372837492205555812", name: "3602exclamationmarkbubble", animated: true },
             flow: {
               actions: []
             },
@@ -148,7 +150,8 @@ const MAIN_PANEL_2 = {
           accessory: {
             style: 3,
             type: 2,
-            label: "สนใจตำหน่ง",
+            label: "︲สนใจตำหน่ง",
+            emoji: { id: "1372837492205555812", name: "3602exclamationmarkbubble", animated: true },
             flow: {
               actions: []
             },
@@ -181,7 +184,8 @@ const MAIN_PANEL_2 = {
           accessory: {
             style: 3,
             type: 2,
-            label: "สนใจตำหน่ง",
+            label: "︲สนใจตำหน่ง",
+            emoji: { id: "1372837492205555812", name: "3602exclamationmarkbubble", animated: true },
             flow: {
               actions: []
             },
@@ -214,7 +218,8 @@ const MAIN_PANEL_2 = {
           accessory: {
             style: 3,
             type: 2,
-            label: "สนใจตำหน่ง",
+            label: "︲สนใจตำหน่ง",
+            emoji: { id: "1372837492205555812", name: "3602exclamationmarkbubble", animated: true },
             flow: {
               actions: []
             },
@@ -259,7 +264,8 @@ const RESPONSE_BARISTA = {
           accessory: {
             style: 1,
             type: 2,
-            label: "อ่านข้อตกลง",
+            label: "︲อ่านข้อตกลง",
+            emoji: { id: "1533982607170080819", name: "445181discordorbsbook", animated: false },
             flow: {
               actions: []
             },
@@ -281,7 +287,8 @@ const RESPONSE_BARISTA = {
           accessory: {
             style: 3,
             type: 2,
-            label: "สมัครตำแหน่งนี้",
+            label: "︲สมัครตำแหน่งนี้",
+            emoji: { id: "1396016002818506754", name: "bearg23", animated: true },
             flow: {
               actions: []
             },
@@ -325,7 +332,8 @@ const RESPONSE_SERVICE = {
           accessory: {
             style: 1,
             type: 2,
-            label: "อ่านข้อตกลง",
+            label: "︲อ่านข้อตกลง",
+            emoji: { id: "1533982607170080819", name: "445181discordorbsbook", animated: false },
             custom_id: "p_315502247003820042",
             flow: {
               actions: []
@@ -347,7 +355,8 @@ const RESPONSE_SERVICE = {
           accessory: {
             style: 3,
             type: 2,
-            label: "สมัครตำแหน่งนี้",
+            label: "︲สมัครตำแหน่งนี้",
+            emoji: { id: "1396016002818506754", name: "bearg23", animated: true },
             custom_id: "p_315502430684975115",
             flow: {
               actions: []
@@ -391,7 +400,8 @@ const RESPONSE_CONTENT = {
           accessory: {
             style: 1,
             type: 2,
-            label: "อ่านข้อตกลง",
+            label: "︲อ่านข้อตกลง",
+            emoji: { id: "1533982607170080819", name: "445181discordorbsbook", animated: false },
             custom_id: "p_315502680170565644",
             flow: {
               actions: []
@@ -413,7 +423,8 @@ const RESPONSE_CONTENT = {
           accessory: {
             style: 3,
             type: 2,
-            label: "สมัครตำแหน่งนี้",
+            label: "︲สมัครตำแหน่งนี้",
+            emoji: { id: "1396016002818506754", name: "bearg23", animated: true },
             custom_id: "p_315500592833236993",
             flow: {
               actions: []
@@ -457,7 +468,8 @@ const RESPONSE_GRAPHIC = {
           accessory: {
             style: 1,
             type: 2,
-            label: "อ่านข้อตกลง",
+            label: "︲อ่านข้อตกลง",
+            emoji: { id: "1533982607170080819", name: "445181discordorbsbook", animated: false },
             custom_id: "p_315503715010220033"
           }
         },
@@ -476,7 +488,8 @@ const RESPONSE_GRAPHIC = {
           accessory: {
             style: 3,
             type: 2,
-            label: "สมัครตำแหน่งนี้",
+            label: "︲สมัครตำแหน่งนี้",
+            emoji: { id: "1396016002818506754", name: "bearg23", animated: true },
             custom_id: "p_315503876352512002",
             flow: {
               actions: []
@@ -520,7 +533,8 @@ const RESPONSE_COZY = {
           accessory: {
             style: 1,
             type: 2,
-            label: "อ่านข้อตกลง",
+            label: "︲อ่านข้อตกลง",
+            emoji: { id: "1533982607170080819", name: "445181discordorbsbook", animated: false },
             custom_id: "p_315504071454756867",
             flow: {
               actions: []
@@ -542,7 +556,8 @@ const RESPONSE_COZY = {
           accessory: {
             style: 3,
             type: 2,
-            label: "สมัครตำแหน่งนี้",
+            label: "︲สมัครตำแหน่งนี้",
+            emoji: { id: "1396016002818506754", name: "bearg23", animated: true },
             custom_id: "p_315504596912967693"
           }
         },

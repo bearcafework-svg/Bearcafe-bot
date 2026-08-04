@@ -266,7 +266,7 @@ async function initializeQueue(queue, client, supabase) {
         .update({ status: "completed", total_targets: 0, updated_at: new Date().toISOString() })
         .eq("id", queue.id);
       
-      await logBroadcast(supabase, "info", `ℹ️ แคมเปญ "${queue.title}" ไม่มีผู้รับใหม่ที่ต้องส่ง (ส่งสำเร็จครบทุกคนแล้ว)`, queue.id);
+      await logBroadcast(supabase, "info", `ℹ️ บรอดแคสต์ "${queue.title}" ไม่มีผู้รับใหม่ที่ต้องส่ง (ส่งสำเร็จครบทุกคนแล้ว)`, queue.id);
       return;
     }
 
@@ -366,7 +366,7 @@ async function processQueue(queue, client, supabase) {
         .update({ status: "completed", updated_at: new Date().toISOString() })
         .eq("id", queue.id);
       
-      await logBroadcast(supabase, "success", `🎉 แคมเปญ "${queue.title}" บรอดแคสต์เสร็จสิ้นเรียบร้อยแล้ว`, queue.id);
+      await logBroadcast(supabase, "success", `🎉 บรอดแคสต์ "${queue.title}" บรอดแคสต์เสร็จสิ้นเรียบร้อยแล้ว`, queue.id);
       if (useSecondary) destroySecondaryClient();
       return;
     }
@@ -556,7 +556,7 @@ async function processQueue(queue, client, supabase) {
         .update({ status: "completed", updated_at: new Date().toISOString() })
         .eq("id", queue.id);
       
-      await logBroadcast(supabase, "success", `🎉 แคมเปญ "${queue.title}" บรอดแคสต์เสร็จสิ้นเรียบร้อยแล้ว`, queue.id);
+      await logBroadcast(supabase, "success", `🎉 บรอดแคสต์ "${queue.title}" บรอดแคสต์เสร็จสิ้นเรียบร้อยแล้ว`, queue.id);
       if (useSecondary) destroySecondaryClient();
     }
 

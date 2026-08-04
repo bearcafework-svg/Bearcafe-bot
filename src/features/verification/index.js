@@ -403,7 +403,7 @@ function setupVerification(client) {
                     {
                       type: 2,
                       style: 5, // Link
-                      label: "ไม่ทำก่อนลงทะเบียน พลาด!",
+                      label: "︲ไม่ทำก่อนลงทะเบียน พลาด!",
                       emoji: { id: "1396434906057281596", name: "imsupersurprised", animated: false },
                       url: "https://discord.com/channels/1144251788493602848/1524122867178930237"
                     }

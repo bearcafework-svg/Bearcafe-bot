@@ -112,28 +112,28 @@ function buildRolePayload(role) {
                 style: 1, // Primary
                 type: 2,
                 custom_id: `checkrole_edit_${role.id}`,
-                label: "แก้ไขบทบาท",
+                label: "︲แก้ไขบทบาท",
                 emoji: { name: "✏️" }
               },
               {
                 style: 3, // Success
                 type: 2,
                 custom_id: `checkrole_add_btn_${role.id}`,
-                label: "เพิ่มคนใส่อยศ",
+                label: "︲เพิ่มคนใส่อยศ",
                 emoji: { name: "➕" }
               },
               {
                 style: 4, // Danger
                 type: 2,
                 custom_id: `checkrole_remove_btn_${role.id}`,
-                label: "ลบคนใส่อยศ",
+                label: "︲ลบคนใส่อยศ",
                 emoji: { name: "➖" }
               },
               {
                 style: 2, // Secondary
                 type: 2,
                 custom_id: `checkrole_refresh_${role.id}`,
-                label: "รีเฟรช",
+                label: "︲รีเฟรช",
                 emoji: { name: "🔄" }
               }
             ]

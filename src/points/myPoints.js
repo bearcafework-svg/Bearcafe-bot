@@ -288,7 +288,7 @@ function setupMyPoints(client) {
             {
               type: 1,
               components: [
-                { style: 3, type: 2, custom_id: `mypoints_confirm_${roleId}`, label: "ยืนยัน" },
+                { style: 3, type: 2, custom_id: `mypoints_confirm_${roleId}`, label: "︲ยืนยัน", emoji: { id: "1358584609087946867", name: "50121checkmark", animated: false } },
                 { style: 4, type: 2, custom_id: "mypoints_cancel", disabled: true, label: "ยกเลิกโดยกดคำว่า \"ปิดข้อความ\"" }
               ]
             }

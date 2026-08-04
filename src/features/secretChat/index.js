@@ -20,8 +20,6 @@ const ws = require("ws");
 const SECRET_CHAT_CATEGORY_ID = process.env.SECRET_CHAT_CATEGORY_ID;
 const NOTIFY_CHANNEL_ID = process.env.NOTIFY_CHANNEL_ID;
 const SESSION_DURATION_MS = 15 * 60 * 1000;
-const WARNING_1MIN_MS = SESSION_DURATION_MS - 60 * 1000;
-const WARNING_30SEC_MS = SESSION_DURATION_MS - 30 * 1000;
 const EXTEND_COST_POINTS = 150;
 const EXTEND_DURATION_MS = 3 * 60 * 1000;
 const MAX_EXTENDS = 2;
@@ -39,12 +37,8 @@ const POINT_ICON = sharedConfig.point_icon.animated
   ? `<a:${sharedConfig.point_icon.name}:${sharedConfig.point_icon.id}>`
   : `<:${sharedConfig.point_icon.name}:${sharedConfig.point_icon.id}>`;
 
-// ── ห้ามสุ่มเจอกัน ────────────────────────────────────────────────────────────
-const BLOCKED_PAIRS = new Set([
-  "689543352156553290", "977859922412834846", "892722756762877993",
-  "1120581731846725753", "1322472990914383955", "1492835622271058103",
-  "994159805025501186",
-]);
+// ── ยศที่ห้ามสุ่มเจอกันเอง ───────────────────────────────────────────────────
+const BLOCKED_ROLE_ID = "1205512963058962482";
 
 // ── Custom IDs ────────────────────────────────────────────────────────────────
 const JOIN_QUEUE_CUSTOM_ID = "btn_join_queue";
@@ -57,6 +51,12 @@ const CANCEL_QUEUE_CUSTOM_ID = "btn_cancel_queue";
 const CLAIM_CASE_CUSTOM_ID = "btn_claim_case";
 const RATING_CUSTOM_ID = "btn_rating";
 const TOPIC_SELECT_CUSTOM_ID = "sel_topic";
+const AFK_REMATCH_CUSTOM_ID = "btn_afk_rematch";
+const AFK_LEAVE_CUSTOM_ID = "btn_afk_leave";
+const AFK_WAIT_CUSTOM_ID = "btn_afk_wait";
+
+const AFK_CHECK_WINDOW_MS = 90 * 1000;
+const AFK_PROMPT_TIMEOUT_MS = 60 * 1000;
 
 // ── Error messages ────────────────────────────────────────────────────────────
 const ERR_NOT_TABLE_MEMBER = "ปุ่มนี้ใช้ได้เฉพาะคนที่อยู่โต๊ะนี้ค่ะ";
@@ -69,7 +69,7 @@ const TOPIC_NOTIFY = {
   listen: { roles: ["1230902119087734844"], msg: "มีใครบางคนกำลังรอรับฟังเรื่องราวของใครสักคนอยู่ เธอมาคุยกับเขาได้นะ (oﾟvﾟ)ノ" },
   student: { roles: ["1465700608920256688"], msg: "มีใครบางคนกำลังต้องการคุยเรื่องวัยเรียน ใครวัยนี้มาแชร์กับเขาหน่อย ( •̀ ω •́ )✧" },
   worker: { roles: ["1465700613064097855"], msg: "มีใครบางคนกำลังต้องการคุยเรื่องวัยทำงาน การโตนี่มันยากจริง ๆ มาแชร์กับเขาหน่อย ￣へ￣" },
-  activity: { roles: ["1465700617832894737", "1465701219438690417"], msg: "มีใครบางคนกำลังอยากคุยเรื่องงานอดิเรก ต้องสนุกแน่ ๆ ✪ ω ✪" },
+  activity: { roles: ["1465700617832894737"], msg: "มีใครบางคนกำลังอยากคุยเรื่องงานอดิเรก ต้องสนุกแน่ ๆ ✪ ω ✪" },
 };
 
 // ── Topic config ──────────────────────────────────────────────────────────────
@@ -125,6 +125,11 @@ const ratingMsgRefs = new Map();
 const userTopics = new Map();
 const topicExpandTimers = new Map();
 const warningMessages = new Map();
+const roomMessageTracker = new Map();
+const afkCheckTimers = new Map();
+const afkPromptTimers = new Map();
+const afkPromptMessages = new Map();
+const userBlockedRoleState = new Map();
 
 let lobbyEmbedMessage = null;
 let lastPingTime = 0;
@@ -169,20 +174,32 @@ function buildAllowedPermissions() {
   ];
 }
 
-function buildV2Welcome(userAId, userBId, endTimeUnix, ads = [], ctaButtons = []) {
+function buildV2Welcome(userAId, userBId, endTimeUnix, ads = [], ctaButtons = [], topicA = "chat", topicB = "chat", isExpanded = false) {
+  const labelA = TOPIC_LABEL[topicA] ?? topicA;
+  const labelB = TOPIC_LABEL[topicB] ?? topicB;
+  let topicLine = "";
+  if (topicA === topicB) {
+    topicLine = `- หัวข้อสนทนา: ${labelA} (ตรงตามหมวดหมู่)\n`;
+  } else if (!isExpanded) {
+    topicLine = `- หัวข้อสนทนา: ${labelA} กับ ${labelB} (หมวดหมู่จับคู่ตรงกัน)\n`;
+  } else {
+    topicLine = `- หัวข้อสนทนา: ${labelA} กับ ${labelB} (ขยายการค้นหา)\n`;
+  }
+
   const containerChildren = [
     { type: 14, spacing: 2 },
     {
       type: 10, content:
         `## <:bee20000:1256669436350562355>︲__\` 𝖲𝗎𝖼𝖼𝖾𝗌𝗌𝖿𝗎𝗅 𝗆𝖺𝗍𝖼𝗁 ₊ แมตช์สำเร็จ 𓂃 \`__\n` +
         `ยินดีต้อนรับ <@${userAId}> และ <@${userBId}> <:cuteplant:1152834055528783872>\n` +
+        topicLine +
         `- ระยะเวลาสนทนา 15 นาที (หมดเวลา: <t:${endTimeUnix}:R>)\n` +
         `- พบสมาชิกพฤติกรรมไม่เหมาะสมกดปุ่ม **แจ้งรีพอร์ต** เพื่อติดต่อทีมงานโดยตรง`
     },
     {
       type: 1, components: [
-        { style: 4, type: 2, custom_id: LEAVE_TABLE_CUSTOM_ID, label: "ออกจากโต๊ะ" },
-        { style: 1, type: 2, custom_id: REPORT_USER_CUSTOM_ID, label: "แจ้งรีพอร์ต" },
+        { style: 4, type: 2, custom_id: LEAVE_TABLE_CUSTOM_ID, label: "︲ออกจากโต๊ะ", emoji: { id: "1510393581335089336", name: "576116exit", animated: false } },
+        { style: 1, type: 2, custom_id: REPORT_USER_CUSTOM_ID, label: "︲แจ้งรีพอร์ต", emoji: { id: "1396016056035840140", name: "bearg11", animated: true } },
       ]
     }
   ];
@@ -204,7 +221,7 @@ function buildV2Welcome(userAId, userBId, endTimeUnix, ads = [], ctaButtons = []
       adRowComponents.push({
         type: 2,
         style: 5,
-        label: "ดูรายละเอียด",
+        label: "︲ดูรายละเอียด",
         emoji: { name: "🔎" },
         url: ad.link_url,
       });
@@ -262,8 +279,8 @@ function buildV2WelcomeDisabled(userAId, userBId, endTimeUnix, reporterUsername,
     },
     {
       type: 1, components: [
-        { style: 4, type: 2, custom_id: LEAVE_TABLE_CUSTOM_ID, label: "ออกจากโต๊ะ (ถูกระงับ)", disabled: true },
-        { style: 2, type: 2, custom_id: REPORT_USER_CUSTOM_ID, label: `แจ้งรีพอร์ตโดย ${reporterUsername}`, disabled: true },
+        { style: 4, type: 2, custom_id: LEAVE_TABLE_CUSTOM_ID, label: "︲ออกจากโต๊ะ (ถูกระงับ)", emoji: { id: "1510393581335089336", name: "576116exit", animated: false }, disabled: true },
+        { style: 2, type: 2, custom_id: REPORT_USER_CUSTOM_ID, label: `︲แจ้งรีพอร์ตโดย ${reporterUsername}`, emoji: { id: "1256669436350562355", name: "bee20000", animated: false }, disabled: true },
       ]
     }
   ];
@@ -285,7 +302,7 @@ function buildV2WelcomeDisabled(userAId, userBId, endTimeUnix, reporterUsername,
       adRowComponents.push({
         type: 2,
         style: 5,
-        label: "ดูรายละเอียด",
+        label: "︲ดูรายละเอียด",
         emoji: { name: "🔎" },
         url: ad.link_url,
       });
@@ -361,7 +378,7 @@ function buildV2ReportConfirm(userId) {
         { type: 14, spacing: 2 },
         {
           type: 1, components: [
-            { style: 4, type: 2, custom_id: `${CONFIRM_REPORT_CUSTOM_ID}:${userId}`, label: "ยืนยันการแจ้งรีพอร์ต" },
+            { style: 4, type: 2, custom_id: `${CONFIRM_REPORT_CUSTOM_ID}:${userId}`, label: "︲ยืนยันการแจ้งรีพอร์ต", emoji: { id: "1358584609087946867", name: "50121checkmark", animated: false } },
           ]
         },
       ]
@@ -371,11 +388,11 @@ function buildV2ReportConfirm(userId) {
 
 function buildV2Warning1Min(userAId, userBId, endTs, canExtend) {
   const buttons = [
-    { style: 4, type: 2, custom_id: LEAVE_TABLE_CUSTOM_ID, label: "ออกจากโต๊ะ" },
-    { style: 1, type: 2, custom_id: REPORT_USER_CUSTOM_ID, label: "แจ้งรีพอร์ต" },
+    { style: 4, type: 2, custom_id: LEAVE_TABLE_CUSTOM_ID, label: "︲ออกจากโต๊ะ", emoji: { id: "1510393581335089336", name: "576116exit", animated: false } },
+    { style: 1, type: 2, custom_id: REPORT_USER_CUSTOM_ID, label: "︲แจ้งรีพอร์ต", emoji: { id: "1396016056035840140", name: "bearg11", animated: true } },
   ];
   if (canExtend) {
-    buttons.push({ style: 3, type: 2, custom_id: EXTEND_TIME_CUSTOM_ID, label: `ต่อเวลา +3 นาที (${EXTEND_COST_POINTS} แต้ม)`, emoji: { name: "⏰" } });
+    buttons.push({ style: 3, type: 2, custom_id: EXTEND_TIME_CUSTOM_ID, label: `︲ต่อเวลา +3 นาที (${EXTEND_COST_POINTS} แต้ม)`, emoji: { name: "⏰" } });
   }
   const bodyText = canExtend
     ? `คุณสามารถใช้ ${POINT_ICON} **${EXTEND_COST_POINTS}** แต้มต่อเพื่อเวลาได้ +3 นาที <a:99322sparkles:1372427884479778908>`
@@ -469,28 +486,94 @@ function buildV2ExtendConfirm(userId, newEndUnix, remainText) {
   };
 }
 
-function buildV2Lobby() {
+function buildV2PartnerInactivePrompt(activeUserId, ghostUserId, channelId) {
   return {
     flags: 32768,
     components: [{
       type: 17,
       components: [
-        { type: 12, items: [{ media: { url: "https://cdn.discordapp.com/attachments/1524704267015819274/1525088207958704188/NewsBoard_-_bearcafe_2.png?ex=6a56b9d3&is=6a556853&hm=311639427e24c8e604981d00f2249aef008d1745a54aaa0f656d522e40b74949&" } }] },
         { type: 14, spacing: 2 },
         {
           type: 10, content:
-            `## <a:3602exclamationmarkbubble:1372837492205555812>︲__\` 𝖬𝖺𝗄𝖾 𝖿𝗋𝗂𝖾𝗇𝖽𝗌 ₊ สุ่มแชทหาเพื่อนคุย 𓂃 \`__\n` +
-            `-# บรรยากาศในคาเฟ่วันนี้กำลังดีเลยค่ะ  บางทีการได้คุยกับใครสักคน ไม่ว่าจะเรื่องเล็ก ๆ ในชีวิตหรือเรื่องที่อยากแบ่งปัน อาจทำให้ช่วงเวลานี้พิเศษขึ้นก็ได้นะคะ <:cuteplant:1152834055528783872>\n\n` +
-            `# ***ระบบเปิดให้เล่นช่วง 18:00 - 23:00 ของทุกวัน*** <a:yellowhearts:1352954734394478643>\n`
+            `## ⚠️︲__\` ดูเหมือนคู่สนทนาของคุณยังไม่ได้ตอบกลับค่ะ \`__\n` +
+            `คุณ <@${activeUserId}> ส่งข้อความแล้ว แต่อีกฝ่าย (<@${ghostUserId}>) ยังไม่มีการตอบกลับค่ะ\n` +
+            `คุณต้องการ **สุ่มหาเพื่อนใหม่** หรือ **ออกจากโต๊ะ** คะ?`
         },
         { type: 14, spacing: 2 },
         {
           type: 1, components: [
-            { style: 3, type: 2, label: "เริ่มสุ่มแชทหาเพื่อนคุย", custom_id: JOIN_QUEUE_CUSTOM_ID },
+            { style: 3, type: 2, custom_id: `${AFK_REMATCH_CUSTOM_ID}:${channelId}:${activeUserId}:${ghostUserId}`, label: "︲สุ่มหาเพื่อนใหม่", emoji: { id: "1533980215208968385", name: "977720question", animated: false } },
+            { style: 4, type: 2, custom_id: `${AFK_LEAVE_CUSTOM_ID}:${channelId}:${activeUserId}:${ghostUserId}`, label: "︲ออกจากโต๊ะ", emoji: { id: "1510393581335089336", name: "576116exit", animated: false } },
+            { style: 2, type: 2, custom_id: `${AFK_WAIT_CUSTOM_ID}:${channelId}:${activeUserId}:${ghostUserId}`, label: "︲รอต่ออีก 1 นาที", emoji: { id: "1160230591892029510", name: "7596clock", animated: true } },
           ]
-        },
+        }
       ]
     }]
+  };
+}
+
+function buildV2Lobby() {
+  return {
+    flags: 32768,
+    components: [
+      {
+        type: 17,
+        components: [
+          {
+            type: 12,
+            items: [
+              {
+                media: {
+                  url: "https://cdn.discordapp.com/attachments/1524704267015819274/1533974587547844638/ChatGPT_Image_4_.._2569_06_06_54.png?ex=6a7270a9&is=6a711f29&hm=8d71744f41f872d8997164ad5b428d753b531522c31b931534e7bf22588bf87a&"
+                }
+              }
+            ]
+          },
+          {
+            type: 14,
+            spacing: 2
+          },
+          {
+            type: 10,
+            content: "## <:bee20000:1256669436350562355>︲__` 𝖬𝖺𝗄𝖾 𝖿𝗋𝗂𝖾𝗇𝖽𝗌 ₊ สุ่มแชทหาเพื่อนคุย 𓂃 `__\n-# บรรยากาศในคาเฟ่วันนี้กำลังดีเลยค่ะ  บางทีการได้คุยกับใครสักคน ไม่ว่าจะเรื่องเล็ก ๆ ในชีวิตหรือเรื่องที่อยากแบ่งปัน อาจทำให้ช่วงเวลานี้พิเศษขึ้นก็ได้นะคะ <:cuteplant:1152834055528783872>\n\n**หากคุณกำลังหาเพื่อน:**\n> (💬)⠀คุยทั่วไป\n> (🫂)⠀ขอคำปรึกษา\n> (🫶)⠀ชอบรับฟัง\n> (📚)⠀สังคมวันเรียน\n> (💼)⠀สังคมวัยทำงาน\n> (🎳)⠀คุยเรื่องงานอดิเรก\n# <a:bearg15:1396016039925649438> ที่นี่เรามีหมด รออะไรอยู่ล่ะ เลือกเลย!\nหมายเหตุ: เนื่องจากระบบยังเป็นตัวทดลอง ทำให้ผู้เล่นยังน้อยในบางเวลา ต้องขออภัยในความไม่สะดวกด้วยนะคะ "
+          },
+          {
+            type: 14,
+            spacing: 2
+          },
+          {
+            type: 1,
+            components: [
+              {
+                style: 3,
+                type: 2,
+                label: "︲คลิกสุ่มแชทคุย",
+                emoji: {
+                  id: "1301541277992485005",
+                  name: "secret_box",
+                  animated: true
+                },
+                flow: {
+                  actions: []
+                },
+                custom_id: JOIN_QUEUE_CUSTOM_ID
+              },
+              {
+                type: 2,
+                style: 5,
+                label: "︲ระบบมีปัญหา",
+                emoji: {
+                  id: "1396016056035840140",
+                  name: "bearg11",
+                  animated: true
+                },
+                url: "https://discord.com/channels/1144251788493602848/1524123013275058246"
+              }
+            ]
+          }
+        ]
+      }
+    ]
   };
 }
 
@@ -545,7 +628,7 @@ function buildV2Searching(topicLabel, msgText) {
         { type: 14, spacing: 2 },
         {
           type: 1, components: [
-            { style: 4, type: 2, label: "ยกเลิกการหาเพื่อน", custom_id: CANCEL_QUEUE_CUSTOM_ID },
+            { style: 4, type: 2, label: "︲ยกเลิกการหาเพื่อน", emoji: { id: "1510393581335089336", name: "576116exit", animated: false }, custom_id: CANCEL_QUEUE_CUSTOM_ID },
           ]
         },
       ]
@@ -569,7 +652,7 @@ function buildV2MatchSuccess(channelId, guildId) {
         { type: 14, spacing: 2 },
         {
           type: 1, components: [
-            { type: 2, style: 5, label: "เริ่มสนทนา", url: `https://discord.com/channels/${guildId}/${channelId}` },
+            { type: 2, style: 5, label: "︲เริ่มสนทนา", emoji: { id: "1358584609087946867", name: "50121checkmark", animated: false }, url: `https://discord.com/channels/${guildId}/${channelId}` },
           ]
         },
       ]
@@ -593,7 +676,7 @@ function buildV2NoMatch() {
         { type: 14, spacing: 2 },
         {
           type: 1, components: [
-            { type: 2, style: 5, label: "สุ่มอีกครั้ง", url: "https://discord.com/channels/1144251788493602848/1507027734097039442" },
+            { type: 2, style: 5, label: "︲สุ่มหาเพื่อนใหม่อีกครั้ง", emoji: { id: "1533980215208968385", name: "977720question", animated: false }, url: "https://discord.com/channels/1144251788493602848/1507027734097039442" },
           ]
         },
       ]
@@ -614,7 +697,7 @@ function buildV2Notify(roleIds, msg, ads = [], ctaButtons = []) {
     },
     {
       type: 1, components: [
-        { type: 2, style: 5, label: "กดเพื่อไปสุ่มแชทคุย", url: "https://discord.com/channels/1144251788493602848/1524124222555947109" },
+        { type: 2, style: 5, label: "︲กดเพื่อไปสุ่มแชทคุย", emoji: { id: "1396016056035840140", name: "bearg11", animated: true }, url: "https://discord.com/channels/1144251788493602848/1524124222555947109" },
       ]
     }
   ];
@@ -632,14 +715,25 @@ function buildV2Notify(roleIds, msg, ads = [], ctaButtons = []) {
     });
 
     let adRowComponents = [];
-    if (ad.link_url) {
-      adRowComponents.push({
+    if (ad.link_url && ad.has_button !== false) {
+      const btnObj = {
         type: 2,
         style: 5,
-        label: "ดูรายละเอียด",
-        emoji: { name: "🔎" },
+        label: ad.button_label ? (ad.button_label.startsWith("︲") ? ad.button_label : `︲${ad.button_label}`) : "︲ดูรายละเอียด",
         url: ad.link_url,
-      });
+      };
+
+      if (ad.button_emoji_id) {
+        btnObj.emoji = {
+          id: ad.button_emoji_id,
+          name: ad.button_emoji_name || "emoji",
+          animated: !!ad.button_emoji_animated,
+        };
+      } else if (ad.button_emoji) {
+        btnObj.emoji = { name: ad.button_emoji };
+      }
+
+      adRowComponents.push(btnObj);
     }
 
     adRowComponents.push(...ctaButtons.map((b) => ({
@@ -704,49 +798,19 @@ async function getAdsAndCta() {
     console.error("[secret-chat] fetch global_cta_buttons error:", e);
   }
 
-  // 2. Fetch Ad Placements
+  // 2. Fetch System Ads (session_ads) sequentially
   try {
-    const { data: placementData, error: placementErr } = await supabase
-      .from("ad_placements")
-      .select(`
-        delivery_mode,
-        ad_placement_items (
-          sort_order,
-          session_ads ( image_url, link_url, is_active )
-        )
-      `)
-      .eq("key", "secret_chat")
+    const { data: sessionAds, error: adsErr } = await supabase
+      .from("session_ads")
+      .select("image_url, link_url, has_button, button_label, button_emoji, button_emoji_id, button_emoji_name, button_emoji_animated")
       .eq("is_active", true)
-      .maybeSingle();
+      .order("sort_order", { ascending: true });
 
-    if (!placementErr && placementData) {
-      const deliveryMode = placementData.delivery_mode ?? "random_one";
-
-      if (deliveryMode === "random_one") {
-        const { data: allAds, error: allAdsError } = await supabase
-          .from("session_ads")
-          .select("image_url, link_url")
-          .eq("is_active", true);
-
-        if (!allAdsError && allAds && allAds.length > 0) {
-          ads = [allAds[Math.floor(Math.random() * allAds.length)]];
-        }
-      } else if (deliveryMode === "ordered") {
-        const items = placementData.ad_placement_items ?? [];
-        const first = items
-          .filter((item) => item.session_ads?.is_active === true)
-          .sort((a, b) => a.sort_order - b.sort_order)[0];
-
-        if (first && first.session_ads) {
-          ads = [{
-            image_url: first.session_ads.image_url,
-            link_url: first.session_ads.link_url,
-          }];
-        }
-      }
+    if (!adsErr && sessionAds) {
+      ads = sessionAds;
     }
   } catch (e) {
-    console.error("[secret-chat] fetch ad_placements error:", e);
+    console.error("[secret-chat] fetch session_ads error:", e);
   }
 
   return { ads, ctaButtons };
@@ -755,13 +819,10 @@ async function getAdsAndCta() {
 
 
 // ============================================================================
-// OPERATING HOURS CHECK (18:00 – 23:00 Thailand Time / UTC+7)
+// OPERATING HOURS CHECK (24 Hours Open)
 // ============================================================================
 function isWithinOperatingHours() {
-  const now = new Date();
-  const thHour = (now.getUTCHours() + 7) % 24;   // UTC+7
-  // เปิด 18:00 ≤ hour < 23:00  (23:00 ตัดรับใหม่ แต่เซสชันที่แมตช์แล้วเล่นต่อได้)
-  return thHour >= 18 && thHour < 23;
+  return true; // เปิดให้บริการ 24 ชั่วโมง
 }
 
 function buildV2OutsideHours() {
@@ -832,6 +893,15 @@ function clearSessionState(channelId, userAId, userBId) {
   ratingMembers.delete(channelId);
   activeUsers.delete(userAId);
   activeUsers.delete(userBId);
+
+  const tCheck = afkCheckTimers.get(channelId);
+  if (tCheck) clearTimeout(tCheck);
+  const tPrompt = afkPromptTimers.get(channelId);
+  if (tPrompt) clearTimeout(tPrompt);
+  afkCheckTimers.delete(channelId);
+  afkPromptTimers.delete(channelId);
+  afkPromptMessages.delete(channelId);
+  roomMessageTracker.delete(channelId);
 }
 
 function isUserBusy(userId) { return activeUsers.has(userId) || queue.includes(userId); }
@@ -845,11 +915,10 @@ function checkSpamRateLimit(userId) {
   return recent.length > 3;
 }
 
-// [FIX] เพิ่มการครอบ String() และ .trim() ป้องกันปัญหาช่องว่างซ่อนตัว
 function isBlockedPair(userAId, userBId) {
-  const a = String(userAId).trim();
-  const b = String(userBId).trim();
-  return BLOCKED_PAIRS.has(a) && BLOCKED_PAIRS.has(b);
+  const hasA = userBlockedRoleState.get(userAId) ?? false;
+  const hasB = userBlockedRoleState.get(userBId) ?? false;
+  return hasA && hasB;
 }
 
 async function persistActiveRoom(channel, userAId, userBId, endTimeMs) {
@@ -1170,7 +1239,7 @@ async function runCrashRecovery(client) {
 // ============================================================================
 // CREATE CHANNEL
 // ============================================================================
-async function createSecretChatChannel(guild, userAId, userBId) {
+async function createSecretChatChannel(guild, userAId, userBId, isExpanded = false) {
   const category = guild.channels.cache.get(SECRET_CHAT_CATEGORY_ID);
   if (!category) throw new Error("SECRET_CHAT_CATEGORY_NOT_FOUND");
 
@@ -1198,8 +1267,11 @@ async function createSecretChatChannel(guild, userAId, userBId) {
   sessionExtendCount.set(channel.id, 0);
   await persistActiveRoom(channel, userAId, userBId, endTime);
 
+  const topicA = userTopics.get(userAId) ?? "chat";
+  const topicB = userTopics.get(userBId) ?? "chat";
+
   const { ads, ctaButtons } = await getAdsAndCta();
-  const sentMsg = await channel.send(buildV2Welcome(userAId, userBId, endTimeUnix, ads, ctaButtons));
+  const sentMsg = await channel.send(buildV2Welcome(userAId, userBId, endTimeUnix, ads, ctaButtons, topicA, topicB, isExpanded));
   tableActionMessages.set(channel.id, sentMsg);
   reportedByUsers.set(channel.id, new Set());
 
@@ -1220,7 +1292,6 @@ async function createSecretChatChannel(guild, userAId, userBId) {
       idleKickTimers.delete(channel.id);
       clearSessionTimers(channel.id);
 
-      // [FIX] สั่งหยุดฟัง Event ทันทีเพื่อป้องกัน Memory Leak
       channel.client.off("messageCreate", idleResetListener);
 
       await endSessionWithRating(channel.id, userAId, userBId, channel, "idle");
@@ -1237,6 +1308,79 @@ async function createSecretChatChannel(guild, userAId, userBId) {
     channel.client.off("messageCreate", idleResetListener);
   };
   channel.client.on("messageCreate", idleResetListener);
+
+  // ── Activity Tracker for AFK Detection ──────────────────────────────────────
+  const msgTracker = new Map();
+  msgTracker.set(userAId, 0);
+  msgTracker.set(userBId, 0);
+  roomMessageTracker.set(channel.id, msgTracker);
+
+  const activityListener = async (msg) => {
+    if (msg.channelId !== channel.id || msg.author.bot) return;
+    const tracker = roomMessageTracker.get(channel.id);
+    if (tracker && tracker.has(msg.author.id)) {
+      tracker.set(msg.author.id, (tracker.get(msg.author.id) || 0) + 1);
+
+      const promptMsg = afkPromptMessages.get(channel.id);
+      if (promptMsg) {
+        const ghostId = promptMsg.ghostUserId;
+        if (msg.author.id === ghostId) {
+          const promptTimer = afkPromptTimers.get(channel.id);
+          if (promptTimer) { clearTimeout(promptTimer); afkPromptTimers.delete(channel.id); }
+          try { await promptMsg.delete(); } catch (_) { }
+          afkPromptMessages.delete(channel.id);
+          try {
+            await channel.send({
+              content: `🎉 <@${msg.author.id}> กลับมาส่งข้อความแล้วค่ะ! ขอให้สนุกกับการพูดคุยกันต่อในคาเฟ่นะคะ ☕`
+            });
+          } catch (_) { }
+        }
+      }
+    }
+  };
+  channel.client.on("messageCreate", activityListener);
+
+  // ── AFK Check Window (90s) ──────────────────────────────────────────────────
+  const afkTimer = setTimeout(async () => {
+    if (!tableMembers.has(channel.id)) return;
+    afkCheckTimers.delete(channel.id);
+
+    const tracker = roomMessageTracker.get(channel.id);
+    if (!tracker) return;
+
+    const countA = tracker.get(userAId) || 0;
+    const countB = tracker.get(userBId) || 0;
+
+    if (countA >= 1 && countB >= 1) {
+      roomMessageTracker.delete(channel.id);
+      return;
+    }
+    if (countA === 0 && countB === 0) return;
+
+    const activeUserId = countA >= 1 ? userAId : userBId;
+    const ghostUserId = countA >= 1 ? userBId : userAId;
+
+    try {
+      const promptPayload = buildV2PartnerInactivePrompt(activeUserId, ghostUserId, channel.id);
+      const sentPrompt = await channel.send(promptPayload);
+      sentPrompt.activeUserId = activeUserId;
+      sentPrompt.ghostUserId = ghostUserId;
+      afkPromptMessages.set(channel.id, sentPrompt);
+
+      const promptTimer = setTimeout(async () => {
+        afkPromptTimers.delete(channel.id);
+        afkPromptMessages.delete(channel.id);
+        if (tableMembers.has(channel.id)) {
+          await cleanupSession(channel.id, userAId, userBId, channel, "afk_no_action");
+        }
+      }, AFK_PROMPT_TIMEOUT_MS);
+      afkPromptTimers.set(channel.id, promptTimer);
+    } catch (err) {
+      console.error("[secret-chat] failed to send AFK prompt:", err);
+    }
+  }, AFK_CHECK_WINDOW_MS);
+
+  afkCheckTimers.set(channel.id, afkTimer);
 
   await updateLobbyEmbed();
   console.log(`[secret-chat] Created room ${channel.name} for ${userAId} + ${userBId}`);
@@ -1272,6 +1416,8 @@ async function handleJoinQueue(interaction) {
   markHandled(interaction.id);
 
   const userId = interaction.user.id;
+  const hasBlockedRole = interaction.member?.roles?.cache?.has(BLOCKED_ROLE_ID) ?? false;
+  userBlockedRoleState.set(userId, hasBlockedRole);
 
   const deferResult = await safeDeferReply(interaction);
   console.log(`[debug] safeDeferReply result: ${deferResult}`);
@@ -1332,6 +1478,8 @@ async function handleTopicSelect(interaction) {
 
   const userId = interaction.user.id;
   const topic = interaction.values[0];
+  const hasBlockedRole = interaction.member?.roles?.cache?.has(BLOCKED_ROLE_ID) ?? false;
+  userBlockedRoleState.set(userId, hasBlockedRole);
 
   try { await interaction.deferUpdate(); } catch (e) { return; }
 
@@ -1342,12 +1490,12 @@ async function handleTopicSelect(interaction) {
 
   userTopics.set(userId, topic);
 
-  async function doMatch(waitingUserId, newUserId, newInteraction) {
+  async function doMatch(waitingUserId, newUserId, newInteraction, isExpanded = false) {
     const waitInt = userSearchMsgToken.get(waitingUserId);
     cleanupQueueTimers(waitingUserId);
     cleanupQueueTimers(newUserId);
     try {
-      const channel = await createSecretChatChannel(interaction.guild, waitingUserId, newUserId);
+      const channel = await createSecretChatChannel(interaction.guild, waitingUserId, newUserId, isExpanded);
       const matchPayload = buildV2MatchSuccess(channel.id, interaction.guildId);
       if (waitInt) { try { await waitInt.editReply(matchPayload); } catch (_) { } }
       try { await newInteraction.editReply(matchPayload); } catch (_) { }
@@ -1367,7 +1515,7 @@ async function handleTopicSelect(interaction) {
   const partnerIndex = findMatchByTopic(userId, false);
   if (partnerIndex !== -1) {
     const [waitingUserId] = queue.splice(partnerIndex, 1);
-    await doMatch(waitingUserId, userId, interaction);
+    await doMatch(waitingUserId, userId, interaction, false);
     return;
   }
 
@@ -1387,7 +1535,7 @@ async function handleTopicSelect(interaction) {
     if (myIdx !== -1) queue.splice(myIdx, 1);
     stopQueueDmTimer(userId);
     stopQueueDmTimer(waitingUserId);
-    await doMatch(waitingUserId, userId, interaction);
+    await doMatch(waitingUserId, userId, interaction, true);
   }, TOPIC_EXPAND_MS);
   topicExpandTimers.set(userId, expandTimer);
 
@@ -1496,8 +1644,9 @@ async function handleLeaveTable(interaction) {
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId(`${CONFIRM_LEAVE_CUSTOM_ID}:${interaction.user.id}`)
-      .setLabel("ยืนยันออกจากโต๊ะ")
+      .setLabel("︲ยืนยันออกจากโต๊ะ")
       .setStyle(ButtonStyle.Danger)
+      .setEmoji({ id: "1358584609087946867", name: "50121checkmark", animated: false })
   );
 
   await safeReply(interaction, { content: `<@${interaction.user.id}> ต้องการออกจากโต๊ะจริง ๆ ใช่มั้ยคะ`, components: [row] });
@@ -1707,7 +1856,11 @@ async function handleConfirmReport(interaction) {
       .setTimestamp();
 
     const claimRow = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(`${CLAIM_CASE_CUSTOM_ID}:${channelId}`).setLabel("✅ รับเคส").setStyle(ButtonStyle.Danger)
+      new ButtonBuilder()
+        .setCustomId(`${CLAIM_CASE_CUSTOM_ID}:${channelId}`)
+        .setLabel("︲✅ รับเคส")
+        .setStyle(ButtonStyle.Danger)
+        .setEmoji({ id: "1358584609087946867", name: "50121checkmark", animated: false })
     );
 
     await staffCh.send({ content: `<@&1144701361448038512> พบการแจ้งปัญหาที่โซนสุ่มแชทคุย`, embeds: [embed], components: [claimRow] });
@@ -1749,7 +1902,12 @@ async function handleClaimCase(interaction) {
   claimedReports.set(channelId, staffId);
 
   const disabledRow = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(`${CLAIM_CASE_CUSTOM_ID}:${channelId}`).setLabel(`✅ รับเคสโดย @${interaction.user.username}`).setStyle(ButtonStyle.Secondary).setDisabled(true)
+    new ButtonBuilder()
+      .setCustomId(`${CLAIM_CASE_CUSTOM_ID}:${channelId}`)
+      .setLabel(`︲✅ รับเคสโดย @${interaction.user.username}`)
+      .setStyle(ButtonStyle.Secondary)
+      .setEmoji({ id: "1358584609087946867", name: "50121checkmark", animated: false })
+      .setDisabled(true)
   );
 
   try { await interaction.editReply({ components: [disabledRow] }); }
@@ -1859,6 +2017,129 @@ async function handleRating(interaction) {
 }
 
 // ============================================================================
+// HANDLERS: AFK PROMPT (REMATCH / LEAVE / WAIT)
+// ============================================================================
+async function handleAfkRematch(interaction) {
+  if (isAlreadyHandled(interaction.id)) return;
+  markHandled(interaction.id);
+
+  const parts = interaction.customId.split(":");
+  const channelId = parts[1];
+  const activeUserId = parts[2];
+  const ghostUserId = parts[3];
+
+  if (interaction.user.id !== activeUserId) {
+    return await safeReply(interaction, { content: "ปุ่มนี้สำหรับผู้ใช้ที่ส่งข้อความทักทายเท่านั้นค่ะ" });
+  }
+
+  try { await interaction.deferUpdate(); } catch (_) { return; }
+
+  // 1. Record exclusion so they won't match again
+  recentMatches.set(`${activeUserId}-${ghostUserId}`, Date.now());
+  recentMatches.set(`${ghostUserId}-${activeUserId}`, Date.now());
+
+  // 2. Clear AFK prompt timers & state
+  const tCheck = afkCheckTimers.get(channelId);
+  if (tCheck) clearTimeout(tCheck);
+  const tPrompt = afkPromptTimers.get(channelId);
+  if (tPrompt) clearTimeout(tPrompt);
+  afkCheckTimers.delete(channelId);
+  afkPromptTimers.delete(channelId);
+  afkPromptMessages.delete(channelId);
+  roomMessageTracker.delete(channelId);
+
+  // 3. Clear room state for both users
+  clearSessionTimers(channelId);
+  clearSessionState(channelId, activeUserId, ghostUserId);
+  await updateLobbyEmbed();
+
+  // 4. Put activeUserId back into search queue at front (Priority)
+  if (!queue.includes(activeUserId)) {
+    queue.unshift(activeUserId);
+    queueJoinTimes.set(activeUserId, Date.now());
+  }
+
+  // 5. Delete old channel
+  try {
+    await safeDeleteChannel(interaction.channel, `Rematch requested by ${activeUserId}`);
+  } catch (_) { }
+
+  // 6. Try immediate rematch for activeUserId
+  const partnerIndex = findMatchByTopic(activeUserId, false);
+  if (partnerIndex !== -1) {
+    const [waitingUserId] = queue.splice(partnerIndex, 1);
+    const myIdx = queue.indexOf(activeUserId);
+    if (myIdx !== -1) queue.splice(myIdx, 1);
+    await createSecretChatChannel(interaction.guild, waitingUserId, activeUserId, false);
+  }
+}
+
+async function handleAfkLeave(interaction) {
+  if (isAlreadyHandled(interaction.id)) return;
+  markHandled(interaction.id);
+
+  const parts = interaction.customId.split(":");
+  const channelId = parts[1];
+  const activeUserId = parts[2];
+  const ghostUserId = parts[3];
+
+  if (interaction.user.id !== activeUserId) {
+    return await safeReply(interaction, { content: "ปุ่มนี้สำหรับผู้ใช้ที่ส่งข้อความทักทายเท่านั้นค่ะ" });
+  }
+
+  try { await interaction.deferUpdate(); } catch (_) { return; }
+
+  clearSessionTimers(channelId);
+  clearSessionState(channelId, activeUserId, ghostUserId);
+  await updateLobbyEmbed();
+
+  try { await safeDeleteChannel(interaction.channel, `AFK leave by ${activeUserId}`); } catch (_) { }
+}
+
+async function handleAfkWait(interaction) {
+  if (isAlreadyHandled(interaction.id)) return;
+  markHandled(interaction.id);
+
+  const parts = interaction.customId.split(":");
+  const channelId = parts[1];
+  const activeUserId = parts[2];
+  const ghostUserId = parts[3];
+
+  if (interaction.user.id !== activeUserId) {
+    return await safeReply(interaction, { content: "ปุ่มนี้สำหรับผู้ใช้ที่ส่งข้อความทักทายเท่านั้นค่ะ" });
+  }
+
+  try { await interaction.deferUpdate(); } catch (_) { return; }
+
+  const tPrompt = afkPromptTimers.get(channelId);
+  if (tPrompt) clearTimeout(tPrompt);
+
+  const promptMsg = afkPromptMessages.get(channelId);
+  if (promptMsg) {
+    try { await promptMsg.delete(); } catch (_) { }
+    afkPromptMessages.delete(channelId);
+  }
+
+  try {
+    await interaction.channel.send({
+      content: `⏳ <@${activeUserId}> เลือกขยายเวลาการรออีก 1 นาทีค่ะ ระบบจะรอดูการตอบกลับจาก <@${ghostUserId}> ต่ออีกสักครู่นะคะ ☕`
+    });
+  } catch (_) { }
+
+  const newTimer = setTimeout(async () => {
+    afkPromptTimers.delete(channelId);
+    if (tableMembers.has(channelId)) {
+      const tracker = roomMessageTracker.get(channelId);
+      const ghostCount = tracker ? (tracker.get(ghostUserId) || 0) : 0;
+      if (ghostCount === 0) {
+        await cleanupSession(channelId, activeUserId, ghostUserId, interaction.channel, "afk_timeout");
+      }
+    }
+  }, 60 * 1000);
+  afkPromptTimers.set(channelId, newTimer);
+}
+
+// ============================================================================
 // MODULE SETUP
 // ============================================================================
 function setupSecretChat(client) {
@@ -1919,7 +2200,10 @@ function setupSecretChat(client) {
       interaction.customId.startsWith(CLAIM_CASE_CUSTOM_ID + ":") ||
       interaction.customId.startsWith(CONFIRM_LEAVE_CUSTOM_ID + ":") ||
       interaction.customId.startsWith(CONFIRM_REPORT_CUSTOM_ID + ":") ||
-      interaction.customId.startsWith(RATING_CUSTOM_ID + ":");
+      interaction.customId.startsWith(RATING_CUSTOM_ID + ":") ||
+      interaction.customId.startsWith(AFK_REMATCH_CUSTOM_ID + ":") ||
+      interaction.customId.startsWith(AFK_LEAVE_CUSTOM_ID + ":") ||
+      interaction.customId.startsWith(AFK_WAIT_CUSTOM_ID + ":");
 
     if (isSecretChatButton) {
       console.log(`[secret-chat] Interaction received: ${interaction.customId} from ${interaction.user.tag}`);
@@ -1936,6 +2220,9 @@ function setupSecretChat(client) {
     else if (interaction.customId.startsWith(CONFIRM_LEAVE_CUSTOM_ID + ":")) await handleConfirmLeave(interaction);
     else if (interaction.customId.startsWith(CONFIRM_REPORT_CUSTOM_ID + ":")) await handleConfirmReport(interaction);
     else if (interaction.customId.startsWith(RATING_CUSTOM_ID + ":")) await handleRating(interaction);
+    else if (interaction.customId.startsWith(AFK_REMATCH_CUSTOM_ID + ":")) await handleAfkRematch(interaction);
+    else if (interaction.customId.startsWith(AFK_LEAVE_CUSTOM_ID + ":")) await handleAfkLeave(interaction);
+    else if (interaction.customId.startsWith(AFK_WAIT_CUSTOM_ID + ":")) await handleAfkWait(interaction);
   });
 
   client.on(Events.ChannelDelete, async (channel) => {

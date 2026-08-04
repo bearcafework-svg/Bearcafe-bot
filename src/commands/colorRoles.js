@@ -194,7 +194,8 @@ function buildMainPanel() {
               {
                 type: 2,
                 style: 5,
-                label: "สนใจซื้อยศ",
+                label: "︲สนใจซื้อยศ",
+                emoji: { id: "1520507942842007694", name: "54879croissant", animated: true },
                 url: "https://discord.com/channels/1144251788493602848/1524124116053917747"
               }
             ]

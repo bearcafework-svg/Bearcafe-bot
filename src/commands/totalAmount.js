@@ -106,7 +106,8 @@ function buildBillingMessage(userId, amount, channelId) {
                   actions: []
                 },
                 custom_id: `${EDIT_BUTTON_PREFIX}:${userId}`,
-                label: "แก้ไขยอด (เฉพาะทีมงาน)"
+                label: "︲แก้ไขยอด (เฉพาะทีมงาน)",
+                emoji: { name: "📝" }
               }
             ]
           }

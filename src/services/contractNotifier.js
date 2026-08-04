@@ -128,7 +128,8 @@ async function checkAndNotifyContracts(client) {
                       {
                         type: 2,
                         style: 5,
-                        label: "คลิกเพื่อต่อบ้านเช่า",
+                        label: "︲คลิกเพื่อต่อบ้านเช่า",
+                        emoji: { id: "1520507942842007694", name: "54879croissant", animated: true },
                         url: RENEW_URL,
                       },
                     ],

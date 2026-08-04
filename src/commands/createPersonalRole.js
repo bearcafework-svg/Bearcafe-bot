@@ -95,7 +95,8 @@ function buildPersonalRoleMessage(targetUserId, has30Days, hasDonate250) {
               {
                 style: 3,
                 type: 2,
-                label: "คลิกคัดลอกฟอร์มสร้างยศ",
+                label: "︲คลิกคัดลอกฟอร์มสร้างยศ",
+                emoji: { name: "📃" },
                 flow: {
                   actions: []
                 },

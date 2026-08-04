@@ -208,7 +208,8 @@ async function buildTopDonateComponents(guild, supabase) {
       accessory: {
         style: 1,
         type: 2,
-        label: "เช็กยอดของคุณ",
+        label: "︲เช็กยอดของคุณ",
+        emoji: { id: "1432666951095816243", name: "35214money", animated: true },
         flow: { actions: [] },
         custom_id: "donate_check_self"
       }

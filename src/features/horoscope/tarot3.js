@@ -163,7 +163,8 @@ function buildCardPayload(cardImgUrl, earnedPoints) {
             {
               type:  2,
               style: 5,
-              label: 'ดูดวงฟรี!',
+              label: '︲ดูดวงฟรี!',
+              emoji: { id: "1428305759078187018", name: "19381purpleween", animated: false },
               url:   `https://discord.com/channels/1144251788493602848/${cfg.channels.horoscope_info_channel}`
             }
           ]
@@ -206,7 +207,8 @@ function buildCombinedPayload(cardImgUrl, earnedPoints, tarotPoint, isComplete) 
             type:      2,
             style:     isComplete ? 3 : 1,
             custom_id: MISSION_CLAIM_ID,
-            label:     'กดรับรางวัล',
+            label:     '︲กดรับรางวัล',
+            emoji:     { id: "1358584609087946867", name: "50121checkmark", animated: false },
             disabled:  !isComplete,
             flow:      { actions: [] }
           }]
@@ -245,7 +247,8 @@ function buildCombinedPayload(cardImgUrl, earnedPoints, tarotPoint, isComplete) 
             {
               type:  2,
               style: 5,
-              label: 'ดูดวงฟรี!',
+              label: '︲ดูดวงฟรี!',
+              emoji: { id: "1428305759078187018", name: "19381purpleween", animated: false },
               url:   `https://discord.com/channels/1144251788493602848/${cfg.channels.horoscope_info_channel}`
             }
           ]

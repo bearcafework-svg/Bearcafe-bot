@@ -906,7 +906,7 @@ function isBlockedPair(userAId, userBId) {
   return hasA && hasB;
 }
 
-async function persistActiveRoom(channel, userAId, userBId, endTimeMs, topicA = "chat", topicB = "chat") {
+async function persistActiveRoom(channel, userAId, userBId, endTimeMs, topicA = "chat", topicB = "chat", extendCount = 0) {
   try {
     const { error } = await supabase.from(ACTIVE_ROOMS_TABLE).upsert({
       channel_id: channel.id,
@@ -915,6 +915,7 @@ async function persistActiveRoom(channel, userAId, userBId, endTimeMs, topicA = 
       user_b_id: userBId,
       topic_a: topicA,
       topic_b: topicB,
+      extend_count: extendCount,
       started_at: new Date().toISOString(),
       end_at: new Date(endTimeMs).toISOString(),
       status: "active",
@@ -1198,7 +1199,7 @@ async function runCrashRecovery(client) {
         ? Math.max(endAt, Date.now() + 60 * 1000)
         : Date.now() + SESSION_DURATION_MS;
       sessionEndTimes.set(ch.id, recoveredEnd);
-      sessionExtendCount.set(ch.id, 0);
+      sessionExtendCount.set(ch.id, row.extend_count ?? 0);
       sessionStartTimes.set(ch.id, row.started_at ? new Date(row.started_at).getTime() : Date.now());
       reportedByUsers.set(ch.id, new Set());
       setupSessionTimers(ch.id, userAId, userBId, ch);
@@ -1724,6 +1725,9 @@ async function handleExtendTime(interaction) {
   const canMore = newCount < MAX_EXTENDS;
 
   const [uA, uB] = Array.from(members);
+  const tA = userTopics.get(uA) ?? "chat";
+  const tB = userTopics.get(uB) ?? "chat";
+  await persistActiveRoom(interaction.channel, uA, uB, newEnd, tA, tB, newCount);
   setupSessionTimers(channelId, uA, uB, interaction.channel);
 
   const prevWarn = warningMessages.get(channelId);

@@ -76,14 +76,30 @@ async function checkAndSendBroadcasts(client) {
         : ((configData.interval_hours ?? 1) * 60)
     );
 
-    // 2. Fetch due campaign messages (next_send_at IS NULL OR next_send_at <= NOW) AND is_active = true
+    // 2. Check global cooldown: Has intervalMinutes elapsed since any active campaign ad was last sent?
+    const { data: lastSentRecord } = await supabase
+      .from("campaign_messages")
+      .select("last_sent_at")
+      .eq("is_active", true)
+      .not("last_sent_at", "is", null)
+      .order("last_sent_at", { ascending: false })
+      .limit(1);
+
+    if (lastSentRecord && lastSentRecord.length > 0 && lastSentRecord[0].last_sent_at) {
+      const lastSentMs = new Date(lastSentRecord[0].last_sent_at).getTime();
+      const elapsedMinutes = (Date.now() - lastSentMs) / (60 * 1000);
+      if (elapsedMinutes < intervalMinutes) {
+        return;
+      }
+    }
+
+    // 3. Fetch due campaign messages (next_send_at IS NULL OR next_send_at <= NOW) AND is_active = true
     const nowIso = new Date().toISOString();
     const { data: dueCampaigns, error: campaignErr } = await supabase
       .from("campaign_messages")
       .select("*")
       .eq("is_active", true)
-      .or(`next_send_at.is.null,next_send_at.lte.${nowIso}`)
-      .order("sort_order", { ascending: true });
+      .or(`next_send_at.is.null,next_send_at.lte.${nowIso}`);
 
     if (campaignErr) {
       console.error("[broadcastScheduler] Error fetching due campaigns:", campaignErr.message);
@@ -94,48 +110,62 @@ async function checkAndSendBroadcasts(client) {
       return;
     }
 
-    // 3. Process each due campaign
-    for (const campaign of dueCampaigns) {
-      const targetChannels = Array.isArray(campaign.target_channels) ? campaign.target_channels : [];
-      const cleanPayload = sanitizePayload(campaign.payload);
+    // 4. Sort due campaigns to pick the next one sequentially:
+    // Campaigns never sent (last_sent_at IS NULL) come first (ordered by sort_order ASC).
+    // Campaigns previously sent are ordered by last_sent_at ASC (oldest sent first), then sort_order ASC.
+    dueCampaigns.sort((a, b) => {
+      if (!a.last_sent_at && b.last_sent_at) return -1;
+      if (a.last_sent_at && !b.last_sent_at) return 1;
+      if (a.last_sent_at && b.last_sent_at) {
+        const diff = new Date(a.last_sent_at).getTime() - new Date(b.last_sent_at).getTime();
+        if (diff !== 0) return diff;
+      }
+      return (a.sort_order ?? 0) - (b.sort_order ?? 0);
+    });
 
-      if (targetChannels.length === 0 || !cleanPayload) {
-        console.warn(`[broadcastScheduler] Campaign "${campaign.internal_name}" (${campaign.id}) has no target channels or valid payload.`);
-      } else {
-        let sentCount = 0;
-        for (const channelId of targetChannels) {
-          try {
-            const ch = await client.channels.fetch(channelId).catch((err) => {
-              console.warn(`[broadcastScheduler] Failed to fetch channel ${channelId}:`, err.message);
-              return null;
-            });
+    // Send ONLY 1 campaign per schedule interval according to order
+    const campaign = dueCampaigns[0];
 
-            if (ch) {
-              await ch.send(cleanPayload);
-              sentCount++;
-            } else {
-              console.warn(`[broadcastScheduler] Channel ${channelId} not found or bot lacks permissions.`);
-            }
-          } catch (sendErr) {
-            console.error(`[broadcastScheduler] Failed to send campaign "${campaign.internal_name}" (${campaign.id}) to channel ${channelId}:`, sendErr.message);
+    // 5. Process the single selected campaign
+    const targetChannels = Array.isArray(campaign.target_channels) ? campaign.target_channels : [];
+    const cleanPayload = sanitizePayload(campaign.payload);
+
+    if (targetChannels.length === 0 || !cleanPayload) {
+      console.warn(`[broadcastScheduler] Campaign "${campaign.internal_name}" (${campaign.id}) has no target channels or valid payload.`);
+    } else {
+      let sentCount = 0;
+      for (const channelId of targetChannels) {
+        try {
+          const ch = await client.channels.fetch(channelId).catch((err) => {
+            console.warn(`[broadcastScheduler] Failed to fetch channel ${channelId}:`, err.message);
+            return null;
+          });
+
+          if (ch) {
+            await ch.send(cleanPayload);
+            sentCount++;
+          } else {
+            console.warn(`[broadcastScheduler] Channel ${channelId} not found or bot lacks permissions.`);
           }
+        } catch (sendErr) {
+          console.error(`[broadcastScheduler] Failed to send campaign "${campaign.internal_name}" (${campaign.id}) to channel ${channelId}:`, sendErr.message);
         }
-        console.log(`[broadcastScheduler] 🚀 Sent campaign "${campaign.internal_name}" (${campaign.id}) to ${sentCount}/${targetChannels.length} channel(s).`);
       }
+      console.log(`[broadcastScheduler] 🚀 Sent campaign "${campaign.internal_name}" (${campaign.id}) to ${sentCount}/${targetChannels.length} channel(s).`);
+    }
 
-      // 4. Calculate next send time and update DB
-      const nextSendTime = new Date(Date.now() + intervalMinutes * 60 * 1000).toISOString();
-      const { error: updateErr } = await supabase
-        .from("campaign_messages")
-        .update({
-          last_sent_at: new Date().toISOString(),
-          next_send_at: nextSendTime,
-        })
-        .eq("id", campaign.id);
+    // 6. Calculate next send time and update DB for this single campaign
+    const nextSendTime = new Date(Date.now() + intervalMinutes * 60 * 1000).toISOString();
+    const { error: updateErr } = await supabase
+      .from("campaign_messages")
+      .update({
+        last_sent_at: new Date().toISOString(),
+        next_send_at: nextSendTime,
+      })
+      .eq("id", campaign.id);
 
-      if (updateErr) {
-        console.error(`[broadcastScheduler] Failed to update campaign ${campaign.id}:`, updateErr.message);
-      }
+    if (updateErr) {
+      console.error(`[broadcastScheduler] Failed to update campaign ${campaign.id}:`, updateErr.message);
     }
   } catch (err) {
     console.error("[broadcastScheduler] Exception in broadcast check:", err.message);

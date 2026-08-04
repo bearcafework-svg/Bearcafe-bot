@@ -76,11 +76,11 @@ const TOPIC_NOTIFY = {
 // "chat" แมตช์ได้กับทุกคน (wildcard)
 const TOPIC_MATCH_PRIORITY = {
   chat: [null],
-  consult: ["listen", "consult", null],
-  listen: ["consult", "chat", null],
-  student: ["student", null],
-  worker: ["worker", null],
-  activity: ["activity", null],
+  consult: ["listen", "consult"],
+  listen: ["consult", "listen", "chat"],
+  student: ["student"],
+  worker: ["worker"],
+  activity: ["activity"],
 };
 
 // ── ข้อความหมุนเวียน ──────────────────────────────────────────────────────────
@@ -906,13 +906,15 @@ function isBlockedPair(userAId, userBId) {
   return hasA && hasB;
 }
 
-async function persistActiveRoom(channel, userAId, userBId, endTimeMs) {
+async function persistActiveRoom(channel, userAId, userBId, endTimeMs, topicA = "chat", topicB = "chat") {
   try {
     const { error } = await supabase.from(ACTIVE_ROOMS_TABLE).upsert({
       channel_id: channel.id,
       guild_id: channel.guild.id,
       user_a_id: userAId,
       user_b_id: userBId,
+      topic_a: topicA,
+      topic_b: topicB,
       started_at: new Date().toISOString(),
       end_at: new Date(endTimeMs).toISOString(),
       status: "active",
@@ -1188,6 +1190,8 @@ async function runCrashRecovery(client) {
       tableMembers.set(ch.id, new Set([userAId, userBId]));
       activeUsers.add(userAId);
       activeUsers.add(userBId);
+      if (row.topic_a) userTopics.set(userAId, row.topic_a);
+      if (row.topic_b) userTopics.set(userBId, row.topic_b);
 
       const endAt = row.end_at ? new Date(row.end_at).getTime() : NaN;
       const recoveredEnd = Number.isFinite(endAt)
@@ -1259,11 +1263,9 @@ async function createSecretChatChannel(guild, userAId, userBId, isExpanded = fal
   const endTime = Date.now() + SESSION_DURATION_MS;
   const endTimeUnix = Math.floor(endTime / 1000);
   sessionEndTimes.set(channel.id, endTime);
-  sessionExtendCount.set(channel.id, 0);
-  await persistActiveRoom(channel, userAId, userBId, endTime);
-
   const topicA = userTopics.get(userAId) ?? "chat";
   const topicB = userTopics.get(userBId) ?? "chat";
+  await persistActiveRoom(channel, userAId, userBId, endTime, topicA, topicB);
 
   const { ads, ctaButtons } = await getAdsAndCta();
   const sentMsg = await channel.send(buildV2Welcome(userAId, userBId, endTimeUnix, ads, ctaButtons, topicA, topicB, isExpanded));
@@ -2108,7 +2110,9 @@ async function handleAfkRematch(interaction) {
   sessionEndTimes.set(channelId, endTime);
   sessionExtendCount.set(channelId, 0);
   sessionStartTimes.set(channelId, Date.now());
-  await persistActiveRoom(channel, activeUserId, newPartnerId, endTime);
+  const topicA = userTopics.get(activeUserId) ?? "chat";
+  const topicB = userTopics.get(newPartnerId) ?? "chat";
+  await persistActiveRoom(channel, activeUserId, newPartnerId, endTime, topicA, topicB);
 
   // Reset AFK Tracker for the new partner
   const msgTracker = new Map();
@@ -2160,8 +2164,6 @@ async function handleAfkRematch(interaction) {
   afkCheckTimers.set(channelId, afkTimer);
 
   // Send Component V2 Welcome & Ping in existing room
-  const topicA = userTopics.get(activeUserId) ?? "chat";
-  const topicB = userTopics.get(newPartnerId) ?? "chat";
   const { ads, ctaButtons } = await getAdsAndCta();
 
   const sentMsg = await channel.send(buildV2Welcome(activeUserId, newPartnerId, endTimeUnix, ads, ctaButtons, topicA, topicB, isExpanded));

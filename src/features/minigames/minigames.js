@@ -147,17 +147,22 @@ function buildGamePayload(gameId, questionData) {
 
   const containerComponents = [];
 
-  // 1. Text Section + Accessory Button
-  containerComponents.push({
-    type: 9,
-    components: [{ type: 10, content: contentText }],
-    accessory: accessoryButton
-  });
-
-  // 2. Canvas Image Media Component (for Game 7 & 8)
+  // For Games 7 & 8: Media Component (12) comes FIRST, then Separator (14), then Section Component (9)
   if (mediaItem) {
-    containerComponents.push({ type: 14, spacing: 2 });
     containerComponents.push({ type: 12, items: [mediaItem] });
+    containerComponents.push({ type: 14, spacing: 2 });
+    containerComponents.push({
+      type: 9,
+      components: [{ type: 10, content: contentText }],
+      accessory: accessoryButton
+    });
+  } else {
+    // For Games 1-6, 9-10: Section Component (9) comes FIRST
+    containerComponents.push({
+      type: 9,
+      components: [{ type: 10, content: contentText }],
+      accessory: accessoryButton
+    });
   }
 
   // 3. Choice Buttons (for Game 9 & 10) — Primary (1), Danger (4), Success (3)

@@ -98,14 +98,15 @@ function buildGamePayload(gameId, questionData) {
       break;
     }
     case 4: { // ทายคำจากคำใบ้
-      const diffLabel = questionData.difficulty === 'easy' ? 'ง่าย' : questionData.difficulty === 'medium' ? 'ปานกลาง' : 'ยาก';
-      const hintsText = Array.isArray(questionData.hints)
-        ? questionData.hints.map((h, i) => `-# - คำใบ้ ${i + 1}: ${h}`).join('\n')
-        : '-# - ไม่มีคำใบ้';
+      const rawDiff = String(questionData.difficulty || '').toLowerCase();
+      const diffLabel = (rawDiff === 'easy' || rawDiff === 'ง่าย') ? 'ง่าย' : (rawDiff === 'medium' || rawDiff === 'ปานกลาง') ? 'ปานกลาง' : 'ยาก';
+      const hintsText = Array.isArray(questionData.hints) && questionData.hints.length > 0
+        ? questionData.hints.map(h => `# ${h}`).join('\n')
+        : '# ไม่มีคำใบ้';
 
       contentText = `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ ทายคำจากคำใบ้ 𓂃 \`__\n` +
-        `# \`ทายคำศัพท์ต่อไปนี้\`\n` +
-        `-# - ระดับ: ${diffLabel}\n${hintsText}`;
+        `${hintsText}\n` +
+        `-# - ระดับ: ${diffLabel}`;
       break;
     }
     case 5: { // เรียงคำศัพท์ไทย

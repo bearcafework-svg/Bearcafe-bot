@@ -123,55 +123,95 @@ function generateMathProblem() {
 
 // Generate missing letters for Thai (Game 1) or English (Game 2)
 function maskWord(word, isThai = true) {
-  const chars = Array.from(word);
-  if (chars.length <= 2) {
-    return { maskedStr: word, consonantCount: 0, vowelCount: 0 };
+  if (!word) return { maskedStr: "" };
+
+  const units = isThai ? getGraphemeClusters(word) : Array.from(word);
+  if (units.length <= 2) {
+    return { maskedStr: units.join(" ") };
   }
 
-  let consonants = 0;
-  let vowels = 0;
+  const countToMask = Math.max(1, Math.floor(units.length * 0.45));
+  let maskIndices = new Set();
+  let attempts = 0;
 
-  if (isThai) {
-    for (const ch of chars) {
-      const code = ch.charCodeAt(0);
-      if (code >= 0x0e01 && code <= 0x0e2e) consonants++;
-      else if ((code >= 0x0e30 && code <= 0x0e3a) || (code >= 0x0e40 && code <= 0x0e47)) vowels++;
-    }
+  do {
+    maskIndices = new Set();
+    const availableIndices = Array.from({ length: units.length }, (_, i) => i);
+    const shuffled = shuffleArray(availableIndices);
 
-    const maskIndices = new Set();
-    const countToMask = Math.max(1, Math.floor(chars.length * 0.45));
-    while (maskIndices.size < countToMask) {
-      const idx = Math.floor(Math.random() * chars.length);
+    // Prefer non-adjacent positions for natural distribution
+    for (const idx of shuffled) {
+      if (maskIndices.size >= countToMask) break;
+      if (units.length >= countToMask * 2) {
+        if (maskIndices.has(idx - 1) || maskIndices.has(idx + 1)) continue;
+      }
       maskIndices.add(idx);
     }
 
-    const maskedChars = chars.map((ch, i) => (maskIndices.has(i) ? "_" : ch));
-    return {
-      maskedStr: maskedChars.join(" "),
-      consonantCount: consonants,
-      vowelCount: vowels
-    };
-  } else {
-    const maskIndices = new Set();
-    const countToMask = Math.max(1, Math.floor(chars.length * 0.45));
+    // Fallback if non-adjacent filter was too restrictive
     while (maskIndices.size < countToMask) {
-      const idx = Math.floor(Math.random() * chars.length);
+      const idx = Math.floor(Math.random() * units.length);
       maskIndices.add(idx);
     }
-    const maskedChars = chars.map((ch, i) => (maskIndices.has(i) ? "_" : ch));
-    return {
-      maskedStr: maskedChars.join(" ")
-    };
+
+    attempts++;
+  } while (maskIndices.size === 0 && attempts < 10);
+
+  const maskedUnits = units.map((u, i) => (maskIndices.has(i) ? "_" : u));
+  return {
+    maskedStr: maskedUnits.join(" ")
+  };
+}
+
+/**
+ * Splits a Thai word into Unicode Grapheme Clusters (user-perceived characters).
+ * Uses Intl.Segmenter if available, with grapheme-splitter / regex fallbacks.
+ */
+function getGraphemeClusters(word) {
+  if (!word) return [];
+  if (typeof Intl !== "undefined" && Intl.Segmenter) {
+    const segmenter = new Intl.Segmenter("th", { granularity: "grapheme" });
+    return Array.from(segmenter.segment(word), (s) => s.segment);
+  }
+  try {
+    const GraphemeSplitter = require("grapheme-splitter");
+    const splitter = new GraphemeSplitter();
+    return splitter.splitGraphemes(word);
+  } catch {
+    const matches = word.match(/[\u0E00-\u0E7F][\u0E30-\u0E3A\u0E47-\u0E4E]*/g);
+    return matches || Array.from(word);
   }
 }
 
-// Scramble word for Games 5 & 6
-function scrambleWord(word) {
-  const chars = Array.from(word);
-  let scrambled = shuffleArray(chars).join("");
-  if (scrambled === word && chars.length > 2) {
-    scrambled = chars.reverse().join("");
+/**
+ * Scramble word for Games 5 & 6 based on language rules:
+ * - Thai (Game 5): split into Unicode Grapheme Clusters, shuffle clusters without breaking tone marks/vowels.
+ *   Skip words containing < 4 Unicode grapheme clusters.
+ * - English (Game 6): split into individual letters, preserve casing.
+ *   Skip words < 4 letters.
+ * - Ensure shuffled word is NOT identical to original word (reshuffle if same).
+ * - No brackets, pipes, commas, or spaces.
+ */
+function scrambleWord(word, isThai = /[\u0E00-\u0E7F]/.test(word)) {
+  if (!word) return "";
+
+  let clusters = isThai ? getGraphemeClusters(word) : Array.from(word);
+  if (clusters.length < 2) return word;
+
+  let scrambled = "";
+  let attempts = 0;
+
+  do {
+    const shuffled = shuffleArray(clusters);
+    scrambled = shuffled.join("").replace(/[\[\]\|, ]/g, "");
+    attempts++;
+  } while (scrambled === word && attempts < 100);
+
+  if (scrambled === word && clusters.length >= 2) {
+    const reversed = [...clusters].reverse();
+    scrambled = reversed.join("").replace(/[\[\]\|, ]/g, "");
   }
+
   return scrambled;
 }
 
@@ -224,7 +264,12 @@ async function getNextQuestion(supabase, gameId) {
       const isThaiAnswer = /[\u0E00-\u0E7F]/.test(q.answer);
       const isThaiWord = /[\u0E00-\u0E7F]/.test(q.word_or_question);
       const word = isThaiAnswer ? q.answer : (isThaiWord ? q.word_or_question : null);
-      return word ? { id: q.id, word_or_question: word, answer: word } : null;
+      if (!word) return null;
+      // Game 5 requirement: Skip Thai words containing fewer than 4 Unicode grapheme clusters
+      if (gameId === 5 && getGraphemeClusters(word).length < 4) {
+        return null;
+      }
+      return { id: q.id, word_or_question: word, answer: word, category: q.category || 'คำทั่วไป' };
     }).filter(Boolean);
   } else if (gameId === 2 || gameId === 6) {
     // English games: extract words that are English
@@ -232,7 +277,12 @@ async function getNextQuestion(supabase, gameId) {
       const isEngWord = /[a-zA-Z]/.test(q.word_or_question);
       const isEngAnswer = /[a-zA-Z]/.test(q.answer);
       const word = isEngWord ? q.word_or_question : (isEngAnswer ? q.answer : null);
-      return word ? { id: q.id, word_or_question: word, answer: word } : null;
+      if (!word) return null;
+      // Game 6 requirement: Ignore words shorter than 4 letters
+      if (gameId === 6 && word.length < 4) {
+        return null;
+      }
+      return { id: q.id, word_or_question: word, answer: word, category: q.category || 'General' };
     }).filter(Boolean);
   } else if (gameId === 9 || gameId === 10) {
     // Translation pairs (English word <-> Thai translation)
@@ -310,6 +360,7 @@ async function getNextQuestion(supabase, gameId) {
     hints: selected.hints || [],
     options,
     difficulty,
+    category: selected.category || 'คำทั่วไป',
     rewardPoints
   };
 }
@@ -318,5 +369,6 @@ module.exports = {
   getNextQuestion,
   generateMathProblem,
   maskWord,
-  scrambleWord
+  scrambleWord,
+  getGraphemeClusters
 };

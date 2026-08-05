@@ -75,12 +75,12 @@ function buildGamePayload(gameId, questionData) {
 
   switch (gameId) {
     case 1: { // เติมคำศัพท์ไทย
-      const { maskedStr, consonantCount, vowelCount } = maskWord(questionData.wordOrQuestion, true);
+      const { maskedStr } = maskWord(questionData.wordOrQuestion, true);
       questionData.displayMask = maskedStr;
+      const categoryLabel = questionData.category || 'คำทั่วไป';
       contentText = `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ เกมเติมคำศัพท์ (ไทย) 𓂃 \`__\n` +
         `# \`${maskedStr}\`\n` +
-        `-# - จำนวนพยัญชนะ: ${consonantCount}\n` +
-        `-# - จำนวนสระ: ${vowelCount}`;
+        `-# - หมวดหมู่: ${categoryLabel}`;
       break;
     }
     case 2: { // เติมคำศัพท์อังกฤษ
@@ -428,8 +428,11 @@ function setupMinigames(client) {
     const userText = message.content.trim();
     const correctAnswer = String(session.questionData.answer).trim();
 
-    // Check correctness (case-insensitive for English words/letters)
-    const isCorrect = userText.toLowerCase() === correctAnswer.toLowerCase();
+    // Check correctness: exact comparison for Thai, case-insensitive for English
+    const isThaiGame = matchedGameId === 1 || matchedGameId === 5 || matchedGameId === 7;
+    const isCorrect = isThaiGame
+      ? userText === correctAnswer
+      : userText.toLowerCase() === correctAnswer.toLowerCase();
 
     if (!isCorrect) {
       // Delete wrong text message asynchronously

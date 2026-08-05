@@ -8,6 +8,8 @@ const { blacklistPayload } = require('../features/shared/tarotComponents');
 const FLAG_V2 = 32768; // MessageFlags.IsComponentsV2
 const FLAG_EPHEMERAL = 64; // MessageFlags.Ephemeral
 
+const { getTodayBangkok, getDailyCap, getDailyResetTimestamp } = require('../utils/pointManager');
+
 function getMaxPoints(member) {
   let maxPoints = cfg.DEFAULT_CAP;
   if (!member || !member.roles) return maxPoints;
@@ -22,12 +24,14 @@ function getMaxPoints(member) {
 async function getUserData(supabase, userId, member = null) {
   const { data } = await supabase
     .from('user_points')
-    .select('points, cakes')
+    .select('points, cakes, daily_points, last_reset_date')
     .eq('discord_id', userId)
-    .single();
+    .maybeSingle();
 
   let points = data?.points ?? 0;
   let cakes = data?.cakes ?? 0;
+  const today = getTodayBangkok();
+  let dailyPoints = (data?.last_reset_date === today) ? (data?.daily_points ?? 0) : 0;
 
   if (member) {
     const maxPoints = getMaxPoints(member);
@@ -43,14 +47,17 @@ async function getUserData(supabase, userId, member = null) {
 
   return {
     points,
-    cakes
+    cakes,
+    dailyPoints
   };
 }
 
-function buildMainPayload(interaction, points, cakes, maxPoints, page = 1) {
+function buildMainPayload(interaction, points, cakes, maxPoints, page = 1, dailyPoints = 0) {
   const avatarUrl = interaction.member.displayAvatarURL({ extension: 'png', size: 128 });
   const username = interaction.user.displayName || interaction.user.username;
   const cakeUrl = cfg.cake_images[Math.min(cakes, 4)];
+  const dailyCap = getDailyCap(maxPoints);
+  const resetTimestamp = getDailyResetTimestamp();
 
   const options = [];
   const rolesList = page === 1 ? cfg.roles_exchange : cfg.roles_exchange_page2;
@@ -104,7 +111,7 @@ function buildMainPayload(interaction, points, cakes, maxPoints, page = 1) {
           type: 9,
           components: [{
             type: 10,
-            content: `## <:bagpack_icon:1522154708200849449>︲__\` 𝖬𝗒 𝗉𝗈𝗂𝗇𝗍𝗌 ₊ ${username} \`__\n-# สะสมเค้กครบ 4 ชิ้น รับฟรี 1 ยศ เลือกได้จากคลังยศกว่า **30 ยศ** เปลี่ยนสไตล์ให้โปรไฟล์ของคุณได้ตามใจ พร้อมสะสมต่อเพื่อปลดล็อกรางวัลอีกมากมาย <:cuteplant:1152834055528783872>\n\n> <:bee20000:1256669436350562355>︰แต้มตอนนี้ของคุณ \`${points.toLocaleString()}\` / \`${maxPoints.toLocaleString()}\`\n> <a:59217leaf:1512014878796152862>︰สะสมแต้ม <:strawberryv2:1520439075100688614> **750 แต้ม** เพื่อรับเค้ก <:cake_point:1522152896035033098> **1 ชิ้น** สำหรับแลกยศฟรี!`
+            content: `## <:bagpack_icon:1522154708200849449>︲__\` 𝖬𝗒 𝗉𝗈𝗂𝗇𝗍𝗌 ₊ ${username} \`__\n-# สะสมเค้กครบ 4 ชิ้น รับฟรี 1 ยศ เลือกได้จากคลังยศกว่า **30 ยศ** เปลี่ยนสไตล์ให้โปรไฟล์ของคุณได้ตามใจ พร้อมสะสมต่อเพื่อปลดล็อกรางวัลอีกมากมาย <:cuteplant:1152834055528783872>\n\n> <:bee20000:1256669436350562355>︰แต้มตอนนี้ของคุณ \`${points.toLocaleString()}\` / \`${maxPoints.toLocaleString()}\`\n> <a:7596clock:1160230591892029510>︰แต้มรับวันนี้ \`${dailyPoints.toLocaleString()}\` / \`${dailyCap.toLocaleString()}\` แต้ม (รีเซ็ตใน <t:${resetTimestamp}:R>)\n> <a:59217leaf:1512014878796152862>︰สะสมแต้ม <:strawberryv2:1520439075100688614> **750 แต้ม** เพื่อรับเค้ก <:cake_point:1522152896035033098> **1 ชิ้น** สำหรับแลกยศฟรี!`
           }],
           accessory: { type: 11, media: { url: avatarUrl } }
         },
@@ -167,10 +174,10 @@ function setupMyPoints(client) {
       }
 
       const userId = interaction.user.id;
-      const { points, cakes } = await getUserData(supabase, userId, interaction.member);
+      const { points, cakes, dailyPoints } = await getUserData(supabase, userId, interaction.member);
       const maxPoints = getMaxPoints(interaction.member);
 
-      const payload = buildMainPayload(interaction, points, cakes, maxPoints, 1);
+      const payload = buildMainPayload(interaction, points, cakes, maxPoints, 1, dailyPoints);
       await interaction.reply(payload);
     }
 

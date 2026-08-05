@@ -483,11 +483,13 @@ async function processQueue(queue, client, supabase) {
 
       } catch (sendErr) {
         errorMsg = sendErr.message || "Failed to send DM";
-        consecutiveFailures++;
-        console.warn(`[queue-processor] DM Failed (${consecutiveFailures}/${maxConsecutiveFailures} consecutive) to user ${log.user_id}: ${errorMsg}`);
         
-        // Check if DM is closed (50007)
-        if (sendErr.code === 50007) {
+        // Known user-level DM restrictions (50007: Cannot send messages, 50001: Missing Access, 10013: Unknown User)
+        const isUserDmRestriction = [50007, 50001, 10013].includes(sendErr.code);
+
+        if (isUserDmRestriction) {
+          // Record DM status as closed, but DO NOT count towards system consecutive failures
+          console.warn(`[queue-processor] DM Restricted (user-level error ${sendErr.code}) for user ${log.user_id}: ${errorMsg}`);
           await supabase.from("member_dm_status").upsert({
             user_id: log.user_id,
             username: username,
@@ -495,6 +497,10 @@ async function processQueue(queue, client, supabase) {
             last_checked_at: new Date().toISOString(),
             last_error: errorMsg
           });
+        } else {
+          // Increment consecutive failures only for unexpected system errors (e.g. rate limit, token issue, network drop)
+          consecutiveFailures++;
+          console.warn(`[queue-processor] DM System Error (${consecutiveFailures}/${maxConsecutiveFailures} consecutive) for user ${log.user_id}: ${errorMsg}`);
         }
       }
 

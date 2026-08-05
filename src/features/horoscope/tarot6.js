@@ -121,20 +121,10 @@ function buildCardPayload(card, stats, earnedPoints) {
         { type: 12, items: [{ media: { url: card.img } }] },
         { type: 14, spacing: 2 },
         {
-          type: 9,
-          components: [{
-            type: 10,
-            content:
-              `## <:bee20000:1256669436350562355>︲__\` ${card.name} ₊ ${card.meaning} 𓂃 \`__\n` +
-              `-# ${card.prediction} <:cuteplant:1152834055528783872>`
-          }],
-          accessory: {
-            type:  2,
-            style: 5,
-            label: `ได้รับ +${earnedPoints} แต้ม`,
-            emoji: { id: pi.id, name: pi.name, animated: pi.animated },
-            url:   'https://discord.com/channels/1144251788493602848/1524123727724417276'
-          }
+          type: 10,
+          content:
+            `## <:bee20000:1256669436350562355>︲__\` ${card.name} ₊ ${card.meaning} 𓂃 \`__\n` +
+            `-# ${card.prediction} <:cuteplant:1152834055528783872>`
         },
         { type: 14, spacing: 2, divider: true },
         {
@@ -226,20 +216,10 @@ function buildCombinedPayload(card, stats, earnedPoints, tarotPoint, isComplete)
         { type: 12, items: [{ media: { url: card.img } }] },
         { type: 14, spacing: 2 },
         {
-          type: 9,
-          components: [{
-            type: 10,
-            content:
-              `## <:bee20000:1256669436350562355>︲__\` ${card.name} ₊ ${card.meaning} 𓂃 \`__\n` +
-              `-# ${card.prediction} <:cuteplant:1152834055528783872>`
-          }],
-          accessory: {
-            type:  2,
-            style: 5,
-            label: `ได้รับ +${earnedPoints} แต้ม`,
-            emoji: { id: pi.id, name: pi.name, animated: pi.animated },
-            url:   'https://discord.com/channels/1144251788493602848/1524123727724417276'
-          }
+          type: 10,
+          content:
+            `## <:bee20000:1256669436350562355>︲__\` ${card.name} ₊ ${card.meaning} 𓂃 \`__\n` +
+            `-# ${card.prediction} <:cuteplant:1152834055528783872>`
         },
         { type: 14, spacing: 2, divider: true },
         {
@@ -352,7 +332,7 @@ function setupTarot6(client) {
 
     // ── บันทึกแต้มลง Supabase (atomic) ──────────────────────────────────────
     const tarotDelta        = alreadyClaimed ? 0 : Math.min(1, cfg.mission_target - tarotPoint);
-    const { newTarotPoint } = await addPoints(supabase, userId, earnedPoints, tarotDelta);
+    const { newTarotPoint } = await addPoints(supabase, userId, 0, tarotDelta);
     const missionComplete   = newTarotPoint >= cfg.mission_target;
 
     // ── ลบ loading + ส่ง result พร้อมกัน ─────────────────────────────────────

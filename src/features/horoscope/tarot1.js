@@ -117,22 +117,11 @@ function buildCardPayload(card, earnedPoints) {
         { type: 12, items: [{ media: { url: imgUrl } }] },
         { type: 14, spacing: 2 },
         {
-          type: 9,
-          components: [{
-            type: 10,
-            content:
-              `## ${cfg.emojis.purpleween}︲__\` ${card.name} ₊ ☾ 𓂃 \`__\n` +
-              `-# ${card.meaning} ${cfg.emojis.plant}\n\n` +
-              `>>> ${card.prediction}`
-          }],
-          // Link button ห้ามมี custom_id
-          accessory: {
-            type: 2,
-            style: 5,
-            label: `ได้รับ +${earnedPoints} แต้ม`,
-            emoji: { id: pi.id, name: pi.name, animated: pi.animated },
-            url: 'https://discord.com/channels/1144251788493602848/1524123727724417276'
-          }
+          type: 10,
+          content:
+            `## ${cfg.emojis.purpleween}︲__\` ${card.name} ₊ ☾ 𓂃 \`__\n` +
+            `-# ${card.meaning} ${cfg.emojis.plant}\n\n` +
+            `>>> ${card.prediction}`
         },
         { type: 14, spacing: 2 },
         {
@@ -207,22 +196,11 @@ function buildCombinedPayload(card, earnedPoints, tarotPoint, isComplete) {
         { type: 12, items: [{ media: { url: imgUrl } }] },
         { type: 14, spacing: 2 },
         {
-          type: 9,
-          components: [{
-            type: 10,
-            content:
-              `## ${cfg.emojis.purpleween}︲__\` ${card.name} ₊ ☾ 𓂃 \`__\n` +
-              `-# ${card.meaning} ${cfg.emojis.plant}\n\n` +
-              `>>> ${card.prediction}`
-          }],
-          // Link button ห้ามมี custom_id
-          accessory: {
-            type: 2,
-            style: 5,
-            label: `ได้รับ +${earnedPoints} แต้ม`,
-            emoji: { id: pi.id, name: pi.name, animated: pi.animated },
-            url: 'https://discord.com/channels/1144251788493602848/1524123727724417276'
-          }
+          type: 10,
+          content:
+            `## ${cfg.emojis.purpleween}︲__\` ${card.name} ₊ ☾ 𓂃 \`__\n` +
+            `-# ${card.meaning} ${cfg.emojis.plant}\n\n` +
+            `>>> ${card.prediction}`
         },
         { type: 14, spacing: 2 },
         {
@@ -314,7 +292,7 @@ function setupTarot1(client) {
     // tarot_point หยุดนับที่ mission_target เพื่อป้องกัน 49→51
     // กรณียังไม่กดรับ: บวกได้สูงสุดถึง mission_target เท่านั้น
     const tarotDelta = alreadyClaimed ? 0 : Math.min(1, cfg.mission_target - tarotPoint);
-    const { newTarotPoint } = await addPoints(supabase, userId, earnedPoints, tarotDelta);
+    const { newTarotPoint } = await addPoints(supabase, userId, 0, tarotDelta);
     const missionComplete = newTarotPoint >= cfg.mission_target;
 
     // ── ลบ loading + ส่ง result พร้อมกัน (ไม่มี gap) ─────────────────────────

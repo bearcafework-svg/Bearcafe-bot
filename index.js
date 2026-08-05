@@ -65,6 +65,7 @@ setupFeature("healing", "./src/features/horoscope/healing", "setupHealing", supa
 setupFeature("boostNotification", "./src/features/boostNotification", "setupBoostNotification", supabaseEnvKeys);
 setupFeature("stickyPanels", "./src/features/stickyPanels", "setupStickyPanels", supabaseEnvKeys);
 setupFeature("bees", "./src/bees", "setupBees", supabaseEnvKeys);
+setupFeature("minigames", "./src/features/minigames/minigames", "setupMinigames", supabaseEnvKeys);
 
 
 
@@ -241,7 +242,7 @@ async function updateBotPresence(client) {
     if (!guild) {
       guild = client.guilds.cache.first();
     }
-    
+
     if (!guild) {
       console.warn(`[presence] No guilds found in client cache yet.`);
       return;

@@ -165,21 +165,11 @@ function buildCardPayload(bearImgUrl, card, earnedPoints) {
         },
         { type: 14, spacing: 1, divider: false },
         {
-          type: 9,
-          components: [{
-            type: 10,
-            content:
-              ` - 💕⠀**ความรัก**\n` +
-              `  - __\`โสด\`__: ${card.single}\n` +
-              `  - __\`มีแฟน\`__: ${card.love}`
-          }],
-          accessory: {
-            type:  2,
-            style: 5,
-            label: `ได้รับ +${earnedPoints} แต้ม`,
-            emoji: { id: pi.id, name: pi.name, animated: pi.animated },
-            url:   'https://discord.com/channels/1144251788493602848/1524123727724417276'
-          }
+          type: 10,
+          content:
+            ` - 💕⠀**ความรัก**\n` +
+            `  - __\`โสด\`__: ${card.single}\n` +
+            `  - __\`มีแฟน\`__: ${card.love}`
         },
         { type: 14, divider: false },
         {
@@ -282,21 +272,11 @@ function buildCombinedPayload(bearImgUrl, card, earnedPoints, tarotPoint, isComp
         },
         { type: 14, spacing: 1, divider: false },
         {
-          type: 9,
-          components: [{
-            type: 10,
-            content:
-              ` - 💕⠀**ความรัก**\n` +
-              `  - __\`โสด\`__: ${card.single}\n` +
-              `  - __\`มีแฟน\`__: ${card.love}`
-          }],
-          accessory: {
-            type:  2,
-            style: 5,
-            label: `ได้รับ +${earnedPoints} แต้ม`,
-            emoji: { id: pi.id, name: pi.name, animated: pi.animated },
-            url:   'https://discord.com/channels/1144251788493602848/1524123727724417276'
-          }
+          type: 10,
+          content:
+            ` - 💕⠀**ความรัก**\n` +
+            `  - __\`โสด\`__: ${card.single}\n` +
+            `  - __\`มีแฟน\`__: ${card.love}`
         },
         { type: 14, divider: false },
         {
@@ -413,7 +393,7 @@ function setupTarot5(client) {
 
         // บันทึกแต้ม
         const tarotDelta        = alreadyClaimed ? 0 : Math.min(1, cfg.mission_target - tarotPoint);
-        const { newTarotPoint } = await addPoints(supabase, user.id, earnedPoints, tarotDelta);
+        const { newTarotPoint } = await addPoints(supabase, user.id, 0, tarotDelta);
         const missionComplete   = newTarotPoint >= cfg.mission_target;
 
         // อัปเดต message เดิม (แทนที่ปุ่มหมีด้วยผลลัพธ์)

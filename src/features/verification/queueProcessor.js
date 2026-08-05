@@ -31,6 +31,26 @@ async function getSecondaryClient() {
 }
 
 /**
+ * Helper to sanitize payload: Link buttons (style: 5 or containing url) must not have custom_id
+ */
+function sanitizePayload(obj) {
+  if (!obj || typeof obj !== "object") return obj;
+  if (Array.isArray(obj)) return obj.map(sanitizePayload);
+  const copy = { ...obj };
+
+  if (copy.type === 2 && (copy.style === 5 || copy.url)) {
+    delete copy.custom_id;
+  }
+
+  for (const key of Object.keys(copy)) {
+    if (typeof copy[key] === "object" && copy[key] !== null) {
+      copy[key] = sanitizePayload(copy[key]);
+    }
+  }
+  return copy;
+}
+
+/**
  * Helper to log Thai system status messages to Supabase dm_broadcast_system_logs
  */
 async function logBroadcast(supabase, level, messageTh, queueId = null) {
@@ -467,6 +487,9 @@ async function processQueue(queue, client, supabase) {
           payloadToSend = cleanPayload;
         }
         
+        // Sanitize payload to remove custom_id from Link buttons (style 5)
+        payloadToSend = sanitizePayload(payloadToSend);
+
         // Discord.js allows sending raw components or V2 payloads if we structure them properly
         await userObj.send(payloadToSend);
         success = true;

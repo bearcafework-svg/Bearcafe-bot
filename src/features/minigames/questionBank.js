@@ -1,7 +1,7 @@
-// src/features/minigames/questionBank.js — คลังโจทย์และการสร้างโจทย์ไดนามิกสำหรับทั้ง 10 มินิเกม
+// src/features/minigames/questionBank.js — คลังโจทย์และการสร้างโจทย์ไดนามิกสำหรับทั้ง 10 มินิเกม (Shared Vocabulary & Dynamic Choices)
 
 const DEFAULT_QUESTIONS = {
-  1: [ // เติมคำศัพท์ไทย (ไม่มีระดับความยาก - สุ่ม 3-6 แต้ม)
+  1: [ // เติมคำศัพท์ไทย & เรียงคำไทย
     { id: 101, word_or_question: "สวัสดี", answer: "สวัสดี" },
     { id: 102, word_or_question: "ขอบคุณ", answer: "ขอบคุณ" },
     { id: 103, word_or_question: "ประเทศไทย", answer: "ประเทศไทย" },
@@ -11,7 +11,7 @@ const DEFAULT_QUESTIONS = {
     { id: 107, word_or_question: "ธรรมชาติ", answer: "ธรรมชาติ" },
     { id: 108, word_or_question: "คอมพิวเตอร์", answer: "คอมพิวเตอร์" }
   ],
-  2: [ // เติมคำศัพท์ภาษาอังกฤษ (ไม่มีระดับความยาก - สุ่ม 3-6 แต้ม)
+  2: [ // เติมคำศัพท์อังกฤษ & เรียงคำอังกฤษ
     { id: 201, word_or_question: "apple", answer: "apple" },
     { id: 202, word_or_question: "banana", answer: "banana" },
     { id: 203, word_or_question: "friendship", answer: "friendship" },
@@ -27,45 +27,29 @@ const DEFAULT_QUESTIONS = {
     { id: 404, word_or_question: "ดวงอาทิตย์", answer: "ดวงอาทิตย์", hints: ["อยู่บนท้องฟ้า", "ให้แสงสว่างและความร้อนในตอนกลางวัน", "ขึ้นทางทิศตะวันออก"], difficulty: "medium" },
     { id: 405, word_or_question: "คอมพิวเตอร์", answer: "คอมพิวเตอร์", hints: ["เป็นอุปกรณ์อิเล็กทรอนิกส์", "มีหน้าจอ แป้นพิมพ์ และเมาส์", "ใช้ประมวลผลและทำงาน"], difficulty: "hard" }
   ],
-  5: [ // เรียงคำศัพท์ไทย (ไม่มีระดับความยาก - สุ่ม 3-6 แต้ม)
-    { id: 501, word_or_question: "สวัสดี", answer: "สวัสดี" },
-    { id: 502, word_or_question: "กาแฟ", answer: "กาแฟ" },
-    { id: 503, word_or_question: "ความรัก", answer: "ความรัก" },
-    { id: 504, word_or_question: "ธรรมชาติ", answer: "ธรรมชาติ" },
-    { id: 505, word_or_question: "มิตรภาพ", answer: "มิตรภาพ" }
-  ],
-  6: [ // เรียงคำศัพท์อังกฤษ (ไม่มีระดับความยาก - สุ่ม 3-6 แต้ม)
-    { id: 601, word_or_question: "coffee", answer: "coffee" },
-    { id: 602, word_or_question: "discord", answer: "discord" },
-    { id: 603, word_or_question: "butterfly", answer: "butterfly" },
-    { id: 604, word_or_question: "rainbow", answer: "rainbow" },
-    { id: 605, word_or_question: "strawberry", answer: "strawberry" }
-  ],
-  7: [ // พิมพ์คำต่อไปนี้ (ไทย) (ไม่มีระดับความยาก - สุ่ม 3-6 แต้ม)
+  7: [ // พิมพ์คำต่อไปนี้ (ไทย)
     { id: 701, word_or_question: "หมีคาเฟ่ต้อนรับเสมอ", answer: "หมีคาเฟ่ต้อนรับเสมอ" },
     { id: 702, word_or_question: "ยิ้มสดใสในทุกวัน", answer: "ยิ้มสดใสในทุกวัน" },
     { id: 703, word_or_question: "กาแฟหอมหวานกลมกล่อม", answer: "กาแฟหอมหวานกลมกล่อม" },
     { id: 704, word_or_question: "ความพยายามไม่เคยทรยศใคร", answer: "ความพยายามไม่เคยทรยศใคร" }
   ],
-  8: [ // พิมพ์คำต่อไปนี้ (อังกฤษ) (ไม่มีระดับความยาก - สุ่ม 3-6 แต้ม)
+  8: [ // พิมพ์คำต่อไปนี้ (อังกฤษ)
     { id: 801, word_or_question: "Welcome to Bear Cafe", answer: "Welcome to Bear Cafe" },
     { id: 802, word_or_question: "Have a wonderful day", answer: "Have a wonderful day" },
     { id: 803, word_or_question: "Stay happy and positive", answer: "Stay happy and positive" },
     { id: 804, word_or_question: "Practice makes perfect", answer: "Practice makes perfect" }
   ],
-  9: [ // ทายคำแปลภาษาอังกฤษ (ไม่มีระดับความยาก - สุ่ม 3-6 แต้ม)
-    { id: 901, word_or_question: "Banana", answer: "กล้วย", options: ["กล้วย", "แอปเปิ้ล", "องุ่น"] },
-    { id: 902, word_or_question: "Apple", answer: "แอปเปิ้ล", options: ["แอปเปิ้ล", "ส้ม", "มะม่วง"] },
-    { id: 903, word_or_question: "Cat", answer: "แมว", options: ["แมว", "สุนัข", "กระต่าย"] },
-    { id: 904, word_or_question: "Book", answer: "หนังสือ", options: ["หนังสือ", "ปากกา", "สมุด"] },
-    { id: 905, word_or_question: "Butterfly", answer: "ผีเสื้อ", options: ["ผีเสื้อ", "นก", "ผึ้ง"] }
-  ],
-  10: [ // ทายคำแปลภาษาไทย (ไม่มีระดับความยาก - สุ่ม 3-6 แต้ม)
-    { id: 1001, word_or_question: "ส้ม", answer: "Orange", options: ["Orange", "Apple", "Grape"] },
-    { id: 1002, word_or_question: "สุนัข", answer: "Dog", options: ["Dog", "Cat", "Bird"] },
-    { id: 1003, word_or_question: "บ้าน", answer: "House", options: ["House", "Car", "School"] },
-    { id: 1004, word_or_question: "น้ำ", answer: "Water", options: ["Water", "Milk", "Juice"] },
-    { id: 1005, word_or_question: "ท้องฟ้า", answer: "Sky", options: ["Sky", "Sun", "Cloud"] }
+  9: [ // คลังคู่แปลภาษา (อังกฤษ <-> ไทย) ใช้สำหรับ Game 9 & 10
+    { id: 901, word_or_question: "Banana", answer: "กล้วย" },
+    { id: 902, word_or_question: "Apple", answer: "แอปเปิ้ล" },
+    { id: 903, word_or_question: "Cat", answer: "แมว" },
+    { id: 904, word_or_question: "Book", answer: "หนังสือ" },
+    { id: 905, word_or_question: "Butterfly", answer: "ผีเสื้อ" },
+    { id: 906, word_or_question: "Orange", answer: "ส้ม" },
+    { id: 907, word_or_question: "Dog", answer: "สุนัข" },
+    { id: 908, word_or_question: "House", answer: "บ้าน" },
+    { id: 909, word_or_question: "Water", answer: "น้ำ" },
+    { id: 910, word_or_question: "Sky", answer: "ท้องฟ้า" }
   ]
 };
 
@@ -82,7 +66,7 @@ function shuffleArray(array) {
   return arr;
 }
 
-// Generate Math Problem (Game 3) - Has Difficulty levels (easy: 2-3 pts, medium: 4-6 pts, hard: 7-10 pts)
+// Generate Math Problem (Game 3)
 function generateMathProblem() {
   const difficulties = ["easy", "medium", "hard"];
   const diff = difficulties[Math.floor(Math.random() * difficulties.length)];
@@ -92,8 +76,8 @@ function generateMathProblem() {
   if (diff === "easy") {
     diffLabel = "ง่าย";
     rewardPoints = Math.floor(Math.random() * 2) + 2; // 2-3 pts
-    num1 = Math.floor(Math.random() * 9) + 1; // 1-9
-    num2 = Math.floor(Math.random() * 9) + 1; // 1-9
+    num1 = Math.floor(Math.random() * 9) + 1;
+    num2 = Math.floor(Math.random() * 9) + 1;
     op = Math.random() < 0.5 ? "+" : "-";
     if (op === "-" && num1 < num2) [num1, num2] = [num2, num1];
     answer = op === "+" ? num1 + num2 : num1 - num2;
@@ -102,12 +86,12 @@ function generateMathProblem() {
     rewardPoints = Math.floor(Math.random() * 3) + 4; // 4-6 pts
     op = Math.random() < 0.25 ? "x" : (Math.random() < 0.5 ? "+" : "-");
     if (op === "x") {
-      num1 = Math.floor(Math.random() * 9) + 2; // 2-9
-      num2 = Math.floor(Math.random() * 9) + 2; // 2-9
+      num1 = Math.floor(Math.random() * 9) + 2;
+      num2 = Math.floor(Math.random() * 9) + 2;
       answer = num1 * num2;
     } else {
-      num1 = Math.floor(Math.random() * 90) + 10; // 10-99
-      num2 = Math.floor(Math.random() * 90) + 10; // 10-99
+      num1 = Math.floor(Math.random() * 90) + 10;
+      num2 = Math.floor(Math.random() * 90) + 10;
       if (op === "-" && num1 < num2) [num1, num2] = [num2, num1];
       answer = op === "+" ? num1 + num2 : num1 - num2;
     }
@@ -116,24 +100,23 @@ function generateMathProblem() {
     rewardPoints = Math.floor(Math.random() * 4) + 7; // 7-10 pts
     op = Math.random() < 0.35 ? "x" : (Math.random() < 0.5 ? "+" : "-");
     if (op === "x") {
-      num1 = Math.floor(Math.random() * 89) + 10; // 10-98
-      num2 = Math.floor(Math.random() * 9) + 2;   // 2-9
+      num1 = Math.floor(Math.random() * 89) + 10;
+      num2 = Math.floor(Math.random() * 9) + 2;
       answer = num1 * num2;
     } else {
-      num1 = Math.floor(Math.random() * 9000) + 100; // 100-9999
-      num2 = Math.floor(Math.random() * 9000) + 100; // 100-9999
+      num1 = Math.floor(Math.random() * 9000) + 100;
+      num2 = Math.floor(Math.random() * 9000) + 100;
       if (op === "-" && num1 < num2) [num1, num2] = [num2, num1];
       answer = op === "+" ? num1 + num2 : num1 - num2;
     }
   }
 
-  const questionStr = `${num1} ${op} ${num2} = ?`;
-
   return {
     gameId: 3,
     difficulty: diffLabel,
     rewardPoints,
-    questionStr,
+    questionStr: `${num1} ${op} ${num2} = ?`,
+    wordOrQuestion: `${num1} ${op} ${num2} = ?`,
     answer: String(answer)
   };
 }
@@ -149,14 +132,12 @@ function maskWord(word, isThai = true) {
   let vowels = 0;
 
   if (isThai) {
-    // Basic Thai character breakdown
     for (const ch of chars) {
       const code = ch.charCodeAt(0);
       if (code >= 0x0e01 && code <= 0x0e2e) consonants++;
       else if ((code >= 0x0e30 && code <= 0x0e3a) || (code >= 0x0e40 && code <= 0x0e47)) vowels++;
     }
 
-    // Mask approximately 40-50% of characters
     const maskIndices = new Set();
     const countToMask = Math.max(1, Math.floor(chars.length * 0.45));
     while (maskIndices.size < countToMask) {
@@ -171,7 +152,6 @@ function maskWord(word, isThai = true) {
       vowelCount: vowels
     };
   } else {
-    // English word masking
     const maskIndices = new Set();
     const countToMask = Math.max(1, Math.floor(chars.length * 0.45));
     while (maskIndices.size < countToMask) {
@@ -189,26 +169,34 @@ function maskWord(word, isThai = true) {
 function scrambleWord(word) {
   const chars = Array.from(word);
   let scrambled = shuffleArray(chars).join("");
-  // Ensure scrambled is not identical to original unless word length <= 2
   if (scrambled === word && chars.length > 2) {
     scrambled = chars.reverse().join("");
   }
   return scrambled;
 }
 
-// Fetch Next Question for any game (1-10)
+/**
+ * Fetch Next Question for any game (1-10) with Shared Vocabulary Pool & Dynamic 3-Choice Generation
+ */
 async function getNextQuestion(supabase, gameId) {
   if (gameId === 3) {
     return generateMathProblem();
   }
 
   let questionsPool = [];
+  let allTranslations = [];
 
   if (supabase) {
+    // Determine target game_id filters for shared vocabulary pool
+    let targetGameIds = [gameId];
+    if (gameId === 1 || gameId === 5) targetGameIds = [1, 5, 9, 10];
+    if (gameId === 2 || gameId === 6) targetGameIds = [2, 6, 9, 10];
+    if (gameId === 9 || gameId === 10) targetGameIds = [9, 10, 1, 2, 5, 6];
+
     const { data, error } = await supabase
       .from("minigame_questions")
       .select("*")
-      .eq("game_id", gameId)
+      .in("game_id", targetGameIds)
       .eq("is_active", true);
 
     if (!error && data && data.length > 0) {
@@ -216,37 +204,71 @@ async function getNextQuestion(supabase, gameId) {
     }
   }
 
+  // Fallback to default questions if DB is empty
   if (questionsPool.length === 0) {
-    questionsPool = DEFAULT_QUESTIONS[gameId] || [];
+    if (gameId === 1 || gameId === 5) questionsPool = DEFAULT_QUESTIONS[1];
+    else if (gameId === 2 || gameId === 6) questionsPool = DEFAULT_QUESTIONS[2];
+    else if (gameId === 9 || gameId === 10) questionsPool = DEFAULT_QUESTIONS[9];
+    else questionsPool = DEFAULT_QUESTIONS[gameId] || [];
   }
 
   if (questionsPool.length === 0) {
     return null;
   }
 
-  // Filter out recently asked questions if pool is large enough
-  const historyKey = `game_${gameId}`;
-  let history = askedHistory.get(historyKey) || [];
+  // Filter candidates per game logic
+  let candidates = [...questionsPool];
+  if (gameId === 1 || gameId === 5) {
+    // Thai games: extract words that are Thai or answers in Thai
+    candidates = questionsPool.map(q => {
+      const isThaiAnswer = /[\u0E00-\u0E7F]/.test(q.answer);
+      const isThaiWord = /[\u0E00-\u0E7F]/.test(q.word_or_question);
+      const word = isThaiAnswer ? q.answer : (isThaiWord ? q.word_or_question : null);
+      return word ? { id: q.id, word_or_question: word, answer: word } : null;
+    }).filter(Boolean);
+  } else if (gameId === 2 || gameId === 6) {
+    // English games: extract words that are English
+    candidates = questionsPool.map(q => {
+      const isEngWord = /[a-zA-Z]/.test(q.word_or_question);
+      const isEngAnswer = /[a-zA-Z]/.test(q.answer);
+      const word = isEngWord ? q.word_or_question : (isEngAnswer ? q.answer : null);
+      return word ? { id: q.id, word_or_question: word, answer: word } : null;
+    }).filter(Boolean);
+  } else if (gameId === 9 || gameId === 10) {
+    // Translation pairs (English word <-> Thai translation)
+    candidates = questionsPool.filter(q => /[a-zA-Z]/.test(q.word_or_question) && /[\u0E00-\u0E7F]/.test(q.answer));
+    if (candidates.length === 0) candidates = DEFAULT_QUESTIONS[9];
+    allTranslations = [...candidates];
+  }
 
-  let candidates = questionsPool.filter((q) => !history.includes(q.id || q.word_or_question));
   if (candidates.length === 0) {
-    history = [];
     candidates = questionsPool;
   }
 
-  const selected = candidates[Math.floor(Math.random() * candidates.length)];
+  // Avoid consecutive repeats
+  const historyKey = `game_${gameId}`;
+  let history = askedHistory.get(historyKey) || [];
+  let validCandidates = candidates.filter(q => !history.includes(q.id || q.word_or_question));
+  if (validCandidates.length === 0) {
+    history = [];
+    validCandidates = candidates;
+  }
+
+  const selected = validCandidates[Math.floor(Math.random() * validCandidates.length)];
   history.push(selected.id || selected.word_or_question);
-  if (history.length > Math.floor(questionsPool.length / 2)) {
+  if (history.length > Math.floor(candidates.length / 2)) {
     history.shift();
   }
   askedHistory.set(historyKey, history);
 
-  // Points mapping:
-  // Games 1, 2, 5, 6, 7, 8, 9, 10: random 3-6 pts (NO difficulty levels)
-  // Game 4: Easy (2-3), Medium (4-6), Hard (7-10)
-  let rewardPoints = Math.floor(Math.random() * 4) + 3; // default 3-6 pts
+  // Default rewards
+  let rewardPoints = Math.floor(Math.random() * 4) + 3; // 3-6 pts
   let difficulty = null;
+  let wordOrQuestion = selected.word_or_question;
+  let answer = selected.answer;
+  let options = [];
 
+  // Game 4 Difficulty mapping
   if (gameId === 4) {
     const diff = selected.difficulty || "medium";
     if (diff === "easy") {
@@ -261,14 +283,33 @@ async function getNextQuestion(supabase, gameId) {
     }
   }
 
+  // Games 9 & 10: Dynamic 3-Choice Generation
+  if (gameId === 9) {
+    // Game 9: English word -> Thai choices
+    wordOrQuestion = selected.word_or_question; // English word
+    answer = selected.answer;                   // Thai answer
+    const wrongPool = allTranslations.map(t => t.answer).filter(a => a !== answer);
+    const shuffledWrong = shuffleArray(wrongPool);
+    const choices = [answer, shuffledWrong[0] || 'ส้ม', shuffledWrong[1] || 'กล้วย'];
+    options = shuffleArray(choices);
+  } else if (gameId === 10) {
+    // Game 10: Thai word -> English choices
+    wordOrQuestion = selected.answer;           // Thai word
+    answer = selected.word_or_question;         // English answer
+    const wrongPool = allTranslations.map(t => t.word_or_question).filter(w => w !== answer);
+    const shuffledWrong = shuffleArray(wrongPool);
+    const choices = [answer, shuffledWrong[0] || 'Orange', shuffledWrong[1] || 'Banana'];
+    options = shuffleArray(choices);
+  }
+
   return {
     gameId,
     id: selected.id,
-    wordOrQuestion: selected.word_or_question,
-    answer: selected.answer,
+    wordOrQuestion,
+    answer,
     hints: selected.hints || [],
-    options: selected.options ? shuffleArray(selected.options) : [],
-    difficulty, // null for games 1,2,5,6,7,8,9,10
+    options,
+    difficulty,
     rewardPoints
   };
 }

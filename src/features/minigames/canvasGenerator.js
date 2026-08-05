@@ -15,7 +15,7 @@ function createTextImageBuffer(text) {
   // Measure text width using an initial canvas
   const tempCanvas = createCanvas(800, 200);
   const tempCtx = tempCanvas.getContext('2d');
-  tempCtx.font = `bold ${fontSize}px sans-serif, "Leelawadee UI", "Segoe UI", Tahoma`;
+  tempCtx.font = `bold ${fontSize}px "Noto Sans Thai", "Thai", "TLWG", "Garuda", "Leelawadee UI", "Segoe UI", Tahoma, sans-serif`;
   const textMetrics = tempCtx.measureText(text);
 
   const width = Math.max(350, Math.ceil(textMetrics.width) + paddingX * 2);
@@ -29,7 +29,7 @@ function createTextImageBuffer(text) {
   ctx.clearRect(0, 0, width, height);
 
   // Configure text style
-  ctx.font = `bold ${fontSize}px sans-serif, "Leelawadee UI", "Segoe UI", Tahoma`;
+  ctx.font = `bold ${fontSize}px "Noto Sans Thai", "Thai", "TLWG", "Garuda", "Leelawadee UI", "Segoe UI", Tahoma, sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 

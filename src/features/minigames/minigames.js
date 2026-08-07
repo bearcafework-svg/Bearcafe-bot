@@ -6,6 +6,7 @@ const sharedConfig = require('../../sharedSettings.json');
 const { addPointsWithCap } = require('../../utils/pointManager');
 const { getNextQuestion, maskWord, scrambleWord } = require('./questionBank');
 const { createTextImageBuffer } = require('./canvasGenerator');
+const { setupResetTop } = require('./resetTop');
 
 const FLAG_V2 = MessageFlags.IsComponentsV2 || 32768;
 const FLAG_EPHEMERAL = MessageFlags.Ephemeral || 64;
@@ -292,6 +293,9 @@ function setupMinigames(client) {
     process.env.SUPABASE_SERVICE_ROLE_KEY,
     { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
   );
+
+  // Initialize b!reset-top command & refresh handler
+  setupResetTop(client, supabase);
 
   // Restore active sessions and register /เปิดเกม command on ready
   client.once('clientReady', async () => {

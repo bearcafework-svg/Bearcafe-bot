@@ -86,8 +86,10 @@ function buildGamePayload(gameId, questionData) {
     case 2: { // เติมคำศัพท์อังกฤษ
       const { maskedStr } = maskWord(questionData.wordOrQuestion, false);
       questionData.displayMask = maskedStr;
+      const categoryLabel = questionData.category || 'คำทั่วไป';
       contentText = `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ เกมเติมคำศัพท์ (อังกฤษ) 𓂃 \`__\n` +
-        `# \`${maskedStr}\``;
+        `# \`${maskedStr}\`\n` +
+        `-# - หมวดหมู่: ${categoryLabel}`;
       break;
     }
     case 3: { // สุ่มโจทย์คณิตฯ

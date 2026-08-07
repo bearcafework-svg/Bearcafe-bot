@@ -150,9 +150,24 @@ async function safeUpdate(interaction, payload = {}) {
   }
 }
 
+async function safeDeferUpdate(interaction) {
+  if (!interaction || interaction.replied || interaction.deferred) return true;
+
+  try {
+    await interaction.deferUpdate();
+    return true;
+  } catch (error) {
+    if (!isDiscordCode(error, [INTERACTION_ALREADY_ACKNOWLEDGED, UNKNOWN_INTERACTION])) {
+      console.error("[discordSafety] deferUpdate failed:", error);
+    }
+    return false;
+  }
+}
+
 module.exports = {
   EPHEMERAL_FLAG,
   safeDeferReply,
+  safeDeferUpdate,
   safeDeleteChannel,
   safeDisconnectMember,
   safeEditReply,

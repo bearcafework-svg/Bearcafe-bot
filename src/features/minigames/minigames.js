@@ -93,7 +93,8 @@ function buildGamePayload(gameId, questionData) {
       break;
     }
     case 3: { // สุ่มโจทย์คณิตฯ
-      const diffLabel = questionData.difficulty === 'easy' ? 'ง่าย' : questionData.difficulty === 'medium' ? 'ปานกลาง' : 'ยาก';
+      const rawDiff = String(questionData.difficulty || '').toLowerCase();
+      const diffLabel = (rawDiff === 'easy' || rawDiff === 'ง่าย') ? 'ง่าย' : (rawDiff === 'medium' || rawDiff === 'ปานกลาง') ? 'ปานกลาง' : 'ยาก';
       contentText = `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ สุ่มโจทย์คณิตฯ 𓂃 \`__\n\n` +
         `# \`${questionData.wordOrQuestion}\`\n` +
         `-# - ระดับ: ${diffLabel}`;

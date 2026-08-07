@@ -257,20 +257,20 @@ async function getNextQuestion(supabase, gameId) {
   }
 
   // Filter candidates per game logic
-  let candidates = [...questionsPool];
+  let candidates = [];
   if (gameId === 1 || gameId === 5) {
-    // Thai games: extract words that are Thai or answers in Thai
+    // Thai games: extract words that are Thai
     candidates = questionsPool.map(q => {
       const isThaiAnswer = /[\u0E00-\u0E7F]/.test(q.answer);
       const isThaiWord = /[\u0E00-\u0E7F]/.test(q.word_or_question);
       const word = isThaiAnswer ? q.answer : (isThaiWord ? q.word_or_question : null);
       if (!word) return null;
-      // Game 5 requirement: Skip Thai words containing fewer than 4 Unicode grapheme clusters
       if (gameId === 5 && getGraphemeClusters(word).length < 4) {
         return null;
       }
       return { id: q.id, word_or_question: word, answer: word, category: q.category || 'คำทั่วไป' };
     }).filter(Boolean);
+    if (candidates.length === 0) candidates = DEFAULT_QUESTIONS[1];
   } else if (gameId === 2 || gameId === 6) {
     // English games: extract words that are English
     candidates = questionsPool.map(q => {
@@ -278,21 +278,24 @@ async function getNextQuestion(supabase, gameId) {
       const isEngAnswer = /[a-zA-Z]/.test(q.answer);
       const word = isEngWord ? q.word_or_question : (isEngAnswer ? q.answer : null);
       if (!word) return null;
-      // Game 6 requirement: Ignore words shorter than 4 letters
       if (gameId === 6 && word.length < 4) {
         return null;
       }
       return { id: q.id, word_or_question: word, answer: word, category: q.category || 'General' };
     }).filter(Boolean);
+    if (candidates.length === 0) candidates = DEFAULT_QUESTIONS[2];
   } else if (gameId === 9 || gameId === 10) {
     // Translation pairs (English word <-> Thai translation)
     candidates = questionsPool.filter(q => /[a-zA-Z]/.test(q.word_or_question) && /[\u0E00-\u0E7F]/.test(q.answer));
     if (candidates.length === 0) candidates = DEFAULT_QUESTIONS[9];
     allTranslations = [...candidates];
+  } else {
+    candidates = questionsPool;
+    if (candidates.length === 0) candidates = DEFAULT_QUESTIONS[gameId] || [];
   }
 
   if (candidates.length === 0) {
-    candidates = questionsPool;
+    candidates = DEFAULT_QUESTIONS[gameId] || DEFAULT_QUESTIONS[1];
   }
 
   // Avoid consecutive repeats

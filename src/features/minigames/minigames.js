@@ -28,6 +28,8 @@ const GAME_CHANNELS = {
 
 // Memory cache for active game session per channel ID
 const activeSessions = new Map();
+// Lock per channel ID during win processing & question generation to prevent race conditions
+const processingChannels = new Set();
 
 /**
  * Restores active game sessions from Supabase DB on bot restart
@@ -212,7 +214,7 @@ function buildWinnerPayload(gameId, questionData, winnerDisplayName) {
 
   const titleText = gameId === 9 ? 'ทายคำแปลภาษาอังกฤษ' : 'ทายคำแปลภาษาไทย';
   const contentText = `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ ${titleText} 𓂃 \`__\n` +
-    `# ${questionData.answer} = ${questionData.wordOrQuestion}`;
+    `# ${questionData.wordOrQuestion} = ${questionData.answer}`;
 
   return {
     flags: FLAG_V2,
@@ -281,6 +283,8 @@ async function sendNextGameQuestion(supabase, channel, gameId) {
     }
   } catch (err) {
     console.error(`[minigames] Error sending question for Game ${gameId}:`, err.message);
+  } finally {
+    processingChannels.delete(channel.id);
   }
 }
 
@@ -355,15 +359,25 @@ function setupMinigames(client) {
       await sendNextGameQuestion(supabase, targetChannel, gameId);
     }
 
-    // 2. Button Interactions (Game 9 & 10) — INSTANT RESPONSE OPTIMIZED
+    // 2. Button Interactions (Game 9 & 10) — INSTANT RESPONSE & CONCURRENCY LOCKED
     if (interaction.isButton() && interaction.customId.startsWith('mg_opt_')) {
       const parts = interaction.customId.split('_'); // mg_opt_{gameId}_{choiceIndex}_{timestamp}
       const gameId = parseInt(parts[2], 10);
       const choiceIndex = parseInt(parts[3], 10);
 
+      // Lock check: ignore if another win is currently processing for this channel
+      if (processingChannels.has(interaction.channelId)) {
+        return interaction.reply({ content: 'กำลังเปลี่ยนโจทย์ข้อใหม่ค่ะ กรุณารอแปปนึงนะคะ', flags: FLAG_EPHEMERAL });
+      }
+
       const session = activeSessions.get(interaction.channelId);
       if (!session || session.gameId !== gameId) {
         return interaction.reply({ content: 'โจทย์ข้อนี้จบไปแล้วค่ะ หรือเริ่มข้อใหม่แล้วนะคะ', flags: FLAG_EPHEMERAL });
+      }
+
+      // Message ID strict check: reject interactions on old question messages
+      if (session.messageId && interaction.message.id !== session.messageId) {
+        return interaction.reply({ content: 'โจทย์ข้อนี้จบไปแล้วค่ะ หรือเป็นข้อความเก่าแล้วนะคะ', flags: FLAG_EPHEMERAL });
       }
 
       const questionData = session.questionData;
@@ -377,8 +391,8 @@ function setupMinigames(client) {
         });
       }
 
-      // Correct Answer!
-      // Instantly delete session from memory & DB to prevent double claims
+      // Correct Answer! Lock channel & clear session immediately
+      processingChannels.add(interaction.channelId);
       activeSessions.delete(interaction.channelId);
       if (supabase) {
         Promise.resolve(supabase.from('minigame_active_sessions').delete().eq('channel_id', interaction.channelId)).catch(() => {});
@@ -406,16 +420,19 @@ function setupMinigames(client) {
         })
         .catch(err => console.error('[minigames] Error processing win points:', err.message));
 
-      // 3. Post next question with minimal 400ms delay (Instant transition!)
+      // 3. Post next question with minimal delay
       setTimeout(() => {
         sendNextGameQuestion(supabase, interaction.channel, gameId).catch(console.error);
       }, 400);
     }
   });
 
-  // 3. Chat Message Listener for Games 1-8 — ULTRA-FAST RESPONSE OPTIMIZED
+  // 3. Chat Message Listener for Games 1-8 — ULTRA-FAST & CONCURRENCY LOCKED
   client.on('messageCreate', async (message) => {
     if (message.author.bot || !message.guild) return;
+
+    // Lock check: ignore if another win is currently processing for this channel
+    if (processingChannels.has(message.channelId)) return;
 
     // Find which game belongs to this channel
     let matchedGameId = null;
@@ -447,8 +464,8 @@ function setupMinigames(client) {
       return;
     }
 
-    // Right Answer!
-    // Instantly remove active session from memory and DB to prevent duplicate wins
+    // Right Answer! Lock channel & clear session immediately
+    processingChannels.add(message.channelId);
     activeSessions.delete(message.channelId);
     if (supabase) {
       Promise.resolve(supabase.from('minigame_active_sessions').delete().eq('channel_id', message.channelId)).catch(() => {});
@@ -457,7 +474,34 @@ function setupMinigames(client) {
     // 1. Instantly react checkmark to winner message (non-blocking UI)
     message.react(CHECKMARK_EMOJI_ID).catch(() => {});
 
-    // 2. Award points and record win stats asynchronously in background
+    // 2. Edit previous question message to show solved state
+    if (session.messageId) {
+      const winnerName = message.member?.displayName || message.author.username;
+      message.channel.messages.fetch(session.messageId)
+        .then(oldMsg => {
+          if (oldMsg) {
+            const gameTitle = GAME_CHANNELS[matchedGameId]?.name || 'มินิเกม';
+            oldMsg.edit({
+              flags: FLAG_V2,
+              components: [{
+                type: 17,
+                components: [
+                  {
+                    type: 9,
+                    components: [{
+                      type: 10,
+                      content: `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ ${gameTitle} 𓂃 \`__\n# ${correctAnswer}\n-# ✅ @${winnerName} ตอบถูกเรียบร้อยแล้วค่ะ`
+                    }]
+                  }
+                ]
+              }]
+            }).catch(() => {});
+          }
+        })
+        .catch(() => {});
+    }
+
+    // 3. Award points and record win stats asynchronously in background
     addPointsWithCap(supabase, message.member, message.author.id, session.questionData.rewardPoints)
       .then((pointResult) => {
         if (supabase) {
@@ -470,7 +514,7 @@ function setupMinigames(client) {
       })
       .catch(err => console.error('[minigames] Error processing win points:', err.message));
 
-    // 3. Post next question Component V2 with minimal 350ms delay (Ultra-Fast!)
+    // 4. Post next question Component V2 with minimal delay
     setTimeout(() => {
       sendNextGameQuestion(supabase, message.channel, matchedGameId).catch(console.error);
     }, 350);

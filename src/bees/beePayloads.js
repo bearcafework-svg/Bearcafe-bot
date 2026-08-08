@@ -373,9 +373,102 @@ function buildBeePoisonLossPayload(beeConfig, userId, pointsLost = 150, gardenUr
   };
 }
 
+// ─── 5. Payload: Expired Message (ไม่มีการตอบสนองภายใน 15 นาที) ────────────────
+function buildBeeExpiredPayload(beeConfig, gardenUrl = null) {
+  const bgUrl = getGardenUrl(gardenUrl || beeConfig?.garden_background_url);
+  const expireImgUrl = beeConfig?.expire_image_url ||
+    "https://cdn.discordapp.com/attachments/1524704267015819274/1535772084284821556/a3f90f4310003ac808ae430a9bae79ed.gif?ex=6a78fab6&is=6a77a936&hm=2e479154b92d3fe2d9a668a4f08d77f2dd79433bf7786d8cd8a58a67a7c0dd92&";
+
+  const beeName = beeConfig?.name || 'เจ้าผึ้งอ้วนตัวกลม';
+
+  return {
+    flags: FLAG_V2,
+    components: [
+      {
+        type: 17,
+        components: [
+          {
+            type: 14,
+            divider: false
+          },
+          {
+            type: 9,
+            components: [
+              {
+                type: 10,
+                content:
+                  `## <:bee20000:1256669436350562355>︲__\` 𝖡𝖾𝖾 ₊ ${beeName} 𓂃 \`__\n` +
+                  `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : (บินกลับรัง) แถวหนีหวานหมู่ชะมัด นำน้ำผึ้งกลับรังดีกว่า ดีนะแถวนี้ไม่มีพวกหมีอ้วน ๆ <:cuteplant:1152834055528783872>\n` +
+                  ` > (<:strawberryv2:1520439075100688614>)⠀**__\`𝗆𝗌𝗀\`__** : เนื่องจากไม่มีหมีตัวใดสนใจผึ้ง ผึ้งเลยบินหายไปแล้ว . . .`
+              }
+            ],
+            accessory: {
+              type: 11,
+              media: {
+                url: expireImgUrl
+              }
+            }
+          },
+          {
+            type: 14,
+            divider: false,
+            spacing: 2
+          },
+          {
+            type: 12,
+            items: [
+              {
+                media: {
+                  url: bgUrl
+                }
+              }
+            ]
+          },
+          {
+            type: 14,
+            spacing: 2
+          },
+          {
+            type: 1,
+            components: [
+              {
+                style: 4,
+                type: 2,
+                label: "︲คลิกไม่ได้แล้ว",
+                emoji: {
+                  id: "1094704718200193124",
+                  name: "blubbers",
+                  animated: true
+                },
+                disabled: true,
+                flow: {
+                  actions: []
+                },
+                custom_id: "bee_expired_disabled"
+              },
+              {
+                style: 2,
+                type: 2,
+                label: "︲ผึ้งคืออะไร",
+                emoji: {
+                  id: "1370964974733758474",
+                  name: "28906question",
+                  animated: false
+                },
+                custom_id: "bee_info"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  };
+}
+
 module.exports = {
   buildBeeSpawnPayload,
   buildBeeWinPayload,
   buildBeeLossPayload,
-  buildBeePoisonLossPayload
+  buildBeePoisonLossPayload,
+  buildBeeExpiredPayload
 };

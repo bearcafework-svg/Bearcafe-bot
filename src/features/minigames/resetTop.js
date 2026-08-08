@@ -5,22 +5,11 @@ const { createCanvas, loadImage } = require("@napi-rs/canvas");
 const axios = require("axios");
 const sharedConfig = require("../../sharedSettings.json");
 const { safeDeferUpdate, safeRespond } = require("../../../utils/discordSafety");
+require("../../utils/fontLoader");
 
-// Cooldown 24 ชม. สำหรับปุ่ม 🔄 refresh (ms)
-const REFRESH_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+// Cooldown 5 นาที สำหรับปุ่ม 🔄 refresh (ms)
+const REFRESH_COOLDOWN_MS = 5 * 60 * 1000;
 let lastResetAt = 0; // timestamp ที่กด reset หรือ refresh
-
-// ── ตัวเลข Unicode Math Sans-Serif ──────────────────────────
-const MATH_DIGITS = ["𝟢", "𝟣", "𝟤", "𝟥", "𝟦", "𝟧", "𝟨", "𝟩", "𝟪", "𝟫"];
-
-/**
- * แปลงตัวเลขปกติ → Unicode math digits
- * เช่น 12 → "𝟣𝟤"
- */
-function toMathNum(n) {
-  const str = Math.round(n).toLocaleString("en-US");
-  return str.replace(/\d/g, d => MATH_DIGITS[parseInt(d)]);
-}
 
 // ── ดึงข้อมูล Top Winners จาก minigame_wins ───────────────────
 async function fetchTopMinigameWins(supabase, limit = 10) {
@@ -50,6 +39,47 @@ async function fetchTopMinigameWins(supabase, limit = 10) {
     .map(([uid, s]) => ({ discord_id: uid, wins: s.wins, points: s.points }))
     .sort((a, b) => b.wins - a.wins || b.points - a.points)
     .slice(0, limit);
+}
+
+// ── ดึงข้อมูลอันดับเฉพาะบุคคลสำหรับปุ่ม 🏆 อันดับของฉัน ─────────
+async function getUserMinigameRank(supabase, userId) {
+  if (!supabase || !userId) return null;
+  const { data, error } = await supabase
+    .from("minigame_wins")
+    .select("discord_id, points_earned");
+
+  if (error) {
+    console.error("[resetTop] Error fetching user rank:", error.message);
+    return null;
+  }
+
+  const stats = {};
+  for (const row of data || []) {
+    const uid = row.discord_id;
+    if (uid) {
+      if (!stats[uid]) {
+        stats[uid] = { wins: 0, points: 0 };
+      }
+      stats[uid].wins += 1;
+      stats[uid].points += parseInt(row.points_earned || 0, 10);
+    }
+  }
+
+  const sorted = Object.entries(stats)
+    .map(([uid, s]) => ({ discord_id: uid, wins: s.wins, points: s.points }))
+    .sort((a, b) => b.wins - a.wins || b.points - a.points);
+
+  const index = sorted.findIndex(item => item.discord_id === userId);
+  if (index === -1) {
+    return { rank: null, totalPlayers: sorted.length, wins: 0, points: 0 };
+  }
+
+  return {
+    rank: index + 1,
+    totalPlayers: sorted.length,
+    wins: sorted[index].wins,
+    points: sorted[index].points
+  };
 }
 
 // ── ดึงข้อมูล Guild Member (Avatar + Name + Handle + ID) ───────
@@ -433,6 +463,23 @@ async function buildTopLeaderboardPayload(guild, supabase) {
               flow: { actions: [] },
               custom_id: "minigame_top_refresh"
             }
+          },
+          {
+            type: 9,
+            components: [
+              {
+                type: 10,
+                content: `**เช็กอันดับตัวเอง:** คลิกปุ่มเพื่อดูอันดับของคุณ`
+              }
+            ],
+            accessory: {
+              style: 1,
+              type: 2,
+              label: "︲อันดับของฉัน",
+              emoji: { name: "🏆" },
+              flow: { actions: [] },
+              custom_id: "minigame_my_rank"
+            }
           }
         ]
       }
@@ -501,6 +548,38 @@ function setupResetTop(client, supabaseClient) {
       await interaction.editReply({ ...payload, files: [attachment] });
     } catch (err) {
       console.error("[resetTop] minigame_top_refresh error:", err);
+    }
+  });
+
+  // 3. Interaction: ปุ่ม 🏆 อันดับของฉัน
+  client.on("interactionCreate", async (interaction) => {
+    if (!interaction.isButton()) return;
+    if (interaction.customId !== "minigame_my_rank") return;
+
+    try {
+      const userRank = await getUserMinigameRank(supabase, interaction.user.id);
+      const pi = sharedConfig.point_icon;
+      const pointEmojiStr = pi && pi.id ? `<:${pi.name}:${pi.id}>` : `🍓`;
+
+      if (!userRank || !userRank.rank) {
+        return safeRespond(interaction, {
+          content: `## <:bee20000:1256669436350562355>︲__\` สถิติจัดอันดับมินิเกมของคุณ 𓂃 \`__\n\n<@${interaction.user.id}> คุณยังไม่มีประวัติการชนะมินิเกมเลยค่ะ 🎮\nมาลองร่วมสนุกเล่นมินิเกมเพื่อสะสมชัยชนะกันนะคะ!`,
+          flags: 64
+        });
+      }
+
+      const rankBadge = userRank.rank === 1 ? "🥇" : userRank.rank === 2 ? "🥈" : userRank.rank === 3 ? "🥉" : "📊";
+
+      return safeRespond(interaction, {
+        content: `## <:bee20000:1256669436350562355>︲__\` สถิติจัดอันดับมินิเกมของคุณ 𓂃 \`__\n\n<@${interaction.user.id}>\n${rankBadge} **อันดับของคุณ:** **อันดับที่ ${userRank.rank}** (จากผู้เล่นทั้งหมด ${userRank.totalPlayers} คน)\n⚔️ **ชนะทั้งหมด:** **${userRank.wins}** ครั้ง\n${pointEmojiStr} **คะแนนรวมที่ได้:** **${userRank.points}** แต้ม`,
+        flags: 64
+      });
+    } catch (err) {
+      console.error("[resetTop] minigame_my_rank error:", err);
+      safeRespond(interaction, {
+        content: "❌ เกิดข้อผิดพลาดในการโหลดข้อมูลอันดับของคุณค่ะ",
+        flags: 64
+      }).catch(() => { });
     }
   });
 }

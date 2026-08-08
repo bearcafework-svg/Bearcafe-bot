@@ -1,6 +1,7 @@
 // src/features/minigames/canvasGenerator.js — สร้างภาพตัวหนังสือสีแดง พื้นหลังโปร่งใส สำหรับเกม 7 และ 8
 
 const { createCanvas } = require('@napi-rs/canvas');
+require('../../utils/fontLoader');
 
 /**
  * Creates an image buffer containing text in red font with transparent background

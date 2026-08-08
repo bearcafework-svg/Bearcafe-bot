@@ -10,7 +10,8 @@ const {
   buildBeeSpawnPayload,
   buildBeeWinPayload,
   buildBeeLossPayload,
-  buildBeePoisonLossPayload
+  buildBeePoisonLossPayload,
+  buildBeeExpiredPayload
 } = require('./beePayloads');
 
 const logger = require('../../utils/logger');
@@ -31,6 +32,94 @@ function getSupabase() {
     });
   }
   return supabaseClient;
+}
+
+// ─── DB Helpers: Active Bee Session Storage (minigame_active_sessions) ─────────
+async function saveActiveBeeSession(channelId, messageId, customId, beeConfig, gardenUrl, expiresAt) {
+  const supabase = getSupabase();
+  if (!supabase) return;
+  try {
+    await supabase.from('minigame_active_sessions').upsert({
+      channel_id: `bee_${channelId}`,
+      game_id: 999,
+      message_id: messageId,
+      current_question: { customId, beeConfig, gardenUrl, expiresAt },
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'channel_id' });
+  } catch (err) {
+    console.error('[bees] saveActiveBeeSession error:', err.message);
+  }
+}
+
+async function getActiveBeeSession(channelId) {
+  const supabase = getSupabase();
+  if (!supabase) return null;
+  try {
+    const { data, error } = await supabase
+      .from('minigame_active_sessions')
+      .select('*')
+      .eq('channel_id', `bee_${channelId}`)
+      .single();
+    if (error || !data) return null;
+    return data;
+  } catch (err) {
+    return null;
+  }
+}
+
+async function clearActiveBeeSession(channelId) {
+  const supabase = getSupabase();
+  if (!supabase) return;
+  try {
+    await supabase
+      .from('minigame_active_sessions')
+      .delete()
+      .eq('channel_id', `bee_${channelId}`);
+  } catch (err) {
+    console.error('[bees] clearActiveBeeSession error:', err.message);
+  }
+}
+
+async function checkAndCleanExpiredBees(client) {
+  const supabase = getSupabase();
+  if (!supabase) return;
+
+  try {
+    const { data, error } = await supabase
+      .from('minigame_active_sessions')
+      .select('*')
+      .eq('game_id', 999);
+
+    if (error || !data || data.length === 0) return;
+
+    const now = Date.now();
+    for (const session of data) {
+      const qData = session.current_question || {};
+      const expiresAt = qData.expiresAt || 0;
+      if (now >= expiresAt) {
+        const channelId = session.channel_id.replace(/^bee_/, '');
+        const messageId = session.message_id;
+
+        await clearActiveBeeSession(channelId);
+
+        try {
+          const channel = client.channels.cache.get(channelId) || await client.channels.fetch(channelId).catch(() => null);
+          if (channel) {
+            const msg = await channel.messages.fetch(messageId).catch(() => null);
+            if (msg) {
+              const expiredPayload = buildBeeExpiredPayload(qData.beeConfig, qData.gardenUrl);
+              await msg.edit(expiredPayload);
+              logger.bee(`Bee message ${messageId} expired after 15 mins and updated in channel ${channelId}`);
+            }
+          }
+        } catch (err) {
+          console.warn('[bees] Failed to edit expired bee message:', err.message);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[bees] checkAndCleanExpiredBees error:', err.message);
+  }
 }
 
 // Helper: ดึงการตั้งค่าระบบผึ้งจาก JSON โดยตรง
@@ -144,6 +233,9 @@ function selectBeeToSpawn(setting, requestedBeeId = null) {
 // ─── Function: ปล่อยผึ้งออกสู่ Channel ────────────────────────────────────────
 async function spawnBee(client, beeId = null) {
   try {
+    // ล้างผึ้งเก่าที่หมดอายุ 15 นาที
+    await checkAndCleanExpiredBees(client);
+
     const config = await fetchBeeSystemConfig();
     const channelId = config.channel_id || '1524123413122125964';
 
@@ -167,19 +259,24 @@ async function spawnBee(client, beeId = null) {
 
     selectedBee.garden_background_url = config.garden_background_url;
     const customId = `bee_click_${Date.now()}_${randInt(1000, 9999)}`;
+    const expiresAt = Date.now() + 15 * 60 * 1000; // หมดอายุภายใน 15 นาที
 
     // 1. ส่ง Component v2 อันที่ 1 (ปุ่ม disabled "กำลังโหลดผึ้ง . . .")
     const spawnPayload = buildBeeSpawnPayload(selectedBee, customId, false, config.garden_background_url);
     const message = await channel.send(spawnPayload);
 
-    // เก็บสถานะ Session
+    // บันทึกลง Supabase DB (minigame_active_sessions)
+    await saveActiveBeeSession(channelId, message.id, customId, selectedBee, config.garden_background_url, expiresAt);
+
+    // เก็บสถานะ Session (in-memory)
     const sessionData = {
       messageId: message.id,
       customId,
       beeConfig: selectedBee,
       gardenUrl: config.garden_background_url,
       claimed: false,
-      isReady: false
+      isReady: false,
+      expiresAt
     };
     activeSessions.set(customId, sessionData);
 
@@ -213,6 +310,9 @@ async function scheduleNextAutoSpawn(client) {
     autoSpawnTimer = null;
   }
 
+  // เช็กและล้างผึ้งที่หมดอายุ 15 นาที
+  await checkAndCleanExpiredBees(client);
+
   const config = await fetchBeeSystemConfig();
   if (!config.auto_spawn_enabled) {
     logger.bee('Auto spawn is currently disabled in Supabase config.');
@@ -241,6 +341,14 @@ async function handleBeeInteraction(interaction, client, supabase) {
     return interaction.reply(beeInfoPayload());
   }
 
+  // ปุ่ม "คลิกไม่ได้แล้ว" (สำหรับผึ้งบินกลับรังไปแล้ว)
+  if (interaction.customId === 'bee_expired_disabled') {
+    return interaction.reply({
+      content: '## 🐝︲ปุ่มนี้ไม่สามารถคลิกได้แล้วค่ะ เนื่องจากผึ้งบินกลับรังไปแล้ว 𓂃',
+      flags: FLAG_EPHEMERAL
+    });
+  }
+
   // 2. ปุ่มคลิกแย่งผึ้ง
   if (interaction.customId.startsWith('bee_click_')) {
     const customId = interaction.customId;
@@ -253,7 +361,39 @@ async function handleBeeInteraction(interaction, client, supabase) {
       return interaction.reply(blacklistPayload(interaction.user.id));
     }
 
-    const session = activeSessions.get(customId);
+    // ดึงข้อมูล Session จาก Memory หรือ Supabase DB
+    let session = activeSessions.get(customId);
+    if (!session) {
+      const dbSession = await getActiveBeeSession(interaction.channelId);
+      if (dbSession && dbSession.current_question?.customId === customId) {
+        const qData = dbSession.current_question;
+        session = {
+          messageId: dbSession.message_id,
+          customId,
+          beeConfig: qData.beeConfig,
+          gardenUrl: qData.gardenUrl,
+          claimed: false,
+          isReady: true,
+          expiresAt: qData.expiresAt
+        };
+      }
+    }
+
+    const now = Date.now();
+
+    // เช็กว่าหมดอายุ 15 นาทีหรือยัง
+    if (session && session.expiresAt && now >= session.expiresAt) {
+      activeSessions.delete(customId);
+      await clearActiveBeeSession(interaction.channelId);
+      try {
+        const expiredPayload = buildBeeExpiredPayload(session.beeConfig, session.gardenUrl);
+        await interaction.message.edit(expiredPayload);
+      } catch (err) { }
+      return interaction.reply({
+        content: '## 🐝︲เจ้าผึ้งตัวนี้บินกลับรังไปแล้วค่ะ! เนื่องจากไม่มีการตอบสนองภายใน 15 นาที 𓂃',
+        flags: FLAG_EPHEMERAL
+      });
+    }
 
     // หากไม่พบ session หรือมีคนเก็บผึ้งตัวนี้ไปแล้ว
     if (!session || session.claimed) {
@@ -263,9 +403,10 @@ async function handleBeeInteraction(interaction, client, supabase) {
       });
     }
 
-    // ทำการล็อค Session ป้องกันการกดพร้อมกัน
+    // ทำการล็อค Session ป้องกันการกดพร้อมกัน และลบ session ใน DB
     session.claimed = true;
     activeSessions.delete(customId);
+    await clearActiveBeeSession(interaction.channelId);
 
     const userId = interaction.user.id;
     const beeConfig = session.beeConfig;
@@ -317,5 +458,6 @@ module.exports = {
   fetchBeeSystemConfig,
   spawnBee,
   scheduleNextAutoSpawn,
-  handleBeeInteraction
+  handleBeeInteraction,
+  checkAndCleanExpiredBees
 };

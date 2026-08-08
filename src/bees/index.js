@@ -7,7 +7,8 @@ const {
   getSettingBee,
   spawnBee,
   scheduleNextAutoSpawn,
-  handleBeeInteraction
+  handleBeeInteraction,
+  checkAndCleanExpiredBees
 } = require('./beeManager');
 
 function setupBees(client) {
@@ -49,6 +50,9 @@ function setupBees(client) {
     } catch (err) {
       console.error('[bees] Failed to register slash commands:', err.message);
     }
+
+    // เช็กและแก้ไขข้อความผึ้งที่ค้างเกิน 15 นาที
+    await checkAndCleanExpiredBees(client);
 
     // เริ่มต้น Auto Spawn Loop
     scheduleNextAutoSpawn(client);

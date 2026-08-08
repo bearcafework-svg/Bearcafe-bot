@@ -408,7 +408,7 @@ async function buildTopLeaderboardPayload(guild, supabase) {
     const emoji = rankEmojis[i];
     if (i < top10.length) {
       const item = top10[i];
-      lines.push(`${emoji} — <@${item.discord_id}> ชนะ ${item.wins} ครั้ง (${pointEmojiStr} ${item.wins})`);
+      lines.push(`${emoji} — <@${item.discord_id}> ชนะ ${item.wins} ครั้ง (${pointEmojiStr} ${item.points})`);
     } else {
       lines.push(`${emoji} — <@0> ชนะ 0 ครั้ง (${pointEmojiStr} 0)`);
     }

@@ -11,75 +11,138 @@ require("../../utils/fontLoader");
 const REFRESH_COOLDOWN_MS = 5 * 60 * 1000;
 let lastResetAt = 0; // timestamp ที่กด reset หรือ refresh
 
-// ── ดึงข้อมูล Top Winners จาก minigame_wins ───────────────────
+// ── ดึงข้อมูล Top Winners จาก minigame_wins (ผ่าน RPC / View / Aggregation) ───
 async function fetchTopMinigameWins(supabase, limit = 10) {
   if (!supabase) return [];
-  const { data, error } = await supabase
-    .from("minigame_wins")
-    .select("discord_id, points_earned");
 
-  if (error) {
-    console.error("[resetTop] Error fetching minigame_wins:", error.message);
+  try {
+    // 1. ลองเรียก RPC get_minigame_leaderboard ก่อน
+    const { data: rpcData, error: rpcError } = await supabase
+      .rpc("get_minigame_leaderboard", { days_limit: null, filter_game_id: null });
+
+    if (!rpcError && rpcData && rpcData.length > 0) {
+      return rpcData.slice(0, limit).map(row => ({
+        discord_id: row.discord_id,
+        wins: parseInt(row.wins || 0, 10),
+        points: parseInt(row.points || 0, 10)
+      }));
+    }
+
+    // 2. ถ้า RPC ไม่พร้อม ให้ลองดึงจาก View minigame_leaderboard_summary
+    const { data: viewData, error: viewError } = await supabase
+      .from("minigame_leaderboard_summary")
+      .select("discord_id, wins, points")
+      .limit(limit);
+
+    if (!viewError && viewData && viewData.length > 0) {
+      return viewData.map(row => ({
+        discord_id: row.discord_id,
+        wins: parseInt(row.wins || 0, 10),
+        points: parseInt(row.points || 0, 10)
+      }));
+    }
+
+    // 3. Fallback: ดึงจาก minigame_wins พร้อมขยาย range ป้องกันติด limit 1,000 แถว
+    const { data, error } = await supabase
+      .from("minigame_wins")
+      .select("discord_id, points_earned")
+      .range(0, 49999);
+
+    if (error) {
+      console.error("[resetTop] Error fetching minigame_wins:", error.message);
+      return [];
+    }
+
+    const stats = {};
+    for (const row of data || []) {
+      const uid = row.discord_id;
+      if (uid) {
+        if (!stats[uid]) {
+          stats[uid] = { wins: 0, points: 0 };
+        }
+        stats[uid].wins += 1;
+        stats[uid].points += parseInt(row.points_earned || 0, 10);
+      }
+    }
+
+    return Object.entries(stats)
+      .map(([uid, s]) => ({ discord_id: uid, wins: s.wins, points: s.points }))
+      .sort((a, b) => b.wins - a.wins || b.points - a.points)
+      .slice(0, limit);
+  } catch (err) {
+    console.error("[resetTop] Error in fetchTopMinigameWins:", err.message);
     return [];
   }
-
-  const stats = {};
-  for (const row of data || []) {
-    const uid = row.discord_id;
-    if (uid) {
-      if (!stats[uid]) {
-        stats[uid] = { wins: 0, points: 0 };
-      }
-      stats[uid].wins += 1;
-      stats[uid].points += parseInt(row.points_earned || 0, 10);
-    }
-  }
-
-  return Object.entries(stats)
-    .map(([uid, s]) => ({ discord_id: uid, wins: s.wins, points: s.points }))
-    .sort((a, b) => b.wins - a.wins || b.points - a.points)
-    .slice(0, limit);
 }
 
 // ── ดึงข้อมูลอันดับเฉพาะบุคคลสำหรับปุ่ม 🏆 อันดับของฉัน ─────────
 async function getUserMinigameRank(supabase, userId) {
   if (!supabase || !userId) return null;
-  const { data, error } = await supabase
-    .from("minigame_wins")
-    .select("discord_id, points_earned");
 
-  if (error) {
-    console.error("[resetTop] Error fetching user rank:", error.message);
+  try {
+    let sortedList = [];
+
+    // 1. ลองเรียก RPC
+    const { data: rpcData, error: rpcError } = await supabase
+      .rpc("get_minigame_leaderboard", { days_limit: null, filter_game_id: null });
+
+    if (!rpcError && rpcData) {
+      sortedList = rpcData.map(row => ({
+        discord_id: row.discord_id,
+        wins: parseInt(row.wins || 0, 10),
+        points: parseInt(row.points || 0, 10)
+      }));
+    } else {
+      // 2. ลองเรียก View
+      const { data: viewData, error: viewError } = await supabase
+        .from("minigame_leaderboard_summary")
+        .select("discord_id, wins, points");
+
+      if (!viewError && viewData) {
+        sortedList = viewData.map(row => ({
+          discord_id: row.discord_id,
+          wins: parseInt(row.wins || 0, 10),
+          points: parseInt(row.points || 0, 10)
+        }));
+      } else {
+        // 3. Fallback
+        const { data, error } = await supabase
+          .from("minigame_wins")
+          .select("discord_id, points_earned")
+          .range(0, 49999);
+
+        if (error) return null;
+
+        const stats = {};
+        for (const row of data || []) {
+          const uid = row.discord_id;
+          if (uid) {
+            if (!stats[uid]) stats[uid] = { wins: 0, points: 0 };
+            stats[uid].wins += 1;
+            stats[uid].points += parseInt(row.points_earned || 0, 10);
+          }
+        }
+        sortedList = Object.entries(stats)
+          .map(([uid, s]) => ({ discord_id: uid, wins: s.wins, points: s.points }))
+          .sort((a, b) => b.wins - a.wins || b.points - a.points);
+      }
+    }
+
+    const index = sortedList.findIndex(item => item.discord_id === userId);
+    if (index === -1) {
+      return { rank: null, totalPlayers: sortedList.length, wins: 0, points: 0 };
+    }
+
+    return {
+      rank: index + 1,
+      totalPlayers: sortedList.length,
+      wins: parseInt(sortedList[index].wins || 0, 10),
+      points: parseInt(sortedList[index].points || 0, 10)
+    };
+  } catch (err) {
+    console.error("[resetTop] Error fetching user rank:", err.message);
     return null;
   }
-
-  const stats = {};
-  for (const row of data || []) {
-    const uid = row.discord_id;
-    if (uid) {
-      if (!stats[uid]) {
-        stats[uid] = { wins: 0, points: 0 };
-      }
-      stats[uid].wins += 1;
-      stats[uid].points += parseInt(row.points_earned || 0, 10);
-    }
-  }
-
-  const sorted = Object.entries(stats)
-    .map(([uid, s]) => ({ discord_id: uid, wins: s.wins, points: s.points }))
-    .sort((a, b) => b.wins - a.wins || b.points - a.points);
-
-  const index = sorted.findIndex(item => item.discord_id === userId);
-  if (index === -1) {
-    return { rank: null, totalPlayers: sorted.length, wins: 0, points: 0 };
-  }
-
-  return {
-    rank: index + 1,
-    totalPlayers: sorted.length,
-    wins: sorted[index].wins,
-    points: sorted[index].points
-  };
 }
 
 // ── ดึงข้อมูล Guild Member (Avatar + Name + Handle + ID) ───────

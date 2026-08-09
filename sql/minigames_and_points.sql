@@ -83,6 +83,43 @@ GRANT ALL ON minigame_settings TO anon, authenticated, service_role;
 GRANT ALL ON minigame_wins TO anon, authenticated, service_role;
 GRANT ALL ON minigame_active_sessions TO anon, authenticated, service_role;
 
+-- 6. VIEW และ RPC FUNCTION สำหรับจัดอันดับสถิติโดยไม่ต้องดึง RAW ROWS มาคำนวณใน APP
+CREATE OR REPLACE VIEW minigame_leaderboard_summary AS
+SELECT 
+    discord_id,
+    COUNT(*)::INT AS wins,
+    COALESCE(SUM(points_earned), 0)::INT AS points,
+    MAX(created_at) AS last_win
+FROM minigame_wins
+GROUP BY discord_id
+ORDER BY wins DESC, points DESC;
+
+GRANT SELECT ON minigame_leaderboard_summary TO anon, authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION get_minigame_leaderboard(days_limit INT DEFAULT NULL, filter_game_id INT DEFAULT NULL)
+RETURNS TABLE (
+    discord_id TEXT,
+    wins BIGINT,
+    points BIGINT,
+    last_win TIMESTAMPTZ
+) 
+LANGUAGE sql
+SECURITY DEFINER
+AS $$
+    SELECT 
+        w.discord_id,
+        COUNT(*)::BIGINT AS wins,
+        COALESCE(SUM(w.points_earned), 0)::BIGINT AS points,
+        MAX(w.created_at) AS last_win
+    FROM minigame_wins w
+    WHERE (days_limit IS NULL OR w.created_at >= NOW() - (days_limit || ' days')::INTERVAL)
+      AND (filter_game_id IS NULL OR w.game_id = filter_game_id)
+    GROUP BY w.discord_id
+    ORDER BY wins DESC, points DESC;
+$$;
+
+GRANT EXECUTE ON FUNCTION get_minigame_leaderboard(INT, INT) TO anon, authenticated, service_role;
+
 -- ==============================================================================
 -- 📚 SEED DATA: คลังคำศัพท์แชร์ร่วมกัน (Shared Vocabulary Seed Data)
 -- 1 คำศัพท์ในหมวดหมู่ 9 (คลังแปลภาษา) สามารถเล่นร่วมกันได้ 4 เกม (เกม 2, 6, 9, 10) ทันที!

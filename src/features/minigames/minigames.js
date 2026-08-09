@@ -406,19 +406,27 @@ function setupMinigames(client) {
       // 2. Process points and DB recording asynchronously in background
       const userId = interaction.user.id;
       const member = interaction.member;
-      const pointsEarned = questionData.rewardPoints;
+      const pointsEarned = questionData.rewardPoints || 3;
 
-      addPointsWithCap(supabase, member, userId, pointsEarned)
-        .then((pointResult) => {
-          if (supabase) {
+      if (supabase) {
+        addPointsWithCap(supabase, member, userId, pointsEarned)
+          .then((pointResult) => {
+            const awarded = pointResult && typeof pointResult.awarded === 'number' ? pointResult.awarded : 0;
             return supabase.from('minigame_wins').insert({
               discord_id: userId,
               game_id: gameId,
-              points_earned: pointResult.awarded
+              points_earned: awarded
             });
-          }
-        })
-        .catch(err => console.error('[minigames] Error processing win points:', err.message));
+          })
+          .catch(err => {
+            console.error('[minigames] Error processing win points for Game 9/10:', err.message);
+            supabase.from('minigame_wins').insert({
+              discord_id: userId,
+              game_id: gameId,
+              points_earned: 0
+            }).catch(e => console.error('[minigames] Fallback win stat insert failed:', e.message));
+          });
+      }
 
       // 3. Post next question with minimal delay
       setTimeout(() => {
@@ -502,17 +510,26 @@ function setupMinigames(client) {
     }
 
     // 3. Award points and record win stats asynchronously in background
-    addPointsWithCap(supabase, message.member, message.author.id, session.questionData.rewardPoints)
-      .then((pointResult) => {
-        if (supabase) {
+    if (supabase) {
+      const rewardPoints = session.questionData.rewardPoints || 3;
+      addPointsWithCap(supabase, message.member, message.author.id, rewardPoints)
+        .then((pointResult) => {
+          const awarded = pointResult && typeof pointResult.awarded === 'number' ? pointResult.awarded : 0;
           return supabase.from('minigame_wins').insert({
             discord_id: message.author.id,
             game_id: matchedGameId,
-            points_earned: pointResult.awarded
+            points_earned: awarded
           });
-        }
-      })
-      .catch(err => console.error('[minigames] Error processing win points:', err.message));
+        })
+        .catch(err => {
+          console.error('[minigames] Error processing win points for Game 1-8:', err.message);
+          supabase.from('minigame_wins').insert({
+            discord_id: message.author.id,
+            game_id: matchedGameId,
+            points_earned: 0
+          }).catch(e => console.error('[minigames] Fallback win stat insert failed:', e.message));
+        });
+    }
 
     // 4. Post next question Component V2 with minimal delay
     setTimeout(() => {

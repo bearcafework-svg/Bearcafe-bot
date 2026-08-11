@@ -246,6 +246,7 @@ function buildWinnerPayload(gameId, questionData, winnerDisplayName) {
  * Sends or posts a new game question into the channel
  */
 async function sendNextGameQuestion(supabase, channel, gameId) {
+  if (!channel || !channel.id) return;
   try {
     const questionData = await getNextQuestion(supabase, gameId);
     if (!questionData) {
@@ -284,7 +285,9 @@ async function sendNextGameQuestion(supabase, channel, gameId) {
   } catch (err) {
     console.error(`[minigames] Error sending question for Game ${gameId}:`, err.message);
   } finally {
-    processingChannels.delete(channel.id);
+    if (channel && channel.id) {
+      processingChannels.delete(channel.id);
+    }
   }
 }
 
@@ -365,11 +368,6 @@ function setupMinigames(client) {
       const gameId = parseInt(parts[2], 10);
       const choiceIndex = parseInt(parts[3], 10);
 
-      // Lock check: ignore if another win is currently processing for this channel
-      if (processingChannels.has(interaction.channelId)) {
-        return interaction.reply({ content: 'กำลังเปลี่ยนโจทย์ข้อใหม่ค่ะ กรุณารอแปปนึงนะคะ', flags: FLAG_EPHEMERAL });
-      }
-
       const session = activeSessions.get(interaction.channelId);
       if (!session || session.gameId !== gameId) {
         return interaction.reply({ content: 'โจทย์ข้อนี้จบไปแล้วค่ะ หรือเริ่มข้อใหม่แล้วนะคะ', flags: FLAG_EPHEMERAL });
@@ -378,6 +376,11 @@ function setupMinigames(client) {
       // Message ID strict check: reject interactions on old question messages
       if (session.messageId && interaction.message.id !== session.messageId) {
         return interaction.reply({ content: 'โจทย์ข้อนี้จบไปแล้วค่ะ หรือเป็นข้อความเก่าแล้วนะคะ', flags: FLAG_EPHEMERAL });
+      }
+
+      // Lock check: ignore if another win is currently processing for this channel
+      if (processingChannels.has(interaction.channelId)) {
+        return interaction.reply({ content: 'กำลังเปลี่ยนโจทย์ข้อใหม่ค่ะ กรุณารอแปปนึงนะคะ', flags: FLAG_EPHEMERAL });
       }
 
       const questionData = session.questionData;
@@ -398,40 +401,60 @@ function setupMinigames(client) {
         Promise.resolve(supabase.from('minigame_active_sessions').delete().eq('channel_id', interaction.channelId)).catch(() => {});
       }
 
-      // 1. Immediately update interaction UI to show winner (Ultra-Fast response!)
-      const winnerName = interaction.user.displayName || interaction.user.username;
-      const winnerPayload = buildWinnerPayload(gameId, questionData, winnerName);
-      await interaction.update(winnerPayload);
+      // Fallback safety timeout: Auto-release lock after 10s if process stalls
+      const safetyLockTimeout = setTimeout(() => {
+        if (processingChannels.has(interaction.channelId)) {
+          console.warn(`[minigames] Auto-releasing stuck lock for channel ${interaction.channelId}`);
+          processingChannels.delete(interaction.channelId);
+        }
+      }, 10000);
 
-      // 2. Process points and DB recording asynchronously in background
-      const userId = interaction.user.id;
-      const member = interaction.member;
-      const pointsEarned = questionData.rewardPoints || 3;
+      try {
+        // 1. Immediately update interaction UI to show winner (Ultra-Fast response!)
+        const winnerName = interaction.user.displayName || interaction.user.username;
+        const winnerPayload = buildWinnerPayload(gameId, questionData, winnerName);
+        await interaction.update(winnerPayload);
 
-      if (supabase) {
-        addPointsWithCap(supabase, member, userId, pointsEarned)
-          .then((pointResult) => {
-            const awarded = pointResult && typeof pointResult.awarded === 'number' ? pointResult.awarded : 0;
-            return supabase.from('minigame_wins').insert({
-              discord_id: userId,
-              game_id: gameId,
-              points_earned: awarded
+        // 2. Process points and DB recording asynchronously in background
+        const userId = interaction.user.id;
+        const member = interaction.member;
+        const pointsEarned = questionData.rewardPoints || 3;
+
+        if (supabase) {
+          addPointsWithCap(supabase, member, userId, pointsEarned)
+            .then((pointResult) => {
+              const awarded = pointResult && typeof pointResult.awarded === 'number' ? pointResult.awarded : 0;
+              return supabase.from('minigame_wins').insert({
+                discord_id: userId,
+                game_id: gameId,
+                points_earned: awarded
+              });
+            })
+            .catch(err => {
+              console.error('[minigames] Error processing win points for Game 9/10:', err.message);
+              supabase.from('minigame_wins').insert({
+                discord_id: userId,
+                game_id: gameId,
+                points_earned: 0
+              }).catch(e => console.error('[minigames] Fallback win stat insert failed:', e.message));
             });
-          })
-          .catch(err => {
-            console.error('[minigames] Error processing win points for Game 9/10:', err.message);
-            supabase.from('minigame_wins').insert({
-              discord_id: userId,
-              game_id: gameId,
-              points_earned: 0
-            }).catch(e => console.error('[minigames] Fallback win stat insert failed:', e.message));
-          });
-      }
+        }
 
-      // 3. Post next question with minimal delay
-      setTimeout(() => {
-        sendNextGameQuestion(supabase, interaction.channel, gameId).catch(console.error);
-      }, 400);
+        // 3. Post next question with minimal delay
+        setTimeout(() => {
+          sendNextGameQuestion(supabase, interaction.channel, gameId)
+            .finally(() => clearTimeout(safetyLockTimeout))
+            .catch((err) => {
+              console.error(`[minigames] Error in sendNextGameQuestion for Game ${gameId}:`, err);
+              clearTimeout(safetyLockTimeout);
+              processingChannels.delete(interaction.channelId);
+            });
+        }, 400);
+      } catch (err) {
+        console.error('[minigames] Error processing correct answer interaction:', err.message);
+        clearTimeout(safetyLockTimeout);
+        processingChannels.delete(interaction.channelId);
+      }
     }
   });
 
@@ -479,62 +502,81 @@ function setupMinigames(client) {
       Promise.resolve(supabase.from('minigame_active_sessions').delete().eq('channel_id', message.channelId)).catch(() => {});
     }
 
-    // 1. Instantly react checkmark to winner message (non-blocking UI)
-    message.react(CHECKMARK_EMOJI_ID).catch(() => {});
+    const safetyLockTimeout = setTimeout(() => {
+      if (processingChannels.has(message.channelId)) {
+        console.warn(`[minigames] Auto-releasing stuck lock for channel ${message.channelId}`);
+        processingChannels.delete(message.channelId);
+      }
+    }, 10000);
 
-    // 2. Edit previous question message to show solved state
-    if (session.messageId) {
-      const winnerName = message.member?.displayName || message.author.username;
-      message.channel.messages.fetch(session.messageId)
-        .then(oldMsg => {
-          if (oldMsg) {
-            const gameTitle = GAME_CHANNELS[matchedGameId]?.name || 'มินิเกม';
-            oldMsg.edit({
-              flags: FLAG_V2,
-              components: [{
-                type: 17,
-                components: [
-                  {
-                    type: 9,
-                    components: [{
-                      type: 10,
-                      content: `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ ${gameTitle} 𓂃 \`__\n# ${correctAnswer}\n-# ✅ @${winnerName} ตอบถูกเรียบร้อยแล้วค่ะ`
-                    }]
-                  }
-                ]
-              }]
-            }).catch(() => {});
-          }
-        })
-        .catch(() => {});
-    }
+    try {
+      // 1. Instantly react checkmark to winner message (non-blocking UI)
+      message.react(CHECKMARK_EMOJI_ID).catch(() => {});
 
-    // 3. Award points and record win stats asynchronously in background
-    if (supabase) {
-      const rewardPoints = session.questionData.rewardPoints || 3;
-      addPointsWithCap(supabase, message.member, message.author.id, rewardPoints)
-        .then((pointResult) => {
-          const awarded = pointResult && typeof pointResult.awarded === 'number' ? pointResult.awarded : 0;
-          return supabase.from('minigame_wins').insert({
-            discord_id: message.author.id,
-            game_id: matchedGameId,
-            points_earned: awarded
+      // 2. Edit previous question message to show solved state
+      if (session.messageId) {
+        const winnerName = message.member?.displayName || message.author.username;
+        message.channel.messages.fetch(session.messageId)
+          .then(oldMsg => {
+            if (oldMsg) {
+              const gameTitle = GAME_CHANNELS[matchedGameId]?.name || 'มินิเกม';
+              oldMsg.edit({
+                flags: FLAG_V2,
+                components: [{
+                  type: 17,
+                  components: [
+                    {
+                      type: 9,
+                      components: [{
+                        type: 10,
+                        content: `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ ${gameTitle} 𓂃 \`__\n# ${correctAnswer}\n-# ✅ @${winnerName} ตอบถูกเรียบร้อยแล้วค่ะ`
+                      }]
+                    }
+                  ]
+                }]
+              }).catch(() => {});
+            }
+          })
+          .catch(() => {});
+      }
+
+      // 3. Award points and record win stats asynchronously in background
+      if (supabase) {
+        const rewardPoints = session.questionData.rewardPoints || 3;
+        addPointsWithCap(supabase, message.member, message.author.id, rewardPoints)
+          .then((pointResult) => {
+            const awarded = pointResult && typeof pointResult.awarded === 'number' ? pointResult.awarded : 0;
+            return supabase.from('minigame_wins').insert({
+              discord_id: message.author.id,
+              game_id: matchedGameId,
+              points_earned: awarded
+            });
+          })
+          .catch(err => {
+            console.error('[minigames] Error processing win points for Game 1-8:', err.message);
+            supabase.from('minigame_wins').insert({
+              discord_id: message.author.id,
+              game_id: matchedGameId,
+              points_earned: 0
+            }).catch(e => console.error('[minigames] Fallback win stat insert failed:', e.message));
           });
-        })
-        .catch(err => {
-          console.error('[minigames] Error processing win points for Game 1-8:', err.message);
-          supabase.from('minigame_wins').insert({
-            discord_id: message.author.id,
-            game_id: matchedGameId,
-            points_earned: 0
-          }).catch(e => console.error('[minigames] Fallback win stat insert failed:', e.message));
-        });
-    }
+      }
 
-    // 4. Post next question Component V2 with minimal delay
-    setTimeout(() => {
-      sendNextGameQuestion(supabase, message.channel, matchedGameId).catch(console.error);
-    }, 350);
+      // 4. Post next question Component V2 with minimal delay
+      setTimeout(() => {
+        sendNextGameQuestion(supabase, message.channel, matchedGameId)
+          .finally(() => clearTimeout(safetyLockTimeout))
+          .catch((err) => {
+            console.error(`[minigames] Error in sendNextGameQuestion for Game ${matchedGameId}:`, err);
+            clearTimeout(safetyLockTimeout);
+            processingChannels.delete(message.channelId);
+          });
+      }, 350);
+    } catch (err) {
+      console.error('[minigames] Error processing correct answer message:', err.message);
+      clearTimeout(safetyLockTimeout);
+      processingChannels.delete(message.channelId);
+    }
   });
 
   console.log('[minigames] Module loaded successfully with State Persistence & Speed Optimization');

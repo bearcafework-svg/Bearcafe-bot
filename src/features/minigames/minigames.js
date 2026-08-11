@@ -245,9 +245,31 @@ function buildWinnerPayload(gameId, questionData, winnerDisplayName) {
 /**
  * Sends or posts a new game question into the channel
  */
-async function sendNextGameQuestion(supabase, channel, gameId) {
-  if (!channel || !channel.id) return;
+/**
+ * Sends or posts a new game question into the channel
+ */
+async function sendNextGameQuestion(client, supabase, channelOrId, gameId) {
+  const channelId = typeof channelOrId === 'string' ? channelOrId : (channelOrId?.id || GAME_CHANNELS[gameId]?.id);
+  if (!channelId) return;
+
   try {
+    let channel = (typeof channelOrId === 'object' && channelOrId && typeof channelOrId.send === 'function')
+      ? channelOrId
+      : client.channels.cache.get(channelId);
+
+    if (!channel && client) {
+      try {
+        channel = await client.channels.fetch(channelId);
+      } catch (e) {
+        console.error(`[minigames] Could not fetch channel ${channelId}:`, e.message);
+      }
+    }
+
+    if (!channel) {
+      console.warn(`[minigames] Channel ${channelId} unavailable for Game ${gameId}`);
+      return;
+    }
+
     const questionData = await getNextQuestion(supabase, gameId);
     if (!questionData) {
       console.warn(`[minigames] No questions available for Game ${gameId}`);
@@ -265,17 +287,17 @@ async function sendNextGameQuestion(supabase, channel, gameId) {
       sentMsg = await channel.send(payload);
     }
 
-    activeSessions.set(channel.id, {
+    activeSessions.set(channelId, {
       gameId,
       questionData,
       messageId: sentMsg.id,
-      channelId: channel.id
+      channelId
     });
 
     // Record active session in Supabase DB for crash/restart recovery
     if (supabase) {
       await supabase.from('minigame_active_sessions').upsert({
-        channel_id: channel.id,
+        channel_id: channelId,
         game_id: gameId,
         current_question: questionData,
         message_id: sentMsg.id,
@@ -285,9 +307,7 @@ async function sendNextGameQuestion(supabase, channel, gameId) {
   } catch (err) {
     console.error(`[minigames] Error sending question for Game ${gameId}:`, err.message);
   } finally {
-    if (channel && channel.id) {
-      processingChannels.delete(channel.id);
-    }
+    processingChannels.delete(channelId);
   }
 }
 
@@ -359,7 +379,7 @@ function setupMinigames(client) {
       });
 
       // Post first question to the designated channel
-      await sendNextGameQuestion(supabase, targetChannel, gameId);
+      await sendNextGameQuestion(client, supabase, targetChannel, gameId);
     }
 
     // 2. Button Interactions (Game 9 & 10) — INSTANT RESPONSE & CONCURRENCY LOCKED
@@ -442,7 +462,7 @@ function setupMinigames(client) {
 
         // 3. Post next question with minimal delay
         setTimeout(() => {
-          sendNextGameQuestion(supabase, interaction.channel, gameId)
+          sendNextGameQuestion(client, supabase, interaction.channelId, gameId)
             .finally(() => clearTimeout(safetyLockTimeout))
             .catch((err) => {
               console.error(`[minigames] Error in sendNextGameQuestion for Game ${gameId}:`, err);
@@ -564,7 +584,7 @@ function setupMinigames(client) {
 
       // 4. Post next question Component V2 with minimal delay
       setTimeout(() => {
-        sendNextGameQuestion(supabase, message.channel, matchedGameId)
+        sendNextGameQuestion(client, supabase, message.channelId, matchedGameId)
           .finally(() => clearTimeout(safetyLockTimeout))
           .catch((err) => {
             console.error(`[minigames] Error in sendNextGameQuestion for Game ${matchedGameId}:`, err);

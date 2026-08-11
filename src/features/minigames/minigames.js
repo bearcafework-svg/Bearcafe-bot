@@ -23,7 +23,10 @@ const GAME_CHANNELS = {
   7: { id: '1534469630234726431', name: 'พิมพ์คำต่อไปนี้ (ไทย)' },
   8: { id: '1534469708517085315', name: 'พิมพ์คำต่อไปนี้ (อังกฤษ)' },
   9: { id: '1534647461262393435', name: 'ทายคำแปลภาษาอังกฤษ' },
-  10: { id: '1534647589121818795', name: 'ทายคำแปลภาษาไทย' }
+  10: { id: '1534647589121818795', name: 'ทายคำแปลภาษาไทย' },
+  11: { id: '1534647600000000011', name: 'เกมต่อคำ' },
+  12: { id: '1534647600000000012', name: 'ข้อไหนไม่เข้าพวก' },
+  13: { id: '1534647600000000013', name: 'จริงหรือเท็จ' }
 };
 
 // Memory cache for active game session per channel ID
@@ -149,6 +152,21 @@ function buildGamePayload(gameId, questionData) {
         `# ${questionData.wordOrQuestion}`;
       break;
     }
+    case 11: { // เกมต่อคำ
+      contentText = `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ เกมต่อคำ 𓂃 \`__\n` +
+        `# ${questionData.wordOrQuestion}`;
+      break;
+    }
+    case 12: { // ข้อไหนไม่เข้าพวก
+      contentText = `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ ข้อไหนไม่เข้าพวก 𓂃 \`__\n` +
+        `# ${questionData.wordOrQuestion || 'อันไหนไม่เข้าพวก?'}`;
+      break;
+    }
+    case 13: { // จริงหรือเท็จ
+      contentText = `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ จริงหรือเท็จ 𓂃 \`__\n` +
+        `# ${questionData.wordOrQuestion}`;
+      break;
+    }
   }
 
   const containerComponents = [];
@@ -163,7 +181,7 @@ function buildGamePayload(gameId, questionData) {
       accessory: accessoryButton
     });
   } else {
-    // For Games 1-6, 9-10: Section Component (9) comes FIRST
+    // For Games 1-6, 9-13: Section Component (9) comes FIRST
     containerComponents.push({
       type: 9,
       components: [{ type: 10, content: contentText }],
@@ -171,16 +189,31 @@ function buildGamePayload(gameId, questionData) {
     });
   }
 
-  // 3. Choice Buttons (for Game 9 & 10) — Primary (1), Danger (4), Success (3)
-  if ((gameId === 9 || gameId === 10) && Array.isArray(questionData.options) && questionData.options.length > 0) {
+  // 3. Choice Buttons (for Games 9, 10, 11, 12, 13)
+  if ([9, 10, 11, 12, 13].includes(gameId) && Array.isArray(questionData.options) && questionData.options.length > 0) {
     containerComponents.push({ type: 14, spacing: 2 });
-    const choiceStyles = [1, 4, 3]; // Primary (Blue), Danger (Red), Success (Green)
-    const buttonComponents = questionData.options.map((optionLabel, idx) => ({
-      style: choiceStyles[idx % choiceStyles.length],
-      type: 2,
-      label: optionLabel,
-      custom_id: `mg_opt_${gameId}_${idx}_${Date.now()}`
-    }));
+    let buttonComponents = [];
+
+    if (gameId === 13) {
+      // เกม 13: จริงหรือเท็จ -> [จริง] สีเขียว (Style 3) และ [เท็จ] สีแดง (Style 4) ไม่มี emoji
+      buttonComponents = questionData.options.map((optionLabel, idx) => {
+        const isTrueBtn = String(optionLabel).trim() === 'จริง';
+        return {
+          style: isTrueBtn ? 3 : 4, // 3: Success (Green), 4: Danger (Red)
+          type: 2,
+          label: optionLabel,
+          custom_id: `mg_opt_${gameId}_${idx}_${Date.now()}`
+        };
+      });
+    } else {
+      const choiceStyles = [1, 4, 3, 2]; // Primary, Danger, Success, Secondary
+      buttonComponents = questionData.options.map((optionLabel, idx) => ({
+        style: choiceStyles[idx % choiceStyles.length],
+        type: 2,
+        label: optionLabel,
+        custom_id: `mg_opt_${gameId}_${idx}_${Date.now()}`
+      }));
+    }
 
     containerComponents.push({
       type: 1,
@@ -198,7 +231,7 @@ function buildGamePayload(gameId, questionData) {
 }
 
 /**
- * Build winner disabled payload for Game 9 & 10
+ * Build winner disabled payload for Games 9-13
  */
 function buildWinnerPayload(gameId, questionData, winnerDisplayName) {
   const pi = sharedConfig.point_icon;
@@ -212,9 +245,19 @@ function buildWinnerPayload(gameId, questionData, winnerDisplayName) {
     url: 'https://discord.com/channels/1144251788493602848/1524123727724417276'
   };
 
-  const titleText = gameId === 9 ? 'ทายคำแปลภาษาอังกฤษ' : 'ทายคำแปลภาษาไทย';
-  const contentText = `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ ${titleText} 𓂃 \`__\n` +
-    `# ${questionData.wordOrQuestion} = ${questionData.answer}`;
+  let titleText = 'มินิเกม';
+  if (gameId === 9) titleText = 'ทายคำแปลภาษาอังกฤษ';
+  else if (gameId === 10) titleText = 'ทายคำแปลภาษาไทย';
+  else if (gameId === 11) titleText = 'เกมต่อคำ';
+  else if (gameId === 12) titleText = 'ข้อไหนไม่เข้าพวก';
+  else if (gameId === 13) titleText = 'จริงหรือเท็จ';
+
+  const contentText = (gameId === 11 || gameId === 12 || gameId === 13)
+    ? `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ ${titleText} 𓂃 \`__\n` +
+      `# ${questionData.wordOrQuestion}\n` +
+      `-# เฉลย: ${questionData.answer}`
+    : `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ ${titleText} 𓂃 \`__\n` +
+      `# ${questionData.wordOrQuestion} = ${questionData.answer}`;
 
   return {
     flags: FLAG_V2,
@@ -494,8 +537,8 @@ function setupMinigames(client) {
       }
     }
 
-    // Ignore if not a game channel or if it's game 9/10 (which use buttons)
-    if (!matchedGameId || matchedGameId === 9 || matchedGameId === 10) return;
+    // Ignore if not a game channel or if it's game 9-13 (which use buttons)
+    if (!matchedGameId || [9, 10, 11, 12, 13].includes(matchedGameId)) return;
 
     const session = activeSessions.get(message.channelId);
     if (!session || session.gameId !== matchedGameId) return;

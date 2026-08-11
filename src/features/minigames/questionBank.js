@@ -50,6 +50,29 @@ const DEFAULT_QUESTIONS = {
     { id: 908, word_or_question: "House", answer: "บ้าน" },
     { id: 909, word_or_question: "Water", answer: "น้ำ" },
     { id: 910, word_or_question: "Sky", answer: "ท้องฟ้า" }
+  ],
+  11: [ // เกมต่อคำ (Dynamic Choice Generator)
+    { id: 1101, word_or_question: "น้ำ", answer: "แข็ง" },
+    { id: 1102, word_or_question: "ดาว", answer: "ตก" },
+    { id: 1103, word_or_question: "ไฟ", answer: "ฟ้า" },
+    { id: 1104, word_or_question: "พัด", answer: "ลม" },
+    { id: 1105, word_or_question: "รถ", answer: "ไฟ" }
+  ],
+  12: [ // ข้อไหนไม่เข้าพวก (Category-based Generator)
+    { id: 1201, word_or_question: "🐶", answer: "🐶", category: "สัตว์" },
+    { id: 1202, word_or_question: "🐱", answer: "🐱", category: "สัตว์" },
+    { id: 1203, word_or_question: "🐭", answer: "🐭", category: "สัตว์" },
+    { id: 1204, word_or_question: "🐰", answer: "🐰", category: "สัตว์" },
+    { id: 1205, word_or_question: "🍎", answer: "🍎", category: "ผลไม้" },
+    { id: 1206, word_or_question: "🍌", answer: "🍌", category: "ผลไม้" },
+    { id: 1207, word_or_question: "🍊", answer: "🍊", category: "ผลไม้" },
+    { id: 1208, word_or_question: "🚗", answer: "🚗", category: "ยานพาหนะ" },
+    { id: 1209, word_or_question: "✈️", answer: "✈️", category: "ยานพาหนะ" }
+  ],
+  13: [ // จริงหรือเท็จ
+    { id: 1301, word_or_question: "แมวเป็นสัตว์เลี้ยงลูกด้วยนม", answer: "จริง", options: ["จริง", "เท็จ"] },
+    { id: 1302, word_or_question: "ดวงอาทิตย์ขึ้นทางทิศตะวันตก", answer: "เท็จ", options: ["จริง", "เท็จ"] },
+    { id: 1303, word_or_question: "ประเทศไทยมี 77 จังหวัด", answer: "จริง", options: ["จริง", "เท็จ"] }
   ]
 };
 
@@ -353,6 +376,76 @@ async function getNextQuestion(supabase, gameId) {
     const shuffledWrong = shuffleArray(wrongPool);
     const choices = [answer, shuffledWrong[0] || 'Orange', shuffledWrong[1] || 'Banana'];
     options = shuffleArray(choices);
+  } else if (gameId === 12) {
+    // Game 12: Odd One Out (Category-based Dynamic Generator)
+    if (selected.options && selected.options.length >= 4) {
+      wordOrQuestion = selected.word_or_question || 'อันไหนไม่เข้าพวก?';
+      answer = selected.answer;
+      options = shuffleArray(selected.options);
+    } else {
+      // Group candidates by category
+      const categoriesMap = new Map();
+      for (const item of candidates) {
+        const cat = item.category || 'ทั่วไป';
+        if (!categoriesMap.has(cat)) categoriesMap.set(cat, []);
+        categoriesMap.get(cat).push(item);
+      }
+
+      const availableCategories = Array.from(categoriesMap.keys()).filter(c => categoriesMap.get(c).length >= 3);
+
+      if (availableCategories.length >= 2) {
+        const mainCat = availableCategories[Math.floor(Math.random() * availableCategories.length)];
+        const mainItems = shuffleArray(categoriesMap.get(mainCat)).slice(0, 3);
+        
+        const otherCategories = availableCategories.filter(c => c !== mainCat);
+        const oddCat = otherCategories[Math.floor(Math.random() * otherCategories.length)];
+        const oddItem = shuffleArray(categoriesMap.get(oddCat))[0];
+
+        wordOrQuestion = `อันไหนไม่เข้าพวก? (หมวดหมู่หลัก: ${mainCat})`;
+        answer = oddItem.answer || oddItem.word_or_question;
+        const allChoices = [...mainItems.map(i => i.answer || i.word_or_question), answer];
+        options = shuffleArray(allChoices);
+      } else {
+        wordOrQuestion = selected.word_or_question || 'อันไหนไม่เข้าพวก?';
+        answer = selected.answer;
+        options = Array.isArray(selected.options) ? shuffleArray(selected.options) : ['🐶', '🐱', '🐭', '🍎'];
+      }
+    }
+  } else if (gameId === 11) {
+    // Game 11: Word Association (Dynamic Choice Generator from Answer Pool)
+    wordOrQuestion = selected.word_or_question;
+    answer = selected.answer;
+
+    if (selected.options && selected.options.length >= 3) {
+      options = shuffleArray(selected.options);
+    } else {
+      // Pick 2 wrong answers dynamically from candidate answers
+      const wrongPool = candidates
+        .map(c => c.answer)
+        .filter(a => a && a.trim() !== answer.trim());
+      const shuffledWrong = shuffleArray(wrongPool);
+      
+      const choices = [answer];
+      if (shuffledWrong[0]) choices.push(shuffledWrong[0]);
+      if (shuffledWrong[1]) choices.push(shuffledWrong[1]);
+
+      // Fallback choices if pool has < 3 words
+      const fallbackWrongs = ['ตก', 'ฟ้า', 'ลม', 'บิน', 'แดง', 'ใส'];
+      for (const fw of fallbackWrongs) {
+        if (choices.length >= 3) break;
+        if (!choices.includes(fw)) choices.push(fw);
+      }
+
+      options = shuffleArray(choices);
+    }
+  } else if (gameId === 13) {
+    wordOrQuestion = selected.word_or_question;
+    answer = selected.answer;
+    if (Array.isArray(selected.options) && selected.options.length > 0) {
+      options = ["จริง", "เท็จ"];
+    } else {
+      options = ["จริง", "เท็จ"];
+    }
   }
 
   return {

@@ -320,7 +320,8 @@ async function sendNextGameQuestion(client, supabase, channelOrId, gameId) {
       return;
     }
 
-    const questionData = await getNextQuestion(supabase, gameId);
+    const gameSettings = GAME_CHANNELS[gameId];
+    const questionData = await getNextQuestion(supabase, gameId, gameSettings);
     if (!questionData) {
       console.warn(`[minigames] No questions available for Game ${gameId}`);
       return;
@@ -369,7 +370,7 @@ async function syncGameSettings(supabase) {
   try {
     const { data, error } = await supabase
       .from('minigame_settings')
-      .select('game_id, game_name, channel_id');
+      .select('game_id, game_name, channel_id, min_points, max_points');
 
     if (error) {
       console.error('[minigames] Failed to sync minigame_settings from DB:', error.message);
@@ -381,7 +382,9 @@ async function syncGameSettings(supabase) {
         if (row.game_id && row.channel_id) {
           GAME_CHANNELS[row.game_id] = {
             id: String(row.channel_id).trim(),
-            name: row.game_name ? String(row.game_name).trim() : (GAME_CHANNELS[row.game_id]?.name || `เกมที่ ${row.game_id}`)
+            name: row.game_name ? String(row.game_name).trim() : (GAME_CHANNELS[row.game_id]?.name || `เกมที่ ${row.game_id}`),
+            minPoints: row.min_points ?? 3,
+            maxPoints: row.max_points ?? 6
           };
         }
       }

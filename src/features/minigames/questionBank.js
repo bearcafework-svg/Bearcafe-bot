@@ -241,7 +241,7 @@ function scrambleWord(word, isThai = /[\u0E00-\u0E7F]/.test(word)) {
 /**
  * Fetch Next Question for any game (1-10) with Shared Vocabulary Pool & Dynamic 3-Choice Generation
  */
-async function getNextQuestion(supabase, gameId) {
+async function getNextQuestion(supabase, gameId, gameSettings = null) {
   if (gameId === 3) {
     return generateMathProblem();
   }
@@ -337,8 +337,11 @@ async function getNextQuestion(supabase, gameId) {
   }
   askedHistory.set(historyKey, history);
 
-  // Default rewards
-  let rewardPoints = Math.floor(Math.random() * 4) + 3; // 3-6 pts
+  // Default rewards calculated dynamically from minigame_settings minPoints & maxPoints
+  let minP = (gameSettings && typeof gameSettings.minPoints === 'number') ? gameSettings.minPoints : 3;
+  let maxP = (gameSettings && typeof gameSettings.maxPoints === 'number') ? gameSettings.maxPoints : 6;
+  if (minP > maxP) [minP, maxP] = [maxP, minP];
+  let rewardPoints = Math.floor(Math.random() * (maxP - minP + 1)) + minP;
   let difficulty = null;
   let wordOrQuestion = selected.word_or_question;
   let answer = selected.answer;

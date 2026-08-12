@@ -695,8 +695,8 @@ function setupResetTop(client, supabaseClient) {
             type: 17,
             components: [
               {
-                type: 9,
-                components: [{ type: 10, content: userRankText }]
+                type: 10,
+                content: userRankText
               }
             ]
           }
@@ -763,13 +763,8 @@ function setupResetTop(client, supabaseClient) {
             type: 17,
             components: [
               {
-                type: 9,
-                components: [
-                  {
-                    type: 10,
-                    content: `### ${gameInfo.emoji}︲__\` 𝖫𝖾𝖺𝖽𝖾𝗋𝖻𝗈𝖺𝗋𝖽 ₊ ${gameInfo.label} 𓂃 \`__`
-                  }
-                ]
+                type: 10,
+                content: `### ${gameInfo.emoji}︲__\` 𝖫𝖾𝖺𝖽𝖾𝗋𝖻𝗈𝖺𝗋𝖽 ₊ ${gameInfo.label} 𓂃 \`__`
               },
               { type: 14, spacing: 2 },
               {
@@ -778,13 +773,8 @@ function setupResetTop(client, supabaseClient) {
               },
               { type: 14, spacing: 2 },
               {
-                type: 9,
-                components: [
-                  {
-                    type: 10,
-                    content: userRankText
-                  }
-                ]
+                type: 10,
+                content: userRankText
               }
             ]
           }

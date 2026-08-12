@@ -554,7 +554,7 @@ async function buildTopLeaderboardPayload(guild, supabase) {
               {
                 type: 3,
                 custom_id: "minigame_select_filter",
-                placeholder: "🔍 เลือกดูจัดอันดับเฉพาะรายเกม...",
+                placeholder: "🔍︲เลือกดูจัดอันดับเฉพาะรายเกม...",
                 options: GAME_LIST.map(g => ({
                   label: g.label,
                   value: g.value,
@@ -680,18 +680,27 @@ function setupResetTop(client, supabaseClient) {
       const pi = sharedConfig.point_icon;
       const pointEmojiStr = pi && pi.id ? `<:${pi.name}:${pi.id}>` : `🍓`;
 
+      let userRankText = '';
       if (!userRank || !userRank.rank) {
-        return safeRespond(interaction, {
-          content: `## <:bee20000:1256669436350562355>︲__\` สถิติจัดอันดับมินิเกมของคุณ 𓂃 \`__\n\n<@${interaction.user.id}> คุณยังไม่มีประวัติการชนะมินิเกมเลยค่ะ 🎮\nมาลองร่วมสนุกเล่นมินิเกมเพื่อสะสมชัยชนะกันนะคะ!`,
-          flags: 64
-        });
+        userRankText = `### <:bee20000:1256669436350562355>︲__\` สถิติจัดอันดับมินิเกมของคุณ 𓂃 \`__\n\n<@${interaction.user.id}> คุณยังไม่มีประวัติการชนะมินิเกมเลยค่ะ 🎮\nมาลองร่วมสนุกเล่นมินิเกมเพื่อสะสมชัยชนะกันนะคะ!`;
+      } else {
+        const rankBadge = userRank.rank === 1 ? "🥇" : userRank.rank === 2 ? "🥈" : userRank.rank === 3 ? "🥉" : "📊";
+        userRankText = `### <:bee20000:1256669436350562355>︲__\` สถิติจัดอันดับมินิเกมของคุณ 𓂃 \`__\n\n<@${interaction.user.id}>\n${rankBadge} **อันดับของคุณ:** **อันดับที่ ${userRank.rank}** (จากผู้เล่นทั้งหมด ${userRank.totalPlayers} คน)\n⚔️ **ชนะทั้งหมด:** **${userRank.wins}** ครั้ง\n${pointEmojiStr} **คะแนนรวมที่ได้:** **${userRank.points}** แต้ม`;
       }
 
-      const rankBadge = userRank.rank === 1 ? "🥇" : userRank.rank === 2 ? "🥈" : userRank.rank === 3 ? "🥉" : "📊";
-
-      return safeRespond(interaction, {
-        content: `## <:bee20000:1256669436350562355>︲__\` สถิติจัดอันดับมินิเกมของคุณ 𓂃 \`__\n\n<@${interaction.user.id}>\n${rankBadge} **อันดับของคุณ:** **อันดับที่ ${userRank.rank}** (จากผู้เล่นทั้งหมด ${userRank.totalPlayers} คน)\n⚔️ **ชนะทั้งหมด:** **${userRank.wins}** ครั้ง\n${pointEmojiStr} **คะแนนรวมที่ได้:** **${userRank.points}** แต้ม`,
-        flags: 64
+      return interaction.reply({
+        flags: 32768 | 64, // Component V2 + Ephemeral
+        components: [
+          {
+            type: 17,
+            components: [
+              {
+                type: 9,
+                components: [{ type: 10, content: userRankText }]
+              }
+            ]
+          }
+        ]
       });
     } catch (err) {
       console.error("[resetTop] minigame_my_rank error:", err);
@@ -726,10 +735,7 @@ function setupResetTop(client, supabaseClient) {
         "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"
       ];
 
-      const lines = [
-        `## ${gameInfo.emoji}︲__\` 𝖫𝖾𝖺𝖽𝖾𝗋𝖻𝗈𝖺𝗋𝖽 ₊ ${gameInfo.label} 𓂃 \`__\n`
-      ];
-
+      const lines = [];
       for (let i = 0; i < 10; i++) {
         const emoji = rankEmojis[i];
         if (i < top10.length) {
@@ -740,20 +746,49 @@ function setupResetTop(client, supabaseClient) {
         }
       }
 
-      // แสดงอันดับของผู้ใช้งานคนที่กดดู
-      lines.push("\n─────────────────────────────");
+      // ข้อความอันดับผู้เล่น
+      let userRankText = '';
       if (userRank && userRank.rank) {
         const rankBadge = userRank.rank === 1 ? "🥇" : userRank.rank === 2 ? "🥈" : userRank.rank === 3 ? "🥉" : "📊";
-        lines.push(`👤 **อันดับของคุณ (<@${interaction.user.id}>) ในเกมนี้:**`);
-        lines.push(`${rankBadge} **อันดับที่ ${userRank.rank}** (จาก ${userRank.totalPlayers} คน) | ⚔️ **ชนะ ${userRank.wins} ครั้ง** (${pointEmojiStr} **${userRank.points} แต้ม**)`);
+        userRankText = `👤 **อันดับของคุณ (<@${interaction.user.id}>) ในเกมนี้:**\n${rankBadge} **อันดับที่ ${userRank.rank}** (จาก ${userRank.totalPlayers} คน) | ⚔️ **ชนะ ${userRank.wins} ครั้ง** (${pointEmojiStr} **${userRank.points} แต้ม**)`;
       } else {
-        lines.push(`👤 **อันดับของคุณ (<@${interaction.user.id}>):** ยังไม่มีประวัติการชนะในเกมนี้ค่ะ 🎮`);
+        userRankText = `👤 **อันดับของคุณ (<@${interaction.user.id}>):** ยังไม่มีประวัติการชนะในเกมนี้ค่ะ 🎮`;
       }
 
-      // ตอบกลับแบบ EPHEMERAL (flags: 64) ให้เห็นคนเดียว
+      // ตอบกลับแบบ Component V2 (32768) + Ephemeral (64)
       await interaction.reply({
-        content: lines.join("\n"),
-        flags: 64
+        flags: 32768 | 64,
+        components: [
+          {
+            type: 17,
+            components: [
+              {
+                type: 9,
+                components: [
+                  {
+                    type: 10,
+                    content: `### ${gameInfo.emoji}︲__\` 𝖫𝖾𝖺𝖽𝖾𝗋𝖻𝗈𝖺𝗋𝖽 ₊ ${gameInfo.label} 𓂃 \`__`
+                  }
+                ]
+              },
+              { type: 14, spacing: 2 },
+              {
+                type: 10,
+                content: lines.join("\n")
+              },
+              { type: 14, spacing: 2 },
+              {
+                type: 9,
+                components: [
+                  {
+                    type: 10,
+                    content: userRankText
+                  }
+                ]
+              }
+            ]
+          }
+        ]
       });
 
       // รีเซ็ตตัวเลือกใน SelectMenu บนข้อความหลัก เพื่อให้สามารถกดเลือก Option เดิมซ้ำได้ใหม่
@@ -774,14 +809,14 @@ function setupResetTop(client, supabaseClient) {
           return rowJson;
         });
 
-        await interaction.message.edit({ components: updatedComponents }).catch(() => {});
+        await interaction.message.edit({ components: updatedComponents }).catch(() => { });
       }
     } catch (err) {
       console.error("[resetTop] minigame_select_filter error:", err);
       safeRespond(interaction, {
         content: "❌ เกิดข้อผิดพลาดในการโหลดจัดอันดับรายเกมค่ะ",
         flags: 64
-      }).catch(() => {});
+      }).catch(() => { });
     }
   });
 }

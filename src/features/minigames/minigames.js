@@ -296,9 +296,9 @@ function buildWinnerPayload(gameId, questionData, winnerDisplayName) {
  * Sends or posts a new game question into the channel
  */
 /**
- * Sends or posts a new game question into the channel
+ * Sends or posts a new game question into the channel (with Auto-Retry & Fallback)
  */
-async function sendNextGameQuestion(client, supabase, channelOrId, gameId) {
+async function sendNextGameQuestion(client, supabase, channelOrId, gameId, retries = 3) {
   const channelId = typeof channelOrId === 'string' ? channelOrId : (channelOrId?.id || GAME_CHANNELS[gameId]?.id);
   if (!channelId) return;
 
@@ -321,7 +321,13 @@ async function sendNextGameQuestion(client, supabase, channelOrId, gameId) {
     }
 
     const gameSettings = GAME_CHANNELS[gameId];
-    const questionData = await getNextQuestion(supabase, gameId, gameSettings);
+    let questionData = await getNextQuestion(supabase, gameId, gameSettings).catch(() => null);
+
+    // Fallback: If DB query returned null, retry with default questions
+    if (!questionData) {
+      questionData = await getNextQuestion(null, gameId, gameSettings);
+    }
+
     if (!questionData) {
       console.warn(`[minigames] No questions available for Game ${gameId}`);
       return;
@@ -353,10 +359,16 @@ async function sendNextGameQuestion(client, supabase, channelOrId, gameId) {
         current_question: questionData,
         message_id: sentMsg.id,
         updated_at: new Date().toISOString()
-      });
+      }).catch(err => console.error('[minigames] Error saving active session to DB:', err.message));
     }
   } catch (err) {
     console.error(`[minigames] Error sending question for Game ${gameId}:`, err.message);
+    // Auto-retry if sending failed (e.g. rate-limit or network hiccup)
+    if (retries > 0) {
+      console.log(`[minigames] Retrying Game ${gameId} in 2s... (${retries} retries left)`);
+      await new Promise(r => setTimeout(r, 2000));
+      return sendNextGameQuestion(client, supabase, channelOrId, gameId, retries - 1);
+    }
   } finally {
     processingChannels.delete(channelId);
   }
@@ -441,6 +453,23 @@ function setupMinigames(client) {
     } catch (e) {
       console.error('[minigames] Failed to register command /เปิดเกม:', e.message);
     }
+
+    // 4. Background Health Check Keeper: Automatically heal games every 5 minutes if missing active session
+    setInterval(async () => {
+      try {
+        for (const [gId, gInfo] of Object.entries(GAME_CHANNELS)) {
+          const gameId = parseInt(gId, 10);
+          const channelId = gInfo.id;
+          const session = activeSessions.get(channelId);
+          if (!session && !processingChannels.has(channelId)) {
+            console.log(`[minigames] 🏥 Self-Healing Keeper: Auto-starting missing game ${gameId} (${gInfo.name}) in channel ${channelId}`);
+            await sendNextGameQuestion(client, supabase, channelId, gameId).catch(() => {});
+          }
+        }
+      } catch (err) {
+        console.error('[minigames] Error in Background Health Check Keeper:', err.message);
+      }
+    }, 5 * 60 * 1000);
   });
 
   // Handle Slash Command & Button Interactions
@@ -477,12 +506,14 @@ function setupMinigames(client) {
 
       const session = activeSessions.get(interaction.channelId);
       if (!session || session.gameId !== gameId) {
-        return interaction.reply({ content: 'โจทย์ข้อนี้จบไปแล้วค่ะ หรือเริ่มข้อใหม่แล้วนะคะ', flags: FLAG_EPHEMERAL });
+        // Auto-Heal: ถ้าเซสชันขาดหลุดไป ให้สร้างโจทย์ข้อใหม่ส่งเข้าช่องนี้ให้อัตโนมัติทันที!
+        sendNextGameQuestion(client, supabase, interaction.channelId, gameId).catch(() => {});
+        return interaction.reply({ content: 'โจทย์ข้อนี้จบไปแล้วค่ะ! กำลังส่งโจทย์ข้อใหม่ให้ในช่องเรียบร้อยแล้วนะคะ 🎮', flags: FLAG_EPHEMERAL });
       }
 
       // Message ID strict check: reject interactions on old question messages
       if (session.messageId && interaction.message.id !== session.messageId) {
-        return interaction.reply({ content: 'โจทย์ข้อนี้จบไปแล้วค่ะ หรือเป็นข้อความเก่าแล้วนะคะ', flags: FLAG_EPHEMERAL });
+        return interaction.reply({ content: 'ข้อความนี้เป็นโจทย์ข้อเก่าแล้วนะคะ กรุณาตอบที่ข้อความล่าสุดในช่องค่ะ 🎮', flags: FLAG_EPHEMERAL });
       }
 
       // Lock check: ignore if another win is currently processing for this channel
@@ -593,7 +624,11 @@ function setupMinigames(client) {
     if (!matchedGameId || [9, 10, 11, 12, 13].includes(matchedGameId)) return;
 
     const session = activeSessions.get(message.channelId);
-    if (!session || session.gameId !== matchedGameId) return;
+    if (!session || session.gameId !== matchedGameId) {
+      // Auto-Heal: หากเซสชันหลุดไป ให้เปิดเกมและส่งโจทย์ข้อใหม่เข้าช่องนี้ให้อัตโนมัติทันที
+      sendNextGameQuestion(client, supabase, message.channelId, matchedGameId).catch(() => {});
+      return;
+    }
 
     const userText = message.content.trim();
     const correctAnswer = String(session.questionData.answer).trim();

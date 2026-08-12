@@ -404,7 +404,7 @@ async function getNextQuestion(supabase, gameId, gameSettings = null) {
         const oddCat = otherCategories[Math.floor(Math.random() * otherCategories.length)];
         const oddItem = shuffleArray(categoriesMap.get(oddCat))[0];
 
-        wordOrQuestion = `อันไหนไม่เข้าพวก? (หมวดหมู่หลัก: ${mainCat})`;
+        wordOrQuestion = 'อันไหนไม่เข้าพวก?';
         answer = oddItem.answer || oddItem.word_or_question;
         const allChoices = [...mainItems.map(i => i.answer || i.word_or_question), answer];
         options = shuffleArray(allChoices);

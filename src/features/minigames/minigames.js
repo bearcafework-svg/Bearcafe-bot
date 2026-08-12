@@ -252,12 +252,19 @@ function buildWinnerPayload(gameId, questionData, winnerDisplayName) {
   else if (gameId === 12) titleText = 'ข้อไหนไม่เข้าพวก';
   else if (gameId === 13) titleText = 'จริงหรือเท็จ';
 
-  const contentText = (gameId === 11 || gameId === 12 || gameId === 13)
-    ? `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ ${titleText} 𓂃 \`__\n` +
+  let contentText = '';
+  if (gameId === 11) {
+    // เกมต่อคำ: แสดงคำต่อกันแบบสมบูรณ์ (เช่น รถไฟ)
+    contentText = `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ ${titleText} 𓂃 \`__\n` +
+      `# ${questionData.wordOrQuestion}${questionData.answer}`;
+  } else if (gameId === 12 || gameId === 13) {
+    contentText = `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ ${titleText} 𓂃 \`__\n` +
       `# ${questionData.wordOrQuestion}\n` +
-      `-# เฉลย: ${questionData.answer}`
-    : `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ ${titleText} 𓂃 \`__\n` +
+      `-# เฉลย: ${questionData.answer}`;
+  } else {
+    contentText = `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ ${titleText} 𓂃 \`__\n` +
       `# ${questionData.wordOrQuestion} = ${questionData.answer}`;
+  }
 
   return {
     flags: FLAG_V2,

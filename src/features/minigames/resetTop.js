@@ -12,13 +12,15 @@ const REFRESH_COOLDOWN_MS = 5 * 60 * 1000;
 let lastResetAt = 0; // timestamp ที่กด reset หรือ refresh
 
 // ── ดึงข้อมูล Top Winners จาก minigame_wins (ผ่าน RPC / View / Aggregation) ───
-async function fetchTopMinigameWins(supabase, limit = 10) {
+async function fetchTopMinigameWins(supabase, limit = 10, gameId = null) {
   if (!supabase) return [];
+
+  const parsedGameId = gameId && gameId !== 'all' ? parseInt(gameId, 10) : null;
 
   try {
     // 1. ลองเรียก RPC get_minigame_leaderboard ก่อน
     const { data: rpcData, error: rpcError } = await supabase
-      .rpc("get_minigame_leaderboard", { days_limit: null, filter_game_id: null });
+      .rpc("get_minigame_leaderboard", { days_limit: null, filter_game_id: parsedGameId });
 
     if (!rpcError && rpcData && rpcData.length > 0) {
       return rpcData.slice(0, limit).map(row => ({
@@ -28,25 +30,32 @@ async function fetchTopMinigameWins(supabase, limit = 10) {
       }));
     }
 
-    // 2. ถ้า RPC ไม่พร้อม ให้ลองดึงจาก View minigame_leaderboard_summary
-    const { data: viewData, error: viewError } = await supabase
-      .from("minigame_leaderboard_summary")
-      .select("discord_id, wins, points")
-      .limit(limit);
+    // 2. ถ้า RPC ไม่พร้อม ให้ลองดึงจาก View minigame_leaderboard_summary (ถ้าไม่มี gameId)
+    if (!parsedGameId) {
+      const { data: viewData, error: viewError } = await supabase
+        .from("minigame_leaderboard_summary")
+        .select("discord_id, wins, points")
+        .limit(limit);
 
-    if (!viewError && viewData && viewData.length > 0) {
-      return viewData.map(row => ({
-        discord_id: row.discord_id,
-        wins: parseInt(row.wins || 0, 10),
-        points: parseInt(row.points || 0, 10)
-      }));
+      if (!viewError && viewData && viewData.length > 0) {
+        return viewData.map(row => ({
+          discord_id: row.discord_id,
+          wins: parseInt(row.wins || 0, 10),
+          points: parseInt(row.points || 0, 10)
+        }));
+      }
     }
 
-    // 3. Fallback: ดึงจาก minigame_wins พร้อมขยาย range ป้องกันติด limit 1,000 แถว
-    const { data, error } = await supabase
+    // 3. Fallback: ดึงจาก minigame_wins
+    let query = supabase
       .from("minigame_wins")
-      .select("discord_id, points_earned")
-      .range(0, 49999);
+      .select("discord_id, points_earned");
+
+    if (parsedGameId) {
+      query = query.eq("game_id", parsedGameId);
+    }
+
+    const { data, error } = await query.range(0, 49999);
 
     if (error) {
       console.error("[resetTop] Error fetching minigame_wins:", error.message);
@@ -76,15 +85,17 @@ async function fetchTopMinigameWins(supabase, limit = 10) {
 }
 
 // ── ดึงข้อมูลอันดับเฉพาะบุคคลสำหรับปุ่ม 🏆 อันดับของฉัน ─────────
-async function getUserMinigameRank(supabase, userId) {
+async function getUserMinigameRank(supabase, userId, gameId = null) {
   if (!supabase || !userId) return null;
+
+  const parsedGameId = gameId && gameId !== 'all' ? parseInt(gameId, 10) : null;
 
   try {
     let sortedList = [];
 
     // 1. ลองเรียก RPC
     const { data: rpcData, error: rpcError } = await supabase
-      .rpc("get_minigame_leaderboard", { days_limit: null, filter_game_id: null });
+      .rpc("get_minigame_leaderboard", { days_limit: null, filter_game_id: parsedGameId });
 
     if (!rpcError && rpcData) {
       sortedList = rpcData.map(row => ({
@@ -93,23 +104,32 @@ async function getUserMinigameRank(supabase, userId) {
         points: parseInt(row.points || 0, 10)
       }));
     } else {
-      // 2. ลองเรียก View
-      const { data: viewData, error: viewError } = await supabase
-        .from("minigame_leaderboard_summary")
-        .select("discord_id, wins, points");
+      // 2. ลองเรียก View (กรณีไม่ระบุ gameId)
+      if (!parsedGameId) {
+        const { data: viewData, error: viewError } = await supabase
+          .from("minigame_leaderboard_summary")
+          .select("discord_id, wins, points");
 
-      if (!viewError && viewData) {
-        sortedList = viewData.map(row => ({
-          discord_id: row.discord_id,
-          wins: parseInt(row.wins || 0, 10),
-          points: parseInt(row.points || 0, 10)
-        }));
-      } else {
+        if (!viewError && viewData) {
+          sortedList = viewData.map(row => ({
+            discord_id: row.discord_id,
+            wins: parseInt(row.wins || 0, 10),
+            points: parseInt(row.points || 0, 10)
+          }));
+        }
+      }
+
+      if (sortedList.length === 0) {
         // 3. Fallback
-        const { data, error } = await supabase
+        let query = supabase
           .from("minigame_wins")
-          .select("discord_id, points_earned")
-          .range(0, 49999);
+          .select("discord_id, points_earned");
+
+        if (parsedGameId) {
+          query = query.eq("game_id", parsedGameId);
+        }
+
+        const { data, error } = await query.range(0, 49999);
 
         if (error) return null;
 
@@ -428,6 +448,23 @@ async function generateTop3Canvas(top3Details) {
   return canvas.toBuffer("image/png");
 }
 
+const GAME_LIST = [
+  { label: "รวมทุกเกม (Overall)", value: "all", emoji: "🏆" },
+  { label: "1. เติมคำศัพท์ไทย", value: "1", emoji: "🇹🇭" },
+  { label: "2. เติมคำศัพท์ภาษาอังกฤษ", value: "2", emoji: "🇬🇧" },
+  { label: "3. สุ่มโจทย์คณิตฯ", value: "3", emoji: "🔢" },
+  { label: "4. ทายคำจากคำใบ้", value: "4", emoji: "💡" },
+  { label: "5. เรียงคำศัพท์ไทย", value: "5", emoji: "🔤" },
+  { label: "6. เรียงคำศัพท์อังกฤษ", value: "6", emoji: "🔡" },
+  { label: "7. พิมพ์คำต่อไปนี้ (ไทย)", value: "7", emoji: "⌨️" },
+  { label: "8. พิมพ์คำต่อไปนี้ (อังกฤษ)", value: "8", emoji: "⌨️" },
+  { label: "9. ทายคำแปลภาษาอังกฤษ", value: "9", emoji: "🌐" },
+  { label: "10. ทายคำแปลภาษาไทย", value: "10", emoji: "🌐" },
+  { label: "11. เกมต่อคำ", value: "11", emoji: "🔗" },
+  { label: "12. ข้อไหนไม่เข้าพวก", value: "12", emoji: "❓" },
+  { label: "13. จริงหรือเท็จ", value: "13", emoji: "✅" }
+];
+
 // ── สร้าง Component V2 Payload + รูปภาพแบนเนอร์ ───────────────
 async function buildTopLeaderboardPayload(guild, supabase) {
   const top10 = await fetchTopMinigameWins(supabase, 10);
@@ -506,6 +543,25 @@ async function buildTopLeaderboardPayload(guild, supabase) {
           {
             type: 10,
             content: contentText
+          },
+          {
+            type: 14,
+            spacing: 2
+          },
+          {
+            type: 1,
+            components: [
+              {
+                type: 3,
+                custom_id: "minigame_select_filter",
+                placeholder: "🔍 เลือกดูจัดอันดับเฉพาะรายเกม...",
+                options: GAME_LIST.map(g => ({
+                  label: g.label,
+                  value: g.value,
+                  emoji: { name: g.emoji }
+                }))
+              }
+            ]
           },
           {
             type: 14,
@@ -643,6 +699,89 @@ function setupResetTop(client, supabaseClient) {
         content: "❌ เกิดข้อผิดพลาดในการโหลดข้อมูลอันดับของคุณค่ะ",
         flags: 64
       }).catch(() => { });
+    }
+  });
+
+  // 4. Interaction: StringSelectMenu minigame_select_filter (ดูอันดับรายเกม)
+  client.on("interactionCreate", async (interaction) => {
+    if (!interaction.isStringSelectMenu()) return;
+    if (interaction.customId !== "minigame_select_filter") return;
+
+    const selectedValue = interaction.values[0];
+    const gameInfo = GAME_LIST.find(g => g.value === selectedValue) || GAME_LIST[0];
+
+    try {
+      // 1. ดึง Top 10 ของเกมที่เลือก
+      const top10 = await fetchTopMinigameWins(supabase, 10, selectedValue);
+      // 2. ดึงอันดับของผู้ใช้งานที่กดเลือก
+      const userRank = await getUserMinigameRank(supabase, interaction.user.id, selectedValue);
+
+      const pi = sharedConfig.point_icon;
+      const pointEmojiStr = pi && pi.id ? `<:${pi.name}:${pi.id}>` : `🍓`;
+
+      const rankEmojis = [
+        "<a:top_one:1150848398774247564>",
+        "<a:top_two:1150848396190568448>",
+        "<a:top_three:1150849072299769896>",
+        "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"
+      ];
+
+      const lines = [
+        `## ${gameInfo.emoji}︲__\` 𝖫𝖾𝖺𝖽𝖾𝗋𝖻𝗈𝖺𝗋𝖽 ₊ ${gameInfo.label} 𓂃 \`__\n`
+      ];
+
+      for (let i = 0; i < 10; i++) {
+        const emoji = rankEmojis[i];
+        if (i < top10.length) {
+          const item = top10[i];
+          lines.push(`${emoji} — <@${item.discord_id}> ชนะ ${item.wins} ครั้ง (${pointEmojiStr} ${item.points})`);
+        } else {
+          lines.push(`${emoji} — <@0> ชนะ 0 ครั้ง (${pointEmojiStr} 0)`);
+        }
+      }
+
+      // แสดงอันดับของผู้ใช้งานคนที่กดดู
+      lines.push("\n─────────────────────────────");
+      if (userRank && userRank.rank) {
+        const rankBadge = userRank.rank === 1 ? "🥇" : userRank.rank === 2 ? "🥈" : userRank.rank === 3 ? "🥉" : "📊";
+        lines.push(`👤 **อันดับของคุณ (<@${interaction.user.id}>) ในเกมนี้:**`);
+        lines.push(`${rankBadge} **อันดับที่ ${userRank.rank}** (จาก ${userRank.totalPlayers} คน) | ⚔️ **ชนะ ${userRank.wins} ครั้ง** (${pointEmojiStr} **${userRank.points} แต้ม**)`);
+      } else {
+        lines.push(`👤 **อันดับของคุณ (<@${interaction.user.id}>):** ยังไม่มีประวัติการชนะในเกมนี้ค่ะ 🎮`);
+      }
+
+      // ตอบกลับแบบ EPHEMERAL (flags: 64) ให้เห็นคนเดียว
+      await interaction.reply({
+        content: lines.join("\n"),
+        flags: 64
+      });
+
+      // รีเซ็ตตัวเลือกใน SelectMenu บนข้อความหลัก เพื่อให้สามารถกดเลือก Option เดิมซ้ำได้ใหม่
+      if (interaction.message) {
+        const updatedComponents = interaction.message.components.map(row => {
+          const rowJson = row.toJSON();
+          if (rowJson.type === 1 && Array.isArray(rowJson.components)) {
+            rowJson.components = rowJson.components.map(comp => {
+              if (comp.custom_id === 'minigame_select_filter') {
+                return {
+                  ...comp,
+                  options: comp.options.map(opt => ({ ...opt, default: false }))
+                };
+              }
+              return comp;
+            });
+          }
+          return rowJson;
+        });
+
+        await interaction.message.edit({ components: updatedComponents }).catch(() => {});
+      }
+    } catch (err) {
+      console.error("[resetTop] minigame_select_filter error:", err);
+      safeRespond(interaction, {
+        content: "❌ เกิดข้อผิดพลาดในการโหลดจัดอันดับรายเกมค่ะ",
+        flags: 64
+      }).catch(() => {});
     }
   });
 }

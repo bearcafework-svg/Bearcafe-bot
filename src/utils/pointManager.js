@@ -131,10 +131,49 @@ async function addPointsWithCap(supabase, member, userId, pointsDelta) {
   };
 }
 
+/**
+ * ลบแต้มผู้เล่น (สำหรับบทลงโทษตอบผิด)
+ * รองรับแต้มติดลบ (ไม่มี floor)
+ */
+async function deductPoints(supabase, userId, pointsToDeduct) {
+  const { data: row, error } = await supabase
+    .from('user_points')
+    .select('points')
+    .eq('discord_id', userId)
+    .maybeSingle();
+
+  if (error) {
+    console.error('[pointManager] deductPoints fetch error:', error.message);
+    return { deducted: 0, points: 0, error: error.message };
+  }
+
+  const currentPoints = row?.points ?? 0;
+  const newPoints = currentPoints - pointsToDeduct;
+
+  const { error: upsertErr } = await supabase.from('user_points').upsert(
+    {
+      discord_id: userId,
+      points: newPoints
+    },
+    { onConflict: 'discord_id' }
+  );
+
+  if (upsertErr) {
+    console.error('[pointManager] deductPoints upsert error:', upsertErr.message);
+    return { deducted: 0, points: currentPoints, error: upsertErr.message };
+  }
+
+  return {
+    deducted: pointsToDeduct,
+    points: newPoints
+  };
+}
+
 module.exports = {
   getTodayBangkok,
   getDailyCap,
   getMaxPoints,
   getDailyResetTimestamp,
-  addPointsWithCap
+  addPointsWithCap,
+  deductPoints
 };

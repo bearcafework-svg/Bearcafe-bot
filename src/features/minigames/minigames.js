@@ -3,7 +3,7 @@
 const { createClient } = require('@supabase/supabase-js');
 const { MessageFlags, AttachmentBuilder } = require('discord.js');
 const sharedConfig = require('../../sharedSettings.json');
-const { addPointsWithCap } = require('../../utils/pointManager');
+const { addPointsWithCap, deductPoints } = require('../../utils/pointManager');
 const { getNextQuestion, maskWord, scrambleWord } = require('./questionBank');
 const { createTextImageBuffer } = require('./canvasGenerator');
 const { setupResetTop } = require('./resetTop');
@@ -451,8 +451,16 @@ function setupMinigames(client) {
       const isCorrect = String(selectedChoice).trim().toLowerCase() === String(questionData.answer).trim().toLowerCase();
 
       if (!isCorrect) {
+        const userId = interaction.user.id;
+        const penalty = Math.floor(Math.random() * 11) + 5; // 5-15
+        if (supabase) {
+          deductPoints(supabase, userId, penalty).catch(err => {
+            console.error('[minigames] deductPoints error:', err.message);
+          });
+        }
+
         return interaction.reply({
-          content: '❌ คำตอบยังไม่ถูกต้องนะคะ ลองใหม่อีกครั้งค่ะ!',
+          content: `❌ คำตอบไม่ถูกต้องค่ะ! ถูกหักแต้ม **${penalty} แต้ม** 🔻`,
           flags: FLAG_EPHEMERAL
         });
       }
@@ -555,6 +563,20 @@ function setupMinigames(client) {
     if (!isCorrect) {
       // Delete wrong text message asynchronously
       message.delete().catch(() => {});
+
+      const userId = message.author.id;
+      const penalty = Math.floor(Math.random() * 11) + 5; // 5-15
+      if (supabase) {
+        deductPoints(supabase, userId, penalty).catch(err => {
+          console.error('[minigames] deductPoints error (text game):', err.message);
+        });
+      }
+
+      // Send penalty notice (auto-delete after 5s)
+      const penaltyMsg = await message.channel.send({
+        content: `${message.author} ❌ ตอบผิดค่ะ! ถูกหักแต้ม **${penalty} แต้ม** 🔻`
+      });
+      setTimeout(() => penaltyMsg.delete().catch(() => {}), 5000);
       return;
     }
 

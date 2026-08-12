@@ -353,13 +353,17 @@ async function sendNextGameQuestion(client, supabase, channelOrId, gameId, retri
 
     // Record active session in Supabase DB for crash/restart recovery
     if (supabase) {
-      await supabase.from('minigame_active_sessions').upsert({
-        channel_id: channelId,
-        game_id: gameId,
-        current_question: questionData,
-        message_id: sentMsg.id,
-        updated_at: new Date().toISOString()
-      }).catch(err => console.error('[minigames] Error saving active session to DB:', err.message));
+      try {
+        await supabase.from('minigame_active_sessions').upsert({
+          channel_id: channelId,
+          game_id: gameId,
+          current_question: questionData,
+          message_id: sentMsg.id,
+          updated_at: new Date().toISOString()
+        });
+      } catch (err) {
+        console.error('[minigames] Error saving active session to DB:', err.message);
+      }
     }
   } catch (err) {
     console.error(`[minigames] Error sending question for Game ${gameId}:`, err.message);

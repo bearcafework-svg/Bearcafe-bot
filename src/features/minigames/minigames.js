@@ -355,6 +355,37 @@ async function sendNextGameQuestion(client, supabase, channelOrId, gameId) {
 }
 
 /**
+ * Synchronizes GAME_CHANNELS mapping with Supabase `minigame_settings` table
+ */
+async function syncGameSettings(supabase) {
+  if (!supabase) return;
+  try {
+    const { data, error } = await supabase
+      .from('minigame_settings')
+      .select('game_id, game_name, channel_id');
+
+    if (error) {
+      console.error('[minigames] Failed to sync minigame_settings from DB:', error.message);
+      return;
+    }
+
+    if (data && data.length > 0) {
+      for (const row of data) {
+        if (row.game_id && row.channel_id) {
+          GAME_CHANNELS[row.game_id] = {
+            id: String(row.channel_id).trim(),
+            name: row.game_name ? String(row.game_name).trim() : (GAME_CHANNELS[row.game_id]?.name || `เกมที่ ${row.game_id}`)
+          };
+        }
+      }
+      console.log(`[minigames] ✅ Synced ${data.length} game settings from Supabase minigame_settings.`);
+    }
+  } catch (err) {
+    console.error('[minigames] Error syncing minigame_settings:', err.message);
+  }
+}
+
+/**
  * Main feature setup
  */
 function setupMinigames(client) {
@@ -369,10 +400,13 @@ function setupMinigames(client) {
 
   // Restore active sessions and register /เปิดเกม command on ready
   client.once('clientReady', async () => {
-    // 1. Restore active game sessions from Supabase Database
+    // 1. Sync GAME_CHANNELS mapping with Supabase minigame_settings table
+    await syncGameSettings(supabase);
+
+    // 2. Restore active game sessions from Supabase Database
     await restoreActiveSessions(supabase);
 
-    // 2. Register slash command
+    // 3. Register slash command /เปิดเกม
     try {
       const guild = client.guilds.cache.get('1144251788493602848');
       if (guild) {
@@ -382,7 +416,7 @@ function setupMinigames(client) {
           options: [
             {
               name: 'เกม',
-              description: 'เลือกชื่อมินิเกม 1-10',
+              description: 'เลือกชื่อมินิเกม 1-13',
               type: 4, // INTEGER
               required: true,
               choices: Object.entries(GAME_CHANNELS).map(([id, info]) => ({

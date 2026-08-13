@@ -15,6 +15,7 @@ const FLAG_V2_EPH = FLAG_V2 | FLAG_EPHEMERAL;
 
 const STAFF_ROLE_ID = "1144701361448038512";
 const ALLOWED_CHANNELS = ["1524123194653671464", "1524124043022831717"];
+const messageLocks = new Set();
 
 const PERIOD_LABELS = {
   "uA21LdmKiE": "ตลอดทั้งวัน",
@@ -176,22 +177,40 @@ function formatLogLine(log) {
  * @returns {Array}
  */
 function getDisabledComponents(components) {
-  return components.map(section => {
+  // แปลงโครงสร้าง ActionRow/Components ของ discord.js ให้เป็น plain JSON object
+  const raw = JSON.parse(JSON.stringify(components));
+
+  return raw.map(section => {
     if (section.type === 17) {
       return {
-        ...section,
+        type: 17,
         components: section.components.map(comp => {
           if (comp.type === 1) { // Action Row
             return {
-              ...comp,
+              type: 1,
               components: comp.components.map(innerComp => ({
                 ...innerComp,
                 disabled: true
               }))
             };
           }
+          if (comp.type === 3) { // String Select Menu
+            return {
+              ...comp,
+              disabled: true
+            };
+          }
           return comp;
         })
+      };
+    }
+    if (section.type === 1) { // Root Action Row (ถ้ามี)
+      return {
+        type: 1,
+        components: section.components.map(comp => ({
+          ...comp,
+          disabled: true
+        }))
       };
     }
     return section;
@@ -472,51 +491,62 @@ function setupVoiceHistory(client) {
       const period = parts[3];
       const currentPage = parseInt(parts[4], 10);
 
-      const supabase = getSupabase();
-      if (!supabase) return;
-
-      // ปิดสถานะปุ่ม (Disable) ป้องกันคนกดซ้ำซ้อน
-      const disabledComponents = getDisabledComponents(interaction.message.components);
-      await interaction.update({ components: disabledComponents });
-
-      // ดึงข้อมูลใหม่
-      const { start, end } = getTodayRangeUTC7();
-      const { data: retrievedLogs, error } = await supabase
-        .from("voice_logs")
-        .select("*")
-        .eq("user_id", targetUserId)
-        .gte("timestamp", start)
-        .lte("timestamp", end);
-
-      if (error) {
-        console.error("[voiceHistory] Supabase fetch error during pagination:", error.message);
-        return interaction.editReply({ content: "❌ ไม่สามารถเปลี่ยนหน้าได้เนื่องจากฐานข้อมูลขัดข้อง" });
+      if (messageLocks.has(interaction.message.id)) {
+        return; // ป้องกันการกดเบิ้ลที่ตัวบอท
       }
+      messageLocks.add(interaction.message.id);
 
-      // กรองและคำนวณจำนวนหน้า
-      const filteredLogs = filterLogsByPeriod(retrievedLogs || [], period);
-      const ITEMS_PER_PAGE = 10;
-      const totalPages = Math.max(1, Math.ceil(filteredLogs.length / ITEMS_PER_PAGE));
-
-      let newPage = currentPage;
-      if (action === "prev") newPage = Math.max(1, currentPage - 1);
-      if (action === "next") newPage = Math.min(totalPages, currentPage + 1);
-      if (action === "first") newPage = 1;
-      if (action === "last") newPage = totalPages;
-
-      const targetUser = await interaction.client.users.fetch(targetUserId).catch(() => null);
-      if (!targetUser) return;
-      
-      let targetMember = null;
       try {
-        targetMember = await interaction.guild.members.fetch(targetUserId).catch(() => null);
-      } catch (e) {
-        // ignore
-      }
-      targetUser.member = targetMember;
+        const supabase = getSupabase();
+        if (!supabase) return;
 
-      const payload = buildVoiceHistoryPayload(targetUser, retrievedLogs || [], period, newPage);
-      return interaction.editReply(payload);
+        // ปิดสถานะปุ่ม (Disable) ป้องกันคนกดซ้ำซ้อน
+        const disabledComponents = getDisabledComponents(interaction.message.components);
+        await interaction.update({ components: disabledComponents });
+
+        // ดึงข้อมูลใหม่
+        const { start, end } = getTodayRangeUTC7();
+        const { data: retrievedLogs, error } = await supabase
+          .from("voice_logs")
+          .select("*")
+          .eq("user_id", targetUserId)
+          .gte("timestamp", start)
+          .lte("timestamp", end);
+
+        if (error) {
+          console.error("[voiceHistory] Supabase fetch error during pagination:", error.message);
+          return interaction.editReply({ content: "❌ ไม่สามารถเปลี่ยนหน้าได้เนื่องจากฐานข้อมูลขัดข้อง" });
+        }
+
+        // กรองและคำนวณจำนวนหน้า
+        const filteredLogs = filterLogsByPeriod(retrievedLogs || [], period);
+        const ITEMS_PER_PAGE = 10;
+        const totalPages = Math.max(1, Math.ceil(filteredLogs.length / ITEMS_PER_PAGE));
+
+        let newPage = currentPage;
+        if (action === "prev") newPage = Math.max(1, currentPage - 1);
+        if (action === "next") newPage = Math.min(totalPages, currentPage + 1);
+        if (action === "first") newPage = 1;
+        if (action === "last") newPage = totalPages;
+
+        const targetUser = await interaction.client.users.fetch(targetUserId).catch(() => null);
+        if (!targetUser) return;
+        
+        let targetMember = null;
+        try {
+          targetMember = await interaction.guild.members.fetch(targetUserId).catch(() => null);
+        } catch (e) {
+          // ignore
+        }
+        targetUser.member = targetMember;
+
+        const payload = buildVoiceHistoryPayload(targetUser, retrievedLogs || [], period, newPage);
+        await interaction.editReply(payload);
+      } catch (err) {
+        console.error("[voiceHistory] Error handling button interaction:", err.message);
+      } finally {
+        messageLocks.delete(interaction.message.id);
+      }
     }
 
     // ── 2.3 จัดการเมนูเลือกช่วงเวลา (Dropdown Menu) ──────────────────────
@@ -532,40 +562,51 @@ function setupVoiceHistory(client) {
       const targetUserId = parts[1];
       const selectedPeriod = interaction.values[0];
 
-      const supabase = getSupabase();
-      if (!supabase) return;
-
-      // ปิดปุ่มทั้งหมดชั่วคราว
-      const disabledComponents = getDisabledComponents(interaction.message.components);
-      await interaction.update({ components: disabledComponents });
-
-      // ดึงข้อมูล
-      const { start, end } = getTodayRangeUTC7();
-      const { data: retrievedLogs, error } = await supabase
-        .from("voice_logs")
-        .select("*")
-        .eq("user_id", targetUserId)
-        .gte("timestamp", start)
-        .lte("timestamp", end);
-
-      if (error) {
-        console.error("[voiceHistory] Supabase fetch error during dropdown switch:", error.message);
-        return interaction.editReply({ content: "❌ ไม่สามารถแสดงประวัติได้เนื่องจากฐานข้อมูลขัดข้อง" });
+      if (messageLocks.has(interaction.message.id)) {
+        return; // ป้องกันการกดเบิ้ลที่ตัวบอท
       }
+      messageLocks.add(interaction.message.id);
 
-      const targetUser = await interaction.client.users.fetch(targetUserId).catch(() => null);
-      if (!targetUser) return;
-
-      let targetMember = null;
       try {
-        targetMember = await interaction.guild.members.fetch(targetUserId).catch(() => null);
-      } catch (e) {
-        // ignore
-      }
-      targetUser.member = targetMember;
+        const supabase = getSupabase();
+        if (!supabase) return;
 
-      const payload = buildVoiceHistoryPayload(targetUser, retrievedLogs || [], selectedPeriod, 1);
-      return interaction.editReply(payload);
+        // ปิดปุ่มทั้งหมดชั่วคราว
+        const disabledComponents = getDisabledComponents(interaction.message.components);
+        await interaction.update({ components: disabledComponents });
+
+        // ดึงข้อมูล
+        const { start, end } = getTodayRangeUTC7();
+        const { data: retrievedLogs, error } = await supabase
+          .from("voice_logs")
+          .select("*")
+          .eq("user_id", targetUserId)
+          .gte("timestamp", start)
+          .lte("timestamp", end);
+
+        if (error) {
+          console.error("[voiceHistory] Supabase fetch error during dropdown switch:", error.message);
+          return interaction.editReply({ content: "❌ ไม่สามารถแสดงประวัติได้เนื่องจากฐานข้อมูลขัดข้อง" });
+        }
+
+        const targetUser = await interaction.client.users.fetch(targetUserId).catch(() => null);
+        if (!targetUser) return;
+
+        let targetMember = null;
+        try {
+          targetMember = await interaction.guild.members.fetch(targetUserId).catch(() => null);
+        } catch (e) {
+          // ignore
+        }
+        targetUser.member = targetMember;
+
+        const payload = buildVoiceHistoryPayload(targetUser, retrievedLogs || [], selectedPeriod, 1);
+        await interaction.editReply(payload);
+      } catch (err) {
+        console.error("[voiceHistory] Error handling select menu interaction:", err.message);
+      } finally {
+        messageLocks.delete(interaction.message.id);
+      }
     }
   });
 

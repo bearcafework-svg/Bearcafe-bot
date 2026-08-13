@@ -144,6 +144,7 @@ async function releaseLock(lock) {
 }
 
 module.exports = {
+  getRedis,
   saveRoom,
   getRoom,
   updateRoom,

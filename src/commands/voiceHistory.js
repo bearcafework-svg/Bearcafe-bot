@@ -38,24 +38,23 @@ function getSupabase() {
  */
 function getTodayRangeUTC7() {
   const now = new Date();
-  const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-  const tzOffset = 7 * 60 * 60000; // UTC+7 offset
-  const localTime = new Date(utc + tzOffset);
+  const utcTime = now.getTime() + (now.getTimezoneOffset() * 60000);
+  const localTime = new Date(utcTime + (7 * 60 * 60000));
 
-  const startOfDay = new Date(localTime.getFullYear(), localTime.getMonth(), localTime.getDate(), 0, 0, 0, 0);
-  const endOfDay = new Date(localTime.getFullYear(), localTime.getMonth(), localTime.getDate(), 23, 59, 59, 999);
+  const yyyy = localTime.getFullYear();
+  const mm = String(localTime.getMonth() + 1).padStart(2, '0');
+  const dd = String(localTime.getDate()).padStart(2, '0');
 
-  const startUTC = new Date(startOfDay.getTime() - tzOffset);
-  const endUTC = new Date(endOfDay.getTime() - tzOffset);
+  const startISO = `${yyyy}-${mm}-${dd}T00:00:00+07:00`;
+  const endISO = `${yyyy}-${mm}-${dd}T23:59:59.999+07:00`;
 
   const THAI_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
   const day = localTime.getDate();
   const month = localTime.getMonth();
-  const year = localTime.getFullYear();
-  const thaiYear = (year + 543) % 100;
+  const thaiYear = (yyyy + 543) % 100;
   const dateStr = `${day} ${THAI_MONTHS[month]} ${thaiYear}`;
 
-  return { start: startUTC.toISOString(), end: endUTC.toISOString(), dateStr };
+  return { start: startISO, end: endISO, dateStr };
 }
 
 /**
@@ -100,9 +99,8 @@ function filterLogsByPeriod(logs, period) {
 
   return logs.filter(log => {
     const date = new Date(log.timestamp);
-    const utc = date.getTime() + (date.getTimezoneOffset() * 60000);
-    const localTime = new Date(utc + (7 * 60 * 60000));
-    const hour = localTime.getHours();
+    const thailandTime = new Date(date.getTime() + (7 * 60 * 60000));
+    const hour = thailandTime.getUTCHours();
     return hour >= range.start && hour <= range.end;
   });
 }
@@ -157,10 +155,9 @@ function calculateTotalDuration(logs, member) {
  */
 function formatLogLine(log) {
   const date = new Date(log.timestamp);
-  const utc = date.getTime() + (date.getTimezoneOffset() * 60000);
-  const localTime = new Date(utc + (7 * 60 * 60000));
-  const hh = String(localTime.getHours()).padStart(2, '0');
-  const mm = String(localTime.getMinutes()).padStart(2, '0');
+  const thailandTime = new Date(date.getTime() + (7 * 60 * 60000));
+  const hh = String(thailandTime.getUTCHours()).padStart(2, '0');
+  const mm = String(thailandTime.getUTCMinutes()).padStart(2, '0');
   const timeStr = `${hh}:${mm} น.`;
 
   if (log.event_type === "join") {

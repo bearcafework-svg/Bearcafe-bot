@@ -191,9 +191,9 @@ async function completeVerification(interaction) {
     // 0. Defer interaction immediately to prevent 3-second token expiration (10062 Unknown interaction)
     if (!interaction.deferred && !interaction.replied) {
       if (interaction.isModalSubmit()) {
-        await interaction.deferReply({ flags: 32768 | 64 }).catch(() => {});
+        await interaction.deferReply({ flags: 32768 | 64 }).catch(() => { });
       } else {
-        await interaction.deferUpdate().catch(() => {});
+        await interaction.deferUpdate().catch(() => { });
       }
     }
 
@@ -284,13 +284,13 @@ async function completeVerification(interaction) {
 
     if (interaction.deferred || interaction.replied) {
       await interaction.editReply(successPayload).catch(async () => {
-        await interaction.followUp(successPayload).catch(() => {});
+        await interaction.followUp(successPayload).catch(() => { });
       });
     } else {
       if (interaction.isModalSubmit()) {
-        await interaction.reply(successPayload).catch(() => {});
+        await interaction.reply(successPayload).catch(() => { });
       } else {
-        await interaction.update(successPayload).catch(() => {});
+        await interaction.update(successPayload).catch(() => { });
       }
     }
 
@@ -300,9 +300,9 @@ async function completeVerification(interaction) {
     }
     const errText = "❌ เกิดข้อผิดพลาดระหว่างการรับยศลงทะเบียน กรุณาติดต่อผู้ดูแลระบบค่ะ";
     if (interaction.deferred || interaction.replied) {
-      await interaction.editReply({ content: errText, flags: 64 }).catch(() => {});
+      await interaction.editReply({ content: errText, flags: 64 }).catch(() => { });
     } else {
-      await interaction.reply({ content: errText, flags: 64 }).catch(() => {});
+      await interaction.reply({ content: errText, flags: 64 }).catch(() => { });
     }
   }
 }
@@ -557,14 +557,14 @@ function setupVerification(client) {
     }
   });
 
-function prepareNotesForModal(notes) {
-  if (!notes) return "";
-  let trimmed = notes.trim();
-  if (trimmed.length <= 100) return trimmed;
-  let sliced = trimmed.slice(0, 100);
-  sliced = sliced.replace(/<a?:?[a-zA-Z0-9_]*$/, "").trim();
-  return sliced;
-}
+  function prepareNotesForModal(notes) {
+    if (!notes) return "";
+    let trimmed = notes.trim();
+    if (trimmed.length <= 100) return trimmed;
+    let sliced = trimmed.slice(0, 100);
+    sliced = sliced.replace(/<a?:?[a-zA-Z0-9_]*$/, "").trim();
+    return sliced;
+  }
 
   // ── 3. Event: interactionCreate (Buttons, Select Menus, Modals) ───────
   client.on(Events.InteractionCreate, async (interaction) => {
@@ -837,7 +837,7 @@ function prepareNotesForModal(notes) {
                 },
                 {
                   type: 10,
-                  content: "## <:bee20000:1256669436350562355>︲__` 𝖭𝗈𝗍𝗂𝖿𝗂𝖼𝖺𝗍𝗂𝗈𝗇𝗌 ₊ เลือกการแจ้งเตือนที่ต้องการ 𓂃 `__\n-# เลือกรับการแจ้งเตือนเฉพาะหัวข้อที่คุณสนใจ เพื่อไม่ให้พลาดข่าวสารสำคัญและลดการแจ้งเตือนที่ไม่จำเป็น <:cuteplant:1152834055528783872>\n"
+                  content: "## <:bee20000:1256669436350562355>︲__` 𝖭𝗈𝗍𝗂𝖿𝗂𝖼𝖺𝗍𝗂𝗈𝗇𝗌 ₊ เลือกการแจ้งเตือนที่ต้องการ 𓂃 `__\n-# เลือกรับการแจ้งเตือนเฉพาะหัวข้อที่คุณสนใจ เพื่อไม่ให้พลาดข่าวสารสำคัญและช่วยลดการแจ้งเตือนที่ไม่จำเป็น โดยบอทจะส่งข่าวสารผ่านข้อความส่วนตัว (DM) ให้คุณโดยตรง ทั้งนี้ คุณสามารถยกเลิกหรือเปลี่ยนแปลงหัวข้อการแจ้งเตือนได้ทุกเมื่อ ตามความต้องการของคุณ <:cuteplant:1152834055528783872>\n"
                 },
                 {
                   type: 14,

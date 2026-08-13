@@ -200,16 +200,35 @@ async function handleRentHousePanelInteraction(interaction) {
   const channel = interaction.channel;
   if (!channel || channel.parentId !== RENT_HOUSE_CATEGORY_ID) return false;
 
+  // ตรวจสอบว่าเป็น Interaction ของระบบบ้านเช่าจริง
+  const isRentHouseCustomId = customId === RENT_CUSTOM_IDS.panelSelect || customId.startsWith("rh_");
+  if (!isRentHouseCustomId) return false;
+
+  // ตรวจสอบสิทธิ์เจ้าของห้องสำหรับทุกปุ่ม/เมนู/มอดัล
+  const isOwner = await isRentHouseOwner(channel, interaction.user.id);
+  if (!isOwner) {
+    if (interaction.isModalSubmit()) {
+      return await interaction.reply({
+        content: "❌ ขออภัยค่ะ เฉพาะเจ้าของบ้านเช่าหลังนี้เท่านั้นที่สามารถตั้งค่าและจัดการห้องได้นะคะ",
+        flags: 64
+      });
+    }
+
+    if (interaction.isStringSelectMenu() && customId === RENT_CUSTOM_IDS.panelSelect) {
+      await interaction.update(createRentHousePanelPayload(interaction.member)).catch(() => {});
+    } else {
+      await interaction.deferUpdate().catch(() => {});
+    }
+
+    return await interaction.followUp({
+      ...createV2CardResponse("การเข้าถึงถูกปฏิเสธ", "> ❌ ขออภัยค่ะ เฉพาะเจ้าของบ้านเช่าหลังนี้เท่านั้นที่สามารถใช้งานแผงควบคุมได้ค่ะ", "🔒"),
+      flags: 64
+    });
+  }
+
   // 1. Select Menu หลักของแผงควบคุมบ้านเช่า
   if (interaction.isStringSelectMenu() && customId === RENT_CUSTOM_IDS.panelSelect) {
     const selected = interaction.values[0];
-
-    // ตรวจสอบสิทธิ์เจ้าของห้อง
-    const isOwner = await isRentHouseOwner(channel, interaction.user.id);
-    if (!isOwner) {
-      await interaction.update(createRentHousePanelPayload(interaction.member)).catch(() => {});
-      return await sendInteractionResponse(interaction, createV2CardResponse("การเข้าถึงถูกปฏิเสธ", "> ❌ ขออภัยค่ะ เฉพาะเจ้าของบ้านเช่าหลังนี้เท่านั้นที่สามารถใช้งานแผงควบคุมได้ค่ะ", "🔒"));
-    }
 
     if (selected === "rh_opt_name") {
       const res = await showRentNameModal(interaction);

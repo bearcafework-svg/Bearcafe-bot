@@ -220,7 +220,7 @@ function getDisabledComponents(components) {
 /**
  * สร้าง payload Component V2 ทั้งหมดเพื่อส่งหรืออัปเดตข้อความ
  */
-function buildVoiceHistoryPayload(targetUser, retrievedLogs, period, page) {
+function buildVoiceHistoryPayload(targetUser, retrievedLogs, period, page, callerId) {
   const createdTimestamp = Math.floor(targetUser.createdTimestamp / 1000);
   
   const profileContent = 
@@ -319,7 +319,7 @@ function buildVoiceHistoryPayload(targetUser, retrievedLogs, period, page) {
                 type: 3,
                 options: selectOptions,
                 placeholder: "⏰︲เลือกช่วงเวลาที่ต้องการดู",
-                custom_id: `vh_sel:${targetUser.id}`,
+                custom_id: `vh_sel:${targetUser.id}:${callerId}`,
                 min_values: 1,
                 max_values: 1
               }
@@ -331,28 +331,28 @@ function buildVoiceHistoryPayload(targetUser, retrievedLogs, period, page) {
               {
                 style: 2,
                 type: 2,
-                custom_id: `vh_btn:prev:${targetUser.id}:${period}:${currentPage}`,
+                custom_id: `vh_btn:prev:${targetUser.id}:${period}:${currentPage}:${callerId}`,
                 emoji: { name: "⬅️" },
                 disabled: currentPage <= 1
               },
               {
                 style: 2,
                 type: 2,
-                custom_id: `vh_btn:next:${targetUser.id}:${period}:${currentPage}`,
+                custom_id: `vh_btn:next:${targetUser.id}:${period}:${currentPage}:${callerId}`,
                 emoji: { name: "➡️" },
                 disabled: currentPage >= totalPages
               },
               {
                 style: 2,
                 type: 2,
-                custom_id: `vh_btn:first:${targetUser.id}:${period}:${currentPage}`,
+                custom_id: `vh_btn:first:${targetUser.id}:${period}:${currentPage}:${callerId}`,
                 label: "หน้าแรก",
                 disabled: currentPage <= 1
               },
               {
                 style: 2,
                 type: 2,
-                custom_id: `vh_btn:last:${targetUser.id}:${period}:${currentPage}`,
+                custom_id: `vh_btn:last:${targetUser.id}:${period}:${currentPage}:${callerId}`,
                 label: "หน้าสุดท้าย",
                 disabled: currentPage >= totalPages
               }
@@ -472,7 +472,7 @@ function setupVoiceHistory(client) {
       }
       targetUser.member = targetMember;
 
-      const payload = buildVoiceHistoryPayload(targetUser, retrievedLogs || [], "uA21LdmKiE", 1);
+      const payload = buildVoiceHistoryPayload(targetUser, retrievedLogs || [], "uA21LdmKiE", 1, interaction.user.id);
       return interaction.editReply(payload);
     }
 
@@ -490,6 +490,15 @@ function setupVoiceHistory(client) {
       const targetUserId = parts[2];
       const period = parts[3];
       const currentPage = parseInt(parts[4], 10);
+      const callerId = parts[5];
+
+      // ตรวจสอบว่าผู้กดปุ่มคือคนที่รันคำสั่งจริง
+      if (interaction.user.id !== callerId) {
+        return interaction.reply({
+          content: "❌ ขออภัยค่ะ เฉพาะผู้ที่รันคำสั่งนี้เท่านั้นที่สามารถกดใช้งานปุ่มได้นะคะ",
+          flags: FLAG_EPHEMERAL
+        });
+      }
 
       if (messageLocks.has(interaction.message.id)) {
         return; // ป้องกันการกดเบิ้ลที่ตัวบอท
@@ -540,7 +549,7 @@ function setupVoiceHistory(client) {
         }
         targetUser.member = targetMember;
 
-        const payload = buildVoiceHistoryPayload(targetUser, retrievedLogs || [], period, newPage);
+        const payload = buildVoiceHistoryPayload(targetUser, retrievedLogs || [], period, newPage, callerId);
         await interaction.editReply(payload);
       } catch (err) {
         console.error("[voiceHistory] Error handling button interaction:", err.message);
@@ -560,7 +569,16 @@ function setupVoiceHistory(client) {
 
       const parts = interaction.customId.split(":");
       const targetUserId = parts[1];
+      const callerId = parts[2];
       const selectedPeriod = interaction.values[0];
+
+      // ตรวจสอบว่าผู้เลือกช่วงเวลาคือคนที่รันคำสั่งจริง
+      if (interaction.user.id !== callerId) {
+        return interaction.reply({
+          content: "❌ ขออภัยค่ะ เฉพาะผู้ที่รันคำสั่งนี้เท่านั้นที่สามารถเลือกช่วงเวลาได้นะคะ",
+          flags: FLAG_EPHEMERAL
+        });
+      }
 
       if (messageLocks.has(interaction.message.id)) {
         return; // ป้องกันการกดเบิ้ลที่ตัวบอท
@@ -600,7 +618,7 @@ function setupVoiceHistory(client) {
         }
         targetUser.member = targetMember;
 
-        const payload = buildVoiceHistoryPayload(targetUser, retrievedLogs || [], selectedPeriod, 1);
+        const payload = buildVoiceHistoryPayload(targetUser, retrievedLogs || [], selectedPeriod, 1, callerId);
         await interaction.editReply(payload);
       } catch (err) {
         console.error("[voiceHistory] Error handling select menu interaction:", err.message);

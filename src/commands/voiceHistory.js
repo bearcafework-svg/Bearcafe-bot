@@ -264,7 +264,7 @@ function buildVoiceHistoryPayload(targetUser, retrievedLogs, period, page) {
   const avatarUrl = targetUser.displayAvatarURL({ extension: "png", size: 256 }) || targetUser.defaultAvatarURL;
 
   return {
-    flags: FLAG_V2_EPH, // แสดงข้อความแบบ Ephemeral (เห็นคนเดียว)
+    flags: FLAG_V2, // ไม่เป็น Ephemeral ตามที่ลูกค้าต้องการ
     components: [
       {
         type: 17,
@@ -426,7 +426,7 @@ function setupVoiceHistory(client) {
       const targetUser = interaction.options.getUser("user") || interaction.user;
 
       // ส่ง Defer Reply ไว้ก่อนเนื่องจากต้องมีการเรียก DB
-      await interaction.deferReply({ flags: FLAG_EPHEMERAL });
+      await interaction.deferReply();
 
       // บันทึก Cooldown
       if (!isExemptFromCooldown(interaction)) {

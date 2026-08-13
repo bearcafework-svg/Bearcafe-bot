@@ -1173,9 +1173,11 @@ async function runCrashRecovery(client) {
     const persistedChannelIds = new Set();
     let restored = 0;
 
+    const { isIgnoredGuild } = require("../../../utils/guildFilter");
+
     for (const row of persistedRooms) {
       const guild = client.guilds.cache.get(row.guild_id);
-      if (!guild) continue;
+      if (!guild || isIgnoredGuild(guild.id)) continue;
 
       const ch = await guild.channels.fetch(row.channel_id).catch(() => null);
       if (!ch || ch.parentId !== SECRET_CHAT_CATEGORY_ID) {
@@ -1209,6 +1211,7 @@ async function runCrashRecovery(client) {
     let purged = 0;
     let preserved = 0;
     for (const guild of client.guilds.cache.values()) {
+      if (isIgnoredGuild(guild.id)) continue;
       await guild.channels.fetch().catch(() => { });
       const category = guild.channels.cache.get(SECRET_CHAT_CATEGORY_ID);
       if (!category) continue;

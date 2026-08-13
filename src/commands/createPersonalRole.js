@@ -126,8 +126,9 @@ function setupCreatePersonalRole(client) {
   // 1. ลงทะเบียน Slash Command เมื่อบอทพร้อม
   client.once("clientReady", async () => {
     try {
+      const { getValidGuild } = require("../../utils/guildFilter");
       const guildId = process.env.GUILD_ID || "1144251788493602848";
-      const guild = client.guilds.cache.get(guildId) || client.guilds.cache.first();
+      const guild = getValidGuild(client, guildId);
 
       if (guild) {
         await guild.commands.create({

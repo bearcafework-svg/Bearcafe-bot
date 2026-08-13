@@ -8,6 +8,7 @@ const { markRoomActive, destroyRoom } = require("../handlers/roomDestroyer");
 const { getAllRooms, deleteRoom } = require("../state/redisClient");
 const { sendRoomLog } = require("../utils/roomLogger");
 const { sendRentHousePanel, isRentHouseOwner, RENT_HOUSE_CATEGORY_ID } = require("../handlers/rentHousePanel");
+const { logVoiceEvent } = require("../utils/voiceLogger");
 
 module.exports = {
   name: "voiceStateUpdate",
@@ -15,6 +16,9 @@ module.exports = {
   async execute(oldState, newState) {
     const member = newState.member || oldState.member;
     if (!member || member.user.bot) return; // ไม่สนใจบอท
+
+    // บันทึกประวัติห้องเสียงลง Redis Buffer Queue
+    logVoiceEvent(oldState, newState).catch(console.error);
 
     const guild = newState.guild || oldState.guild;
     const joinedChannel = newState.channelId; // ช่องที่เข้ามาใหม่

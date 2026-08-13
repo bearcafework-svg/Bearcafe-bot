@@ -141,8 +141,11 @@ function setupVoicePoints(client) {
     }
   }
 
+  const { isIgnoredGuild } = require("../../utils/guildFilter");
+
   client.once("clientReady", async () => {
     for (const guild of client.guilds.cache.values()) {
+      if (isIgnoredGuild(guild.id)) continue;
       await trackJoinState(guild);
     }
   });
@@ -150,6 +153,7 @@ function setupVoicePoints(client) {
   setInterval(async () => {
     if (!client.isReady()) return;
     for (const guild of client.guilds.cache.values()) {
+      if (isIgnoredGuild(guild.id)) continue;
       await trackJoinState(guild);
     }
   }, HEARTBEAT_INTERVAL_MS);

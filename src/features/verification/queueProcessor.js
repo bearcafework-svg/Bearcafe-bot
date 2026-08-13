@@ -231,8 +231,9 @@ async function initializeQueue(queue, client, supabase) {
 
     // Fetch targets based on target type
     if (queue.target_type === "all") {
+      const { getValidGuild } = require("../../../utils/guildFilter");
       const guildId = process.env.GUILD_ID || "1144251788493602848";
-      const guild = client.guilds.cache.get(guildId) || client.guilds.cache.first();
+      const guild = getValidGuild(client, guildId);
       
       if (!guild) {
         throw new Error("Guild not found in bot cache.");

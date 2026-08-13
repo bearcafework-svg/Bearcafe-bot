@@ -17,6 +17,7 @@ const { getAllRooms, getAllSeparators } = require("./state/redisClient");
 const { syncAllSeparators } = require("./utils/separatorManager");
 const logger = require("./utils/logger");
 const config = require("./config");
+const { startVoiceLogWorker } = require("./utils/voiceLogWorker");
 
 const isLocalFastStart = process.env.LOCAL_FAST_START === "true";
 const supabaseEnvKeys = ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"];
@@ -38,6 +39,9 @@ const client = new Client({
   ],
 });
 client.setMaxListeners(30);
+
+const { setupGuildFilter, getValidGuild } = require("./utils/guildFilter");
+setupGuildFilter(client);
 
 setupFeature("secretChat", "./src/features/secretChat", "setupSecretChat", supabaseEnvKeys);
 setupFeature("donate", "./src/features/donate", "setupDonate", supabaseEnvKeys);
@@ -66,6 +70,8 @@ setupFeature("boostNotification", "./src/features/boostNotification", "setupBoos
 setupFeature("stickyPanels", "./src/features/stickyPanels", "setupStickyPanels", supabaseEnvKeys);
 setupFeature("bees", "./src/bees", "setupBees", supabaseEnvKeys);
 setupFeature("minigames", "./src/features/minigames/minigames", "setupMinigames", supabaseEnvKeys);
+setupFeature("healJai", "./src/features/healJai", "setupHealJai", supabaseEnvKeys);
+setupFeature("voiceHistory", "./src/commands/voiceHistory", "setupVoiceHistory", supabaseEnvKeys);
 
 
 
@@ -114,6 +120,9 @@ client.once("clientReady", async () => {
 
   // เริ่ม monitor loop
   startMonitor(client);
+
+  // เริ่มต้นทำงาน Voice Log Worker ดึงประวัติจาก Redis ลง Supabase
+  startVoiceLogWorker().catch((e) => console.error("Voice Log Worker failed to start:", e.message));
 });
 
 // ── Startup Cleanup ────────────────────────────────────────────────
@@ -161,8 +170,8 @@ async function startupCleanup() {
     // sync separator ทุกโซนหลัง cleanup
     const remainingRooms = await getAllRooms();
 
-    // หา guild แรกที่บอทอยู่
-    const guild = client.guilds.cache.first();
+    // หา guild แรกที่บอทอยู่ (ที่ไม่ถูกปฏิเสธ)
+    const guild = getValidGuild(client);
     if (guild) {
       await syncAllSeparators(guild, remainingRooms);
     }
@@ -237,11 +246,7 @@ http
 // ── อัปเดตสถานะบอท Streaming ──────────────────────────────────────────
 async function updateBotPresence(client) {
   try {
-    const guildId = process.env.GUILD_ID || "1144251788493602848";
-    let guild = client.guilds.cache.get(guildId);
-    if (!guild) {
-      guild = client.guilds.cache.first();
-    }
+    const guild = getValidGuild(client);
 
     if (!guild) {
       console.warn(`[presence] No guilds found in client cache yet.`);

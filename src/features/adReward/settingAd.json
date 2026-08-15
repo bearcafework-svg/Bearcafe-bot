@@ -1,5 +1,6 @@
 {
-  "lootlabs_link_template": "https://lootlabs.gg/ad-demo",
+  "target_destination_url": "https://discord.gg/1144251788493602848",
+  "lootlabs_link_template": "https://lootlabs.gg/s?fallback-link",
   "cooldown_ms": 3600000,
   "max_per_day": 3,
   "token_expire_minutes": 10,

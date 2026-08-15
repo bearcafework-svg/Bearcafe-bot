@@ -1,0 +1,23 @@
+{
+  "lootlabs_link_template": "https://lootlabs.gg/ad-demo",
+  "cooldown_ms": 3600000,
+  "max_per_day": 3,
+  "token_expire_minutes": 10,
+  "rewards": {
+    "common": { "min": 80, "max": 120, "chance": 0.70 },
+    "rare": { "min": 200, "max": 300, "chance": 0.20 },
+    "epic": { "min": 500, "max": 500, "chance": 0.09 },
+    "jackpot": { "min": 1000, "max": 1000, "chance": 0.01 }
+  },
+  "emojis": {
+    "box": "🎁",
+    "opened": "💰",
+    "jackpot": "🎰",
+    "sparkles": "<a:99322sparkles:1372427884479778908>",
+    "bubble": "<a:27073hispeechbubble:1518217054711189644>",
+    "fire": "🔥",
+    "hammer": "🔨",
+    "star": "<:bear_star1:1152782839671169184>",
+    "plant": "<:cuteplant:1152834055528783872>"
+  }
+}

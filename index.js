@@ -72,6 +72,10 @@ setupFeature("bees", "./src/bees", "setupBees", supabaseEnvKeys);
 setupFeature("minigames", "./src/features/minigames/minigames", "setupMinigames", supabaseEnvKeys);
 setupFeature("healJai", "./src/features/healJai", "setupHealJai", supabaseEnvKeys);
 setupFeature("voiceHistory", "./src/commands/voiceHistory", "setupVoiceHistory", supabaseEnvKeys);
+setupFeature("security", "./src/features/security", "setupSecurity", supabaseEnvKeys);
+setupFeature("adReward", "./src/features/adReward", "setupAdReward", supabaseEnvKeys);
+
+
 
 
 
@@ -235,12 +239,28 @@ http
       return;
     }
 
+    if (req.url.startsWith("/api/lootlabs-postback")) {
+      const { handleLootLabsPostback } = require("./src/features/adReward/lootlabsWebhook");
+      let supabase = null;
+      if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+        const { createClient } = require("@supabase/supabase-js");
+        supabase = createClient(
+          process.env.SUPABASE_URL,
+          process.env.SUPABASE_SERVICE_ROLE_KEY,
+          { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
+        );
+      }
+      handleLootLabsPostback(req, res, supabase, client);
+      return;
+    }
+
     res.writeHead(200, { "Content-Type": "text/plain" });
     res.end("Bear Cafe bot is running");
   })
   .listen(Number(port), "0.0.0.0", () => {
     console.log(`Health server listening on port ${port}`);
   });
+
 
 
 // ── อัปเดตสถานะบอท Streaming ──────────────────────────────────────────

@@ -1,43 +1,79 @@
 // ===================================================
-// utils/guildFilter.js — ตัวกรองและปฏิเสธ Guild ที่ไม่ต้องการให้บอททำงาน
+// utils/guildFilter.js — ตัวกรองและอนุญาตเฉพาะ GuildID ที่กำหนด (Allowlist Filter)
 // ===================================================
 
 const config = require("../config");
 
 /**
- * ดึงรายการ Guild IDs ที่ต้องปฏิเสธ/ข้ามการทำงาน
+ * Custom Guild IDs ที่กำหนดในโค้ดให้สิทธิ์ทำงานเสมอ
+ */
+const CUSTOM_ALLOWED_GUILD_IDS = [
+  "1144251788493602848", // Bear Cafe Server หลัก
+  "1536199707922141254", // Custom Guild ID
+];
+
+/**
+ * ดึงรายการ Guild IDs ที่อนุญาตให้บอททำงาน (Allowlist)
  * @returns {Set<string>}
  */
-function getIgnoredGuildIds() {
-  const set = new Set();
+function getAllowedGuildIds() {
+  const allowedSet = new Set();
 
-  if (config.ignoredGuildIds && Array.isArray(config.ignoredGuildIds)) {
-    for (const id of config.ignoredGuildIds) {
-      if (id) set.add(String(id).trim());
+  // 1. ดึงจาก DISCORD_GUILD_ID ใน process.env (จาก Supabase / .env)
+  if (process.env.DISCORD_GUILD_ID) {
+    for (const id of process.env.DISCORD_GUILD_ID.split(",")) {
+      if (id.trim()) allowedSet.add(id.trim());
     }
   }
 
-  if (process.env.IGNORED_GUILD_IDS) {
-    for (const id of process.env.IGNORED_GUILD_IDS.split(",")) {
-      if (id.trim()) set.add(id.trim());
+  // 2. ดึงจาก GUILD_ID ใน process.env
+  if (process.env.GUILD_ID) {
+    for (const id of process.env.GUILD_ID.split(",")) {
+      if (id.trim()) allowedSet.add(id.trim());
     }
   }
 
-  // GuildID เริ่มต้นตามที่กำหนด
-  set.add("1536199707922141254");
+  // 3. ดึงจาก ALLOWED_GUILD_IDS ใน process.env
+  if (process.env.ALLOWED_GUILD_IDS) {
+    for (const id of process.env.ALLOWED_GUILD_IDS.split(",")) {
+      if (id.trim()) allowedSet.add(id.trim());
+    }
+  }
 
-  return set;
+  // 4. ดึงจาก config.allowedGuildIds (ถ้ามี)
+  if (config.allowedGuildIds && Array.isArray(config.allowedGuildIds)) {
+    for (const id of config.allowedGuildIds) {
+      if (id) allowedSet.add(String(id).trim());
+    }
+  }
+
+  // 5. ดึงจาก Custom Guild IDs ที่กำหนดในโค้ด
+  for (const id of CUSTOM_ALLOWED_GUILD_IDS) {
+    if (id) allowedSet.add(String(id).trim());
+  }
+
+  return allowedSet;
 }
 
 /**
- * ตรวจสอบว่า GuildID นี้อยู่ในรายการปฏิเสธหรือไม่
+ * ตรวจสอบว่า GuildID นี้ได้รับอนุญาตให้ทำงานหรือไม่ (Allowlist Check)
+ * @param {string|null|undefined} guildId 
+ * @returns {boolean}
+ */
+function isAllowedGuild(guildId) {
+  if (!guildId) return true; // หากไม่มี guildId (เช่น DM) ให้ถือว่าอนุญาต
+  const allowed = getAllowedGuildIds();
+  return allowed.has(String(guildId).trim());
+}
+
+/**
+ * ฟังก์ชันสำหรับ Backward Compatibility (ตรงข้ามกับ isAllowedGuild)
  * @param {string|null|undefined} guildId 
  * @returns {boolean}
  */
 function isIgnoredGuild(guildId) {
   if (!guildId) return false;
-  const ignored = getIgnoredGuildIds();
-  return ignored.has(String(guildId).trim());
+  return !isAllowedGuild(guildId);
 }
 
 /**
@@ -71,7 +107,7 @@ function extractGuildIdFromArgs(args) {
 }
 
 /**
- * ค้นหา Guild ที่ไม่ใช่ Ignored Guild จาก client.guilds.cache
+ * ค้นหา Guild ที่ได้รับอนุญาตจาก client.guilds.cache
  * @param {import('discord.js').Client} client 
  * @param {string} [targetGuildId] 
  * @returns {import('discord.js').Guild|null}
@@ -79,18 +115,18 @@ function extractGuildIdFromArgs(args) {
 function getValidGuild(client, targetGuildId) {
   if (!client || !client.guilds || !client.guilds.cache) return null;
 
-  const defaultGuildId = targetGuildId || process.env.GUILD_ID || "1144251788493602848";
+  const defaultGuildId = targetGuildId || process.env.DISCORD_GUILD_ID || process.env.GUILD_ID || "1144251788493602848";
   const targetGuild = client.guilds.cache.get(defaultGuildId);
 
-  if (targetGuild && !isIgnoredGuild(targetGuild.id)) {
+  if (targetGuild && isAllowedGuild(targetGuild.id)) {
     return targetGuild;
   }
 
-  return client.guilds.cache.find((g) => !isIgnoredGuild(g.id)) || null;
+  return client.guilds.cache.find((g) => isAllowedGuild(g.id)) || null;
 }
 
 /**
- * ตรวจสอบว่า Event นี้เกี่ยวข้องกับระบบ HealJai หรือไม่ (ยกเว้นไม่ต้องโดน Guild Filter)
+ * ตรวจสอบว่า Event นี้เกี่ยวข้องกับระบบ HealJai หรือไม่
  * @param {string} eventName 
  * @param {Array} args 
  * @returns {boolean}
@@ -119,7 +155,7 @@ function isHealJaiEvent(eventName, args) {
 }
 
 /**
- * ติดตั้ง Event Interceptor เพื่อปฏิเสธ Event ทุกชนิดที่มาจาก Ignored Guilds (ยกเว้น HealJai)
+ * ติดตั้ง Event Interceptor เพื่ออนุญาตเฉพาะ GuildIDs ใน Allowlist
  * @param {import('discord.js').Client} client 
  */
 function setupGuildFilter(client) {
@@ -127,23 +163,24 @@ function setupGuildFilter(client) {
 
   client.emit = function (eventName, ...args) {
     const guildId = extractGuildIdFromArgs(args);
-    if (guildId && isIgnoredGuild(guildId)) {
+    if (guildId && !isAllowedGuild(guildId)) {
       // ยกเว้นฟีเจอร์ HealJai ให้ทำงานได้ตามปกติ
       if (isHealJaiEvent(eventName, args)) {
         return originalEmit.apply(this, [eventName, ...args]);
       }
-      // ปฏิเสธการส่ง Event สำหรับระบบอื่นใน Guild ที่ถูกระบุข้าม
+      // ปฏิเสธการส่ง Event สำหรับ Guild ที่ไม่อยู่ใน Allowlist
       return false;
     }
     return originalEmit.apply(this, [eventName, ...args]);
   };
 
-  const ignoredList = Array.from(getIgnoredGuildIds()).join(", ");
-  console.log(`🛡️ [GuildFilter] ระบบป้องกัน Guild Filter ทำงานแล้ว — บล็อก Guilds: ${ignoredList} (ยกเว้น HealJai)`);
+  const allowedList = Array.from(getAllowedGuildIds()).join(", ");
+  console.log(`🛡️ [GuildFilter] ระบบกรอง Guild Filter ทำงานแล้ว — อนุญาตเฉพาะ Guilds: ${allowedList}`);
 }
 
 module.exports = {
-  getIgnoredGuildIds,
+  getAllowedGuildIds,
+  isAllowedGuild,
   isIgnoredGuild,
   extractGuildIdFromArgs,
   getValidGuild,

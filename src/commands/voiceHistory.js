@@ -1,6 +1,6 @@
 // src/commands/voiceHistory.js
 // ระบบตรวจสอบประวัติการลงห้องสำหรับสมาชิก (Voice Log History Command)
-// รองรับ Discord Component V2, Cooldown, Blacklist, และการแบ่งช่วงเวลา/เลื่อนหน้าอย่างเสถียร
+// รองรับ Discord Component V2, Cooldown, Blacklist, และการคำนวณเซสชันสิงห้องข้ามคืนอัตโนมัติ
 
 const { createClient } = require("@supabase/supabase-js");
 const { Events, MessageFlags } = require("discord.js");
@@ -56,6 +56,64 @@ function getTodayRangeUTC7() {
   const dateStr = `${day} ${THAI_MONTHS[month]} ${thaiYear}`;
 
   return { start: startISO, end: endISO, dateStr };
+}
+
+/**
+ * ดึงข้อมูล voice_logs ของวันนี้ พร้อมตรวจเช็กเซสชันสิงห้องข้ามคืนจากวันก่อนหน้าอัตโนมัติ
+ */
+async function fetchTodayLogsWithOvernightCheck(supabase, userId) {
+  const { start, end } = getTodayRangeUTC7();
+
+  // 1. ดึง Log ทั้งหมดของวันนี้
+  const { data: todayLogs, error: todayErr } = await supabase
+    .from("voice_logs")
+    .select("*")
+    .eq("user_id", userId)
+    .gte("timestamp", start)
+    .lte("timestamp", end);
+
+  if (todayErr) {
+    console.error("[voiceHistory] Error fetching today logs:", todayErr.message);
+    return { data: [], error: todayErr };
+  }
+
+  const logs = todayLogs ? [...todayLogs] : [];
+
+  // เรียงลำดับจากอดีต -> ปัจจุบัน
+  logs.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+  // เช็กว่า Log แรกสุดของวันนี้มี event join หรือไม่
+  const firstLog = logs[0];
+  const hasJoinToday = firstLog && firstLog.event_type === "join";
+
+  // หากในวันนี้ยังไม่มี join (เช่น รายการแรกวันนี้เป็น leave/move หรือไม่มี log เลย)
+  if (!hasJoinToday) {
+    const { data: prevLog } = await supabase
+      .from("voice_logs")
+      .select("*")
+      .eq("user_id", userId)
+      .lt("timestamp", start)
+      .order("timestamp", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    // หาก Log ล่าสุดก่อนหน้าวันนี้เป็น join หรือ move แปลว่าผู้ใช้สิงห้องข้ามคืนมาจากเมื่อวาน!
+    if (prevLog && (prevLog.event_type === "join" || prevLog.event_type === "move")) {
+      const virtualLog = {
+        id: `overnight_${prevLog.id}`,
+        user_id: userId,
+        channel_id: prevLog.channel_id,
+        channel_name: prevLog.channel_name,
+        event_type: "join",
+        timestamp: start,
+        is_overnight: true
+      };
+
+      logs.unshift(virtualLog);
+    }
+  }
+
+  return { data: logs, error: null };
 }
 
 /**
@@ -161,6 +219,9 @@ function formatLogLine(log) {
   const mm = String(thailandTime.getUTCMinutes()).padStart(2, '0');
   const timeStr = `${hh}:${mm} น.`;
 
+  if (log.is_overnight) {
+    return `<:moderationvlow:1537404744983781406>⠀เข้าห้อง **\`${log.channel_name}\`** ${timeStr} *(สิงห้องต่อเนื่องตั้งแต่เมื่อวาน)*`;
+  }
   if (log.event_type === "join") {
     return `<:moderationvlow:1537404744983781406>⠀เข้าห้อง **\`${log.channel_name}\`** ${timeStr}`;
   } else if (log.event_type === "move") {
@@ -177,7 +238,6 @@ function formatLogLine(log) {
  * @returns {Array}
  */
 function getDisabledComponents(components) {
-  // แปลงโครงสร้าง ActionRow/Components ของ discord.js ให้เป็น plain JSON object
   const raw = JSON.parse(JSON.stringify(components));
 
   return raw.map(section => {
@@ -266,7 +326,7 @@ function buildVoiceHistoryPayload(targetUser, retrievedLogs, period, page, calle
     let emojiName = "⏰";
     if (val === "XB9EIxyvnY") emojiName = "🌙";
     if (val === "nXnimKWVOX") emojiName = "☀️";
-    if (val === "5LO94h88EU") emojiName = "🌆";
+    if (val === "5LO94h88EU") emojiName = "<ctrl42>";
     if (val === "bxE4waaQGS") emojiName = "🌌";
 
     return {
@@ -449,14 +509,8 @@ function setupVoiceHistory(client) {
         await setCooldown(supabase, interaction.user.id, cooldownName, now + 60000); // 1 นาที
       }
 
-      // ดึงข้อมูลสำหรับ Target User เฉพาะของ "วันนี้"
-      const { start, end } = getTodayRangeUTC7();
-      const { data: retrievedLogs, error } = await supabase
-        .from("voice_logs")
-        .select("*")
-        .eq("user_id", targetUser.id)
-        .gte("timestamp", start)
-        .lte("timestamp", end);
+      // ดึงข้อมูลสำหรับ Target User พร้อมตรวจเช็กสิงห้องข้ามคืน
+      const { data: retrievedLogs, error } = await fetchTodayLogsWithOvernightCheck(supabase, targetUser.id);
 
       if (error) {
         console.error("[voiceHistory] Supabase fetch error:", error.message);
@@ -513,14 +567,8 @@ function setupVoiceHistory(client) {
         const disabledComponents = getDisabledComponents(interaction.message.components);
         await interaction.update({ components: disabledComponents });
 
-        // ดึงข้อมูลใหม่
-        const { start, end } = getTodayRangeUTC7();
-        const { data: retrievedLogs, error } = await supabase
-          .from("voice_logs")
-          .select("*")
-          .eq("user_id", targetUserId)
-          .gte("timestamp", start)
-          .lte("timestamp", end);
+        // ดึงข้อมูลใหม่พร้อมตรวจเช็กสิงห้องข้ามคืน
+        const { data: retrievedLogs, error } = await fetchTodayLogsWithOvernightCheck(supabase, targetUserId);
 
         if (error) {
           console.error("[voiceHistory] Supabase fetch error during pagination:", error.message);
@@ -593,14 +641,8 @@ function setupVoiceHistory(client) {
         const disabledComponents = getDisabledComponents(interaction.message.components);
         await interaction.update({ components: disabledComponents });
 
-        // ดึงข้อมูล
-        const { start, end } = getTodayRangeUTC7();
-        const { data: retrievedLogs, error } = await supabase
-          .from("voice_logs")
-          .select("*")
-          .eq("user_id", targetUserId)
-          .gte("timestamp", start)
-          .lte("timestamp", end);
+        // ดึงข้อมูลพร้อมตรวจเช็กสิงห้องข้ามคืน
+        const { data: retrievedLogs, error } = await fetchTodayLogsWithOvernightCheck(supabase, targetUserId);
 
         if (error) {
           console.error("[voiceHistory] Supabase fetch error during dropdown switch:", error.message);

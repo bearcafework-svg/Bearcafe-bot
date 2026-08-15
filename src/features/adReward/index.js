@@ -101,8 +101,8 @@ function setupAdReward(client) {
         }
       }
 
-      // สร้าง URL LootLabs ที่มี puid
-      const lootlabsUrl = buildLootLabsUrl(clickId);
+      // สร้าง URL LootLabs ที่มี puid ผ่าน LootLabs API แบบอัตโนมัติ 100%
+      const lootlabsUrl = await buildLootLabsUrl(clickId, boxNum);
 
       // บันทึก Active Session ใน Memory เพื่อรอ Postback มาอัปเดต UI
       registerActiveSession(clickId, {

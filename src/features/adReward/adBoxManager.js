@@ -1,7 +1,8 @@
 // src/features/adReward/adBoxManager.js
-// ตัวจัดการ Discord UI & Transaction State สำหรับ Ad Box Roulette
+// ตัวจัดการ Discord UI & LootLabs API Link Creation
 
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require("discord.js");
+const axios = require("axios");
 const cfg = require("./settingAd.json");
 
 // Store active message contexts: clickId -> { message, interaction, userId, boxNum }
@@ -66,9 +67,45 @@ function buildBoxGridRows(userId, selectedBox = null, openedBox = null, openedLa
 }
 
 /**
- * สเกล URL ของ LootLabs โดยแนบ puid={clickId}
+ * สเกลและสร้าง URL ผ่าน LootLabs API แบบอัตโนมัติ 100%
  */
-function buildLootLabsUrl(clickId) {
+async function buildLootLabsUrl(clickId, boxNum) {
+  const apiKey = process.env.LOOTLABS_API_KEY;
+
+  if (apiKey) {
+    try {
+      // เรียก POST API ของ LootLabs เพื่อสร้าง Content Locker Link ใหม่
+      const response = await axios.post(
+        "https://creators.lootlabs.gg/api/public/content_locker",
+        {
+          title: `Bear Cafe Box #${boxNum}`,
+          url: cfg.target_destination_url || "https://discord.gg/1144251788493602848",
+          tier_id: 1,
+          number_of_tasks: 1,
+          theme: 1
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+            Accept: "application/json"
+          },
+          timeout: 5000
+        }
+      );
+
+      const generatedUrl = response.data?.link || response.data?.url;
+      if (generatedUrl) {
+        const separator = generatedUrl.includes("?") ? "&" : "?";
+        console.log(`[LootLabs API] Successfully created automated link for Box #${boxNum}`);
+        return `${generatedUrl}${separator}puid=${encodeURIComponent(clickId)}`;
+      }
+    } catch (err) {
+      console.warn(`[LootLabs API] API link creation warning: ${err.response?.data?.message || err.message}. Falling back to template URL.`);
+    }
+  }
+
+  // Fallback: ใช้ Template URL หากเรียก API ไม่สำเร็จ
   const baseUrl = cfg.lootlabs_link_template || "https://lootlabs.gg/ad-demo";
   const separator = baseUrl.includes("?") ? "&" : "?";
   return `${baseUrl}${separator}puid=${encodeURIComponent(clickId)}`;

@@ -78,6 +78,9 @@ function setupAdReward(client) {
 
     // ── 1. Selecting a Box (adbox_select_<boxNum>_<userId>) ─────────────────
     if (action === "select") {
+      // ⚡ ตอบรับ Interaction ทันทีภายใน 0.5 วิแรก ป้องกัน Discord 10062 Timeout Error
+      await interaction.deferUpdate().catch(() => {});
+
       const boxNum = parseInt(param1, 10);
       const userId = interaction.user.id;
 
@@ -138,7 +141,7 @@ function setupAdReward(client) {
         )
         .setFooter({ text: "Bear Cafe • LootLabs Verified System", iconURL: interaction.guild?.iconURL() });
 
-      return interaction.update({
+      return interaction.editReply({
         embeds: [embed],
         components: [...updatedGridRows, actionRow]
       });
@@ -146,6 +149,7 @@ function setupAdReward(client) {
 
     // ── 2. Reselecting Box (adbox_reselect_0_<userId>) ──────────────────────
     if (action === "reselect") {
+      await interaction.deferUpdate().catch(() => {});
       const initialGridRows = buildBoxGridRows(interaction.user.id);
 
       const embed = new EmbedBuilder()
@@ -159,7 +163,7 @@ function setupAdReward(client) {
         )
         .setFooter({ text: "Bear Cafe • LootLabs Ad Box Roulette", iconURL: interaction.guild?.iconURL() });
 
-      return interaction.update({
+      return interaction.editReply({
         embeds: [embed],
         components: initialGridRows
       });

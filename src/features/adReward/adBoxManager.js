@@ -74,16 +74,19 @@ async function buildLootLabsUrl(clickId, boxNum) {
 
   if (apiKey) {
     try {
+      const payload = {
+        title: `Bear Cafe Box ${boxNum}`,
+        url: cfg.target_destination_url || "https://discord.gg/1144251788493602848",
+        tier_id: 1,
+        number_of_tasks: 1,
+        theme: 1,
+        thumbnail: "https://cdn.discordapp.com/embed/avatars/0.png"
+      };
+
       // เรียก POST API ของ LootLabs เพื่อสร้าง Content Locker Link ใหม่
       const response = await axios.post(
         "https://creators.lootlabs.gg/api/public/content_locker",
-        {
-          title: `Bear Cafe Box #${boxNum}`,
-          url: cfg.target_destination_url || "https://discord.gg/1144251788493602848",
-          tier_id: 1,
-          number_of_tasks: 1,
-          theme: 1
-        },
+        payload,
         {
           headers: {
             Authorization: `Bearer ${apiKey}`,
@@ -94,19 +97,22 @@ async function buildLootLabsUrl(clickId, boxNum) {
         }
       );
 
-      const generatedUrl = response.data?.link || response.data?.url;
+      const generatedUrl = response.data?.link || response.data?.url || response.data?.item?.link;
       if (generatedUrl) {
         const separator = generatedUrl.includes("?") ? "&" : "?";
-        console.log(`[LootLabs API] Successfully created automated link for Box #${boxNum}`);
+        console.log(`[LootLabs API] Successfully created automated link for Box #${boxNum}: ${generatedUrl}`);
         return `${generatedUrl}${separator}puid=${encodeURIComponent(clickId)}`;
+      } else {
+        console.warn("[LootLabs API] API response missing link property:", response.data);
       }
     } catch (err) {
-      console.warn(`[LootLabs API] API link creation warning: ${err.response?.data?.message || err.message}. Falling back to template URL.`);
+      const errDetails = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+      console.warn(`[LootLabs API] API link creation warning: ${errDetails}. Falling back to template URL.`);
     }
   }
 
   // Fallback: ใช้ Template URL หากเรียก API ไม่สำเร็จ
-  const baseUrl = cfg.lootlabs_link_template || "https://lootlabs.gg/ad-demo";
+  const baseUrl = cfg.lootlabs_link_template || "https://lootlabs.gg/s?fallback";
   const separator = baseUrl.includes("?") ? "&" : "?";
   return `${baseUrl}${separator}puid=${encodeURIComponent(clickId)}`;
 }

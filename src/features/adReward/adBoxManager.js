@@ -97,7 +97,10 @@ async function buildLootLabsUrl(clickId, boxNum) {
         }
       );
 
-      const generatedUrl = response.data?.link || response.data?.url || response.data?.item?.link;
+      // ดึง loot_url จากโครงสร้าง response ของ LootLabs (response.data.message[0].loot_url)
+      const messageObj = Array.isArray(response.data?.message) ? response.data.message[0] : response.data?.message;
+      const generatedUrl = messageObj?.loot_url || response.data?.link || response.data?.url || response.data?.item?.link;
+
       if (generatedUrl) {
         const separator = generatedUrl.includes("?") ? "&" : "?";
         console.log(`[LootLabs API] Successfully created automated link for Box #${boxNum}: ${generatedUrl}`);

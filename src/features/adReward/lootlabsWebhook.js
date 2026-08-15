@@ -32,9 +32,9 @@ async function handleLootLabsPostback(req, res, supabase, discordClient) {
   const parsedUrl = url.parse(req.url, true);
   const query = parsedUrl.query || {};
 
-  const clickId = query.click_id || query.puid;
-  const uniqueId = query.unique_id;
-  const userIp = query.ip || req.headers["x-forwarded-for"] || req.socket.remoteAddress;
+  const clickId = query.click_id || query.CLICK_ID || query.puid || query.PUID;
+  const uniqueId = query.unique_id || query.UNIQUE_ID;
+  const userIp = query.ip || query.IP || req.headers["x-forwarded-for"] || req.socket.remoteAddress;
 
   console.log(`[LootLabs Postback] Received: click_id=${clickId}, unique_id=${uniqueId}, ip=${userIp}`);
 

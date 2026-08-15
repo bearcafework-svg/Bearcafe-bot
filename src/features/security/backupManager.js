@@ -4,15 +4,21 @@
 
 const { createClient } = require("@supabase/supabase-js");
 const { ChannelType, PermissionFlagsBits } = require("discord.js");
-const { getAllRooms } = require("../../state/redisClient");
+const { getAllRooms } = require("../../../state/redisClient");
 const config = require("../../../config");
 const logger = require("../../../utils/logger");
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY,
-  { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
-);
+let supabase;
+function getSupabase() {
+  if (!supabase && process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
+      { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
+    );
+  }
+  return supabase;
+}
 
 /**
  * ดึงข้อมูลห้องถาวร Categories และ Roles สำหรับ Backup
@@ -120,7 +126,9 @@ async function serializeGuildStructure(guild) {
  * บันทึก Backup ลง Supabase
  */
 async function saveBackupToSupabase(guildId, backupName, createdBy, data) {
-  const { data: result, error } = await supabase
+  const sb = getSupabase();
+  if (!sb) throw new Error("Supabase is not configured.");
+  const { data: result, error } = await sb
     .from("guild_structure_backups")
     .insert({
       guild_id: guildId,
@@ -145,7 +153,9 @@ async function saveBackupToSupabase(guildId, backupName, createdBy, data) {
  * ดึงรายการ Backup ทั้งหมดใน Guild จาก Supabase
  */
 async function listBackupsFromSupabase(guildId) {
-  const { data, error } = await supabase
+  const sb = getSupabase();
+  if (!sb) throw new Error("Supabase is not configured.");
+  const { data, error } = await sb
     .from("guild_structure_backups")
     .select("id, backup_name, created_by, created_at, categories, channels, roles")
     .eq("guild_id", guildId)
@@ -172,7 +182,9 @@ async function listBackupsFromSupabase(guildId) {
  * Restore โครงสร้างเซิร์ฟเวอร์จาก Backup ID
  */
 async function restoreGuildStructure(guild, backupId) {
-  const { data: backup, error } = await supabase
+  const sb = getSupabase();
+  if (!sb) throw new Error("Supabase is not configured.");
+  const { data: backup, error } = await sb
     .from("guild_structure_backups")
     .select("*")
     .eq("id", backupId)

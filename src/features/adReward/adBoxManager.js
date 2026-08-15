@@ -76,7 +76,7 @@ async function buildLootLabsUrl(clickId, boxNum) {
     try {
       const payload = {
         title: `Bear Cafe Box ${boxNum}`,
-        url: cfg.target_destination_url || "https://discord.gg/1144251788493602848",
+        url: cfg.target_destination_url || "https://discord.gg/bearcafe",
         tier_id: 1,
         number_of_tasks: 1,
         theme: 1,

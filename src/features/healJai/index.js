@@ -3,6 +3,7 @@
 const { createClient } = require("@supabase/supabase-js");
 const { ChannelType, PermissionFlagsBits, MessageFlags } = require("discord.js");
 const config = require("../../../config");
+const { trackUserDailyQuestProgress } = require("../dailyQuest");
 
 const FLAG_V2 = MessageFlags.IsComponentsV2 || 32768;
 const FLAG_EPHEMERAL = MessageFlags.Ephemeral || 64;
@@ -298,6 +299,7 @@ function setupHealJai(client) {
         const noticeMsg = await newChannel.send(getNoticePayload());
 
         // บันทึกลง Supabase
+        trackUserDailyQuestProgress(user.id, "USE_HEALJAI", 1);
         if (supabase) {
           await supabase.from("heal_jai_tickets").insert({
             guild_id: guild.id,

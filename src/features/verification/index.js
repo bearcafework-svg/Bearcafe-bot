@@ -312,8 +312,13 @@ async function completeVerification(interaction) {
  * @param {Client} client 
  */
 function setupVerification(client) {
-  // Start the background DM broadcast queue processor
-  startQueueProcessor(client, supabase);
+  // Start the background DM broadcast queue processor (skip if disabled on Local/Dev)
+  const isLocalFastStart = process.env.LOCAL_FAST_START === "true" || process.env.DISABLE_BACKGROUND_SERVICES === "true" || process.env.DISABLE_DM_BROADCAST === "true";
+  if (!isLocalFastStart) {
+    startQueueProcessor(client, supabase);
+  } else {
+    console.log("[verification] ⏭️ Skipping background DM broadcast queue processor in Local/Dev mode.");
+  }
 
   // ── 1. Event: guildMemberAdd ─────────────────────────────────────
   client.on(Events.GuildMemberAdd, async (member) => {

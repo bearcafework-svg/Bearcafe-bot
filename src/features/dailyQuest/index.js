@@ -9,7 +9,10 @@ const {
   claimReward,
   claimAllRewards,
   rerollQuest,
-  runAutoCleanup
+  runAutoCleanup,
+  flushVoiceProgressRealtime,
+  getWeeklyProgress,
+  claimWeeklyMilestone
 } = require("./dailyQuestManager");
 const sharedConfig = require("../../sharedSettings.json");
 
@@ -45,18 +48,22 @@ function setupDailyQuest(client) {
       const guild = getValidGuild(client, guildId);
 
       if (guild) {
-        // ลงทะเบียน Slash Command /quest และ /daily
+        // ลบคำสั่งเก่า /quest และ /daily ออกจาก Discord Guild
+        const existingCmds = await guild.commands.fetch().catch(() => new Map());
+        for (const [id, cmd] of existingCmds) {
+          if (cmd.name === "quest" || cmd.name === "daily") {
+            await guild.commands.delete(id).catch(() => {});
+            console.log(`[dailyQuest] Deleted old slash command /${cmd.name}`);
+          }
+        }
+
+        // ลงทะเบียนเฉพาะ Slash Command /เควสของฉัน
         await guild.commands.create({
-          name: "quest",
+          name: "เควสของฉัน",
           description: "☕ เปิดเมนูภารกิจคาเฟ่ประจำวัน (Daily Quests)"
         });
 
-        await guild.commands.create({
-          name: "daily",
-          description: "☕ เปิดเมนูภารกิจคาเฟ่ประจำวัน (Daily Quests)"
-        });
-
-        console.log("[dailyQuest] Registered Slash Commands /quest and /daily successfully.");
+        console.log("[dailyQuest] Registered Slash Command /เควสของฉัน successfully.");
       }
 
       // ตั้งเวลา Cleanup ขยะข้อมูลทุก 24 ชั่วโมง
@@ -89,7 +96,7 @@ function setupDailyQuest(client) {
   client.on("interactionCreate", async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
     const cmd = interaction.commandName.toLowerCase();
-    if (cmd !== "quest" && cmd !== "daily") return;
+    if (cmd !== "เควสของฉัน") return;
 
     // ตรวจสอบสิทธิ์ Owner / Staff ก่อน
     if (!isServerOwner(interaction)) {
@@ -102,12 +109,20 @@ function setupDailyQuest(client) {
     const userId = interaction.user.id;
 
     try {
+      // 🔄 Real-time Flush: ถ้าผู้เล่นนั่งอยู่ในห้องเสียงอยู่ ให้คำนวณเวลานาทีสะสมทันที
+      const voiceChannel = interaction.member?.voice?.channel;
+      const joinTime = voiceJoinTimes.get(userId);
+      if (voiceChannel && joinTime) {
+        await flushVoiceProgressRealtime(supabase, userId, voiceChannel, joinTime);
+      }
+
       const { quests, summary } = await getOrAssignDailyQuests(supabase, userId);
-      const payload = buildDailyQuestPayload(userId, quests, summary);
+      const weeklyInfo = await getWeeklyProgress(supabase, userId);
+      const payload = buildDailyQuestPayload(userId, quests, summary, weeklyInfo);
 
       await interaction.reply(payload);
     } catch (err) {
-      console.error("[dailyQuest] Error handling slash command /quest:", err);
+      console.error("[dailyQuest] Error handling slash command /เควสของฉัน:", err);
       await interaction.reply({
         content: "❌ เกิดข้อผิดพลาดในการโหลดภารกิจประจำวัน กรุณาลองใหม่อีกครั้งค่ะ",
         flags: FLAG_EPHEMERAL
@@ -115,27 +130,9 @@ function setupDailyQuest(client) {
     }
   });
 
-  // ── C. Text Command (b!quest, b!daily) ──────────────────────────────────
+  // ── C. Chat Progress Tracker ──────────────────────────────────────────
   client.on("messageCreate", async (message) => {
     if (message.author.bot || !message.guild) return;
-    const content = message.content.trim().toLowerCase();
-
-    if (content === "b!quest" || content === "b!daily") {
-      if (!isServerOwner(message)) {
-        return message.reply({
-          content: "⚠️ **คำสั่งนี้เปิดใช้งานเฉพาะ Owner ของเซิร์ฟเวอร์ในขณะนี้ค่ะ**"
-        });
-      }
-
-      const userId = message.author.id;
-      const { quests, summary } = await getOrAssignDailyQuests(supabase, userId);
-      const payload = buildDailyQuestPayload(userId, quests, summary);
-
-      return message.reply(payload);
-    }
-
-    // ── D. Chat Progress Tracker ──────────────────────────────────────────
-    const userId = message.author.id;
     const now = Date.now();
     const lastChatTime = chatCooldowns.get(userId) || 0;
 
@@ -173,7 +170,7 @@ function setupDailyQuest(client) {
       voiceJoinTimes.set(userId, Date.now());
       await addProgress(supabase, userId, "VOICE_CHANNELS", 1);
     }
-    // กรณีสมาชิกออกจากห้องเสียง
+    // กรณีสมาชิกออกจากห้องเสียง หรือย้ายห้อง
     else if (oldState.channelId && !newState.channelId) {
       const joinTime = voiceJoinTimes.get(userId);
       if (joinTime) {
@@ -183,14 +180,23 @@ function setupDailyQuest(client) {
         if (durationMinutes >= 1) {
           await addProgress(supabase, userId, "VOICE_MINUTES", durationMinutes);
 
+          if (durationMinutes >= 3) {
+            await addProgress(supabase, userId, "VOICE_SESSIONS", 1);
+          }
+
           if (durationMinutes >= 30) {
             await addProgress(supabase, userId, "VOICE_CONTINUOUS", durationMinutes);
           }
 
-          // เช็คว่ามีสมาชิกคนอื่นในห้องด้วยหรือไม่
           const oldChannel = oldState.channel;
-          if (oldChannel && oldChannel.members.size >= 2) {
-            await addProgress(supabase, userId, "VOICE_WITH_FRIENDS", durationMinutes);
+          if (oldChannel) {
+            const size = oldChannel.members.size;
+            if (size >= 2) {
+              await addProgress(supabase, userId, "VOICE_WITH_FRIENDS", durationMinutes);
+            }
+            if (size >= 3) {
+              await addProgress(supabase, userId, "VOICE_CROWD", durationMinutes);
+            }
           }
         }
       }
@@ -207,13 +213,14 @@ function setupDailyQuest(client) {
     const userId = interaction.user.id;
 
     // 1. กดรับรางวัลข้อเดียว (dq_claim_QUESTID)
-    if (customId.startsWith("dq_claim_") && customId !== "dq_claim_all") {
+    if (customId.startsWith("dq_claim_") && customId !== "dq_claim_all" && customId !== "dq_claim_weekly") {
       const questId = customId.replace("dq_claim_", "");
       const res = await claimReward(supabase, userId, questId);
 
       if (res.success) {
         const { quests, summary } = await getOrAssignDailyQuests(supabase, userId);
-        const payload = buildDailyQuestPayload(userId, quests, summary);
+        const weeklyInfo = await getWeeklyProgress(supabase, userId);
+        const payload = buildDailyQuestPayload(userId, quests, summary, weeklyInfo);
         return interaction.update(payload);
       } else {
         return interaction.reply({
@@ -229,7 +236,8 @@ function setupDailyQuest(client) {
 
       if (res.success) {
         const { quests, summary } = await getOrAssignDailyQuests(supabase, userId);
-        const payload = buildDailyQuestPayload(userId, quests, summary);
+        const weeklyInfo = await getWeeklyProgress(supabase, userId);
+        const payload = buildDailyQuestPayload(userId, quests, summary, weeklyInfo);
         await interaction.update(payload);
         return interaction.followUp({
           content: `🎉 **ยินดีด้วยค่ะ! คุณได้รับแต้มสะสมทั้งหมด +${res.totalEarned} แต้มเรียบร้อยแล้วค่ะ!** 🍓`,
@@ -238,6 +246,28 @@ function setupDailyQuest(client) {
       } else {
         return interaction.reply({
           content: "⚠️ ไม่มีภารกิจที่รอการรับรางวัลในขณะนี้ค่ะ",
+          flags: FLAG_EPHEMERAL
+        });
+      }
+    }
+
+    // 2.5 กดรับโบนัสสะสมประจำสัปดาห์ (dq_claim_weekly)
+    if (customId === "dq_claim_weekly") {
+      const res = await claimWeeklyMilestone(supabase, userId);
+
+      if (res.success) {
+        const { quests, summary } = await getOrAssignDailyQuests(supabase, userId);
+        const weeklyInfo = await getWeeklyProgress(supabase, userId);
+        const payload = buildDailyQuestPayload(userId, quests, summary, weeklyInfo);
+        await interaction.update(payload);
+        const cakeText = res.rewardCakes > 0 ? ` + 🍰 เค้กหมี ${res.rewardCakes} ก้อน` : "";
+        return interaction.followUp({
+          content: `🌟 **ยินดีด้วยค่ะ! คุณได้รับโบนัสสะสมประจำสัปดาห์ ${res.tierName}: +${res.rewardPoints} แต้ม${cakeText} เรียบร้อยแล้วค่ะ!** 👑✨`,
+          flags: FLAG_EPHEMERAL
+        });
+      } else {
+        return interaction.reply({
+          content: `⚠️ ${res.message}`,
           flags: FLAG_EPHEMERAL
         });
       }

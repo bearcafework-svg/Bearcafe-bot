@@ -10,6 +10,7 @@ cfg.role_blacklist = sharedConfig.role_blacklist;
 cfg.point_icon = sharedConfig.point_icon;
 const infotarot = require('./Infotarot.json');
 const { blacklistPayload, cooldownContent, otherCommandsPayload } = require('../shared/tarotComponents');
+const { trackUserDailyQuestProgress } = require("../dailyQuest");
 
 // ─── Cooldown store (in-memory) ───────────────────────────────────────────────
 const { getCooldown, setCooldown } = require('../../utils/cooldownManager');
@@ -247,6 +248,8 @@ function setupTarot1(client) {
 
     const member = message.member;
     const userId = message.author.id;
+
+    trackUserDailyQuestProgress(userId, "USE_HOROSCOPE", 1);
 
     // ── ตรวจ Blacklist Role ─────────────────────────────────────────────────
     const isBlacklisted = cfg.role_blacklist.some(id => member.roles.cache.has(id));

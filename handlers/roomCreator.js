@@ -7,6 +7,7 @@ const { sendRoomLog } = require("../utils/roomLogger");
 const { getSmartRoomPreset, normalizePresetSettings } = require("../utils/smartRoomPresets");
 const { safeDeleteChannel, safeMoveMember } = require("../utils/discordSafety");
 const config = require("../config");
+const { trackUserDailyQuestProgress } = require("../src/features/dailyQuest");
 
 let isCreating = false;
 const queue = [];
@@ -187,6 +188,7 @@ async function createRoomWithLock(guild, member, zone) {
   };
 
   await saveRoom(newChannel.id, zone.id, member.id, settings);
+  trackUserDailyQuestProgress(member.id, "CREATE_ROOM", 1);
   try {
     await applyRoomPermissions(newChannel, room);
   } catch (e) {

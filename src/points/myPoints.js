@@ -9,6 +9,7 @@ const FLAG_V2 = 32768; // MessageFlags.IsComponentsV2
 const FLAG_EPHEMERAL = 64; // MessageFlags.Ephemeral
 
 const { getTodayBangkok, getDailyCap, getDailyResetTimestamp } = require('../utils/pointManager');
+const { trackUserDailyQuestProgress } = require('../features/dailyQuest');
 
 function getMaxPoints(member) {
   let maxPoints = cfg.DEFAULT_CAP;
@@ -177,6 +178,8 @@ function setupMyPoints(client) {
       if (isBlacklisted) {
         return interaction.reply(blacklistPayload(interaction.user.id));
       }
+
+      trackUserDailyQuestProgress(interaction.user.id, "VIEW_BEAR_MARKET", 1);
 
       const userId = interaction.user.id;
       const { points, cakes, dailyPoints } = await getUserData(supabase, userId, interaction.member);

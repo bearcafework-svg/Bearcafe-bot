@@ -14,6 +14,11 @@ const stickyConfigs = new Map();
 const activeStickySessions = new Map();
 
 function setupStickyPanels(client) {
+  const isLocal = process.env.LOCAL_FAST_START === "true" || process.env.DISABLE_BACKGROUND_SERVICES === "true" || process.env.DISABLE_STICKY_PANELS === "true";
+  if (isLocal) {
+    console.log("[stickyPanels] ⏭️ Skipping setupStickyPanels in Local/Dev mode.");
+    return;
+  }
   console.log("[stickyPanels] Initializing setupStickyPanels...");
 
   const supabaseUrl = process.env.SUPABASE_URL;

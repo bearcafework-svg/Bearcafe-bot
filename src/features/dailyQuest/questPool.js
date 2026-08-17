@@ -277,7 +277,7 @@ module.exports = [
     id: "SOCIAL-01",
     category: "SOCIAL",
     title: "หาเพื่อนคุย",
-    description: "ใช้คำสั่งที่ห้อง ",
+    description: "ใช้คำสั่งที่ห้อง <#1524124222555947109>",
     targetCount: 1,
     unit: "ครั้ง",
     rewardPoints: 15,

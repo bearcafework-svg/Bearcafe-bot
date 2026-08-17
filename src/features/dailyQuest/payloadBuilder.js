@@ -30,12 +30,35 @@ function getRemainingTimeString() {
 }
 
 /**
+ * สร้าง Progress Bar สไตล์ทาโรต์ (โทนเหลือง-เทา)
+ */
+function buildProgressBar(current, maxPoints = 30, slots = 10) {
+  const filled = Math.min(Math.floor((current / maxPoints) * slots), slots);
+  let bar = "";
+  const left_empty = "<:barn1:1352982115523756134>";
+  const middle_empty = "<:barn2:1352982117360996426>";
+  const right_empty = "<:barn3:1352982119281983538>";
+  const left_fill = "<:bary1:1352982110557835408>";
+  const middle_fill = "<:bary2:1352982107403714591>";
+  const right_fill = "<:bary3:1352982104564039691>";
+
+  for (let i = 0; i < slots; i++) {
+    const isFill = i < filled;
+    if (i === 0) bar += isFill ? left_fill : left_empty;
+    else if (i === slots - 1) bar += isFill ? right_fill : right_empty;
+    else bar += isFill ? middle_fill : middle_empty;
+  }
+  return bar;
+}
+
+/**
  * สร้าง Component V2 Payload สำหรับผู้ใช้
  * @param {string} userId - Discord User ID
  * @param {Array} userQuests - รายการภารกิจ 5 ข้อของผู้ใช้
  * @param {Object} summary - ข้อมูลสรุปภาพรวมรายวัน ({ completed_count, is_jackpot_claimed, reroll_used })
+ * @param {Object} weeklyInfo - ข้อมูลความคืบหน้าสัปดาห์ ({ count, claimedTiers })
  */
-function buildDailyQuestPayload(userId, userQuests, summary = {}) {
+function buildDailyQuestPayload(userId, userQuests, summary = {}, weeklyInfo = { count: 0, claimedTiers: [] }) {
   const remainingTimeStr = getRemainingTimeString();
   const completedCount = summary.completed_count || userQuests.filter(q => q.is_completed).length;
   const maxReroll = 1; // สิทธิ์เปลี่ยนภารกิจ 1 ครั้ง/วัน สำหรับทั่วไป
@@ -157,39 +180,88 @@ function buildDailyQuestPayload(userId, userQuests, summary = {}) {
       `<:22594lootbox:1538601553542512701>︰รางวัลพิชิตครบประจำวัน: กล่องสุ่มสมบัติหมีน้อย (+100 แต้ม)\n`
   });
 
+  innerComponents.push({ type: 14, spacing: 2 });
+
+  // 4. Weekly Milestone Section
+  const weeklyCount = weeklyInfo.count || 0;
+  const claimedTiers = weeklyInfo.claimedTiers || [];
+  const progressBarStr = buildProgressBar(weeklyCount, 30, 10);
+
+  let nextTargetStr = "สะสมครบเป้าหมายสูงสุดสัปดาห์นี้แล้ว! 👑";
+  let hasClaimableWeekly = false;
+
+  if (weeklyCount >= 10 && !claimedTiers.includes(1)) hasClaimableWeekly = true;
+  if (weeklyCount >= 20 && !claimedTiers.includes(2)) hasClaimableWeekly = true;
+  if (weeklyCount >= 30 && !claimedTiers.includes(3)) hasClaimableWeekly = true;
+
+  if (weeklyCount < 10) {
+    nextTargetStr = `เป้าหมายถัดไป: **10 ภารกิจ** (รับโบนัส +50 แต้ม)`;
+  } else if (weeklyCount < 20) {
+    nextTargetStr = `เป้าหมายถัดไป: **20 ภารกิจ** (รับโบนัส +150 แต้ม)`;
+  } else if (weeklyCount < 30) {
+    nextTargetStr = `เป้าหมายถัดไป: **30 ภารกิจ** (รับโบนัส +350 แต้ม + 🍰 เค้กหมี)`;
+  }
+
+  innerComponents.push({
+    type: 10,
+    content:
+      `🏆︲__\` 𝖶𝖾𝖾𝗄𝗅𝗒 𝖬𝗂𝗅𝖾𝗌𝗍𝗈𝗇𝖾 ₊ ความคืบหน้าประจำสัปดาห์ 𓂃 \`__\n` +
+      `> (<:bee20000:1256669436350562355>)⠀ทำสำเร็จแล้ว **${weeklyCount}/30** ภารกิจ (สัปดาห์นี้)\n` +
+      `> (<:cuteplant:1152834055528783872>)⠀${nextTargetStr}\n` +
+      `${progressBarStr}`
+  });
+
   innerComponents.push({ type: 14, divider: false });
 
-  // 4. Action Row (Type 1 ActionRow with Buttons)
+  // 5. Action Row (Type 1 ActionRow with Buttons)
+  const actionButtons = [
+    {
+      style: 1, // Blurple
+      type: 2,
+      label: "︲รับรางวัลทั้งหมด",
+      emoji: {
+        id: "1276130500410605609",
+        name: "68492gift",
+        animated: false
+      },
+      custom_id: "dq_claim_all",
+      disabled: !hasUnclaimed,
+      flow: { actions: [] }
+    },
+    {
+      style: 2, // Secondary / Grey
+      type: 2,
+      label: `︲เปลี่ยนภารกิจ (${rerollRemaining} ครั้ง)`,
+      emoji: {
+        id: "1510390943172399195",
+        name: "516185loading",
+        animated: true
+      },
+      custom_id: "dq_reroll_menu",
+      disabled: rerollRemaining <= 0,
+      flow: { actions: [] }
+    }
+  ];
+
+  // ถ้ามีโบนัสประจำสัปดาห์ที่พร้อมกดรับ ให้เพิ่มปุ่มรับโบนัสสัปดาห์
+  if (hasClaimableWeekly) {
+    actionButtons.push({
+      style: 3, // Green / Success
+      type: 2,
+      label: "︲โบนัสสัปดาห์!",
+      emoji: {
+        id: "1538597613547560960",
+        name: "jumpingstar",
+        animated: true
+      },
+      custom_id: "dq_claim_weekly",
+      flow: { actions: [] }
+    });
+  }
+
   innerComponents.push({
     type: 1,
-    components: [
-      {
-        style: 1, // Blurple
-        type: 2,
-        label: "︲รับรางวัลทั้งหมด",
-        emoji: {
-          id: "1276130500410605609",
-          name: "68492gift",
-          animated: false
-        },
-        custom_id: "dq_claim_all",
-        disabled: !hasUnclaimed,
-        flow: { actions: [] }
-      },
-      {
-        style: 2, // Secondary / Grey
-        type: 2,
-        label: `︲เปลี่ยนภารกิจ (${rerollRemaining} ครั้ง)`,
-        emoji: {
-          id: "1510390943172399195",
-          name: "516185loading",
-          animated: true
-        },
-        custom_id: "dq_reroll_menu",
-        disabled: rerollRemaining <= 0,
-        flow: { actions: [] }
-      }
-    ]
+    components: actionButtons
   });
 
   // Complete Component V2 Container Payload
@@ -206,5 +278,6 @@ function buildDailyQuestPayload(userId, userQuests, summary = {}) {
 
 module.exports = {
   buildDailyQuestPayload,
-  getRemainingTimeString
+  getRemainingTimeString,
+  buildProgressBar
 };

@@ -19,7 +19,7 @@ const logger = require("./utils/logger");
 const config = require("./config");
 const { startVoiceLogWorker } = require("./utils/voiceLogWorker");
 
-const isLocalFastStart = process.env.LOCAL_FAST_START === "true";
+const isLocalFastStart = process.env.LOCAL_FAST_START === "true" || process.env.DISABLE_BACKGROUND_SERVICES === "true" || process.env.LOCAL_DEV === "true";
 const supabaseEnvKeys = ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"];
 
 if (!process.env.BOT_TOKEN) {
@@ -58,8 +58,18 @@ setupFeature("colorRoles", "./src/commands/colorRoles", "setupColorRoles", supab
 setupFeature("totalAmount", "./src/commands/totalAmount", "setupTotalAmount");
 setupFeature("createPersonalRole", "./src/commands/createPersonalRole", "setupCreatePersonalRole", supabaseEnvKeys);
 setupFeature("createRentHouse", "./src/commands/createRentHouse", "setupCreateRentHouse");
-setupContractNotifier(client);
-setupBroadcastScheduler(client);
+
+if (!isLocalFastStart && process.env.DISABLE_CONTRACT_NOTIFIER !== "true") {
+  setupContractNotifier(client);
+} else {
+  console.log("[local] ⏭️ Skipping contractNotifier (Auto DM) in Local/Dev mode.");
+}
+
+if (!isLocalFastStart && process.env.DISABLE_BROADCAST_SCHEDULER !== "true") {
+  setupBroadcastScheduler(client);
+} else {
+  console.log("[local] ⏭️ Skipping broadcastScheduler in Local/Dev mode.");
+}
 setupFeature("checkRole", "./src/commands/checkRole", "setupCheckRole");
 setupFeature("resetForm", "./src/commands/resetForm", "setupResetForm", supabaseEnvKeys);
 setupFeature("randomQuestion", "./src/commands/randomQuestion", "setupRandomQuestion", supabaseEnvKeys);
@@ -73,8 +83,8 @@ setupFeature("minigames", "./src/features/minigames/minigames", "setupMinigames"
 setupFeature("healJai", "./src/features/healJai", "setupHealJai", supabaseEnvKeys);
 setupFeature("voiceHistory", "./src/commands/voiceHistory", "setupVoiceHistory", supabaseEnvKeys);
 setupFeature("security", "./src/features/security", "setupSecurity", supabaseEnvKeys);
-setupFeature("adReward", "./src/features/adReward", "setupAdReward", supabaseEnvKeys);
 setupFeature("dailyQuest", "./src/features/dailyQuest", "setupDailyQuest", supabaseEnvKeys);
+setupFeature("cafe", "./src/features/cafe", "setupCafe");
 
 
 
@@ -123,11 +133,19 @@ client.once("clientReady", async () => {
     startupCleanup().catch((e) => console.error("Startup cleanup failed:", e.message));
   }
 
-  // เริ่ม monitor loop
-  startMonitor(client);
+  // เริ่ม monitor loop (ข้ามเมื่อเป็นโหมด Local/Dev)
+  if (!isLocalFastStart && process.env.DISABLE_ROOM_MONITOR !== "true") {
+    startMonitor(client);
+  } else {
+    console.log("[local] ⏭️ Skipping roomMonitor loop in Local/Dev mode.");
+  }
 
-  // เริ่มต้นทำงาน Voice Log Worker ดึงประวัติจาก Redis ลง Supabase
-  startVoiceLogWorker().catch((e) => console.error("Voice Log Worker failed to start:", e.message));
+  // เริ่มต้นทำงาน Voice Log Worker ดึงประวัติจาก Redis ลง Supabase (ข้ามเมื่อเป็นโหมด Local/Dev)
+  if (!isLocalFastStart && process.env.DISABLE_VOICE_WORKER !== "true") {
+    startVoiceLogWorker().catch((e) => console.error("Voice Log Worker failed to start:", e.message));
+  } else {
+    console.log("[local] ⏭️ Skipping Voice Log Worker in Local/Dev mode.");
+  }
 });
 
 // ── Startup Cleanup ────────────────────────────────────────────────
@@ -220,7 +238,7 @@ client.on("guildMemberRemove", (member) => {
 
 const port = process.env.PORT || 8000;
 
-http
+const healthServer = http
   .createServer((req, res) => {
     // Set CORS headers
     res.setHeader("Access-Control-Allow-Origin", "*");
@@ -257,10 +275,19 @@ http
 
     res.writeHead(200, { "Content-Type": "text/plain" });
     res.end("Bear Cafe bot is running");
-  })
-  .listen(Number(port), "0.0.0.0", () => {
-    console.log(`Health server listening on port ${port}`);
   });
+
+healthServer.on("error", (err) => {
+  if (err.code === "EADDRINUSE") {
+    console.warn(`[health] Port ${port} is already in use. Skipping health server.`);
+  } else {
+    console.error("[health] Server error:", err.message);
+  }
+});
+
+healthServer.listen(Number(port), "0.0.0.0", () => {
+  console.log(`Health server listening on port ${port}`);
+});
 
 
 

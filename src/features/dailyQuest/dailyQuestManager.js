@@ -390,13 +390,167 @@ async function runAutoCleanup(supabase) {
   }
 }
 
+/**
+ * ดึงวันที่เริ่มต้นสัปดาห์ (วันจันทร์) ใน timezone GMT+7
+ */
+function getWeekStartDateBangkok() {
+  const d = new Date();
+  const bangkokDate = new Date(d.toLocaleString("en-US", { timeZone: "Asia/Bangkok" }));
+  const dayOfWeek = bangkokDate.getDay();
+  const distanceToMonday = (dayOfWeek + 6) % 7;
+  bangkokDate.setDate(bangkokDate.getDate() - distanceToMonday);
+  const year = bangkokDate.getFullYear();
+  const month = String(bangkokDate.getMonth() + 1).padStart(2, "0");
+  const day = String(bangkokDate.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * ดึงความคืบหน้าสะสมประจำสัปดาห์ของผู้ใช้
+ */
+async function getWeeklyProgress(supabase, userId) {
+  if (!supabase) return { count: 0, claimedTiers: [] };
+  const weekStart = getWeekStartDateBangkok();
+
+  try {
+    // 1. นับจำนวนภารกิจที่สำเร็จในสัปดาห์นี้
+    const { data: weekQuests, error } = await supabase
+      .from("user_daily_quests")
+      .select("is_completed")
+      .eq("discord_id", userId)
+      .gte("quest_date", weekStart)
+      .eq("is_completed", true);
+
+    const count = weekQuests ? weekQuests.length : 0;
+
+    // 2. ดึงสถานะการกดรับรางวัลประจำสัปดาห์
+    const { data: streakData } = await supabase
+      .from("user_quest_streaks")
+      .select("weekly_completed_count, weekly_claimed_milestones, week_start_date")
+      .eq("discord_id", userId)
+      .maybeSingle();
+
+    let claimedTiers = [];
+    if (streakData && streakData.week_start_date === weekStart) {
+      claimedTiers = streakData.weekly_claimed_milestones || [];
+    } else if (streakData && streakData.week_start_date !== weekStart) {
+      // สัปดาห์ใหม่ รีเซ็ตโบนัสสัปดาห์
+      await supabase
+        .from("user_quest_streaks")
+        .update({
+          week_start_date: weekStart,
+          weekly_completed_count: count,
+          weekly_claimed_milestones: [],
+          updated_at: new Date().toISOString()
+        })
+        .eq("discord_id", userId);
+    }
+
+    return { count, claimedTiers };
+  } catch (err) {
+    console.error("[dailyQuestManager] Error fetching weekly progress:", err);
+    return { count: 0, claimedTiers: [] };
+  }
+}
+
+/**
+ * กดรับรางวัลโบนัสสะสมประจำสัปดาห์
+ */
+async function claimWeeklyMilestone(supabase, userId) {
+  if (!supabase) return { success: false, message: "ไม่มีระบบฐานข้อมูล" };
+  const weekStart = getWeekStartDateBangkok();
+  const { count, claimedTiers } = await getWeeklyProgress(supabase, userId);
+
+  // กำหนดเกณฑ์รางวัล 3 ขั้น
+  const TIERS = [
+    { tier: 1, target: 10, points: 50, cakes: 0, name: "ขั้นที่ 1 (10 ภารกิจ)" },
+    { tier: 2, target: 20, points: 150, cakes: 0, name: "ขั้นที่ 2 (20 ภารกิจ)" },
+    { tier: 3, target: 30, points: 350, cakes: 1, name: "ขั้นที่ 3 (30 ภารกิจ - Master)" }
+  ];
+
+  // หา Tier สูงสุดที่ทำถึงแต่ยังไม่ได้กดรับ
+  const claimable = TIERS.find(t => count >= t.target && !claimedTiers.includes(t.tier));
+
+  if (!claimable) {
+    return { success: false, message: "ยังไม่มีโบนัสประจำสัปดาห์ที่สามารถกดรับได้ในขณะนี้ค่ะ" };
+  }
+
+  try {
+    // 1. เพิ่มแต้ม + เค้ก
+    await addPointsToUser(supabase, userId, claimable.points);
+    if (claimable.cakes > 0) {
+      const { data: userRow } = await supabase
+        .from("user_points")
+        .select("cakes")
+        .eq("discord_id", userId)
+        .maybeSingle();
+      const newCakes = (userRow?.cakes || 0) + claimable.cakes;
+      await supabase.from("user_points").update({ cakes: newCakes }).eq("discord_id", userId);
+    }
+
+    // 2. บันทึก Tier ที่กดรับแล้ว
+    const newClaimed = [...claimedTiers, claimable.tier];
+    await supabase
+      .from("user_quest_streaks")
+      .upsert(
+        {
+          discord_id: userId,
+          week_start_date: weekStart,
+          weekly_completed_count: count,
+          weekly_claimed_milestones: newClaimed,
+          updated_at: new Date().toISOString()
+        },
+        { onConflict: "discord_id" }
+      );
+
+    return {
+      success: true,
+      tierName: claimable.name,
+      rewardPoints: claimable.points,
+      rewardCakes: claimable.cakes
+    };
+  } catch (err) {
+    console.error("[dailyQuestManager] Error claiming weekly milestone:", err);
+    return { success: false, message: "เกิดข้อผิดพลาดในการรับโบนัสประจำสัปดาห์" };
+  }
+}
+/**
+ * คำนวณและอัปเดตเวลานั่งห้องเสียงของผู้ใช้ ณ ปัจจุบัน (Real-time Flush)
+ */
+async function flushVoiceProgressRealtime(supabase, userId, voiceChannel, joinTimestamp) {
+  if (!supabase || !userId || !joinTimestamp || !voiceChannel) return;
+
+  const now = Date.now();
+  const elapsedMinutes = Math.floor((now - joinTimestamp) / (1000 * 60));
+  if (elapsedMinutes < 1) return;
+
+  await addProgress(supabase, userId, "VOICE_MINUTES", elapsedMinutes);
+
+  if (elapsedMinutes >= 30) {
+    await addProgress(supabase, userId, "VOICE_CONTINUOUS", elapsedMinutes);
+  }
+
+  const memberCount = voiceChannel.members ? voiceChannel.members.size : 0;
+  if (memberCount >= 2) {
+    await addProgress(supabase, userId, "VOICE_WITH_FRIENDS", elapsedMinutes);
+  }
+
+  if (memberCount >= 3) {
+    await addProgress(supabase, userId, "VOICE_CROWD", elapsedMinutes);
+  }
+}
+
 module.exports = {
   getTodayBangkok,
+  getWeekStartDateBangkok,
   ensureMasterQuestsSeeded,
   getOrAssignDailyQuests,
   addProgress,
   claimReward,
   claimAllRewards,
   rerollQuest,
-  runAutoCleanup
+  runAutoCleanup,
+  flushVoiceProgressRealtime,
+  getWeeklyProgress,
+  claimWeeklyMilestone
 };

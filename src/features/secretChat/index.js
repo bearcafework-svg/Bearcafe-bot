@@ -13,6 +13,7 @@ const crypto = require("crypto");
 const { createClient } = require("@supabase/supabase-js");
 const { safeDeleteChannel, safeDeferReply, safeRespond } = require("../../../utils/discordSafety");
 const ws = require("ws");
+const { trackUserDailyQuestProgress } = require("../dailyQuest");
 
 // ============================================================================
 // SYSTEM CONFIGURATION & CONSTANTS
@@ -1260,6 +1261,10 @@ async function createSecretChatChannel(guild, userAId, userBId, isExpanded = fal
 
   activeUsers.add(userAId);
   activeUsers.add(userBId);
+  trackUserDailyQuestProgress(userAId, "USE_MATCHMAKING", 1);
+  trackUserDailyQuestProgress(userBId, "USE_MATCHMAKING", 1);
+  trackUserDailyQuestProgress(userAId, "JOIN_GAME_TABLE", 1);
+  trackUserDailyQuestProgress(userBId, "JOIN_GAME_TABLE", 1);
   tableMembers.set(channel.id, new Set([userAId, userBId]));
   recentMatches.set(`${userAId}-${userBId}`, Date.now());
   recentMatches.set(`${userBId}-${userAId}`, Date.now());

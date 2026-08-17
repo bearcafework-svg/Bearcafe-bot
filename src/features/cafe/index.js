@@ -30,7 +30,7 @@ function setupCafe(client) {
 
       // สร้าง Session ใหม่
       const session = await engine.startNewSession(userId, channelId);
-      const mainPayload = engine.renderPayload(session);
+      const mainPayload = await engine.renderMessageOptions(session);
 
       // ส่ง Single Interactive Component V2 Message
       const sentMessage = await message.channel.send(mainPayload);
@@ -85,83 +85,83 @@ function setupCafe(client) {
         if (customId === "cafe_observe_menu") {
           session.status = "OBSERVING";
           await engine.store.updateSession(session);
-          return await interaction.update(engine.renderPayload(session));
+          return await interaction.update(await engine.renderMessageOptions(session));
         }
 
         // B. ทำการสำรวจจุดต่างๆ (5 จุด)
         if (customId.startsWith("cafe_obs_")) {
           const targetId = customId.replace("cafe_obs_", "");
           await engine.observeTarget(session, targetId);
-          return await interaction.update(engine.renderPayload(session));
+          return await interaction.update(await engine.renderMessageOptions(session));
         }
 
         // C. กลับจากเมนูตรวจสอบไปหน้าตัดสินใจหลัก
         if (customId === "cafe_back_main") {
           session.status = "ACTIVE";
           await engine.store.updateSession(session);
-          return await interaction.update(engine.renderPayload(session));
+          return await interaction.update(await engine.renderMessageOptions(session));
         }
 
         // D. เข้าสู่โหมดเคาน์เตอร์ชงเครื่องดื่ม (Brewing Mode)
         if (customId === "cafe_brew_menu") {
           session.status = "BREWING";
           await engine.store.updateSession(session);
-          return await interaction.update(engine.renderPayload(session));
+          return await interaction.update(await engine.renderMessageOptions(session));
         }
 
         // D.1 ปรับแต่งส่วนผสม (Base, Temp, Sugar, Topping)
         if (customId === "cafe_brew_base") {
           await engine.cycleBrew(session, "base");
-          return await interaction.update(engine.renderPayload(session));
+          return await interaction.update(await engine.renderMessageOptions(session));
         }
         if (customId === "cafe_brew_temp") {
           await engine.cycleBrew(session, "temp");
-          return await interaction.update(engine.renderPayload(session));
+          return await interaction.update(await engine.renderMessageOptions(session));
         }
         if (customId === "cafe_brew_sugar") {
           await engine.cycleBrew(session, "sugar");
-          return await interaction.update(engine.renderPayload(session));
+          return await interaction.update(await engine.renderMessageOptions(session));
         }
         if (customId === "cafe_brew_topping") {
           await engine.cycleBrew(session, "topping");
-          return await interaction.update(engine.renderPayload(session));
+          return await interaction.update(await engine.renderMessageOptions(session));
         }
 
         // D.2 รีเซ็ตแก้วที่กำลังชง
         if (customId === "cafe_brew_reset") {
           await engine.resetBrew(session);
-          return await interaction.update(engine.renderPayload(session));
+          return await interaction.update(await engine.renderMessageOptions(session));
         }
 
         // D.3 เสิร์ฟเครื่องดื่มที่ชงเสร็จแล้ว
         if (customId === "cafe_brew_serve" || customId === "cafe_serve") {
           await engine.makeDecision(session, "SERVE");
-          return await interaction.update(engine.renderPayload(session));
+          return await interaction.update(await engine.renderMessageOptions(session));
         }
 
         // E. ตัดสินใจ: ตรวจจับ Anomaly
         if (customId === "cafe_anomaly") {
           await engine.makeDecision(session, "ANOMALY");
-          return await interaction.update(engine.renderPayload(session));
+          return await interaction.update(await engine.renderMessageOptions(session));
         }
 
         // F. ก้าวสู่รอบถัดไป (Next Round)
         if (customId === "cafe_next_round") {
           await engine.nextRound(session);
-          return await interaction.update(engine.renderPayload(session));
+          return await interaction.update(await engine.renderMessageOptions(session));
         }
 
         // G. เริ่มกะใหม่ (เล่นต่อจากข้อความเดิม)
         if (customId === "cafe_continue") {
           await engine.continueShift(session);
-          return await interaction.update(engine.renderPayload(session));
+          return await interaction.update(await engine.renderMessageOptions(session));
         }
 
         // H. เล่นต่อจากหน้าเตือน Session ค้าง (Resume)
         if (customId === "cafe_resume") {
           session.status = "ACTIVE";
           await engine.store.updateSession(session);
-          return await interaction.update(engine.renderPayload(session));
+          return await interaction.update(await engine.renderMessageOptions(session));
         }
 
         // I. ยกเลิก Session / ออกจากร้าน

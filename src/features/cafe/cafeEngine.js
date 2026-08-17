@@ -1,13 +1,15 @@
-// src/features/cafe/cafeEngine.js
-// Game Engine สำหรับจัดการสถานะและลอจิกของ Bear Café
-
+const { AttachmentBuilder } = require("discord.js");
 const { CafeSession } = require("./cafeSession");
 const { MemoryCafeSessionStore } = require("./stores/memoryCafeSessionStore");
 const { generateCustomer } = require("./generators/customerGenerator");
 const { generateOrder } = require("./generators/orderGenerator");
 const { rollAnomaly } = require("./generators/anomalyGenerator");
 const { performObservation } = require("./systems/observationSystem");
-const { processDecision } = require("./systems/decisionSystem");
+const { generateCustomerSceneCanvas } = require("./generators/canvasCustomerGenerator");
+const { generateObservationSceneCanvas } = require("./generators/canvasObservationGenerator");
+const { generateBrewCupCanvas } = require("./generators/canvasBrewGenerator");
+const { generateResultSceneCanvas } = require("./generators/canvasResultGenerator");
+const { generateShiftSummaryCanvas } = require("./generators/canvasSummaryGenerator");
 
 const { buildCafeMainPayload } = require("./components/cafeMainPayload");
 const { buildCafeObservationPayload } = require("./components/cafeObservationPayload");
@@ -164,6 +166,42 @@ class CafeEngine {
       default:
         return buildCafeMainPayload(session);
     }
+  }
+
+  /**
+   * คืน Payload พร้อม Attachment ไฟล์รูปภาพ Canvas ที่เกี่ยวข้อง
+   */
+  async renderMessageOptions(session) {
+    const payload = this.renderPayload(session);
+    const files = [];
+
+    try {
+      if (session.status === "ACTIVE") {
+        const buffer = await generateCustomerSceneCanvas(session.currentCustomer, session);
+        files.push(new AttachmentBuilder(buffer, { name: "customer_scene.png" }));
+      } else if (session.status === "OBSERVING") {
+        const lastEntry = session.observationHistory.length > 0 ? session.observationHistory[session.observationHistory.length - 1] : null;
+        const targetId = lastEntry ? lastEntry.target : "table";
+        const buffer = await generateObservationSceneCanvas(targetId, lastEntry, session);
+        files.push(new AttachmentBuilder(buffer, { name: "observation_scene.png" }));
+      } else if (session.status === "BREWING") {
+        const buffer = await generateBrewCupCanvas(session.currentBrew, session.currentOrder);
+        files.push(new AttachmentBuilder(buffer, { name: "brew_cup.png" }));
+      } else if (session.status === "RESULT") {
+        const buffer = await generateResultSceneCanvas(session);
+        files.push(new AttachmentBuilder(buffer, { name: "result_scene.png" }));
+      } else if (session.status === "COMPLETED") {
+        const buffer = await generateShiftSummaryCanvas(session);
+        files.push(new AttachmentBuilder(buffer, { name: "shift_summary.png" }));
+      }
+    } catch (err) {
+      console.error("[cafe] Error generating canvas image:", err);
+    }
+
+    return {
+      ...payload,
+      files
+    };
   }
 }
 

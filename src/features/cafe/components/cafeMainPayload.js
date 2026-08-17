@@ -11,23 +11,26 @@ function buildCafeMainPayload(session) {
 
   const innerComponents = [];
 
-  // 1. Header Section
+  // 1. Top Image Banner (Generated via @napi-rs/canvas)
   innerComponents.push({
-    type: 9,
-    components: [
+    type: 12,
+    items: [
       {
-        type: 10,
-        content:
-          `## ☕︲__\` BEAR CAFÉ ₊ กะดึกส่องมิติ 𓂃 \`__\n` +
-          `> 🌙 **กะดึก — Round ${session.round}/${session.maxRounds}** ︲ บาริสต้า: <@${session.userId}>`
+        media: {
+          url: "attachment://customer_scene.png"
+        }
       }
-    ],
-    accessory: {
-      type: 11,
-      media: {
-        url: customer.avatar || "https://cdn.discordapp.com/attachments/1524704267015819274/1534568886135947415/IMG_25680923184720328.png"
-      }
-    }
+    ]
+  });
+
+  innerComponents.push({ type: 14, spacing: 2 });
+
+  // 2. Header Section
+  innerComponents.push({
+    type: 10,
+    content:
+      `## ☕︲__\` BEAR CAFÉ ₊ กะดึกส่องมิติ 𓂃 \`__\n` +
+      `> 🌙 **กะดึก — Round ${session.round}/${session.maxRounds}** ︲ บาริสต้า: <@${session.userId}>`
   });
 
   innerComponents.push({ type: 14, spacing: 2 });

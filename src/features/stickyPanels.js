@@ -253,10 +253,10 @@ function setupStickyPanels(client) {
   loadInitialConfigs();
   setupRealtimeSync();
 
-  // 3. จัดการข้อความเมื่อมีคนแชท
+  // 3. จัดการข้อความเมื่อมีแชท/Embed/Component v2 เข้ามาในห้อง
   client.on("messageCreate", async (message) => {
-    // ข้ามถ้าไม่ใช่ในกิลด์ หรือส่งมาจากตัวบอทเอง
-    if (!message.guild || message.author.id === client.user.id) return;
+    // ข้ามถ้าไม่ใช่ในกิลด์
+    if (!message.guild) return;
 
     const channelId = message.channel.id;
     const channelConfig = stickyConfigs.get(channelId);
@@ -270,6 +270,9 @@ function setupStickyPanels(client) {
       session = { lastBotMessageId: null, timeoutId: null };
       activeStickySessions.set(channelId, session);
     }
+
+    // ข้ามเฉพาะข้อความปักหมุด Sticky Panel ของตัวเองเท่านั้น
+    if (session.lastBotMessageId && message.id === session.lastBotMessageId) return;
 
     // A. สั่งลบข้อความบอทเดิมทันที (ถ้ามีจำไอดีไว้ในหน่วยความจำหรือ DB)
     await deleteOldStickyMessage(message.channel, session);

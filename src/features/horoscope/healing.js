@@ -34,7 +34,7 @@ function setupHealing(client) {
     const isBlacklisted = sharedConfig.role_blacklist.some(id => member.roles.cache.has(id));
     if (isBlacklisted) {
       const sent = await message.reply(blacklistPayload(userId));
-      setTimeout(() => sent.delete().catch(() => {}), 5000);
+      setTimeout(() => sent.delete().catch(() => { }), 5000);
       return;
     }
 
@@ -98,7 +98,7 @@ function setupHealing(client) {
                 components: [
                   {
                     type: 10,
-                    content: `## <a:28457gameoverheart:1372833851092504637>︲__\` 𝖬𝖾𝗌𝗌𝖺𝖿𝖾 𝟦 𝗎 ₊ ข้อความนี้ของเธอ 𓂃 \`__\n### ${selectedMsg.message}\n-# - เจ้าของข้อความ: **__[${username}](https://bearcafe4commu.vercel.app/healing-message)__** <:cuteplant:1152834055528783872>\n\n`
+                    content: `## <a:28457gameoverheart:1372833851092504637>︲__\` 𝖬𝖾𝗌𝗌𝖺𝖿𝖾 𝟦 𝗎 ₊ ข้อความนี้ของเธอ 𓂃 \`__\n### ${selectedMsg.message}\n-# - เจ้าของข้อความ: **__${username}__** <:cuteplant:1152834055528783872>\n\n`
                   }
                 ],
                 accessory: {

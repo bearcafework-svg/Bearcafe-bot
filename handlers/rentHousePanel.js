@@ -77,7 +77,7 @@ function createRentHousePanelPayload(ownerMember) {
       label: "เปลี่ยนชื่อห้อง",
       description: "ตั้งชื่อห้องบ้านเช่าของคุณใหม่",
       value: "rh_opt_name",
-      emoji: { name: "✏️" },
+      emoji: { name: "📝" },
     },
     {
       label: "เปลี่ยนจำนวนคน",

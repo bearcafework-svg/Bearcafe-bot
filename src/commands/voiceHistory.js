@@ -326,7 +326,7 @@ function buildVoiceHistoryPayload(targetUser, retrievedLogs, period, page, calle
     let emojiName = "⏰";
     if (val === "XB9EIxyvnY") emojiName = "🌙";
     if (val === "nXnimKWVOX") emojiName = "☀️";
-    if (val === "5LO94h88EU") emojiName = "<ctrl42>";
+    if (val === "5LO94h88EU") emojiName = "🌆";
     if (val === "bxE4waaQGS") emojiName = "🌌";
 
     return {

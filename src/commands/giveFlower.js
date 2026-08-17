@@ -409,7 +409,7 @@ function setupGiveFlower(client) {
       // Set cooldown 1 minute
       await setCooldown(supabase, userId, "giveFlower", now + 60000);
 
-      const expireTimestamp = Math.floor((now + 5 * 60 * 1000) / 1000);
+      const expireTimestamp = Math.floor((now + 30 * 60 * 1000) / 1000);
       const sessionId = Date.now().toString(36) + Math.random().toString(36).substring(2, 7);
 
       const payload = buildInitialPayload(userId, targetUser.id, flowerObj.flower, flowerObj.img, expireTimestamp, sessionId);
@@ -425,7 +425,7 @@ function setupGiveFlower(client) {
           sender_id: userId,
           target_id: targetUser.id,
           flower_key: flowerKey,
-          expires_at: now + 5 * 60 * 1000
+          expires_at: now + 30 * 60 * 1000
         };
 
         // Save session to Memory & DB

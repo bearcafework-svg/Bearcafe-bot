@@ -64,10 +64,15 @@ function buildMainPayload(interaction, points, cakes, maxPoints, page = 1, daily
 
   for (const role of rolesList) {
     const roleName = interaction.guild?.roles.cache.get(role.id)?.name || 'Unknown Role';
+    const hasEmoji = role.emoji_id && (interaction.guild?.emojis.cache.has(role.emoji_id) || interaction.client?.emojis.cache.has(role.emoji_id));
+    const emojiObj = hasEmoji
+      ? { id: role.emoji_id, name: role.emoji_name, animated: false }
+      : { name: "🎀" };
+
     options.push({
       label: roleName,
       value: role.id,
-      emoji: { id: role.emoji_id, name: role.emoji_name, animated: false }
+      emoji: emojiObj
     });
   }
 
@@ -240,10 +245,15 @@ function setupMyPoints(client) {
         const optionsPage2 = [];
         for (const role of cfg.roles_exchange_page2) {
           const roleName = interaction.guild?.roles.cache.get(role.id)?.name || 'Unknown Role';
+          const hasEmoji = role.emoji_id && (interaction.guild?.emojis.cache.has(role.emoji_id) || interaction.client?.emojis.cache.has(role.emoji_id));
+          const emojiObj = hasEmoji
+            ? { id: role.emoji_id, name: role.emoji_name, animated: false }
+            : { name: "🎀" };
+
           optionsPage2.push({
             label: roleName,
             value: role.id,
-            emoji: { id: role.emoji_id, name: role.emoji_name, animated: false }
+            emoji: emojiObj
           });
         }
         const payload = {

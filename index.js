@@ -74,6 +74,7 @@ setupFeature("healJai", "./src/features/healJai", "setupHealJai", supabaseEnvKey
 setupFeature("voiceHistory", "./src/commands/voiceHistory", "setupVoiceHistory", supabaseEnvKeys);
 setupFeature("security", "./src/features/security", "setupSecurity", supabaseEnvKeys);
 setupFeature("adReward", "./src/features/adReward", "setupAdReward", supabaseEnvKeys);
+setupFeature("dailyQuest", "./src/features/dailyQuest", "setupDailyQuest", supabaseEnvKeys);
 
 
 

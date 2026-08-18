@@ -222,8 +222,8 @@ function buildGamePayload(gameId, questionData) {
     });
   }
 
-  // 4. SelectMenu for Hints (for Games 1, 2, 5, 6)
-  if ([1, 2, 5, 6].includes(gameId)) {
+  // 4. SelectMenu for Hints (for Games 5 & 6 only)
+  if ([5, 6].includes(gameId)) {
     containerComponents.push({
       type: 14,
       spacing: 1,
@@ -240,12 +240,12 @@ function buildGamePayload(gameId, questionData) {
             {
               label: '🔎︲คำใบ้ 1 (หัก 10 แต้ม)',
               value: 'hint_1',
-              description: (gameId === 1 || gameId === 2) ? 'เปิดตัวอักษรที่ถูกต้อง 1 ตัว' : 'ล็อกตำแหน่งตัวอักษร 1 ตัว'
+              description: 'ล็อกตำแหน่งตัวอักษร 1 ตัว'
             },
             {
               label: '💡︲คำใบ้ 2 (หัก 25 แต้ม)',
               value: 'hint_2',
-              description: (gameId === 1 || gameId === 2) ? 'เปิดตัวอักษรเพิ่ม 50%' : 'ล็อกตำแหน่งตัวอักษรเพิ่ม 50%'
+              description: 'ล็อกตำแหน่งตัวอักษรเพิ่ม 50%'
             }
           ]
         }
@@ -749,9 +749,9 @@ function setupMinigames(client) {
       }
 
       // Return Ephemeral Hint response using Component V2 Container (Type 17)
-      const hintTitle = (gameId === 1 || gameId === 2)
-        ? (hintLevel === 1 ? '🔎︲__\` คำใบ้ 1 (เปิดอักษร 1 ตัว) \`__' : '💡︲__\` คำใบ้ 2 (เปิดอักษรเพิ่ม 50%) \`__')
-        : (hintLevel === 1 ? '🔎︲__\` คำใบ้ 1 (ล็อกตำแหน่ง 1 ตัว) \`__' : '💡︲__\` คำใบ้ 2 (ล็อกตำแหน่งเพิ่ม 50%) \`__');
+      const hintTitle = (hintLevel === 1)
+        ? '🔎︲__\` คำใบ้ 1 (ล็อกตำแหน่ง 1 ตัว) \`__'
+        : '💡︲__\` คำใบ้ 2 (ล็อกตำแหน่งเพิ่ม 50%) \`__';
 
       const pointEmoji = (sharedConfig.point_icon && sharedConfig.point_icon.id)
         ? `<:${sharedConfig.point_icon.name}:${sharedConfig.point_icon.id}>`

@@ -153,12 +153,9 @@ function maskWord(word, isThai = true) {
     return { maskedStr: units.join(" ") };
   }
 
-  // Strictly mask only 1 - 2 characters max (approx 25-30%)
-  let countToMask = 1;
-  if (units.length >= 6) {
-    countToMask = 2;
-  }
-  if (units.length >= 9) {
+  // Strictly mask 2 to 3 characters only regardless of word length
+  let countToMask = 2;
+  if (units.length >= 8) {
     countToMask = 3;
   }
 

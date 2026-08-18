@@ -525,8 +525,8 @@ function generateHint(gameId, questionData, hintLevel, previousHintData = null) 
     const newlyRevealed = shuffledUnrevealed.slice(0, countToReveal);
     newlyRevealed.forEach(idx => revealedIndices.add(idx));
 
-    const formattedDisplay = clusters.map((char, i) => revealedIndices.has(i) ? char : '_').join('  ');
-    const hintMsg = `# ${formattedDisplay}`;
+    const formattedDisplay = clusters.map((char, i) => revealedIndices.has(i) ? char : '_').join(' ');
+    const hintMsg = `# \`${formattedDisplay}\``;
 
     return {
       error: null,
@@ -566,11 +566,11 @@ function generateHint(gameId, questionData, hintLevel, previousHintData = null) 
 
     const lockedListStr = Array.from(lockedIndices)
       .sort((a, b) => a - b)
-      .map(idx => `• ตำแหน่งที่ **${idx + 1}** คือ **"${clusters[idx]}"**`)
+      .map(idx => `- ตำแหน่งที่ **${idx + 1}** คือ **"${clusters[idx]}"**`)
       .join('\n');
 
-    const formattedDisplay = clusters.map((char, i) => lockedIndices.has(i) ? char : '_').join('  ');
-    const hintMsg = `# ${formattedDisplay}\n${lockedListStr}`;
+    const formattedDisplay = clusters.map((char, i) => lockedIndices.has(i) ? char : '_').join(' ');
+    const hintMsg = `# \`${formattedDisplay}\`\n\n${lockedListStr}`;
 
     return {
       error: null,

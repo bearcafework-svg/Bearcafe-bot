@@ -750,13 +750,17 @@ function setupMinigames(client) {
 
       // Return Ephemeral Hint response using Component V2 Container (Type 17)
       const hintTitle = (gameId === 1 || gameId === 2)
-        ? (hintLevel === 1 ? '🔎︲คำใบ้ 1 (เปิดอักษร 1 ตัว)' : '💡︲คำใบ้ 2 (เปิดอักษรเพิ่ม 50%)')
-        : (hintLevel === 1 ? '🔎︲คำใบ้ 1 (ล็อกตำแหน่ง 1 ตัว)' : '💡︲คำใบ้ 2 (ล็อกตำแหน่งเพิ่ม 50%)');
+        ? (hintLevel === 1 ? '🔎︲คำใบ้ 1 (เปิดอักษร 1 ตัว) 𓂃' : '💡︲คำใบ้ 2 (เปิดอักษรเพิ่ม 50%) 𓂃')
+        : (hintLevel === 1 ? '🔎︲คำใบ้ 1 (ล็อกตำแหน่ง 1 ตัว) 𓂃' : '💡︲คำใบ้ 2 (ล็อกตำแหน่งเพิ่ม 50%) 𓂃');
+
+      const pointEmoji = (sharedConfig.point_icon && sharedConfig.point_icon.id)
+        ? `<:${sharedConfig.point_icon.name}:${sharedConfig.point_icon.id}>`
+        : '🍓';
 
       const hintComponents = [
         {
           type: 10,
-          content: `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ ${hintTitle} 𓂃 \`__`
+          content: `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ ${hintTitle} \`__`
         },
         { type: 14, spacing: 2 },
         {
@@ -766,7 +770,7 @@ function setupMinigames(client) {
         { type: 14, spacing: 2 },
         {
           type: 10,
-          content: `-# 💳 หักแต้มเรียบร้อยแล้วค่ะ (**${hintCost} แต้ม**) • เติมคำตอบ/จัดเรียงส่วนที่เหลือลงในแชทได้เลยนะคะ 🐻✨`
+          content: `-# ${pointEmoji} หักแต้มเรียบร้อยน้า (**${hintCost} แต้ม**) ₊ เติมคำตอบส่วนที่เหลือในแชทได้เลยนะคะ 🐻✨`
         }
       ];
 

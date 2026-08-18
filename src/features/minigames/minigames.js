@@ -738,11 +738,14 @@ function setupMinigames(client) {
 
       // Persist to Supabase DB
       if (supabase) {
-        await supabase
-          .from('minigame_active_sessions')
-          .update({ user_hints: userHintsMap })
-          .eq('channel_id', interaction.channelId)
-          .catch(e => console.error('[minigames] Error updating user_hints in DB:', e.message));
+        try {
+          await supabase
+            .from('minigame_active_sessions')
+            .update({ user_hints: userHintsMap })
+            .eq('channel_id', interaction.channelId);
+        } catch (e) {
+          console.error('[minigames] Error updating user_hints in DB:', e.message);
+        }
       }
 
       // Return Ephemeral Hint response

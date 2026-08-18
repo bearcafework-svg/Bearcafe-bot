@@ -601,7 +601,7 @@ function generateHint(gameId, questionData, hintLevel, previousHintData = null) 
     const remainingDisplayUnits = isThai ? getGraphemeClusters(scrambledRemaining) : Array.from(scrambledRemaining);
 
     const displayUnits = [...lockedUnits, ...remainingDisplayUnits];
-    const hintMsg = `\`${displayUnits.join(' ')}\`\n\n${lockedUnits.map((char, idx) => `- ตำแหน่งที่ **${idx + 1}** คือ **"${char}"**`).join('\n')}`;
+    const hintMsg = `# \`${displayUnits.join(' ')}\`\n\n${lockedUnits.map((char, idx) => `- ตำแหน่งที่ **${idx + 1}** คือ **"${char}"**`).join('\n')}`;
 
     return {
       error: null,

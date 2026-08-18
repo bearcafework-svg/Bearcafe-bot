@@ -348,8 +348,24 @@ async function getNextQuestion(supabase, gameId, gameSettings = null) {
   let wordOrQuestion = selected.word_or_question;
   let answer = selected.answer;
   let options = [];
+  let initialRevealedIndices = [];
 
-  // Game 4 Difficulty mapping
+  // Games 1 & 2: Fill-in-the-blank / Games 5 & 6: Word Scramble
+  if (gameId === 1) {
+    const masked = maskWord(selected.answer || selected.word_or_question, true);
+    wordOrQuestion = masked.maskedStr;
+    answer = selected.answer || selected.word_or_question;
+    initialRevealedIndices = masked.initialRevealedIndices || [];
+  } else if (gameId === 2) {
+    const masked = maskWord(selected.word_or_question || selected.answer, false);
+    wordOrQuestion = masked.maskedStr;
+    answer = selected.word_or_question || selected.answer;
+    initialRevealedIndices = masked.initialRevealedIndices || [];
+  } else if (gameId === 5 || gameId === 6) {
+    const isThai = gameId === 5;
+    wordOrQuestion = scrambleWord(selected.word_or_question || selected.answer, isThai);
+    answer = selected.word_or_question || selected.answer;
+  }
   if (gameId === 4) {
     const diff = selected.difficulty || "medium";
     if (diff === "easy") {

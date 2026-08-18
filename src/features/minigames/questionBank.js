@@ -194,6 +194,11 @@ function maskWord(word, isThai = true) {
  */
 function getGraphemeClusters(word) {
   if (!word) return [];
+  // Regex matching Thai base character + combining marks (vowels above/below, tone marks, karan)
+  const thaiMatches = word.match(/[\u0E00-\u0E7F][\u0E31\u0E34-\u0E3A\u0E47-\u0E4E]*/g);
+  if (thaiMatches && thaiMatches.join('') === word) {
+    return thaiMatches;
+  }
   if (typeof Intl !== "undefined" && Intl.Segmenter) {
     const segmenter = new Intl.Segmenter("th", { granularity: "grapheme" });
     return Array.from(segmenter.segment(word), (s) => s.segment);
@@ -203,8 +208,7 @@ function getGraphemeClusters(word) {
     const splitter = new GraphemeSplitter();
     return splitter.splitGraphemes(word);
   } catch {
-    const matches = word.match(/[\u0E00-\u0E7F][\u0E30-\u0E3A\u0E47-\u0E4E]*/g);
-    return matches || Array.from(word);
+    return thaiMatches || Array.from(word);
   }
 }
 
@@ -512,7 +516,7 @@ function generateHint(gameId, questionData, hintLevel, previousHintData = null) 
 
     const unrevealedIndices = [];
     for (let i = 0; i < totalLength; i++) {
-      if (!revealedIndices.has(i) && currentUnits[i] === '_') {
+      if (!revealedIndices.has(i)) {
         unrevealedIndices.push(i);
       }
     }

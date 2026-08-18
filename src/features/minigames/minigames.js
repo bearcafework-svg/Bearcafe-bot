@@ -4,7 +4,7 @@ const { createClient } = require('@supabase/supabase-js');
 const { MessageFlags, AttachmentBuilder } = require('discord.js');
 const sharedConfig = require('../../sharedSettings.json');
 const { addPointsWithCap, deductPoints } = require('../../utils/pointManager');
-const { getNextQuestion, maskWord, scrambleWord } = require('./questionBank');
+const { getNextQuestion, maskWord, scrambleWord, generateHint } = require('./questionBank');
 const { createTextImageBuffer } = require('./canvasGenerator');
 const { setupResetTop } = require('./resetTop');
 const { trackUserDailyQuestProgress } = require('../dailyQuest');
@@ -219,6 +219,37 @@ function buildGamePayload(gameId, questionData) {
     containerComponents.push({
       type: 1,
       components: buttonComponents
+    });
+  }
+
+  // 4. SelectMenu for Hints (for Games 1, 2, 5, 6)
+  if ([1, 2, 5, 6].includes(gameId)) {
+    containerComponents.push({
+      type: 14,
+      spacing: 1,
+      divider: false
+    });
+    containerComponents.push({
+      type: 1,
+      components: [
+        {
+          type: 3,
+          custom_id: `mg_hint_select_${gameId}_${Date.now()}`,
+          placeholder: '💡︲เลือกใช้คำใบ้',
+          options: [
+            {
+              label: '🔎︲คำใบ้ 1 (หัก 10 แต้ม)',
+              value: 'hint_1',
+              description: (gameId === 1 || gameId === 2) ? 'เปิดตัวอักษรที่ถูกต้อง 1 ตัว' : 'ล็อกตำแหน่งตัวอักษร 1 ตัว'
+            },
+            {
+              label: '💡︲คำใบ้ 2 (หัก 25 แต้ม)',
+              value: 'hint_2',
+              description: (gameId === 1 || gameId === 2) ? 'เปิดตัวอักษรเพิ่ม 50%' : 'ล็อกตำแหน่งตัวอักษรเพิ่ม 50%'
+            }
+          ]
+        }
+      ]
     });
   }
 
@@ -606,6 +637,119 @@ function setupMinigames(client) {
         clearTimeout(safetyLockTimeout);
         processingChannels.delete(interaction.channelId);
       }
+    }
+
+    // 3. StringSelectMenu Hint Interactions (Games 1, 2, 5, 6)
+    if (interaction.isStringSelectMenu() && interaction.customId.startsWith('mg_hint_select_')) {
+      const parts = interaction.customId.split('_');
+      const gameId = parseInt(parts[3], 10);
+      const hintValue = interaction.values[0];
+      const hintLevel = hintValue === 'hint_1' ? 1 : 2;
+      const hintCost = hintLevel === 1 ? 10 : 25;
+
+      const session = activeSessions.get(interaction.channelId);
+      if (!session || session.gameId !== gameId) {
+        return interaction.reply({ content: 'โจทย์ข้อนี้จบไปแล้วค่ะ หรือเริ่มข้อใหม่แล้วนะคะ', flags: FLAG_EPHEMERAL });
+      }
+
+      const userId = interaction.user.id;
+
+      // Reset menu selection UI on primary message so it can be re-selected if needed
+      if (interaction.message) {
+        const updatedComponents = interaction.message.components.map(row => {
+          const rowJson = row.toJSON();
+          if (rowJson.type === 1 && Array.isArray(rowJson.components)) {
+            rowJson.components = rowJson.components.map(comp => {
+              if (comp.custom_id === interaction.customId) {
+                return {
+                  ...comp,
+                  options: comp.options.map(opt => ({ ...opt, default: false }))
+                };
+              }
+              return comp;
+            });
+          }
+          return rowJson;
+        });
+        await interaction.message.edit({ components: updatedComponents }).catch(() => {});
+      }
+
+      // Fetch active session record from Supabase DB to check used hints
+      let sessionDataFromDB = null;
+      if (supabase) {
+        const { data } = await supabase
+          .from('minigame_active_sessions')
+          .select('user_hints')
+          .eq('channel_id', interaction.channelId)
+          .maybeSingle();
+        sessionDataFromDB = data;
+      }
+
+      const userHintsMap = sessionDataFromDB?.user_hints || session.userHints || {};
+      const userUsedSet = new Set(userHintsMap[userId]?.usedLevels || []);
+
+      // Rule: Check if user already used this specific hint level
+      if (userUsedSet.has(hintLevel)) {
+        return interaction.reply({
+          content: `❌ คุณเคยใช้ **คำใบ้ ${hintLevel}** สำหรับโจทย์ข้อนี้ไปแล้วค่ะ (ใช้ได้สูงสุดครั้งเดียวต่อระดับต่อข้อ)`,
+          flags: FLAG_EPHEMERAL
+        });
+      }
+
+      // Rule: Check if user has enough points
+      if (supabase) {
+        const { data: pointRow } = await supabase
+          .from('user_points')
+          .select('points')
+          .eq('discord_id', userId)
+          .maybeSingle();
+
+        const currentPoints = pointRow?.points ?? 0;
+        if (currentPoints < hintCost) {
+          return interaction.reply({
+            content: `❌ แต้มของคุณไม่พอสำหรับแลกใช้ **คำใบ้ ${hintLevel}** ค่ะ (คุณมี ${currentPoints} แต้ม / ต้องการ ${hintCost} แต้ม)`,
+            flags: FLAG_EPHEMERAL
+          });
+        }
+      }
+
+      // Generate Hint Text
+      const previousHintData = userHintsMap[userId]?.hintData || null;
+      const hintResult = generateHint(gameId, session.questionData, hintLevel, previousHintData);
+
+      if (hintResult.error) {
+        return interaction.reply({ content: `❌ ${hintResult.error}`, flags: FLAG_EPHEMERAL });
+      }
+
+      // Deduct points from user
+      if (supabase) {
+        await deductPoints(supabase, userId, hintCost).catch(err => {
+          console.error('[minigames] Deduct points for hint error:', err.message);
+        });
+      }
+
+      // Update used hints map
+      userUsedSet.add(hintLevel);
+      userHintsMap[userId] = {
+        usedLevels: Array.from(userUsedSet),
+        hintData: hintResult.updatedHintData
+      };
+      session.userHints = userHintsMap;
+
+      // Persist to Supabase DB
+      if (supabase) {
+        await supabase
+          .from('minigame_active_sessions')
+          .update({ user_hints: userHintsMap })
+          .eq('channel_id', interaction.channelId)
+          .catch(e => console.error('[minigames] Error updating user_hints in DB:', e.message));
+      }
+
+      // Return Ephemeral Hint response
+      return interaction.reply({
+        content: hintResult.hintText,
+        flags: FLAG_EPHEMERAL
+      });
     }
   });
 

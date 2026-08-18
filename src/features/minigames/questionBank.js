@@ -181,8 +181,10 @@ function maskWord(word, isThai = true) {
   } while (maskIndices.size === 0 && attempts < 10);
 
   const maskedUnits = units.map((u, i) => (maskIndices.has(i) ? "_" : u));
+  const initialRevealedIndices = Array.from({ length: units.length }, (_, i) => i).filter(i => !maskIndices.has(i));
   return {
-    maskedStr: maskedUnits.join(" ")
+    maskedStr: maskedUnits.join(" "),
+    initialRevealedIndices
   };
 }
 
@@ -279,29 +281,29 @@ async function getNextQuestion(supabase, gameId, gameSettings = null) {
     return null;
   }
 
-  // Filter candidates per game logic
+  // Filter candidates per game logic (Strictly filter out words with length <= 3 for games 1, 2, 5, 6)
   let candidates = [];
   if (gameId === 1 || gameId === 5) {
-    // Thai games: extract words that are Thai
+    // Thai games: extract words that are Thai & length > 3
     candidates = questionsPool.map(q => {
       const isThaiAnswer = /[\u0E00-\u0E7F]/.test(q.answer);
       const isThaiWord = /[\u0E00-\u0E7F]/.test(q.word_or_question);
       const word = isThaiAnswer ? q.answer : (isThaiWord ? q.word_or_question : null);
       if (!word) return null;
-      if (gameId === 5 && getGraphemeClusters(word).length < 4) {
+      if (getGraphemeClusters(word).length <= 3) {
         return null;
       }
       return { id: q.id, word_or_question: word, answer: word, category: q.category || 'คำทั่วไป' };
     }).filter(Boolean);
     if (candidates.length === 0) candidates = DEFAULT_QUESTIONS[1];
   } else if (gameId === 2 || gameId === 6) {
-    // English games: extract words that are English
+    // English games: extract words that are English & length > 3
     candidates = questionsPool.map(q => {
       const isEngWord = /[a-zA-Z]/.test(q.word_or_question);
       const isEngAnswer = /[a-zA-Z]/.test(q.answer);
       const word = isEngWord ? q.word_or_question : (isEngAnswer ? q.answer : null);
       if (!word) return null;
-      if (gameId === 6 && word.length < 4) {
+      if (word.length <= 3) {
         return null;
       }
       return { id: q.id, word_or_question: word, answer: word, category: q.category || 'General' };
@@ -456,6 +458,7 @@ async function getNextQuestion(supabase, gameId, gameSettings = null) {
     id: selected.id,
     wordOrQuestion,
     answer,
+    initialRevealedIndices,
     hints: selected.hints || [],
     options,
     difficulty,
@@ -464,10 +467,115 @@ async function getNextQuestion(supabase, gameId, gameSettings = null) {
   };
 }
 
+/**
+ * Dynamic Hint Generator for Games 1, 2, 5, 6
+ */
+function generateHint(gameId, questionData, hintLevel, previousHintData = null) {
+  const fullAnswer = String(questionData.answer || '').trim();
+  const isThai = gameId === 1 || gameId === 5;
+  const clusters = isThai ? getGraphemeClusters(fullAnswer) : Array.from(fullAnswer);
+  const totalLength = clusters.length;
+
+  if (gameId === 1 || gameId === 2) {
+    let revealedIndices = new Set(previousHintData?.revealedIndices || []);
+    
+    if (revealedIndices.size === 0 && questionData.initialRevealedIndices && questionData.initialRevealedIndices.length > 0) {
+      questionData.initialRevealedIndices.forEach(idx => revealedIndices.add(idx));
+    }
+
+    const unrevealedIndices = [];
+    for (let i = 0; i < totalLength; i++) {
+      if (!revealedIndices.has(i)) {
+        unrevealedIndices.push(i);
+      }
+    }
+
+    if (unrevealedIndices.length <= 1) {
+      return {
+        error: "ไม่สามารถใช้คำใบ้เพิ่มได้แล้วค่ะ (ต้องเหลืออย่างน้อย 1 ช่องสำหรับคำตอบ)",
+        hintText: null,
+        updatedHintData: previousHintData
+      };
+    }
+
+    let countToReveal = 1;
+    if (hintLevel === 2) {
+      const maxPossible = unrevealedIndices.length - 1;
+      countToReveal = Math.max(1, Math.floor(unrevealedIndices.length * 0.5));
+      if (countToReveal > maxPossible) countToReveal = maxPossible;
+    }
+
+    const shuffledUnrevealed = shuffleArray([...unrevealedIndices]);
+    const newlyRevealed = shuffledUnrevealed.slice(0, countToReveal);
+    newlyRevealed.forEach(idx => revealedIndices.add(idx));
+
+    const formattedDisplay = clusters.map((char, i) => revealedIndices.has(i) ? char : '_').join(' ');
+
+    const hintTitle = hintLevel === 1 ? '🔎 คำใบ้ 1 (เปิดอักษร 1 ตัว)' : '💡 คำใบ้ 2 (เปิดอักษรเพิ่ม)';
+    const hintMsg = `### ${hintTitle}\n\`\`\`\n${formattedDisplay}\n\`\`\`\n-# หักแต้มเรียบร้อยแล้วค่ะ! เหลือช่องให้คุณเติมคำตอบเองด้วยนะคะ 🐻✨`;
+
+    return {
+      error: null,
+      hintText: hintMsg,
+      updatedHintData: { revealedIndices: Array.from(revealedIndices) }
+    };
+  }
+
+  if (gameId === 5 || gameId === 6) {
+    let lockedIndices = new Set(previousHintData?.lockedIndices || []);
+    
+    const unlockedIndices = [];
+    for (let i = 0; i < totalLength; i++) {
+      if (!lockedIndices.has(i)) {
+        unlockedIndices.push(i);
+      }
+    }
+
+    if (unlockedIndices.length <= 1) {
+      return {
+        error: "ไม่สามารถใช้คำใบ้เพิ่มได้แล้วค่ะ (ต้องเหลืออย่างน้อย 1 ตำแหน่งสำหรับเรียงคำ)",
+        hintText: null,
+        updatedHintData: previousHintData
+      };
+    }
+
+    let countToLock = 1;
+    if (hintLevel === 2) {
+      const maxPossible = unlockedIndices.length - 1;
+      countToLock = Math.max(1, Math.floor(unlockedIndices.length * 0.5));
+      if (countToLock > maxPossible) countToLock = maxPossible;
+    }
+
+    const shuffledUnlocked = shuffleArray([...unlockedIndices]);
+    const newlyLocked = shuffledUnlocked.slice(0, countToLock);
+    newlyLocked.forEach(idx => lockedIndices.add(idx));
+
+    const lockedListStr = Array.from(lockedIndices)
+      .sort((a, b) => a - b)
+      .map(idx => `• ตำแหน่งที่ **${idx + 1}** คือ **"${clusters[idx]}"**`)
+      .join('\n');
+
+    const formattedDisplay = clusters.map((char, i) => lockedIndices.has(i) ? `[ ${char} ]` : '[ _ ]').join(' ');
+
+    const hintTitle = hintLevel === 1 ? '🔎 คำใบ้ 1 (ล็อกตำแหน่ง 1 ตัว)' : '💡 คำใบ้ 2 (ล็อกตำแหน่งเพิ่ม)';
+    const hintMsg = `### ${hintTitle}\n\`\`\`\n${formattedDisplay}\n\`\`\`\n${lockedListStr}\n-# หักแต้มเรียบร้อยแล้วค่ะ! จัดเรียงตัวอักษรที่เหลือให้ถูกต้องนะคะ 🐻✨`;
+
+    return {
+      error: null,
+      hintText: hintMsg,
+      updatedHintData: { lockedIndices: Array.from(lockedIndices) }
+    };
+  }
+
+  return { error: "เกมนี้ไม่รองรับระบบคำใบ้ค่ะ", hintText: null, updatedHintData: null };
+}
+
 module.exports = {
   getNextQuestion,
   generateMathProblem,
   maskWord,
   scrambleWord,
-  getGraphemeClusters
+  getGraphemeClusters,
+  generateHint
 };
+

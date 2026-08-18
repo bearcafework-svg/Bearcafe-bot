@@ -493,15 +493,26 @@ function generateHint(gameId, questionData, hintLevel, previousHintData = null) 
   const totalLength = clusters.length;
 
   if (gameId === 1 || gameId === 2) {
+    // Fill-in-the-blank game (เติมคำ)
+    // Extract current display state from question string (e.g., "ส _ ั _ _ ี" or "A _ _ L _")
+    const questionStr = String(questionData.wordOrQuestion || '').trim();
+    let currentUnits = questionStr.includes(' ') ? questionStr.split(/\s+/) : (isThai ? getGraphemeClusters(questionStr) : Array.from(questionStr));
+    
+    // Ensure unit array length matches full answer clusters length
+    if (currentUnits.length !== totalLength) {
+      currentUnits = clusters.map((c, i) => (previousHintData?.revealedIndices?.includes(i) ? c : '_'));
+    }
+
     let revealedIndices = new Set(previousHintData?.revealedIndices || []);
     
-    if (revealedIndices.size === 0 && questionData.initialRevealedIndices && questionData.initialRevealedIndices.length > 0) {
-      questionData.initialRevealedIndices.forEach(idx => revealedIndices.add(idx));
-    }
+    // Track initial revealed indices from standard question string
+    currentUnits.forEach((u, i) => {
+      if (u !== '_') revealedIndices.add(i);
+    });
 
     const unrevealedIndices = [];
     for (let i = 0; i < totalLength; i++) {
-      if (!revealedIndices.has(i)) {
+      if (!revealedIndices.has(i) && currentUnits[i] === '_') {
         unrevealedIndices.push(i);
       }
     }
@@ -525,7 +536,8 @@ function generateHint(gameId, questionData, hintLevel, previousHintData = null) 
     const newlyRevealed = shuffledUnrevealed.slice(0, countToReveal);
     newlyRevealed.forEach(idx => revealedIndices.add(idx));
 
-    const formattedDisplay = clusters.map((char, i) => revealedIndices.has(i) ? char : '_').join(' ');
+    const finalUnits = clusters.map((char, i) => (revealedIndices.has(i) ? char : '_'));
+    const formattedDisplay = finalUnits.join(' ');
     const hintMsg = `# \`${formattedDisplay}\``;
 
     return {
@@ -536,16 +548,11 @@ function generateHint(gameId, questionData, hintLevel, previousHintData = null) 
   }
 
   if (gameId === 5 || gameId === 6) {
-    let lockedIndices = new Set(previousHintData?.lockedIndices || []);
-    
-    const unlockedIndices = [];
-    for (let i = 0; i < totalLength; i++) {
-      if (!lockedIndices.has(i)) {
-        unlockedIndices.push(i);
-      }
-    }
+    // Word scramble game (เรียงคำ)
+    let currentLockedCount = previousHintData?.lockedCount || 0;
+    const remainingToLock = totalLength - currentLockedCount;
 
-    if (unlockedIndices.length <= 1) {
+    if (remainingToLock <= 1) {
       return {
         error: "ไม่สามารถใช้คำใบ้เพิ่มได้แล้วค่ะ (ต้องเหลืออย่างน้อย 1 ตำแหน่งสำหรับเรียงคำ)",
         hintText: null,
@@ -553,29 +560,34 @@ function generateHint(gameId, questionData, hintLevel, previousHintData = null) 
       };
     }
 
-    let countToLock = 1;
+    let newlyLockCount = 1;
     if (hintLevel === 2) {
-      const maxPossible = unlockedIndices.length - 1;
-      countToLock = Math.max(1, Math.floor(unlockedIndices.length * 0.5));
-      if (countToLock > maxPossible) countToLock = maxPossible;
+      const maxPossible = remainingToLock - 1;
+      newlyLockCount = Math.max(1, Math.floor(remainingToLock * 0.5));
+      if (newlyLockCount > maxPossible) newlyLockCount = maxPossible;
     }
 
-    const shuffledUnlocked = shuffleArray([...unlockedIndices]);
-    const newlyLocked = shuffledUnlocked.slice(0, countToLock);
-    newlyLocked.forEach(idx => lockedIndices.add(idx));
+    const totalLockedCount = currentLockedCount + newlyLockCount;
+    const lockedUnits = clusters.slice(0, totalLockedCount);
+    
+    // Remaining un-locked units scrambled to maintain word scramble nature
+    const remainingUnits = clusters.slice(totalLockedCount);
+    const scrambledRemaining = scrambleWord(remainingUnits.join(''), isThai);
+    const remainingDisplayUnits = isThai ? getGraphemeClusters(scrambledRemaining) : Array.from(scrambledRemaining);
 
-    const lockedListStr = Array.from(lockedIndices)
-      .sort((a, b) => a - b)
-      .map(idx => `- ตำแหน่งที่ **${idx + 1}** คือ **"${clusters[idx]}"**`)
+    const displayUnits = [...lockedUnits, ...remainingDisplayUnits];
+    const formattedDisplay = displayUnits.join(' ');
+
+    const lockedListStr = lockedUnits
+      .map((char, idx) => `- ตำแหน่งที่ **${idx + 1}** คือ **"${char}"**`)
       .join('\n');
 
-    const formattedDisplay = clusters.map((char, i) => lockedIndices.has(i) ? char : '_').join(' ');
     const hintMsg = `# \`${formattedDisplay}\`\n\n${lockedListStr}`;
 
     return {
       error: null,
       hintText: hintMsg,
-      updatedHintData: { lockedIndices: Array.from(lockedIndices) }
+      updatedHintData: { lockedCount: totalLockedCount }
     };
   }
 

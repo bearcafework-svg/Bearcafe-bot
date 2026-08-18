@@ -82,20 +82,16 @@ function buildGamePayload(gameId, questionData) {
 
   switch (gameId) {
     case 1: { // เติมคำศัพท์ไทย
-      const { maskedStr } = maskWord(questionData.wordOrQuestion, true);
-      questionData.displayMask = maskedStr;
       const categoryLabel = questionData.category || 'คำทั่วไป';
       contentText = `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ เกมเติมคำศัพท์ (ไทย) 𓂃 \`__\n` +
-        `# \`${maskedStr}\`\n` +
+        `\`${questionData.wordOrQuestion}\`\n` +
         `-# - หมวดหมู่: ${categoryLabel}`;
       break;
     }
     case 2: { // เติมคำศัพท์อังกฤษ
-      const { maskedStr } = maskWord(questionData.wordOrQuestion, false);
-      questionData.displayMask = maskedStr;
       const categoryLabel = questionData.category || 'คำทั่วไป';
       contentText = `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ เกมเติมคำศัพท์ (อังกฤษ) 𓂃 \`__\n` +
-        `# \`${maskedStr}\`\n` +
+        `\`${questionData.wordOrQuestion}\`\n` +
         `-# - หมวดหมู่: ${categoryLabel}`;
       break;
     }

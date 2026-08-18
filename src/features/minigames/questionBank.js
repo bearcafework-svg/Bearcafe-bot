@@ -153,7 +153,17 @@ function maskWord(word, isThai = true) {
     return { maskedStr: units.join(" ") };
   }
 
-  const countToMask = Math.max(1, Math.floor(units.length * 0.45));
+  // Adaptive masking ratio based on word length
+  let countToMask = 1;
+  if (units.length <= 5) {
+    countToMask = Math.max(1, Math.floor(units.length * 0.3));
+  } else if (units.length <= 8) {
+    countToMask = Math.max(2, Math.floor(units.length * 0.35));
+  } else {
+    countToMask = Math.max(3, Math.floor(units.length * 0.4));
+  }
+  const maxAllowedMask = Math.floor(units.length * 0.45);
+  if (countToMask > maxAllowedMask) countToMask = Math.max(1, maxAllowedMask);
   let maskIndices = new Set();
   let attempts = 0;
 

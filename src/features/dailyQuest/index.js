@@ -27,6 +27,8 @@ const voiceJoinTimes = new Map();
 let globalSupabase = null;
 
 function setupDailyQuest(client) {
+  console.log("[dailyQuest] Daily Quest system is temporarily disabled.");
+  return;
   if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
     globalSupabase = createClient(
       process.env.SUPABASE_URL,
@@ -334,6 +336,7 @@ function setupDailyQuest(client) {
 }
 
 function trackUserDailyQuestProgress(userId, trackerType, amount = 1) {
+  return;
   if (globalSupabase && userId && trackerType) {
     addProgress(globalSupabase, userId, trackerType, amount).catch(() => {});
   }

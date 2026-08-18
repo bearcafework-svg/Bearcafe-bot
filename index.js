@@ -83,7 +83,7 @@ setupFeature("minigames", "./src/features/minigames/minigames", "setupMinigames"
 setupFeature("healJai", "./src/features/healJai", "setupHealJai", supabaseEnvKeys);
 setupFeature("voiceHistory", "./src/commands/voiceHistory", "setupVoiceHistory", supabaseEnvKeys);
 setupFeature("security", "./src/features/security", "setupSecurity", supabaseEnvKeys);
-setupFeature("dailyQuest", "./src/features/dailyQuest", "setupDailyQuest", supabaseEnvKeys);
+// setupFeature("dailyQuest", "./src/features/dailyQuest", "setupDailyQuest", supabaseEnvKeys);
 setupFeature("cafe", "./src/features/cafe", "setupCafe");
 
 

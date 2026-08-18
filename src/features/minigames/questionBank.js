@@ -531,19 +531,12 @@ function generateHint(gameId, questionData, hintLevel, previousHintData = null) 
       }
     }
 
-    if (unrevealedIndices.length <= 1) {
-      return {
-        error: "ไม่สามารถใช้คำใบ้เพิ่มได้แล้วค่ะ (ต้องเหลืออย่างน้อย 1 ช่องสำหรับคำตอบ)",
-        hintText: null,
-        updatedHintData: previousHintData
-      };
-    }
-
     let countToReveal = 1;
     if (hintLevel === 2) {
-      const maxPossible = unrevealedIndices.length - 1;
       countToReveal = Math.max(1, Math.floor(unrevealedIndices.length * 0.5));
-      if (countToReveal > maxPossible) countToReveal = maxPossible;
+    }
+    if (unrevealedIndices.length > 0 && countToReveal > unrevealedIndices.length) {
+      countToReveal = unrevealedIndices.length;
     }
 
     const shuffledUnrevealed = shuffleArray([...unrevealedIndices]);
@@ -552,7 +545,7 @@ function generateHint(gameId, questionData, hintLevel, previousHintData = null) 
 
     const finalUnits = clusters.map((char, i) => (revealedIndices.has(i) ? char : '_'));
     const formattedDisplay = finalUnits.join(' ');
-    const hintMsg = `# \`${formattedDisplay}\``;
+    const hintMsg = `\`${formattedDisplay}\``;
 
     return {
       error: null,
@@ -566,19 +559,12 @@ function generateHint(gameId, questionData, hintLevel, previousHintData = null) 
     let currentLockedCount = previousHintData?.lockedCount || 0;
     const remainingToLock = totalLength - currentLockedCount;
 
-    if (remainingToLock <= 1) {
-      return {
-        error: "ไม่สามารถใช้คำใบ้เพิ่มได้แล้วค่ะ (ต้องเหลืออย่างน้อย 1 ตำแหน่งสำหรับเรียงคำ)",
-        hintText: null,
-        updatedHintData: previousHintData
-      };
-    }
-
     let newlyLockCount = 1;
     if (hintLevel === 2) {
-      const maxPossible = remainingToLock - 1;
       newlyLockCount = Math.max(1, Math.floor(remainingToLock * 0.5));
-      if (newlyLockCount > maxPossible) newlyLockCount = maxPossible;
+    }
+    if (remainingToLock > 0 && newlyLockCount > remainingToLock) {
+      newlyLockCount = remainingToLock;
     }
 
     const totalLockedCount = currentLockedCount + newlyLockCount;
@@ -596,7 +582,7 @@ function generateHint(gameId, questionData, hintLevel, previousHintData = null) 
       .map((char, idx) => `- ตำแหน่งที่ **${idx + 1}** คือ **"${char}"**`)
       .join('\n');
 
-    const hintMsg = `# \`${formattedDisplay}\`\n\n${lockedListStr}`;
+    const hintMsg = `\`${formattedDisplay}\`\n\n${lockedListStr}`;
 
     return {
       error: null,

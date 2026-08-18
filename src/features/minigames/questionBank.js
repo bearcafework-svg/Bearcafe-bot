@@ -366,19 +366,25 @@ async function getNextQuestion(supabase, gameId, gameSettings = null) {
 
   // Games 1 & 2: Fill-in-the-blank / Games 5 & 6: Word Scramble
   if (gameId === 1) {
-    const masked = maskWord(selected.answer || selected.word_or_question, true);
+    let clean = (selected.answer && !selected.answer.includes('_')) ? selected.answer : selected.word_or_question;
+    clean = String(clean || '').replace(/_/g, '').replace(/\s+/g, '').trim();
+    const masked = maskWord(clean, true);
     wordOrQuestion = masked.maskedStr;
-    answer = selected.answer || selected.word_or_question;
+    answer = clean;
     initialRevealedIndices = masked.initialRevealedIndices || [];
   } else if (gameId === 2) {
-    const masked = maskWord(selected.word_or_question || selected.answer, false);
+    let clean = (selected.word_or_question && !selected.word_or_question.includes('_')) ? selected.word_or_question : selected.answer;
+    clean = String(clean || '').replace(/_/g, '').replace(/\s+/g, '').trim();
+    const masked = maskWord(clean, false);
     wordOrQuestion = masked.maskedStr;
-    answer = selected.word_or_question || selected.answer;
+    answer = clean;
     initialRevealedIndices = masked.initialRevealedIndices || [];
   } else if (gameId === 5 || gameId === 6) {
     const isThai = gameId === 5;
-    wordOrQuestion = scrambleWord(selected.word_or_question || selected.answer, isThai);
-    answer = selected.word_or_question || selected.answer;
+    let clean = selected.answer || selected.word_or_question;
+    clean = String(clean || '').replace(/_/g, '').replace(/\s+/g, '').trim();
+    wordOrQuestion = scrambleWord(clean, isThai);
+    answer = clean;
   }
   if (gameId === 4) {
     const diff = selected.difficulty || "medium";
@@ -531,12 +537,13 @@ function generateHint(gameId, questionData, hintLevel, previousHintData = null) 
       }
     }
 
+    // Target maximum total revealed units allowed (Max 55% of total word length)
+    const maxAllowedRevealed = Math.min(totalLength - 1, Math.max(1, Math.floor(totalLength * 0.55)));
+
     let countToReveal = 1;
     if (hintLevel === 2) {
-      countToReveal = Math.max(1, Math.floor(unrevealedIndices.length * 0.5));
-    }
-    if (unrevealedIndices.length > 0 && countToReveal > unrevealedIndices.length) {
-      countToReveal = unrevealedIndices.length;
+      const maxMoreToReveal = Math.max(1, maxAllowedRevealed - revealedIndices.size);
+      countToReveal = Math.min(unrevealedIndices.length, maxMoreToReveal);
     }
 
     const shuffledUnrevealed = shuffleArray([...unrevealedIndices]);
@@ -557,17 +564,16 @@ function generateHint(gameId, questionData, hintLevel, previousHintData = null) 
   if (gameId === 5 || gameId === 6) {
     // Word scramble game (เรียงคำ)
     let currentLockedCount = previousHintData?.lockedCount || 0;
-    const remainingToLock = totalLength - currentLockedCount;
+    
+    // Target maximum locked units allowed (Max 50% of total word length)
+    const maxAllowedLocked = Math.min(totalLength - 1, Math.max(1, Math.floor(totalLength * 0.5)));
 
     let newlyLockCount = 1;
     if (hintLevel === 2) {
-      newlyLockCount = Math.max(1, Math.floor(remainingToLock * 0.5));
-    }
-    if (remainingToLock > 0 && newlyLockCount > remainingToLock) {
-      newlyLockCount = remainingToLock;
+      newlyLockCount = Math.max(1, maxAllowedLocked - currentLockedCount);
     }
 
-    const totalLockedCount = currentLockedCount + newlyLockCount;
+    const totalLockedCount = Math.min(maxAllowedLocked, currentLockedCount + newlyLockCount);
     const lockedUnits = clusters.slice(0, totalLockedCount);
     
     // Remaining un-locked units scrambled to maintain word scramble nature

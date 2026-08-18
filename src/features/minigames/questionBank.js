@@ -304,14 +304,18 @@ async function getNextQuestion(supabase, gameId, gameSettings = null) {
   // Filter candidates per game logic
   let candidates = [];
   if (gameId === 1 || gameId === 5) {
-    // Thai games: extract words that are Thai
-    // Games 1 (Fill-in-blank) strictly requires single vocabulary words between 4 to 8 units
+    // Thai games: extract words that are Thai and have NO '_' in raw text
     candidates = questionsPool.map(q => {
-      const isThaiAnswer = /[\u0E00-\u0E7F]/.test(q.answer);
-      const isThaiWord = /[\u0E00-\u0E7F]/.test(q.word_or_question);
-      const word = isThaiAnswer ? q.answer : (isThaiWord ? q.word_or_question : null);
+      // Find candidate answer string without '_'
+      let word = null;
+      if (q.answer && !q.answer.includes('_') && /[\u0E00-\u0E7F]/.test(q.answer)) {
+        word = q.answer;
+      } else if (q.word_or_question && !q.word_or_question.includes('_') && /[\u0E00-\u0E7F]/.test(q.word_or_question)) {
+        word = q.word_or_question;
+      }
       if (!word) return null;
-      const cleanW = word.replace(/_/g, '').replace(/\s+/g, '').trim();
+
+      const cleanW = word.replace(/\s+/g, '').trim();
       const len = getGraphemeClusters(cleanW).length;
       if (len <= 3) return null;
       if (gameId === 1 && len > 8) return null; // Filter out long sentences for Game 1
@@ -319,14 +323,17 @@ async function getNextQuestion(supabase, gameId, gameSettings = null) {
     }).filter(Boolean);
     if (candidates.length === 0) candidates = DEFAULT_QUESTIONS[1];
   } else if (gameId === 2 || gameId === 6) {
-    // English games: extract words that are English
-    // Game 2 strictly requires words between 4 to 10 letters
+    // English games: extract words that are English and have NO '_' in raw text
     candidates = questionsPool.map(q => {
-      const isEngWord = /[a-zA-Z]/.test(q.word_or_question);
-      const isEngAnswer = /[a-zA-Z]/.test(q.answer);
-      const word = isEngWord ? q.word_or_question : (isEngAnswer ? q.answer : null);
+      let word = null;
+      if (q.answer && !q.answer.includes('_') && /[a-zA-Z]/.test(q.answer)) {
+        word = q.answer;
+      } else if (q.word_or_question && !q.word_or_question.includes('_') && /[a-zA-Z]/.test(q.word_or_question)) {
+        word = q.word_or_question;
+      }
       if (!word) return null;
-      const cleanW = word.replace(/_/g, '').replace(/\s+/g, '').trim();
+
+      const cleanW = word.replace(/\s+/g, '').trim();
       const len = cleanW.length;
       if (len <= 3) return null;
       if (gameId === 2 && len > 10) return null; // Filter out long sentences for Game 2
@@ -391,7 +398,7 @@ async function getNextQuestion(supabase, gameId, gameSettings = null) {
     initialRevealedIndices = masked.initialRevealedIndices || [];
   } else if (gameId === 5 || gameId === 6) {
     const isThai = gameId === 5;
-    let clean = selected.answer || selected.word_or_question;
+    let clean = (selected.answer && !selected.answer.includes('_')) ? selected.answer : selected.word_or_question;
     clean = String(clean || '').replace(/_/g, '').replace(/\s+/g, '').trim();
     wordOrQuestion = scrambleWord(clean, isThai);
     answer = clean;

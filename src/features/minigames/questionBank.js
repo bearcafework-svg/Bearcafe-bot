@@ -153,17 +153,15 @@ function maskWord(word, isThai = true) {
     return { maskedStr: units.join(" ") };
   }
 
-  // Adaptive masking ratio based on word length
+  // Strictly mask only 1 - 2 characters max (approx 25-30%)
   let countToMask = 1;
-  if (units.length <= 5) {
-    countToMask = Math.max(1, Math.floor(units.length * 0.3));
-  } else if (units.length <= 8) {
-    countToMask = Math.max(2, Math.floor(units.length * 0.35));
-  } else {
-    countToMask = Math.max(3, Math.floor(units.length * 0.4));
+  if (units.length >= 6) {
+    countToMask = 2;
   }
-  const maxAllowedMask = Math.floor(units.length * 0.45);
-  if (countToMask > maxAllowedMask) countToMask = Math.max(1, maxAllowedMask);
+  if (units.length >= 9) {
+    countToMask = 3;
+  }
+
   let maskIndices = new Set();
   let attempts = 0;
 
@@ -172,7 +170,6 @@ function maskWord(word, isThai = true) {
     const availableIndices = Array.from({ length: units.length }, (_, i) => i);
     const shuffled = shuffleArray(availableIndices);
 
-    // Prefer non-adjacent positions for natural distribution
     for (const idx of shuffled) {
       if (maskIndices.size >= countToMask) break;
       if (units.length >= countToMask * 2) {
@@ -181,7 +178,6 @@ function maskWord(word, isThai = true) {
       maskIndices.add(idx);
     }
 
-    // Fallback if non-adjacent filter was too restrictive
     while (maskIndices.size < countToMask) {
       const idx = Math.floor(Math.random() * units.length);
       maskIndices.add(idx);
@@ -192,8 +188,21 @@ function maskWord(word, isThai = true) {
 
   const maskedUnits = units.map((u, i) => (maskIndices.has(i) ? "_" : u));
   const initialRevealedIndices = Array.from({ length: units.length }, (_, i) => i).filter(i => !maskIndices.has(i));
+  
+  // Clean compact display formatting: attach adjacent letters, space around '_'
+  let formattedDisplay = '';
+  for (let i = 0; i < maskedUnits.length; i++) {
+    const curr = maskedUnits[i];
+    const prev = maskedUnits[i - 1];
+    if (curr === '_') {
+      formattedDisplay += (prev && prev !== '_' ? ' _ ' : '_ ');
+    } else {
+      formattedDisplay += curr;
+    }
+  }
+
   return {
-    maskedStr: maskedUnits.join(" "),
+    maskedStr: formattedDisplay.replace(/\s+/g, ' ').trim(),
     initialRevealedIndices
   };
 }
@@ -295,32 +304,36 @@ async function getNextQuestion(supabase, gameId, gameSettings = null) {
     return null;
   }
 
-  // Filter candidates per game logic (Strictly filter out words with length <= 3 for games 1, 2, 5, 6)
+  // Filter candidates per game logic
   let candidates = [];
   if (gameId === 1 || gameId === 5) {
-    // Thai games: extract words that are Thai & length > 3
+    // Thai games: extract words that are Thai
+    // Games 1 (Fill-in-blank) strictly requires single vocabulary words between 4 to 8 units
     candidates = questionsPool.map(q => {
       const isThaiAnswer = /[\u0E00-\u0E7F]/.test(q.answer);
       const isThaiWord = /[\u0E00-\u0E7F]/.test(q.word_or_question);
       const word = isThaiAnswer ? q.answer : (isThaiWord ? q.word_or_question : null);
       if (!word) return null;
-      if (getGraphemeClusters(word).length <= 3) {
-        return null;
-      }
-      return { id: q.id, word_or_question: word, answer: word, category: q.category || 'คำทั่วไป' };
+      const cleanW = word.replace(/_/g, '').replace(/\s+/g, '').trim();
+      const len = getGraphemeClusters(cleanW).length;
+      if (len <= 3) return null;
+      if (gameId === 1 && len > 8) return null; // Filter out long sentences for Game 1
+      return { id: q.id, word_or_question: cleanW, answer: cleanW, category: q.category || 'คำทั่วไป' };
     }).filter(Boolean);
     if (candidates.length === 0) candidates = DEFAULT_QUESTIONS[1];
   } else if (gameId === 2 || gameId === 6) {
-    // English games: extract words that are English & length > 3
+    // English games: extract words that are English
+    // Game 2 strictly requires words between 4 to 10 letters
     candidates = questionsPool.map(q => {
       const isEngWord = /[a-zA-Z]/.test(q.word_or_question);
       const isEngAnswer = /[a-zA-Z]/.test(q.answer);
       const word = isEngWord ? q.word_or_question : (isEngAnswer ? q.answer : null);
       if (!word) return null;
-      if (word.length <= 3) {
-        return null;
-      }
-      return { id: q.id, word_or_question: word, answer: word, category: q.category || 'General' };
+      const cleanW = word.replace(/_/g, '').replace(/\s+/g, '').trim();
+      const len = cleanW.length;
+      if (len <= 3) return null;
+      if (gameId === 2 && len > 10) return null; // Filter out long sentences for Game 2
+      return { id: q.id, word_or_question: cleanW, answer: cleanW, category: q.category || 'General' };
     }).filter(Boolean);
     if (candidates.length === 0) candidates = DEFAULT_QUESTIONS[2];
   } else if (gameId === 9 || gameId === 10) {
@@ -551,8 +564,19 @@ function generateHint(gameId, questionData, hintLevel, previousHintData = null) 
     newlyRevealed.forEach(idx => revealedIndices.add(idx));
 
     const finalUnits = clusters.map((char, i) => (revealedIndices.has(i) ? char : '_'));
-    const formattedDisplay = finalUnits.join(' ');
-    const hintMsg = `\`${formattedDisplay}\``;
+    
+    let compactDisplay = '';
+    for (let i = 0; i < finalUnits.length; i++) {
+      const curr = finalUnits[i];
+      const prev = finalUnits[i - 1];
+      if (curr === '_') {
+        compactDisplay += (prev && prev !== '_' ? ' _ ' : '_ ');
+      } else {
+        compactDisplay += curr;
+      }
+    }
+
+    const hintMsg = `\`${compactDisplay.replace(/\s+/g, ' ').trim()}\``;
 
     return {
       error: null,
@@ -565,7 +589,6 @@ function generateHint(gameId, questionData, hintLevel, previousHintData = null) 
     // Word scramble game (เรียงคำ)
     let currentLockedCount = previousHintData?.lockedCount || 0;
     
-    // Target maximum locked units allowed (Max 50% of total word length)
     const maxAllowedLocked = Math.min(totalLength - 1, Math.max(1, Math.floor(totalLength * 0.5)));
 
     let newlyLockCount = 1;
@@ -576,19 +599,12 @@ function generateHint(gameId, questionData, hintLevel, previousHintData = null) 
     const totalLockedCount = Math.min(maxAllowedLocked, currentLockedCount + newlyLockCount);
     const lockedUnits = clusters.slice(0, totalLockedCount);
     
-    // Remaining un-locked units scrambled to maintain word scramble nature
     const remainingUnits = clusters.slice(totalLockedCount);
     const scrambledRemaining = scrambleWord(remainingUnits.join(''), isThai);
     const remainingDisplayUnits = isThai ? getGraphemeClusters(scrambledRemaining) : Array.from(scrambledRemaining);
 
     const displayUnits = [...lockedUnits, ...remainingDisplayUnits];
-    const formattedDisplay = displayUnits.join(' ');
-
-    const lockedListStr = lockedUnits
-      .map((char, idx) => `- ตำแหน่งที่ **${idx + 1}** คือ **"${char}"**`)
-      .join('\n');
-
-    const hintMsg = `\`${formattedDisplay}\`\n\n${lockedListStr}`;
+    const hintMsg = `\`${displayUnits.join(' ')}\`\n\n${lockedUnits.map((char, idx) => `- ตำแหน่งที่ **${idx + 1}** คือ **"${char}"**`).join('\n')}`;
 
     return {
       error: null,

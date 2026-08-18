@@ -153,9 +153,9 @@ function maskWord(word, isThai = true) {
     return { maskedStr: units.join(" ") };
   }
 
-  // Strictly mask 2 to 3 characters only regardless of word length
+  // Strictly mask 2 to 3 characters max regardless of word length
   let countToMask = 2;
-  if (units.length >= 8) {
+  if (units.length >= 7) {
     countToMask = 3;
   }
 
@@ -210,8 +210,8 @@ function maskWord(word, isThai = true) {
  */
 function getGraphemeClusters(word) {
   if (!word) return [];
-  // Regex matching Thai base character + combining marks (vowels above/below, tone marks, karan)
-  const thaiMatches = word.match(/[\u0E00-\u0E7F][\u0E31\u0E34-\u0E3A\u0E47-\u0E4E]*/g);
+  // Match Thai syllable units: optional leading vowel (เ แ โ ใ ไ) + base consonant + optional combining marks
+  const thaiMatches = word.match(/[\u0E40-\u0E44]?[\u0E00-\u0E7F][\u0E31\u0E34-\u0E3A\u0E47-\u0E4E]*/g);
   if (thaiMatches && thaiMatches.join('') === word) {
     return thaiMatches;
   }

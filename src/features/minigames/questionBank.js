@@ -525,10 +525,8 @@ function generateHint(gameId, questionData, hintLevel, previousHintData = null) 
     const newlyRevealed = shuffledUnrevealed.slice(0, countToReveal);
     newlyRevealed.forEach(idx => revealedIndices.add(idx));
 
-    const formattedDisplay = clusters.map((char, i) => revealedIndices.has(i) ? char : '_').join(' ');
-
-    const hintTitle = hintLevel === 1 ? '🔎 คำใบ้ 1 (เปิดอักษร 1 ตัว)' : '💡 คำใบ้ 2 (เปิดอักษรเพิ่ม)';
-    const hintMsg = `### ${hintTitle}\n\`\`\`\n${formattedDisplay}\n\`\`\`\n-# หักแต้มเรียบร้อยแล้วค่ะ! เหลือช่องให้คุณเติมคำตอบเองด้วยนะคะ 🐻✨`;
+    const formattedDisplay = clusters.map((char, i) => revealedIndices.has(i) ? char : '_').join('  ');
+    const hintMsg = `# ${formattedDisplay}`;
 
     return {
       error: null,
@@ -571,10 +569,8 @@ function generateHint(gameId, questionData, hintLevel, previousHintData = null) 
       .map(idx => `• ตำแหน่งที่ **${idx + 1}** คือ **"${clusters[idx]}"**`)
       .join('\n');
 
-    const formattedDisplay = clusters.map((char, i) => lockedIndices.has(i) ? `[ ${char} ]` : '[ _ ]').join(' ');
-
-    const hintTitle = hintLevel === 1 ? '🔎 คำใบ้ 1 (ล็อกตำแหน่ง 1 ตัว)' : '💡 คำใบ้ 2 (ล็อกตำแหน่งเพิ่ม)';
-    const hintMsg = `### ${hintTitle}\n\`\`\`\n${formattedDisplay}\n\`\`\`\n${lockedListStr}\n-# หักแต้มเรียบร้อยแล้วค่ะ! จัดเรียงตัวอักษรที่เหลือให้ถูกต้องนะคะ 🐻✨`;
+    const formattedDisplay = clusters.map((char, i) => lockedIndices.has(i) ? char : '_').join('  ');
+    const hintMsg = `# ${formattedDisplay}\n${lockedListStr}`;
 
     return {
       error: null,

@@ -748,10 +748,36 @@ function setupMinigames(client) {
         }
       }
 
-      // Return Ephemeral Hint response
+      // Return Ephemeral Hint response using Component V2 Container (Type 17)
+      const hintTitle = (gameId === 1 || gameId === 2)
+        ? (hintLevel === 1 ? '🔎︲คำใบ้ 1 (เปิดอักษร 1 ตัว)' : '💡︲คำใบ้ 2 (เปิดอักษรเพิ่ม 50%)')
+        : (hintLevel === 1 ? '🔎︲คำใบ้ 1 (ล็อกตำแหน่ง 1 ตัว)' : '💡︲คำใบ้ 2 (ล็อกตำแหน่งเพิ่ม 50%)');
+
+      const hintComponents = [
+        {
+          type: 10,
+          content: `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ ${hintTitle} 𓂃 \`__`
+        },
+        { type: 14, spacing: 2 },
+        {
+          type: 10,
+          content: hintResult.hintText
+        },
+        { type: 14, spacing: 2 },
+        {
+          type: 10,
+          content: `-# 💳 หักแต้มเรียบร้อยแล้วค่ะ (**${hintCost} แต้ม**) • เติมคำตอบ/จัดเรียงส่วนที่เหลือลงในแชทได้เลยนะคะ 🐻✨`
+        }
+      ];
+
       return interaction.reply({
-        content: hintResult.hintText,
-        flags: FLAG_EPHEMERAL
+        flags: FLAG_V2 | FLAG_EPHEMERAL,
+        components: [
+          {
+            type: 17,
+            components: hintComponents
+          }
+        ]
       });
     }
   });

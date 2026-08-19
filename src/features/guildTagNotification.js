@@ -23,26 +23,43 @@ function extractPrimaryGuildData(userOrMember, rawUserData = null) {
 
   // 1. จากโครงสร้างมาตรฐาน Discord.js (ถ้ามี)
   if (user?.primaryGuild) {
+    const pg = user.primaryGuild;
+    const enabled = pg.identityEnabled === true || pg.identity_enabled === true;
     return {
-      guildId: user.primaryGuild.identityGuildId || user.primaryGuild.guildId || null,
-      tag: user.primaryGuild.tag || null,
+      guildId: pg.identityGuildId || pg.identity_guild_id || pg.guildId || null,
+      tag: pg.tag || null,
+      enabled: enabled,
     };
   }
   if (user?.clan) {
+    const cl = user.clan;
+    const enabled = cl.identityEnabled === true || cl.identity_enabled === true || (cl.identityEnabled === undefined && cl.tag !== undefined);
     return {
-      guildId: user.clan.identityGuildId || user.clan.guildId || null,
-      tag: user.clan.tag || null,
+      guildId: cl.identityGuildId || cl.identity_guild_id || cl.guildId || null,
+      tag: cl.tag || null,
+      enabled: enabled,
     };
   }
 
-  // 2. จาก _raw object
-  const rawObj = user?._raw || rawUserData;
+  // 2. จาก _raw object หรือ rawUserData
+  const rawObj = rawUserData || user?._raw;
   if (rawObj) {
-    const pg = rawObj.primary_guild || rawObj.clan;
+    const pg = rawObj.primary_guild;
     if (pg) {
+      const enabled = pg.identity_enabled === true || pg.identityEnabled === true;
       return {
-        guildId: pg.identity_guild_id || pg.guild_id || null,
+        guildId: pg.identity_guild_id || pg.identityGuildId || pg.guild_id || null,
         tag: pg.tag || null,
+        enabled: enabled,
+      };
+    }
+    const cl = rawObj.clan;
+    if (cl) {
+      const enabled = cl.identity_enabled === true || cl.identityEnabled === true || (cl.identity_enabled === undefined && cl.tag !== undefined);
+      return {
+        guildId: cl.identity_guild_id || cl.identityGuildId || cl.guild_id || null,
+        tag: cl.tag || null,
+        enabled: enabled,
       };
     }
   }
@@ -51,19 +68,19 @@ function extractPrimaryGuildData(userOrMember, rawUserData = null) {
 }
 
 /**
- * ตรวจสอบว่าผู้ใช้ใส่ Guild Tag ของเซิร์ฟเวอร์เป้าหมายหรือไม่
+ * ตรวจสอบว่าผู้ใช้ใส่ Guild Tag ของเซิร์ฟเวอร์เป้าหมายและเปิดใช้งานอยู่จริงหรือไม่
  */
 function checkHasTargetGuildTag(userOrMember, targetGuildId, rawUserData = null) {
   const pgData = extractPrimaryGuildData(userOrMember, rawUserData);
   if (!pgData) return false;
 
-  // หากระบุ guildId ให้เช็กว่าตรงกับ targetGuildId หรือไม่
-  if (pgData.guildId && String(pgData.guildId).trim() === String(targetGuildId).trim()) {
-    return true;
+  // 1. ต้องเปิดใช้งานอยู่จริงเท่านั้น (identity_enabled === true)
+  if (!pgData.enabled) {
+    return false;
   }
 
-  // หากไม่มี guildId ให้เช็กว่ามี tag หรือไม่
-  if (pgData.tag) {
+  // 2. ต้องตรงกับ Guild ID ของเซิร์ฟเวอร์เป้าหมายเท่านั้น
+  if (pgData.guildId && String(pgData.guildId).trim() === String(targetGuildId).trim()) {
     return true;
   }
 
@@ -190,7 +207,7 @@ async function handleMemberTagChange(client, member, rawUserData = null) {
   const hasRole = member.roles.cache.has(REWARD_ROLE_ID);
   const avatarUrl = member.user.displayAvatarURL({ extension: "png", size: 512, forceStatic: false }) || member.user.defaultAvatarURL;
 
-  // 1. กรณี: ใส่ Guild Tag แล้วยังไม่มียศ -> เพิ่มยศ + แจ้งเตือน
+  // 1. กรณี: ใส่ Guild Tag เปิดใช้งานอยู่ + ยังไม่มียศ -> เพิ่มยศ + แจ้งเตือน
   if (hasTag && !hasRole) {
     if (isDebounced(userId, "add")) return;
 
@@ -204,7 +221,7 @@ async function handleMemberTagChange(client, member, rawUserData = null) {
       console.error(`[guildTagNotification] เพิ่มยศให้ ${member.user.tag} ไม่สำเร็จ:`, err.message);
     }
   }
-  // 2. กรณี: ถอด Guild Tag ออกแล้วแต่ยังมียศค้างอยู่ -> ถอดยศ + แจ้งเตือน
+  // 2. กรณี: ไม่ได้ใส่ Guild Tag (หรือปิดใช้งาน) + ยังมียศค้างอยู่ -> ถอดยศ + แจ้งเตือน
   else if (!hasTag && hasRole) {
     if (isDebounced(userId, "remove")) return;
 
@@ -233,7 +250,7 @@ function setupGuildTagNotification(client) {
     }
   });
 
-  // 2. ดักฟัง Event `userUpdate` (เพื่อตรวจจับกรณี Discord อัปเดต global user profile)
+  // 2. ดักฟัง Event `userUpdate` (ตรวจจับกรณี Discord อัปเดต User profile)
   client.on("userUpdate", async (oldUser, newUser) => {
     try {
       if (newUser.bot) return;
@@ -249,7 +266,7 @@ function setupGuildTagNotification(client) {
     }
   });
 
-  // 3. ดักฟัง Raw Gateway Event เพื่อรองรับ Payload `primary_guild` ในกรณีที่ discord.js ยังไม่ wrap เข้า User object
+  // 3. ดักฟัง Raw Gateway Event เพื่อความแม่นยำสูงสุด
   client.on("raw", async (packet) => {
     if (!packet || !packet.t) return;
 

@@ -1,6 +1,6 @@
 // src/features/stickyPanels.js
 // ระบบปักหมุดข้อความหนึบท้ายห้อง (Sticky Message) ประจำห้องแบบอัปเดตเรียลไทม์ผ่าน Supabase Realtime DB
-// รองรับแบบ Hybrid: โหลดความทรงจำและจดจำ last_message_id บน DB เพื่อป้องกันการสแปมและรองรับกรณีบอทรีสตาร์ต
+// ป้องกันการค้างของข้อความเก่า 100% ด้วย Hybrid Cache + Deep Fallback Cleanup + Concurrency Lock
 
 const { createClient } = require("@supabase/supabase-js");
 const logger = require("../../utils/logger");
@@ -9,8 +9,8 @@ const logger = require("../../utils/logger");
 // key: channelId, value: { delayMs: number, payload: any, refreshTrigger: number }
 const stickyConfigs = new Map();
 
-// Map เพื่อเก็บสถานะการส่งข้อความปักหมุด (Timeout และ Bot Message ID ล่าสุด)
-// key: channelId, value: { lastBotMessageId: string | null, timeoutId: NodeJS.Timeout | null }
+// Map เพื่อเก็บสถานะการส่งข้อความปักหมุด
+// key: channelId, value: { lastBotMessageId: string | null, timeoutId: NodeJS.Timeout | null, isBusy: boolean }
 const activeStickySessions = new Map();
 
 function setupStickyPanels(client) {
@@ -34,8 +34,6 @@ function setupStickyPanels(client) {
   });
 
   // ─── Helper: ทำความสะอาดและตรวจเช็ก Payload ของ Discord ────────────────────
-  // แก้ไขปัญหา BUTTON_COMPONENT_CUSTOM_ID_URL_MUTUALLY_EXCLUSIVE
-  // ปุ่มประเภท Link (style: 5 หรือมี url) ห้ามมี custom_id ติดไปด้วยเด็ดขาด
   function sanitizePayload(payload) {
     if (!payload || typeof payload !== "object") return payload;
 
@@ -85,71 +83,102 @@ function setupStickyPanels(client) {
     }
   }
 
-  // ─── Helper: ลบข้อความเดิมในห้อง (พร้อมรองรับกรณีข้อความหาย/ลบไปแล้ว) ───────
+  // ─── Helper: ลบข้อความเดิมในห้อง + กวาดล้างข้อความบอทที่ตกค้าง (Fallback Cleanup) ───
   async function deleteOldStickyMessage(channel, session) {
-    if (!session || !session.lastBotMessageId) return;
+    if (!channel) return;
 
-    const msgToDeleteId = session.lastBotMessageId;
-    session.lastBotMessageId = null; // เคลียร์ออกก่อนเพื่อป้องกันการสั่งลบซ้ำซ้อน
+    // 1. ลบจาก lastBotMessageId ที่บันทึกไว้ใน Session ก่อน
+    const targetMsgId = session ? session.lastBotMessageId : null;
+    if (targetMsgId) {
+      try {
+        const oldMsg = await channel.messages.fetch(targetMsgId).catch(() => null);
+        if (oldMsg) {
+          await oldMsg.delete().catch(() => null);
+          console.log(`[stickyPanels] Deleted recorded sticky message ${targetMsgId} in channel ${channel.id}`);
+        }
+      } catch (err) {
+        // ignore fetch error
+      }
+      if (session) session.lastBotMessageId = null;
+    }
 
+    // 2. Fallback Scan: สแกนข้อความล่าสุด 10 ข้อความในห้องเพื่อกวาดลบข้อความ Sticky เก่าของบอทที่ตกค้าง (Ghost Messages)
     try {
-      console.log(`[stickyPanels] Attempting to delete old sticky message ${msgToDeleteId} in channel ${channel.id}`);
-      const oldMsg = await channel.messages.fetch(msgToDeleteId).catch(() => null);
-      if (oldMsg) {
-        await oldMsg.delete().catch((delErr) => {
-          console.log(`[stickyPanels] Old message ${msgToDeleteId} delete failed (maybe already deleted):`, delErr.message);
-        });
-        console.log(`[stickyPanels] Successfully deleted old sticky message ${msgToDeleteId}`);
-      } else {
-        console.log(`[stickyPanels] Old sticky message ${msgToDeleteId} was missing or already deleted manually.`);
+      const recentMessages = await channel.messages.fetch({ limit: 10 }).catch(() => null);
+      if (recentMessages && recentMessages.size > 0) {
+        const botId = client.user?.id;
+        if (botId) {
+          const ghostMessages = recentMessages.filter(
+            (msg) => msg.author.id === botId && msg.id !== targetMsgId
+          );
+
+          for (const [, ghostMsg] of ghostMessages) {
+            // ลบข้อความของบอทที่ตกค้างออกทั้งหมด
+            await ghostMsg.delete().catch(() => null);
+            console.log(`[stickyPanels] Cleaned up ghost/orphan sticky message ${ghostMsg.id} in channel ${channel.id}`);
+          }
+        }
       }
     } catch (err) {
-      console.log(`[stickyPanels] Error checking old sticky message ${msgToDeleteId}:`, err.message);
+      console.warn(`[stickyPanels] Fallback cleanup error in channel ${channel.id}:`, err.message);
     }
   }
 
-  // ส่งบอร์ดใหม่ลง Discord ทันที (ลบแผ่นเก่าออกและส่งใหม่)
-  async function triggerInstantSend(channelId, rawPayload) {
-    console.log(`[stickyPanels] triggerInstantSend called for channel: ${channelId}`);
+  // ─── Helper: ประมวลผลและส่ง Sticky Panel แผ่นใหม่ลงห้องอย่างปลอดภัย ────────
+  async function performSendSticky(channelId, rawPayload) {
+    let session = activeStickySessions.get(channelId);
+    if (!session) {
+      session = { lastBotMessageId: null, timeoutId: null, isBusy: false };
+      activeStickySessions.set(channelId, session);
+    }
+
+    // ถ้ากำลังทำงานอยู่ (ติด Lock) ให้ข้าม เพื่อป้องกัน Race Condition
+    if (session.isBusy) {
+      console.log(`[stickyPanels] Channel ${channelId} is currently busy processing. Skipping duplicate send.`);
+      return;
+    }
+
+    session.isBusy = true;
+
     try {
       const channel = client.channels.cache.get(channelId) || 
                       await client.channels.fetch(channelId).catch((fetchErr) => {
                         console.error(`[stickyPanels] Failed to fetch channel ${channelId}:`, fetchErr.message);
                         return null;
                       });
+
       if (!channel) {
-        console.error(`[stickyPanels] Channel ${channelId} not found in client cache or API fetch.`);
+        console.error(`[stickyPanels] Channel ${channelId} not found.`);
         return;
       }
 
-      let session = activeStickySessions.get(channelId);
-      if (!session) {
-        session = { lastBotMessageId: null, timeoutId: null };
-        activeStickySessions.set(channelId, session);
-      }
-
-      // A. เคลียร์ Timeout เก่าที่อาจจะรันค้างอยู่
-      if (session.timeoutId) {
-        console.log(`[stickyPanels] Clearing pending timeout for channel ${channelId}`);
-        clearTimeout(session.timeoutId);
-        session.timeoutId = null;
-      }
-
-      // B. ลบข้อความเดิมในห้อง (ถ้ามี)
+      // A. ลบข้อความเดิมและกวาดล้างข้อความผีในห้อง
       await deleteOldStickyMessage(channel, session);
 
-      // C. ทำความสะอาด Payload และส่งประกาศบอร์ดใหม่ทันที
+      // B. ส่งข้อความ Sticky ใหม่
       const payload = sanitizePayload(rawPayload);
-      console.log(`[stickyPanels] Sending new sticky payload to channel ${channelId}...`);
       const sentMsg = await channel.send(payload);
       session.lastBotMessageId = sentMsg.id;
-      console.log(`[stickyPanels] New sticky message sent successfully! ID: ${sentMsg.id}`);
+      console.log(`[stickyPanels] Sent new sticky message ${sentMsg.id} in channel ${channelId}`);
 
-      // D. บันทึก Message ID ใหม่ลง Database ทันที
+      // C. บันทึก ID ลง DB
       await saveLastMessageId(channelId, sentMsg.id);
     } catch (err) {
-      console.error(`[stickyPanels] Failed to send instant sticky message to channel ${channelId}:`, err.message);
+      console.error(`[stickyPanels] Error sending sticky message to channel ${channelId}:`, err.message);
+    } finally {
+      session.isBusy = false;
     }
+  }
+
+  // ส่งบอร์ดใหม่ลง Discord ทันที (เช่น ตอน Config ถูกแก้ หรือสั่ง Force Refresh)
+  async function triggerInstantSend(channelId, rawPayload) {
+    console.log(`[stickyPanels] triggerInstantSend called for channel: ${channelId}`);
+    let session = activeStickySessions.get(channelId);
+    if (session && session.timeoutId) {
+      clearTimeout(session.timeoutId);
+      session.timeoutId = null;
+    }
+    await performSendSticky(channelId, rawPayload);
   }
 
   // 1. ดึงการตั้งค่าห้องและ last_message_id จาก DB ตอนบอทเริ่มทำงาน
@@ -171,11 +200,13 @@ function setupStickyPanels(client) {
           });
 
           // โหลดและจดจำ last_message_id ล่าสุดข้ามการรีสตาร์ตบอท
+          activeStickySessions.set(row.channel_id, {
+            lastBotMessageId: row.last_message_id || null,
+            timeoutId: null,
+            isBusy: false
+          });
+
           if (row.last_message_id) {
-            activeStickySessions.set(row.channel_id, {
-              lastBotMessageId: row.last_message_id,
-              timeoutId: null
-            });
             console.log(`[stickyPanels] Restored last_message_id (${row.last_message_id}) for channel ${row.channel_id} from database.`);
           }
         }
@@ -208,19 +239,20 @@ function setupStickyPanels(client) {
               refreshTrigger: newRow.refresh_trigger || 0
             });
 
-            // ซิงค์ last_message_id ถ้ามีการอัปเดตจากที่อื่น
+            // ซิงค์ last_message_id ถ้ามีการอัปเดตจากภายนอก
             let session = activeStickySessions.get(newRow.channel_id);
             if (!session) {
-              session = { lastBotMessageId: newRow.last_message_id || null, timeoutId: null };
+              session = { lastBotMessageId: newRow.last_message_id || null, timeoutId: null, isBusy: false };
               activeStickySessions.set(newRow.channel_id, session);
             } else if (newRow.last_message_id && newRow.last_message_id !== session.lastBotMessageId) {
               session.lastBotMessageId = newRow.last_message_id;
             }
 
-            // ตรวจสอบว่าเป็นเคสที่ต้องอัปเดตและส่งทันที
+            // ตรวจสอบเงื่อนไข Force Refresh หรือเพิ่งสร้างใหม่
             const isInsert = eventType === "INSERT";
             const isForceRefresh = eventType === "UPDATE" && 
-                                   (!oldConfig || (newRow.refresh_trigger || 0) !== (oldConfig.refreshTrigger || 0));
+                                   oldConfig && 
+                                   (newRow.refresh_trigger || 0) !== (oldConfig.refreshTrigger || 0);
 
             if (isInsert || isForceRefresh) {
               console.log(`[stickyPanels] Triggering instant resend for channel ${newRow.channel_id} (isInsert: ${isInsert}, isForceRefresh: ${isForceRefresh})`);
@@ -229,17 +261,27 @@ function setupStickyPanels(client) {
               console.log(`[stickyPanels] Silently updated config in memory for channel ${newRow.channel_id}`);
             }
           } else if (eventType === "DELETE") {
-            stickyConfigs.delete(oldRow.channel_id);
-            console.log(`[stickyPanels] Removed sticky config for channel ${oldRow.channel_id}`);
+            console.log(`[stickyPanels] Channel ${oldRow.channel_id} config was deleted. Cleaning up sticky messages...`);
             
-            // เคลียร์เวลารอส่งที่ค้างอยู่ของช่องนั้นออก
             const session = activeStickySessions.get(oldRow.channel_id);
-            if (session) {
-              if (session.timeoutId) {
-                clearTimeout(session.timeoutId);
-              }
-              activeStickySessions.delete(oldRow.channel_id);
+            if (session && session.timeoutId) {
+              clearTimeout(session.timeoutId);
             }
+
+            // ลบข้อความที่ยังค้างอยู่ในห้อง Discord ออกทันที
+            try {
+              const channel = client.channels.cache.get(oldRow.channel_id) ||
+                              await client.channels.fetch(oldRow.channel_id).catch(() => null);
+              if (channel) {
+                await deleteOldStickyMessage(channel, session);
+              }
+            } catch (err) {
+              console.warn(`[stickyPanels] Failed to delete sticky on channel removal:`, err.message);
+            }
+
+            stickyConfigs.delete(oldRow.channel_id);
+            activeStickySessions.delete(oldRow.channel_id);
+            console.log(`[stickyPanels] Successfully removed sticky config and sessions for channel ${oldRow.channel_id}`);
           }
         }
       );
@@ -258,10 +300,11 @@ function setupStickyPanels(client) {
   loadInitialConfigs();
   setupRealtimeSync();
 
-  // 3. จัดการข้อความเมื่อมีแชท/Embed/Component v2 เข้ามาในห้อง
+  // 3. จัดการข้อความเมื่อมีแชทเข้ามาในห้อง
   client.on("messageCreate", async (message) => {
-    // ข้ามถ้าไม่ใช่ในกิลด์
+    // ข้ามถ้าไม่ใช่ในกิลด์ หรือเป็นข้อความของตัวบอทเอง
     if (!message.guild) return;
+    if (message.author.id === client.user.id) return;
 
     const channelId = message.channel.id;
     const channelConfig = stickyConfigs.get(channelId);
@@ -269,39 +312,26 @@ function setupStickyPanels(client) {
     // ถ้าไม่ใช่ห้องที่ตั้งค่าไว้สำหรับปักหมุดข้อความหนึบ ให้ข้ามไป
     if (!channelConfig) return;
 
-    // ดึงเซสชันเดิม หรือสร้างขึ้นมาใหม่หากไม่มี
     let session = activeStickySessions.get(channelId);
     if (!session) {
-      session = { lastBotMessageId: null, timeoutId: null };
+      session = { lastBotMessageId: null, timeoutId: null, isBusy: false };
       activeStickySessions.set(channelId, session);
     }
 
-    // ข้ามเฉพาะข้อความปักหมุด Sticky Panel ของตัวเองเท่านั้น
-    if (session.lastBotMessageId && message.id === session.lastBotMessageId) return;
-
-    // A. สั่งลบข้อความบอทเดิมทันที (ถ้ามีจำไอดีไว้ในหน่วยความจำหรือ DB)
+    // A. สั่งลบข้อความบอทเดิมทันที
     await deleteOldStickyMessage(message.channel, session);
 
-    // B. ยกเลิกตัวจับเวลาการส่งเดิม (เพราะมีคนใหม่พิมพ์เข้ามาดันแชทแล้ว)
+    // B. ยกเลิกตัวจับเวลาการส่งเดิม
     if (session.timeoutId) {
       clearTimeout(session.timeoutId);
       session.timeoutId = null;
     }
 
-    // C. ตั้งเวลาดีเลย์ใหม่เพื่อส่ง Component v2 ใหม่เมื่อห้องเงียบลง
+    // C. ตั้งเวลาดีเลย์ใหม่เพื่อส่ง Sticky Panel ใหม่เมื่อห้องเงียบลง
     const delay = channelConfig.delayMs || 6000;
     session.timeoutId = setTimeout(async () => {
-      try {
-        const payload = sanitizePayload(channelConfig.payload);
-        const sentMsg = await message.channel.send(payload);
-        session.lastBotMessageId = sentMsg.id;
-        console.log(`[stickyPanels] Sent new sticky message ${sentMsg.id} in channel ${channelId}`);
-
-        // บันทึก Message ID ใหม่ลง Database ทันที
-        await saveLastMessageId(channelId, sentMsg.id);
-      } catch (err) {
-        console.error(`[stickyPanels] Failed to send sticky message to channel ${channelId}:`, err.message);
-      }
+      session.timeoutId = null;
+      await performSendSticky(channelId, channelConfig.payload);
     }, delay);
   });
 

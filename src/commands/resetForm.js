@@ -1,20 +1,16 @@
 // src/commands/resetForm.js
 // ระบบส่งแบบฟอร์มรับสมัครทีมงาน (Recruitment Form System Component V2)
-// รองรับคำสั่ง b!reset-form (Owner เท่านั้น), role_blacklist, และ Cooldown ผ่าน Supabase
+// รองรับคำสั่ง b!reset-form (Owner เท่านั้น) และ role_blacklist
 
-const { createClient } = require("@supabase/supabase-js");
 const { MessageFlags } = require("discord.js");
 const sharedConfig = require("../sharedSettings.json");
 const { safeRespond } = require("../../utils/discordSafety");
-const { getCooldown, setCooldown } = require("../utils/cooldownManager");
-const { cooldownContent, blacklistPayload } = require("../features/shared/tarotComponents");
+const { blacklistPayload } = require("../features/shared/tarotComponents");
 
 // Discord Flags
 const FLAG_V2 = MessageFlags.IsComponentsV2; // 32768
 const FLAG_EPHEMERAL = MessageFlags.Ephemeral; // 64
 const FLAG_V2_EPH = FLAG_V2 | FLAG_EPHEMERAL; // 32832
-
-const COOLDOWN_MS = 3000; // Cooldown 5 วินาทีต่อการกดปุ่ม
 
 // ─── Component Payloads ──────────────────────────────────────────────────────
 
@@ -637,7 +633,7 @@ const RESPONSE_FORM = {
       components: [
         {
           type: 10,
-          content: "## <:bear_star1:1152782839671169184>︲**__`ขั้นตอนการส่งแบบฟอร์ม`__**\n1. คัดลอกแบบฟอร์มด้านล่าง\n2. อ่านรายละเอียดและกรอกข้อมูลให้ครบถ้วน\n3. ส่งแบบฟอร์มผ่านแชทส่วนตัวของ <@&1508821424129835118> **เพียง 1 คน**\n\n**หมายเหตุ**\n> * ห้ามส่งแบบฟอร์มเดียวกันให้ทีมงานหลายคน หากตรวจพบจะ **ตัดสิทธิ์การสัมภาษณ์ถาวร**\n> * หากส่งแบบฟอร์มแล้วไม่ได้รับการตอบกลับภายใน **24 ชั่วโมง** สามารถแจ้ง <@944920660759707658> ได้ทันที\n> * **กรุณา @เพื่อน ก่อนทักทุกครั้ง** เพื่อให้ทีมงานได้รับการแจ้งเตือนและตอบกลับได้รวดเร็วยิ่งขึ้น"
+          content: "## <:bear_star1:1152782839671169184>︲**__`ขั้นตอนการส่งแบบฟอร์ม`__**\n1. คัดลอกแบบฟอร์มด้านล่าง\n2. อ่านรายละเอียดและกรอกข้อมูลให้ครบถ้วน\n3. ส่งแบบฟอร์มผ่านแชทส่วนตัวของ <@944920660759707658>\n\n**หมายเหตุ**\n> * ห้ามส่งแบบฟอร์มเดียวกันให้ทีมงานหลายคน หากตรวจพบจะ **ตัดสิทธิ์การสัมภาษณ์ถาวร**\n> * หากส่งแบบฟอร์มแล้วไม่ได้รับการตอบกลับภายใน **24 ชั่วโมง** สามารถแจ้ง <@944920660759707658> ได้ทันที\n> * **กรุณา @เพื่อน ก่อนทักทุกครั้ง** เพื่อให้ทีมงานได้รับการแจ้งเตือนและตอบกลับได้รวดเร็วยิ่งขึ้น"
         },
         {
           type: 14,
@@ -677,12 +673,6 @@ const CUSTOM_ID_RESPONSES = {
 };
 
 function setupResetForm(client) {
-  const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY,
-    { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
-  );
-
   // 1. คำสั่งสร้างพาเนล b!reset-form (Owner เท่านั้น)
   client.on("messageCreate", async (message) => {
     if (message.author.bot) return;
@@ -725,32 +715,6 @@ function setupResetForm(client) {
       payload.flags = FLAG_V2_EPH; // Ephemeral V2
       return safeRespond(interaction, payload);
     }
-
-    // ── ตรวจสอบ Cooldown (เชื่อมกับ user_cooldowns table) ────────────
-    const now = Date.now();
-    const cdExpiry = await getCooldown(supabase, member.id, "recruitment_form");
-    if (now < cdExpiry) {
-      const readyTimestamp = Math.floor(cdExpiry / 1000);
-      return safeRespond(interaction, {
-        flags: FLAG_V2_EPH,
-        components: [
-          {
-            type: 17,
-            components: [
-              { type: 14, spacing: 2 },
-              {
-                type: 10,
-                content: cooldownContent(member.id, readyTimestamp)
-              },
-              { type: 14, spacing: 2 }
-            ]
-          }
-        ]
-      });
-    }
-
-    // บันทึก Cooldown ลง Supabase (5 วินาที)
-    await setCooldown(supabase, member.id, "recruitment_form", now + COOLDOWN_MS);
 
     // ตอบกลับ Component V2 แบบ Ephemeral V2
     return safeRespond(interaction, responsePayload);

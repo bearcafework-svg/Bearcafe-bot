@@ -85,6 +85,7 @@ setupFeature("voiceHistory", "./src/commands/voiceHistory", "setupVoiceHistory",
 setupFeature("security", "./src/features/security", "setupSecurity", supabaseEnvKeys);
 setupFeature("cafe", "./src/features/cafe", "setupCafe");
 setupFeature("guildTagNotification", "./src/features/guildTagNotification", "setupGuildTagNotification");
+setupFeature("tagWarn", "./src/features/tagWarn", "setupTagWarn", supabaseEnvKeys);
 
 
 

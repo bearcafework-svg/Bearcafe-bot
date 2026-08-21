@@ -138,7 +138,6 @@ function buildLatestWarnPayload(warnRecord) {
           animated: false,
         },
         url: "https://discord.com/channels/1144251788493602848/1524123185325543587",
-        custom_id: "p_338005915854704648",
       },
     ],
   });

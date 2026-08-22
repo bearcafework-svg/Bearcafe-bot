@@ -144,7 +144,7 @@ async function checkThrottleLimits(supabase, hourlyLimit = 50, dailyLimit = 500)
  * @param {SupabaseClient} supabase Supabase client
  */
 function startQueueProcessor(client, supabase) {
-  console.log("[queue-processor] Polling loop started (every 10 seconds)");
+  console.log("[queue-processor] Polling loop started (every 30 seconds)");
 
   setInterval(async () => {
     if (isProcessingQueue) return; // Skip if already processing a queue

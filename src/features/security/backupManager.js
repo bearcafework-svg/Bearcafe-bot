@@ -146,6 +146,24 @@ async function saveBackupToSupabase(guildId, backupName, createdBy, data) {
     logger.error(`[backupManager] Error saving backup to Supabase: ${error.message}`);
     throw error;
   }
+
+  // Auto-cleanup: ลบ Backup เก่าออก เก็บไว้เฉพาะ 5 รายการล่าสุดเพื่อประหยัดพื้นที่ดิสก์ใน Supabase
+  try {
+    const { data: oldBackups } = await sb
+      .from("guild_structure_backups")
+      .select("id")
+      .eq("guild_id", guildId)
+      .order("created_at", { ascending: false });
+
+    if (oldBackups && oldBackups.length > 5) {
+      const toDeleteIds = oldBackups.slice(5).map((b) => b.id);
+      await sb.from("guild_structure_backups").delete().in("id", toDeleteIds);
+      logger.info(`[backupManager] 🧹 Cleaned up ${toDeleteIds.length} old backup(s) for guild ${guildId}`);
+    }
+  } catch (cleanErr) {
+    logger.warn(`[backupManager] Failed auto-cleanup of old backups: ${cleanErr.message}`);
+  }
+
   return result;
 }
 

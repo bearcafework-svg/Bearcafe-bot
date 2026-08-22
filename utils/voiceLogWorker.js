@@ -14,6 +14,7 @@ function getSupabase() {
 }
 
 let isProcessing = false;
+let lastCleanupTimestamp = 0;
 
 /**
  * เริ่มต้นทำงาน Worker พื้นหลัง
@@ -32,6 +33,20 @@ async function startVoiceLogWorker() {
       if (!supabase) {
         isProcessing = false;
         return;
+      }
+
+      // Auto-cleanup: ลบประวัติ voice_logs ที่เก่ากว่า 24 ชั่วโมง ทุกๆ 12 ชั่วโมงเพื่อประหยัดพื้นที่ดิสก์
+      const nowMs = Date.now();
+      if (nowMs - lastCleanupTimestamp > 12 * 60 * 60 * 1000) {
+        lastCleanupTimestamp = nowMs;
+        const oneDayAgo = new Date(nowMs - 24 * 60 * 60 * 1000).toISOString();
+        supabase.from("voice_logs").delete().lt("timestamp", oneDayAgo).then(({ error }) => {
+          if (!error) {
+            console.log("[voiceLogWorker] 🧹 Auto-cleaned voice_logs older than 24 hours.");
+          } else {
+            console.warn("[voiceLogWorker] ⚠️ Auto-clean voice_logs failed:", error.message);
+          }
+        }).catch(() => {});
       }
 
       // ดึงข้อมูลสูงสุดครั้งละ 10 รายการมาทำ Batch Insert

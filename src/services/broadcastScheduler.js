@@ -12,10 +12,13 @@ if (supabaseUrl && supabaseKey) {
   });
 }
 
-const CHECK_INTERVAL_MS = 30 * 1000; // Check every 30 seconds
+const CHECK_INTERVAL_MS = 60 * 1000; // Check every 60 seconds to optimize bandwidth
 const SCHEDULE_CONFIG_ID = "00000000-0000-0000-0000-000000000001";
 let isProcessing = false;
 let hasLoggedDisabledWarning = false;
+
+let cachedScheduleConfig = null;
+let lastConfigFetchTime = 0;
 
 // ── Payload Sanitizer for Component V2 ─────────────────────────────────────
 // Discord API rejects Link buttons (style: 5 or having url) if custom_id is present
@@ -41,16 +44,24 @@ async function checkAndSendBroadcasts(client) {
   isProcessing = true;
 
   try {
-    // 1. Check if broadcast schedule config exists and is enabled
-    const { data: configData, error: configErr } = await supabase
-      .from("campaign_schedule_config")
-      .select("*")
-      .eq("id", SCHEDULE_CONFIG_ID)
-      .maybeSingle();
+    // 1. Check if broadcast schedule config exists and is enabled (Cache for 2 minutes)
+    const nowMs = Date.now();
+    let configData = cachedScheduleConfig;
 
-    if (configErr) {
-      console.error("[broadcastScheduler] Error fetching schedule config:", configErr.message);
-      return;
+    if (!configData || nowMs - lastConfigFetchTime > 2 * 60 * 1000) {
+      const { data: fetchedConfig, error: configErr } = await supabase
+        .from("campaign_schedule_config")
+        .select("*")
+        .eq("id", SCHEDULE_CONFIG_ID)
+        .maybeSingle();
+
+      if (configErr) {
+        console.error("[broadcastScheduler] Error fetching schedule config:", configErr.message);
+        return;
+      }
+      cachedScheduleConfig = fetchedConfig;
+      lastConfigFetchTime = nowMs;
+      configData = fetchedConfig;
     }
 
     if (!configData || configData.is_enabled === false) {

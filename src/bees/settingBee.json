@@ -1,6 +1,6 @@
 {
   "channel_id": "1524124134387224828",
-  "auto_spawn_enabled": true,
+  "auto_spawn_enabled": false,
   "min_spawn_minutes": 45,
   "max_spawn_minutes": 75,
   "spawn_mode": "weighted_random",

@@ -73,7 +73,11 @@ async function postWebhook(webhookUrl, payload, attempt = 0) {
       return await postWebhook(webhookUrl, payload, attempt + 1);
     }
 
-    console.error("[roomLogger] webhook error:", data ?? err.message);
+    const { shouldLogThrottledError } = require("./errorThrottler");
+    const { shouldLog, message } = shouldLogThrottledError("room_logger_webhook", data ?? err.message, 5 * 60 * 1000);
+    if (shouldLog) {
+      console.error("[roomLogger] webhook error:", message);
+    }
   }
 }
 

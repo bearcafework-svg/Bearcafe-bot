@@ -4,6 +4,7 @@
 
 const { createClient } = require("@supabase/supabase-js");
 const { getRedis } = require("../state/redisClient");
+const { isSupabaseQuotaError, shouldLogThrottledError } = require("./errorThrottler");
 
 let supabaseClient;
 function getSupabase() {
@@ -15,6 +16,7 @@ function getSupabase() {
 
 let isProcessing = false;
 let lastCleanupTimestamp = 0;
+let workerPausedUntil = 0;
 
 /**
  * เริ่มต้นทำงาน Worker พื้นหลัง
@@ -25,6 +27,7 @@ async function startVoiceLogWorker() {
   // รันตรวจสอบ Queue ทุกๆ 3 วินาที
   setInterval(async () => {
     if (isProcessing) return;
+    if (Date.now() < workerPausedUntil) return;
     isProcessing = true;
 
     try {
@@ -43,7 +46,7 @@ async function startVoiceLogWorker() {
         supabase.from("voice_logs").delete().lt("timestamp", oneDayAgo).then(({ error }) => {
           if (!error) {
             console.log("[voiceLogWorker] 🧹 Auto-cleaned voice_logs older than 24 hours.");
-          } else {
+          } else if (!isSupabaseQuotaError(error)) {
             console.warn("[voiceLogWorker] ⚠️ Auto-clean voice_logs failed:", error.message);
           }
         }).catch(() => {});
@@ -83,7 +86,16 @@ async function startVoiceLogWorker() {
       const { error } = await supabase.from("voice_logs").insert(rows);
 
       if (error) {
-        console.error("[voiceLogWorker] ❌ Supabase batch insert error:", error.message);
+        const isQuota = isSupabaseQuotaError(error);
+        if (isQuota) {
+          // หากติด Egress Quota ให้พักการทำงาน Worker ไว้ 5 นาที
+          workerPausedUntil = Date.now() + 5 * 60 * 1000;
+        }
+
+        const { shouldLog, message } = shouldLogThrottledError("voiceLogWorker_insert", error.message || error, 5 * 60 * 1000);
+        if (shouldLog) {
+          console.error(`[voiceLogWorker] ❌ Supabase batch insert error${isQuota ? " (Pausing worker 5m)" : ""}:`, message);
+        }
         
         // หากส่งฐานข้อมูลไม่สำเร็จ ให้เอากลับไปใส่ Queue เพื่อลองรันใหม่ (Retry Logic)
         for (const item of batch) {
@@ -91,14 +103,20 @@ async function startVoiceLogWorker() {
           if (item.retry_count <= 3) {
             await redis.lpush("voice_logs:queue", JSON.stringify(item));
           } else {
-            console.error(`[voiceLogWorker] 🚨 Drop log after 3 failed retries for ${item.username} - ${item.event_type}`);
+            const dropLog = shouldLogThrottledError("voiceLogWorker_drop", `Drop log for ${item.username}`, 5 * 60 * 1000);
+            if (dropLog.shouldLog) {
+              console.error(`[voiceLogWorker] 🚨 Drop log after 3 failed retries for ${item.username} - ${item.event_type}`);
+            }
           }
         }
       } else {
         console.log(`[voiceLogWorker] 📤 Flushed ${batch.length} voice log(s) to Supabase.`);
       }
     } catch (err) {
-      console.error("[voiceLogWorker] ❌ Worker loop exception:", err.message);
+      const { shouldLog, message } = shouldLogThrottledError("voiceLogWorker_loop", err.message || err, 5 * 60 * 1000);
+      if (shouldLog) {
+        console.error("[voiceLogWorker] ❌ Worker loop exception:", message);
+      }
     } finally {
       isProcessing = false;
     }

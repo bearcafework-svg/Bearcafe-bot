@@ -1,4 +1,5 @@
 const { Client, GatewayIntentBits } = require("discord.js");
+const { isSupabaseQuotaError, shouldLogThrottledError } = require("../../../utils/errorThrottler");
 
 // Keep track of secondary bot client instances
 let secondaryClientInstance = null;
@@ -214,7 +215,10 @@ function startQueueProcessor(client, supabase) {
       }
 
     } catch (err) {
-      console.error("[queue-processor] Error in background polling cycle:", err.message);
+      const { shouldLog, message } = shouldLogThrottledError("queue_processor_polling", err.message || err, 5 * 60 * 1000);
+      if (shouldLog) {
+        console.error("[queue-processor] Error in background polling cycle:", message);
+      }
       isProcessingQueue = false;
     }
   }, 10 * 1000);

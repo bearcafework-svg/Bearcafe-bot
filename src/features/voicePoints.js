@@ -1,5 +1,6 @@
 const axios = require("axios");
 const crypto = require("crypto");
+const { isSupabaseQuotaError, shouldLogThrottledError } = require("../../utils/errorThrottler");
 
 const EXCLUDED_CATEGORY_ID = "1524122689604816986";
 const HEARTBEAT_INTERVAL_MS = 15 * 60 * 1000;
@@ -76,8 +77,9 @@ function setupVoicePoints(client) {
       const errorCode = responseData?.code;
       const isDegraded = errorCode === "SUPABASE_EDGE_RUNTIME_SERVICE_DEGRADED" || (typeof responseData?.message === "string" && responseData.message.includes("Service is temporarily unavailable"));
 
+      const isQuota = isSupabaseQuotaError(err) || isSupabaseQuotaError(responseData);
       // Retry on 429 (Rate Limit), network timeouts, 5xx server errors, or Supabase Degraded status
-      const isRetryable = status === 429 || !status || status >= 500 || isDegraded;
+      const isRetryable = !isQuota && (status === 429 || !status || status >= 500 || isDegraded);
 
       const retryAfterSeconds = Number(responseData?.retry_after);
       const retryWaitMs = Number.isFinite(retryAfterSeconds)
@@ -90,7 +92,10 @@ function setupVoicePoints(client) {
         return await postWebhook(payload, attempt + 1);
       }
 
-      console.error("[voice-points] webhook:", err.response?.data ?? err.message);
+      const { shouldLog, message } = shouldLogThrottledError("voice_points_webhook", responseData ?? err.message, 5 * 60 * 1000);
+      if (shouldLog) {
+        console.error("[voice-points] webhook:", message);
+      }
     }
   }
 

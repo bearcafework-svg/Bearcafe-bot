@@ -42,6 +42,13 @@ const logger = {
   error: (moduleName, message, ...args) => {
     console.error(`${formatTag(moduleName, colors.rose, '✖')} ${colors.rose}${colors.bold}${message}${colors.reset}`, ...args);
   },
+  throttledError: (moduleName, errorKey, error, throttleMs = 5 * 60 * 1000) => {
+    const { shouldLogThrottledError } = require('./errorThrottler');
+    const { shouldLog, message } = shouldLogThrottledError(errorKey, error, throttleMs);
+    if (shouldLog) {
+      console.error(`${formatTag(moduleName, colors.rose, '✖')} ${colors.rose}${colors.bold}${message}${colors.reset}`);
+    }
+  },
   bee: (message, ...args) => {
     console.log(`${formatTag('BEES', colors.amber, '🐝')} ${message}`, ...args);
   },

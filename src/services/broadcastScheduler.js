@@ -1,5 +1,6 @@
 // src/services/broadcastScheduler.js
 const { createClient } = require("@supabase/supabase-js");
+const { isSupabaseQuotaError, shouldLogThrottledError } = require("../../utils/errorThrottler");
 if (!global.WebSocket) global.WebSocket = require("ws");
 
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -56,7 +57,11 @@ async function checkAndSendBroadcasts(client) {
         .maybeSingle();
 
       if (configErr) {
-        console.error("[broadcastScheduler] Error fetching schedule config:", configErr.message);
+        const isQuota = isSupabaseQuotaError(configErr);
+        const { shouldLog, message } = shouldLogThrottledError("broadcast_config", configErr.message || configErr, 10 * 60 * 1000);
+        if (shouldLog) {
+          console.warn(`[broadcastScheduler] ⚠️ Supabase fetch config error${isQuota ? " (Quota exceeded - Throttled 10m)" : ""}:`, message);
+        }
         return;
       }
       cachedScheduleConfig = fetchedConfig;
@@ -179,7 +184,11 @@ async function checkAndSendBroadcasts(client) {
       console.error(`[broadcastScheduler] Failed to update campaign ${campaign.id}:`, updateErr.message);
     }
   } catch (err) {
-    console.error("[broadcastScheduler] Exception in broadcast check:", err.message);
+    const isQuota = isSupabaseQuotaError(err);
+    const { shouldLog, message } = shouldLogThrottledError("broadcast_check_err", err.message || err, 10 * 60 * 1000);
+    if (shouldLog) {
+      console.warn(`[broadcastScheduler] ⚠️ Exception in broadcast check${isQuota ? " (Quota exceeded - Throttled 10m)" : ""}:`, message);
+    }
   } finally {
     isProcessing = false;
   }

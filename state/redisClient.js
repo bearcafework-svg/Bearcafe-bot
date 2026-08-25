@@ -86,16 +86,34 @@ async function deleteRoom(channelId) {
 }
 
 // ดึงห้องทั้งหมดที่บอทสร้าง
-async function getAllRooms() {
-  const r = getRedis();
-  const raw = await r.hgetall("rooms:active");
-  if (!raw) return {};
+let roomsCache = null;
+let roomsCacheTime = 0;
+const ROOMS_CACHE_TTL_MS = 5000;
 
-  const result = {};
-  for (const [channelId, value] of Object.entries(raw)) {
-    result[channelId] = typeof value === "string" ? JSON.parse(value) : value;
+async function getAllRooms() {
+  if (roomsCache && (Date.now() - roomsCacheTime < ROOMS_CACHE_TTL_MS)) {
+    return roomsCache;
   }
-  return result;
+  try {
+    const r = getRedis();
+    const raw = await r.hgetall("rooms:active");
+    if (!raw) {
+      roomsCache = {};
+      roomsCacheTime = Date.now();
+      return {};
+    }
+
+    const result = {};
+    for (const [channelId, value] of Object.entries(raw)) {
+      result[channelId] = typeof value === "string" ? JSON.parse(value) : value;
+    }
+    roomsCache = result;
+    roomsCacheTime = Date.now();
+    return result;
+  } catch (err) {
+    console.warn("[redisClient] getAllRooms fallback to RAM cache:", err.message);
+    return roomsCache || {};
+  }
 }
 
 // บันทึก separatorChannelId ลง Redis

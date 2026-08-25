@@ -140,25 +140,33 @@ async function getAllSeparators() {
 }
 
 async function acquireLock(key, ttlMs = 30000) {
-  const r = getRedis();
   const token = crypto.randomUUID();
-  const result = await r.set(key, token, { nx: true, px: ttlMs });
-
-  if (result !== "OK") return null;
-  return { key, token };
+  try {
+    const r = getRedis();
+    const result = await r.set(key, token, { nx: true, px: ttlMs });
+    if (result !== "OK") return null;
+    return { key, token };
+  } catch (err) {
+    console.warn("[redisClient] acquireLock fallback (Redis limit):", err.message);
+    return { key, token, fallback: true };
+  }
 }
 
 async function releaseLock(lock) {
   if (!lock?.key || !lock?.token) return false;
-
-  const r = getRedis();
-  const released = await r.eval(
-    "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end",
-    [lock.key],
-    [lock.token]
-  );
-
-  return released === 1;
+  if (lock.fallback) return true;
+  try {
+    const r = getRedis();
+    const released = await r.eval(
+      "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end",
+      [lock.key],
+      [lock.token]
+    );
+    return released === 1;
+  } catch (err) {
+    console.warn("[redisClient] releaseLock fallback:", err.message);
+    return true;
+  }
 }
 
 module.exports = {

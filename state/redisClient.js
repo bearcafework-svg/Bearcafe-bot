@@ -19,7 +19,6 @@ function getRedis() {
   return redis;
 }
 
-// บันทึกห้องที่บอทสร้างลง Redis
 function defaultRoomSettings(settings = {}) {
   return {
     locked: false,
@@ -30,28 +29,48 @@ function defaultRoomSettings(settings = {}) {
   };
 }
 
+let roomsCache = {};
+let roomsCacheTime = 0;
+const ROOMS_CACHE_TTL_MS = 5000;
+let separatorsCache = {};
+
 async function saveRoom(channelId, zoneId, ownerId, settings = {}) {
-  const r = getRedis();
-  await r.hset("rooms:active", {
-    [channelId]: JSON.stringify({
-      zoneId,
-      ownerId,
-      createdAt: Date.now(),
-      emptyAt: null,
-      settings: defaultRoomSettings(settings),
-    }),
-  });
+  const roomObj = {
+    zoneId,
+    ownerId,
+    createdAt: Date.now(),
+    emptyAt: null,
+    settings: defaultRoomSettings(settings),
+  };
+  roomsCache[channelId] = roomObj;
+  try {
+    const r = getRedis();
+    await r.hset("rooms:active", {
+      [channelId]: JSON.stringify(roomObj),
+    });
+  } catch (err) {
+    console.warn("[redisClient] saveRoom fallback to RAM cache:", err.message);
+  }
 }
 
 async function getRoom(channelId) {
-  const r = getRedis();
-  const raw = await r.hget("rooms:active", channelId);
-  if (!raw) return null;
-  return typeof raw === "string" ? JSON.parse(raw) : raw;
+  if (roomsCache[channelId]) {
+    return roomsCache[channelId];
+  }
+  try {
+    const r = getRedis();
+    const raw = await r.hget("rooms:active", channelId);
+    if (!raw) return null;
+    const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+    roomsCache[channelId] = parsed;
+    return parsed;
+  } catch (err) {
+    console.warn("[redisClient] getRoom fallback to RAM cache:", err.message);
+    return roomsCache[channelId] || null;
+  }
 }
 
 async function updateRoom(channelId, patch) {
-  const r = getRedis();
   const room = await getRoom(channelId);
   if (!room) return null;
 
@@ -64,79 +83,106 @@ async function updateRoom(channelId, patch) {
     },
   };
 
-  await r.hset("rooms:active", { [channelId]: JSON.stringify(nextRoom) });
+  roomsCache[channelId] = nextRoom;
+  try {
+    const r = getRedis();
+    await r.hset("rooms:active", { [channelId]: JSON.stringify(nextRoom) });
+  } catch (err) {
+    console.warn("[redisClient] updateRoom fallback to RAM cache:", err.message);
+  }
   return nextRoom;
 }
 
-// อัปเดตว่าห้องว่างตั้งแต่เมื่อไร (เริ่มนับถอยหลังลบ)
 async function setRoomEmpty(channelId, emptyAt) {
-  const r = getRedis();
-  const raw = await r.hget("rooms:active", channelId);
-  if (!raw) return;
+  const room = await getRoom(channelId);
+  if (!room) return;
 
-  const room = typeof raw === "string" ? JSON.parse(raw) : raw;
   room.emptyAt = emptyAt;
-  await r.hset("rooms:active", { [channelId]: JSON.stringify(room) });
+  roomsCache[channelId] = room;
+  try {
+    const r = getRedis();
+    await r.hset("rooms:active", { [channelId]: JSON.stringify(room) });
+  } catch (err) {
+    console.warn("[redisClient] setRoomEmpty fallback to RAM cache:", err.message);
+  }
 }
 
-// ลบห้องออกจาก Redis
 async function deleteRoom(channelId) {
-  const r = getRedis();
-  await r.hdel("rooms:active", channelId);
+  delete roomsCache[channelId];
+  try {
+    const r = getRedis();
+    await r.hdel("rooms:active", channelId);
+  } catch (err) {
+    console.warn("[redisClient] deleteRoom fallback to RAM cache:", err.message);
+  }
 }
-
-// ดึงห้องทั้งหมดที่บอทสร้าง
-let roomsCache = null;
-let roomsCacheTime = 0;
-const ROOMS_CACHE_TTL_MS = 5000;
 
 async function getAllRooms() {
-  if (roomsCache && (Date.now() - roomsCacheTime < ROOMS_CACHE_TTL_MS)) {
+  if (Object.keys(roomsCache).length > 0 && (Date.now() - roomsCacheTime < ROOMS_CACHE_TTL_MS)) {
     return roomsCache;
   }
   try {
     const r = getRedis();
     const raw = await r.hgetall("rooms:active");
     if (!raw) {
-      roomsCache = {};
       roomsCacheTime = Date.now();
-      return {};
+      return roomsCache;
     }
 
     const result = {};
     for (const [channelId, value] of Object.entries(raw)) {
       result[channelId] = typeof value === "string" ? JSON.parse(value) : value;
     }
-    roomsCache = result;
+    roomsCache = { ...result, ...roomsCache };
     roomsCacheTime = Date.now();
-    return result;
+    return roomsCache;
   } catch (err) {
     console.warn("[redisClient] getAllRooms fallback to RAM cache:", err.message);
-    return roomsCache || {};
+    return roomsCache;
   }
 }
 
-// บันทึก separatorChannelId ลง Redis
 async function saveSeparator(zoneId, channelId) {
-  const r = getRedis();
   if (!channelId) {
-    await r.hdel("separators", zoneId);
-    return;
+    delete separatorsCache[zoneId];
+  } else {
+    separatorsCache[zoneId] = channelId;
   }
-  await r.hset("separators", { [zoneId]: channelId });
+  try {
+    const r = getRedis();
+    if (!channelId) {
+      await r.hdel("separators", zoneId);
+    } else {
+      await r.hset("separators", { [zoneId]: channelId });
+    }
+  } catch (err) {
+    console.warn("[redisClient] saveSeparator fallback:", err.message);
+  }
 }
 
-// ดึง separatorChannelId ของโซน
 async function getSeparator(zoneId) {
-  const r = getRedis();
-  return await r.hget("separators", zoneId);
+  if (separatorsCache[zoneId]) return separatorsCache[zoneId];
+  try {
+    const r = getRedis();
+    const res = await r.hget("separators", zoneId);
+    if (res) separatorsCache[zoneId] = res;
+    return res;
+  } catch (err) {
+    console.warn("[redisClient] getSeparator fallback:", err.message);
+    return separatorsCache[zoneId] || null;
+  }
 }
 
-// ดึง separator ทั้งหมด
 async function getAllSeparators() {
-  const r = getRedis();
-  const raw = await r.hgetall("separators");
-  return raw || {};
+  try {
+    const r = getRedis();
+    const raw = await r.hgetall("separators");
+    if (raw) separatorsCache = { ...raw, ...separatorsCache };
+    return separatorsCache;
+  } catch (err) {
+    console.warn("[redisClient] getAllSeparators fallback:", err.message);
+    return separatorsCache;
+  }
 }
 
 async function acquireLock(key, ttlMs = 30000) {

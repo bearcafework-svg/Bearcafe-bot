@@ -11,6 +11,11 @@ require("../../utils/fontLoader");
 const REFRESH_COOLDOWN_MS = 5 * 60 * 1000;
 let lastResetAt = 0; // timestamp ที่กด reset หรือ refresh
 
+// ── ตั้งค่าช่วงเวลาการแข่งขัน Season 1 (ขยายเวลาชดเชยระบบขัดข้อง) ───
+const SEASON_START_ISO = "2026-08-01T00:00:00+07:00";
+const SEASON_END_ISO = "2026-09-10T23:59:59+07:00";
+const SEASON_PERIOD_TEXT = "1 ส.ค. 2026 – 10 ก.ย. 2026 (23:59 น.)";
+
 // ── ดึงข้อมูล Top Winners จาก minigame_wins (ผ่าน RPC / View / Aggregation) ───
 async function fetchTopMinigameWins(supabase, limit = 10, gameId = null) {
   if (!supabase) return [];
@@ -18,9 +23,14 @@ async function fetchTopMinigameWins(supabase, limit = 10, gameId = null) {
   const parsedGameId = gameId && gameId !== 'all' ? parseInt(gameId, 10) : null;
 
   try {
-    // 1. ลองเรียก RPC get_minigame_leaderboard ก่อน
+    // 1. ลองเรียก RPC get_minigame_leaderboard พร้อมช่วงเวลา Season 1 ชดเชย
     const { data: rpcData, error: rpcError } = await supabase
-      .rpc("get_minigame_leaderboard", { days_limit: null, filter_game_id: parsedGameId });
+      .rpc("get_minigame_leaderboard", {
+        days_limit: null,
+        filter_game_id: parsedGameId,
+        start_time: SEASON_START_ISO,
+        end_time: SEASON_END_ISO
+      });
 
     if (!rpcError && rpcData && rpcData.length > 0) {
       return rpcData.slice(0, limit).map(row => ({
@@ -30,26 +40,12 @@ async function fetchTopMinigameWins(supabase, limit = 10, gameId = null) {
       }));
     }
 
-    // 2. ถ้า RPC ไม่พร้อม ให้ลองดึงจาก View minigame_leaderboard_summary (ถ้าไม่มี gameId)
-    if (!parsedGameId) {
-      const { data: viewData, error: viewError } = await supabase
-        .from("minigame_leaderboard_summary")
-        .select("discord_id, wins, points")
-        .limit(limit);
-
-      if (!viewError && viewData && viewData.length > 0) {
-        return viewData.map(row => ({
-          discord_id: row.discord_id,
-          wins: parseInt(row.wins || 0, 10),
-          points: parseInt(row.points || 0, 10)
-        }));
-      }
-    }
-
-    // 3. Fallback: ดึงจาก minigame_wins
+    // 2. ถ้า RPC ไม่พร้อม ให้ Fallback ดึงจาก minigame_wins พร้อมกรองช่วงเวลา Season 1
     let query = supabase
       .from("minigame_wins")
-      .select("discord_id, points_earned");
+      .select("discord_id, points_earned")
+      .gte("created_at", SEASON_START_ISO)
+      .lte("created_at", SEASON_END_ISO);
 
     if (parsedGameId) {
       query = query.eq("game_id", parsedGameId);
@@ -93,9 +89,14 @@ async function getUserMinigameRank(supabase, userId, gameId = null) {
   try {
     let sortedList = [];
 
-    // 1. ลองเรียก RPC
+    // 1. เรียก RPC get_minigame_leaderboard พร้อมช่วงเวลา Season 1 ชดเชย
     const { data: rpcData, error: rpcError } = await supabase
-      .rpc("get_minigame_leaderboard", { days_limit: null, filter_game_id: parsedGameId });
+      .rpc("get_minigame_leaderboard", {
+        days_limit: null,
+        filter_game_id: parsedGameId,
+        start_time: SEASON_START_ISO,
+        end_time: SEASON_END_ISO
+      });
 
     if (!rpcError && rpcData) {
       sortedList = rpcData.map(row => ({
@@ -104,48 +105,33 @@ async function getUserMinigameRank(supabase, userId, gameId = null) {
         points: parseInt(row.points || 0, 10)
       }));
     } else {
-      // 2. ลองเรียก View (กรณีไม่ระบุ gameId)
-      if (!parsedGameId) {
-        const { data: viewData, error: viewError } = await supabase
-          .from("minigame_leaderboard_summary")
-          .select("discord_id, wins, points");
+      // 2. Fallback ดึงจาก minigame_wins พร้อมกรองช่วงเวลา Season 1
+      let query = supabase
+        .from("minigame_wins")
+        .select("discord_id, points_earned")
+        .gte("created_at", SEASON_START_ISO)
+        .lte("created_at", SEASON_END_ISO);
 
-        if (!viewError && viewData) {
-          sortedList = viewData.map(row => ({
-            discord_id: row.discord_id,
-            wins: parseInt(row.wins || 0, 10),
-            points: parseInt(row.points || 0, 10)
-          }));
-        }
+      if (parsedGameId) {
+        query = query.eq("game_id", parsedGameId);
       }
 
-      if (sortedList.length === 0) {
-        // 3. Fallback
-        let query = supabase
-          .from("minigame_wins")
-          .select("discord_id, points_earned");
+      const { data, error } = await query.range(0, 49999);
 
-        if (parsedGameId) {
-          query = query.eq("game_id", parsedGameId);
+      if (error) return null;
+
+      const stats = {};
+      for (const row of data || []) {
+        const uid = row.discord_id;
+        if (uid) {
+          if (!stats[uid]) stats[uid] = { wins: 0, points: 0 };
+          stats[uid].wins += 1;
+          stats[uid].points += parseInt(row.points_earned || 0, 10);
         }
-
-        const { data, error } = await query.range(0, 49999);
-
-        if (error) return null;
-
-        const stats = {};
-        for (const row of data || []) {
-          const uid = row.discord_id;
-          if (uid) {
-            if (!stats[uid]) stats[uid] = { wins: 0, points: 0 };
-            stats[uid].wins += 1;
-            stats[uid].points += parseInt(row.points_earned || 0, 10);
-          }
-        }
-        sortedList = Object.entries(stats)
-          .map(([uid, s]) => ({ discord_id: uid, wins: s.wins, points: s.points }))
-          .sort((a, b) => b.wins - a.wins || b.points - a.points);
       }
+      sortedList = Object.entries(stats)
+        .map(([uid, s]) => ({ discord_id: uid, wins: s.wins, points: s.points }))
+        .sort((a, b) => b.wins - a.wins || b.points - a.points);
     }
 
     const index = sortedList.findIndex(item => item.discord_id === userId);
@@ -268,6 +254,29 @@ async function generateTop3Canvas(top3Details) {
   // พื้นหลังมืด
   ctx.fillStyle = "#0A0A0C";
   ctx.fillRect(0, 0, width, height);
+
+  // วาด Header Pill Badge แจ้งเตือนระยะเวลาแข่งขันชดเชยที่ด้านบนสุด Canvas
+  const seasonHeaderLabel = `🎁 SEASON 1 [ขยายเวลาชดเชย]: ${SEASON_PERIOD_TEXT}`;
+  ctx.font = 'bold 12px "Noto Sans Thai", "Leelawadee UI", "Segoe UI", sans-serif';
+  const headerMetrics = ctx.measureText(seasonHeaderLabel);
+  const headerPillW = headerMetrics.width + 36;
+  const headerPillH = 26;
+  const headerPillX = (width - headerPillW) / 2;
+  const headerPillY = 16;
+
+  ctx.save();
+  drawRoundedRect(ctx, headerPillX, headerPillY, headerPillW, headerPillH, 13);
+  ctx.fillStyle = "#1E1B2E";
+  ctx.fill();
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = "#8B5CF6";
+  ctx.stroke();
+
+  ctx.fillStyle = "#A78BFA";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(seasonHeaderLabel, width / 2, headerPillY + headerPillH / 2);
+  ctx.restore();
 
   const spots = [
     {
@@ -501,7 +510,8 @@ async function buildTopLeaderboardPayload(guild, supabase) {
   ];
 
   const lines = [
-    "## <:bee20000:1256669436350562355>︲__` 𝖫𝖾𝖺𝖽𝖾𝗋𝖻𝗈𝖺𝗋𝖽 ₊ จัดอันดับหมีติดเกม! 𓂃 `__"
+    "## <:bee20000:1256669436350562355>︲__` 𝖫𝖾𝖺𝖽𝖾𝗋𝖻𝗈𝖺𝗋𝖽 ₊ จัดอันดับหมีติดเกม! 𓂃 `__",
+    `🎁 **ระยะเวลาแข่งขัน (ขยายเวลาชดเชย):** \` ${SEASON_PERIOD_TEXT} \`\n`
   ];
 
   for (let i = 0; i < 10; i++) {

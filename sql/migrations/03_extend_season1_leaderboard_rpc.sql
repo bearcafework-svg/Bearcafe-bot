@@ -1,26 +1,13 @@
 -- ==============================================================================
--- BEAR CAFE BOT: MIGRATION - MINIGAME LEADERBOARD AGGREGATION VIEW & RPC
--- (รันเฉพาะไฟล์นี้ใน Supabase SQL Editor เพื่ออัปเดตการประมวลผลสถิติมินิเกม)
+-- BEAR CAFE BOT: MIGRATION 03 - EXTEND SEASON 1 MINIGAME LEADERBOARD (COMPENSATION)
+-- (รันใน Supabase SQL Editor เพื่ออัปเดตการกรองคะแนนช่วงชดเชย 1 ส.ค. - 10 ก.ย. 2026)
 -- ==============================================================================
 
--- 1. สร้าง View สรุปผลสถิติรวมมินิเกม (ประมวลผล Aggregate จาก DB)
-CREATE OR REPLACE VIEW minigame_leaderboard_summary AS
-SELECT 
-    discord_id,
-    COUNT(*)::INT AS wins,
-    COALESCE(SUM(points_earned), 0)::INT AS points,
-    MAX(created_at) AS last_win
-FROM minigame_wins
-GROUP BY discord_id
-ORDER BY wins DESC, points DESC;
-
--- ให้สิทธิ์การอ่าน View สำหรับทุก Role
-GRANT SELECT ON minigame_leaderboard_summary TO anon, authenticated, service_role;
-
--- 2. สร้าง RPC Function สำหรับจัดอันดับสถิติแบบกำหนดช่วงเวลา (Season 1 ชดเชย: 1 ส.ค. - 10 ก.ย. 2026)
+-- ลบ Function เดิมออกก่อนเพื่อป้องกัน Parameter Signature Conflict
 DROP FUNCTION IF EXISTS get_minigame_leaderboard(INT, INT);
 DROP FUNCTION IF EXISTS get_minigame_leaderboard(INT, INT, TIMESTAMPTZ, TIMESTAMPTZ);
 
+-- สร้าง RPC Function สำหรับจัดอันดับสถิติมินิเกม พร้อมรองรับ Date Range (Season 1 ชดเชย: 1 ส.ค. - 10 ก.ย. 2026)
 CREATE OR REPLACE FUNCTION get_minigame_leaderboard(
     days_limit INT DEFAULT NULL, 
     filter_game_id INT DEFAULT NULL,
@@ -52,4 +39,3 @@ $$;
 
 -- ให้สิทธิ์การรัน Function สำหรับทุก Role
 GRANT EXECUTE ON FUNCTION get_minigame_leaderboard(INT, INT, TIMESTAMPTZ, TIMESTAMPTZ) TO anon, authenticated, service_role;
-

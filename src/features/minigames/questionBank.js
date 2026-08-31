@@ -58,16 +58,22 @@ const DEFAULT_QUESTIONS = {
     { id: 1104, word_or_question: "พัด", answer: "ลม" },
     { id: 1105, word_or_question: "รถ", answer: "ไฟ" }
   ],
-  12: [ // ข้อไหนไม่เข้าพวก (Category-based Generator)
-    { id: 1201, word_or_question: "🐶", answer: "🐶", category: "สัตว์" },
-    { id: 1202, word_or_question: "🐱", answer: "🐱", category: "สัตว์" },
-    { id: 1203, word_or_question: "🐭", answer: "🐭", category: "สัตว์" },
-    { id: 1204, word_or_question: "🐰", answer: "🐰", category: "สัตว์" },
-    { id: 1205, word_or_question: "🍎", answer: "🍎", category: "ผลไม้" },
-    { id: 1206, word_or_question: "🍌", answer: "🍌", category: "ผลไม้" },
-    { id: 1207, word_or_question: "🍊", answer: "🍊", category: "ผลไม้" },
-    { id: 1208, word_or_question: "🚗", answer: "🚗", category: "ยานพาหนะ" },
-    { id: 1209, word_or_question: "✈️", answer: "✈️", category: "ยานพาหนะ" }
+  12: [ // ฟังเสียงแล้วพิมพ์ตอบ (ไทย)
+    { id: 1201, word_or_question: "ก้านกล้วย", answer: "ก้านกล้วย" },
+    { id: 1202, word_or_question: "สวัสดี", answer: "สวัสดี" },
+    { id: 1203, word_or_question: "ขอบคุณ", answer: "ขอบคุณ" },
+    { id: 1204, word_or_question: "ประเทศไทย", answer: "ประเทศไทย" },
+    { id: 1205, word_or_question: "ไอศกรีม", answer: "ไอศกรีม" },
+    { id: 1206, word_or_question: "คอมพิวเตอร์", answer: "คอมพิวเตอร์" },
+    { id: 1207, word_or_question: "กาแฟคาเฟ่", answer: "กาแฟคาเฟ่" },
+    { id: 1208, word_or_question: "ความสุข", answer: "ความสุข" },
+    { id: 1209, word_or_question: "ธรรมชาติ", answer: "ธรรมชาติ" },
+    { id: 1210, word_or_question: "มิตรภาพ", answer: "มิตรภาพ" },
+    { id: 1211, word_or_question: "ดวงอาทิตย์", answer: "ดวงอาทิตย์" },
+    { id: 1212, word_or_question: "ผีเสื้อ", answer: "ผีเสื้อ" },
+    { id: 1213, word_or_question: "น้ำตก", answer: "น้ำตก" },
+    { id: 1214, word_or_question: "รอยยิ้ม", answer: "รอยยิ้ม" },
+    { id: 1215, word_or_question: "กระต่าย", answer: "กระต่าย" }
   ],
   13: [ // จริงหรือเท็จ
     { id: 1301, word_or_question: "แมวเป็นสัตว์เลี้ยงลูกด้วยนม", answer: "จริง", options: ["จริง", "เท็จ"] },
@@ -435,40 +441,10 @@ async function getNextQuestion(supabase, gameId, gameSettings = null) {
     const choices = [answer, shuffledWrong[0] || 'Orange', shuffledWrong[1] || 'Banana'];
     options = shuffleArray(choices);
   } else if (gameId === 12) {
-    // Game 12: Odd One Out (Category-based Dynamic Generator)
-    if (selected.options && selected.options.length >= 4) {
-      wordOrQuestion = selected.word_or_question || 'อันไหนไม่เข้าพวก?';
-      answer = selected.answer;
-      options = shuffleArray(selected.options);
-    } else {
-      // Group candidates by category
-      const categoriesMap = new Map();
-      for (const item of candidates) {
-        const cat = item.category || 'ทั่วไป';
-        if (!categoriesMap.has(cat)) categoriesMap.set(cat, []);
-        categoriesMap.get(cat).push(item);
-      }
-
-      const availableCategories = Array.from(categoriesMap.keys()).filter(c => categoriesMap.get(c).length >= 3);
-
-      if (availableCategories.length >= 2) {
-        const mainCat = availableCategories[Math.floor(Math.random() * availableCategories.length)];
-        const mainItems = shuffleArray(categoriesMap.get(mainCat)).slice(0, 3);
-        
-        const otherCategories = availableCategories.filter(c => c !== mainCat);
-        const oddCat = otherCategories[Math.floor(Math.random() * otherCategories.length)];
-        const oddItem = shuffleArray(categoriesMap.get(oddCat))[0];
-
-        wordOrQuestion = 'อันไหนไม่เข้าพวก?';
-        answer = oddItem.answer || oddItem.word_or_question;
-        const allChoices = [...mainItems.map(i => i.answer || i.word_or_question), answer];
-        options = shuffleArray(allChoices);
-      } else {
-        wordOrQuestion = selected.word_or_question || 'อันไหนไม่เข้าพวก?';
-        answer = selected.answer;
-        options = Array.isArray(selected.options) ? shuffleArray(selected.options) : ['🐶', '🐱', '🐭', '🍎'];
-      }
-    }
+    // Game 12: ฟังเสียงแล้วพิมพ์ตอบ (ไทย) - Audio Listening Game
+    wordOrQuestion = selected.word_or_question || selected.answer;
+    answer = selected.answer || selected.word_or_question;
+    options = [];
   } else if (gameId === 11) {
     // Game 11: Word Association (Dynamic Choice Generator from Answer Pool)
     wordOrQuestion = selected.word_or_question;

@@ -2,6 +2,7 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const { MessageFlags, AttachmentBuilder } = require('discord.js');
+const googleTTS = require('google-tts-api');
 const sharedConfig = require('../../sharedSettings.json');
 const { addPointsWithCap, deductPoints } = require('../../utils/pointManager');
 const { getNextQuestion, maskWord, scrambleWord, generateHint } = require('./questionBank');
@@ -26,7 +27,7 @@ const GAME_CHANNELS = {
   9: { id: '1534647461262393435', name: 'ทายคำแปลภาษาอังกฤษ' },
   10: { id: '1534647589121818795', name: 'ทายคำแปลภาษาไทย' },
   11: { id: '1534647600000000011', name: 'เกมต่อคำ' },
-  12: { id: '1534647600000000012', name: 'ข้อไหนไม่เข้าพวก' },
+  12: { id: '1534647600000000012', name: 'ฟังเสียงแล้วพิมพ์ตอบ (ไทย)' },
   13: { id: '1534647600000000013', name: 'จริงหรือเท็จ' }
 };
 
@@ -154,9 +155,10 @@ function buildGamePayload(gameId, questionData) {
         `# ${questionData.wordOrQuestion}`;
       break;
     }
-    case 12: { // ข้อไหนไม่เข้าพวก
-      contentText = `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ ข้อไหนไม่เข้าพวก 𓂃 \`__\n` +
-        `# ${questionData.wordOrQuestion || 'อันไหนไม่เข้าพวก?'}`;
+    case 12: { // ฟังเสียงแล้วพิมพ์ตอบ (ไทย)
+      contentText = `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ ฟังเสียงแล้วพิมพ์ตอบ (ไทย) 𓂃 \`__\n` +
+        `# 🔊 จงฟังไฟล์เสียงที่แนบไว้ แล้วพิมพ์คำตอบภาษาไทยให้ถูกต้อง`;
+      mediaItem = { media: { url: 'attachment://audio.mp3' } };
       break;
     }
     case 13: { // จริงหรือเท็จ
@@ -186,8 +188,8 @@ function buildGamePayload(gameId, questionData) {
     });
   }
 
-  // 3. Choice Buttons (for Games 9, 10, 11, 12, 13)
-  if ([9, 10, 11, 12, 13].includes(gameId) && Array.isArray(questionData.options) && questionData.options.length > 0) {
+  // 3. Choice Buttons (for Games 9, 10, 11, 13)
+  if ([9, 10, 11, 13].includes(gameId) && Array.isArray(questionData.options) && questionData.options.length > 0) {
     containerComponents.push({ type: 14, spacing: 2 });
     let buttonComponents = [];
 
@@ -277,7 +279,7 @@ function buildWinnerPayload(gameId, questionData, winnerDisplayName) {
   if (gameId === 9) titleText = 'ทายคำแปลภาษาอังกฤษ';
   else if (gameId === 10) titleText = 'ทายคำแปลภาษาไทย';
   else if (gameId === 11) titleText = 'เกมต่อคำ';
-  else if (gameId === 12) titleText = 'ข้อไหนไม่เข้าพวก';
+  else if (gameId === 12) titleText = 'ฟังเสียงแล้วพิมพ์ตอบ (ไทย)';
   else if (gameId === 13) titleText = 'จริงหรือเท็จ';
 
   let contentText = '';
@@ -367,6 +369,16 @@ async function sendNextGameQuestion(client, supabase, channelOrId, gameId, retri
     if (gameId === 7 || gameId === 8) {
       const buffer = createTextImageBuffer(questionData.wordOrQuestion);
       const file = new AttachmentBuilder(buffer, { name: 'text_image.png' });
+      sentMsg = await channel.send({ ...payload, files: [file] });
+    } else if (gameId === 12) {
+      const base64Audio = await googleTTS.getAudioBase64(questionData.answer, {
+        lang: 'th',
+        slow: false,
+        host: 'https://translate.google.com',
+        timeout: 10000,
+      });
+      const buffer = Buffer.from(base64Audio, 'base64');
+      const file = new AttachmentBuilder(buffer, { name: 'audio.mp3' });
       sentMsg = await channel.send({ ...payload, files: [file] });
     } else {
       sentMsg = await channel.send(payload);
@@ -798,8 +810,8 @@ function setupMinigames(client) {
       }
     }
 
-    // Ignore if not a game channel or if it's game 9-13 (which use buttons)
-    if (!matchedGameId || [9, 10, 11, 12, 13].includes(matchedGameId)) return;
+    // Ignore if not a game channel or if it's game 9, 10, 11, 13 (which use buttons)
+    if (!matchedGameId || [9, 10, 11, 13].includes(matchedGameId)) return;
 
     const session = activeSessions.get(message.channelId);
     if (!session || session.gameId !== matchedGameId) {
@@ -812,7 +824,7 @@ function setupMinigames(client) {
     const correctAnswer = String(session.questionData.answer).trim();
 
     // Check correctness: exact comparison for Thai, case-insensitive for English
-    const isThaiGame = matchedGameId === 1 || matchedGameId === 5 || matchedGameId === 7;
+    const isThaiGame = matchedGameId === 1 || matchedGameId === 5 || matchedGameId === 7 || matchedGameId === 12;
     const isCorrect = isThaiGame
       ? userText === correctAnswer
       : userText.toLowerCase() === correctAnswer.toLowerCase();

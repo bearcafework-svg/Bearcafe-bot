@@ -52,9 +52,9 @@ async function startVoiceLogWorker() {
         }).catch(() => {});
       }
 
-      // ดึงข้อมูลสูงสุดครั้งละ 10 รายการมาทำ Batch Insert
+      // ดึงข้อมูลสูงสุดครั้งละ 50 รายการมาทำ Batch Insert
       const batch = [];
-      for (let i = 0; i < 10; i++) {
+      for (let i = 0; i < 50; i++) {
         const raw = await redis.rpop("voice_logs:queue");
         if (!raw) break;
         try {
@@ -88,13 +88,13 @@ async function startVoiceLogWorker() {
       if (error) {
         const isQuota = isSupabaseQuotaError(error);
         if (isQuota) {
-          // หากติด Egress Quota ให้พักการทำงาน Worker ไว้ 5 นาที
-          workerPausedUntil = Date.now() + 5 * 60 * 1000;
+          // หากติด Egress Quota ให้พักการทำงาน Worker ไว้ 15 นาที
+          workerPausedUntil = Date.now() + 15 * 60 * 1000;
         }
 
-        const { shouldLog, message } = shouldLogThrottledError("voiceLogWorker_insert", error.message || error, 5 * 60 * 1000);
+        const { shouldLog, message } = shouldLogThrottledError("voiceLogWorker_insert", error.message || error, 15 * 60 * 1000);
         if (shouldLog) {
-          console.error(`[voiceLogWorker] ❌ Supabase batch insert error${isQuota ? " (Pausing worker 5m)" : ""}:`, message);
+          console.error(`[voiceLogWorker] ❌ Supabase batch insert error${isQuota ? " (Pausing worker 15m)" : ""}:`, message);
         }
         
         // หากส่งฐานข้อมูลไม่สำเร็จ ให้เอากลับไปใส่ Queue เพื่อลองรันใหม่ (Retry Logic)
@@ -103,7 +103,7 @@ async function startVoiceLogWorker() {
           if (item.retry_count <= 3) {
             await redis.lpush("voice_logs:queue", JSON.stringify(item));
           } else {
-            const dropLog = shouldLogThrottledError("voiceLogWorker_drop", `Drop log for ${item.username}`, 5 * 60 * 1000);
+            const dropLog = shouldLogThrottledError("voiceLogWorker_drop", `Drop log for ${item.username}`, 15 * 60 * 1000);
             if (dropLog.shouldLog) {
               console.error(`[voiceLogWorker] 🚨 Drop log after 3 failed retries for ${item.username} - ${item.event_type}`);
             }
@@ -113,14 +113,14 @@ async function startVoiceLogWorker() {
         console.log(`[voiceLogWorker] 📤 Flushed ${batch.length} voice log(s) to Supabase.`);
       }
     } catch (err) {
-      const { shouldLog, message } = shouldLogThrottledError("voiceLogWorker_loop", err.message || err, 5 * 60 * 1000);
+      const { shouldLog, message } = shouldLogThrottledError("voiceLogWorker_loop", err.message || err, 15 * 60 * 1000);
       if (shouldLog) {
         console.error("[voiceLogWorker] ❌ Worker loop exception:", message);
       }
     } finally {
       isProcessing = false;
     }
-  }, 3000);
+  }, 30000);
 }
 
 module.exports = { startVoiceLogWorker };

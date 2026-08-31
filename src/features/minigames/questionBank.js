@@ -20,6 +20,23 @@ const DEFAULT_QUESTIONS = {
     { id: 206, word_or_question: "butterfly", answer: "butterfly" },
     { id: 207, word_or_question: "computer", answer: "computer" }
   ],
+  5: [ // ฟังเสียงแล้วพิมพ์ตอบ (อังกฤษ)
+    { id: 501, word_or_question: "apple", answer: "apple" },
+    { id: 502, word_or_question: "banana", answer: "banana" },
+    { id: 503, word_or_question: "friendship", answer: "friendship" },
+    { id: 504, word_or_question: "welcome", answer: "welcome" },
+    { id: 505, word_or_question: "sunshine", answer: "sunshine" },
+    { id: 506, word_or_question: "butterfly", answer: "butterfly" },
+    { id: 507, word_or_question: "computer", answer: "computer" },
+    { id: 508, word_or_question: "strawberry", answer: "strawberry" },
+    { id: 509, word_or_question: "icecream", answer: "icecream" },
+    { id: 510, word_or_question: "chocolate", answer: "chocolate" },
+    { id: 511, word_or_question: "keyboard", answer: "keyboard" },
+    { id: 512, word_or_question: "adventure", answer: "adventure" },
+    { id: 513, word_or_question: "universe", answer: "universe" },
+    { id: 514, word_or_question: "happiness", answer: "happiness" },
+    { id: 515, word_or_question: "hospital", answer: "hospital" }
+  ],
   4: [ // ทายคำจากคำใบ้ (มีระดับความยาก: easy [2-3แต้ม], medium [4-6แต้ม], hard [7-10แต้ม])
     { id: 401, word_or_question: "สุนัข", answer: "สุนัข", hints: ["เป็นสัตว์สี่ขา", "ส่งเสียงร้องโฮ่งๆ", "เพื่อนที่ซื่อสัตย์ของมนุษย์"], difficulty: "easy" },
     { id: 402, word_or_question: "แมว", answer: "แมว", hints: ["เป็นสัตว์เลี้ยงยอดนิยม", "ส่งเสียงร้องเหมียวๆ", "ชอบนอนและจับหนู"], difficulty: "easy" },
@@ -280,9 +297,9 @@ async function getNextQuestion(supabase, gameId, gameSettings = null) {
   if (supabase) {
     // Determine target game_id filters for shared vocabulary pool
     let targetGameIds = [gameId];
-    if (gameId === 1 || gameId === 5) targetGameIds = [1, 5, 9, 10];
-    if (gameId === 2 || gameId === 6) targetGameIds = [2, 6, 9, 10];
-    if (gameId === 9 || gameId === 10) targetGameIds = [9, 10, 1, 2, 5, 6];
+    if (gameId === 1 || gameId === 12) targetGameIds = [1, 7, 12, 9, 10];
+    if (gameId === 2 || gameId === 5 || gameId === 6) targetGameIds = [2, 5, 6, 8, 9, 10];
+    if (gameId === 9 || gameId === 10) targetGameIds = [9, 10, 1, 2, 5, 6, 12];
 
     const { data, error } = await supabase
       .from("minigame_questions")
@@ -297,8 +314,8 @@ async function getNextQuestion(supabase, gameId, gameSettings = null) {
 
   // Fallback to default questions if DB is empty
   if (questionsPool.length === 0) {
-    if (gameId === 1 || gameId === 5) questionsPool = DEFAULT_QUESTIONS[1];
-    else if (gameId === 2 || gameId === 6) questionsPool = DEFAULT_QUESTIONS[2];
+    if (gameId === 1 || gameId === 12) questionsPool = DEFAULT_QUESTIONS[1] || DEFAULT_QUESTIONS[12];
+    else if (gameId === 2 || gameId === 5 || gameId === 6) questionsPool = DEFAULT_QUESTIONS[2] || DEFAULT_QUESTIONS[5];
     else if (gameId === 9 || gameId === 10) questionsPool = DEFAULT_QUESTIONS[9];
     else questionsPool = DEFAULT_QUESTIONS[gameId] || [];
   }
@@ -309,7 +326,7 @@ async function getNextQuestion(supabase, gameId, gameSettings = null) {
 
   // Filter candidates per game logic
   let candidates = [];
-  if (gameId === 1 || gameId === 5) {
+  if (gameId === 1 || gameId === 12) {
     // Thai games: extract words that are Thai and have NO '_' in raw text
     candidates = questionsPool.map(q => {
       // Find candidate answer string without '_'
@@ -327,8 +344,8 @@ async function getNextQuestion(supabase, gameId, gameSettings = null) {
       if (gameId === 1 && len > 8) return null; // Filter out long sentences for Game 1
       return { id: q.id, word_or_question: cleanW, answer: cleanW, category: q.category || 'คำทั่วไป' };
     }).filter(Boolean);
-    if (candidates.length === 0) candidates = DEFAULT_QUESTIONS[1];
-  } else if (gameId === 2 || gameId === 6) {
+    if (candidates.length === 0) candidates = DEFAULT_QUESTIONS[gameId] || DEFAULT_QUESTIONS[1];
+  } else if (gameId === 2 || gameId === 5 || gameId === 6) {
     // English games: extract words that are English and have NO '_' in raw text
     candidates = questionsPool.map(q => {
       let word = null;
@@ -345,7 +362,7 @@ async function getNextQuestion(supabase, gameId, gameSettings = null) {
       if (gameId === 2 && len > 10) return null; // Filter out long sentences for Game 2
       return { id: q.id, word_or_question: cleanW, answer: cleanW, category: q.category || 'General' };
     }).filter(Boolean);
-    if (candidates.length === 0) candidates = DEFAULT_QUESTIONS[2];
+    if (candidates.length === 0) candidates = DEFAULT_QUESTIONS[gameId] || DEFAULT_QUESTIONS[2];
   } else if (gameId === 9 || gameId === 10) {
     // Translation pairs (English word <-> Thai translation)
     candidates = questionsPool.filter(q => /[a-zA-Z]/.test(q.word_or_question) && /[\u0E00-\u0E7F]/.test(q.answer));
@@ -402,11 +419,10 @@ async function getNextQuestion(supabase, gameId, gameSettings = null) {
     wordOrQuestion = masked.maskedStr;
     answer = clean;
     initialRevealedIndices = masked.initialRevealedIndices || [];
-  } else if (gameId === 5 || gameId === 6) {
-    const isThai = gameId === 5;
+  } else if (gameId === 6) {
     let clean = (selected.answer && !selected.answer.includes('_')) ? selected.answer : selected.word_or_question;
     clean = String(clean || '').replace(/_/g, '').replace(/\s+/g, '').trim();
-    wordOrQuestion = scrambleWord(clean, isThai);
+    wordOrQuestion = scrambleWord(clean, false);
     answer = clean;
   }
   if (gameId === 4) {
@@ -440,8 +456,8 @@ async function getNextQuestion(supabase, gameId, gameSettings = null) {
     const shuffledWrong = shuffleArray(wrongPool);
     const choices = [answer, shuffledWrong[0] || 'Orange', shuffledWrong[1] || 'Banana'];
     options = shuffleArray(choices);
-  } else if (gameId === 12) {
-    // Game 12: ฟังเสียงแล้วพิมพ์ตอบ (ไทย) - Audio Listening Game
+  } else if (gameId === 5 || gameId === 12) {
+    // Game 5: ฟังเสียงแล้วพิมพ์ตอบ (อังกฤษ), Game 12: ฟังเสียงแล้วพิมพ์ตอบ (ไทย)
     wordOrQuestion = selected.word_or_question || selected.answer;
     answer = selected.answer || selected.word_or_question;
     options = [];
@@ -501,7 +517,7 @@ async function getNextQuestion(supabase, gameId, gameSettings = null) {
  */
 function generateHint(gameId, questionData, hintLevel, previousHintData = null) {
   const fullAnswer = String(questionData.answer || '').trim();
-  const isThai = gameId === 1 || gameId === 5;
+  const isThai = gameId === 1 || gameId === 12;
   const clusters = isThai ? getGraphemeClusters(fullAnswer) : Array.from(fullAnswer);
   const totalLength = clusters.length;
 

@@ -20,14 +20,14 @@ const GAME_CHANNELS = {
   2: { id: '1534453700188176506', name: 'เติมคำศัพท์ภาษาอังกฤษ' },
   3: { id: '1534454001532272730', name: 'สุ่มโจทย์คณิตฯ' },
   4: { id: '1534458749782200390', name: 'ทายคำจากคำใบ้' },
-  5: { id: '1534459076606431272', name: 'เรียงคำศัพท์ไทย' },
+  5: { id: '1534459076606431272', name: 'ฟังเสียงแล้วพิมพ์ตอบ (อังกฤษ)' },
   6: { id: '1534459381779795998', name: 'เรียงคำศัพท์อังกฤษ' },
   7: { id: '1534469630234726431', name: 'พิมพ์คำต่อไปนี้ (ไทย)' },
   8: { id: '1534469708517085315', name: 'พิมพ์คำต่อไปนี้ (อังกฤษ)' },
   9: { id: '1534647461262393435', name: 'ทายคำแปลภาษาอังกฤษ' },
   10: { id: '1534647589121818795', name: 'ทายคำแปลภาษาไทย' },
   11: { id: '1534647600000000011', name: 'เกมต่อคำ' },
-  12: { id: '1534647600000000012', name: 'ฟังเสียงแล้วพิมพ์ตอบ (ไทย)' },
+  12: { id: '1524123413122125964', name: 'ฟังเสียงแล้วพิมพ์ตอบ (ไทย)' },
   13: { id: '1534647600000000013', name: 'จริงหรือเท็จ' }
 };
 
@@ -35,6 +35,42 @@ const GAME_CHANNELS = {
 const activeSessions = new Map();
 // Lock per channel ID during win processing & question generation to prevent race conditions
 const processingChannels = new Set();
+// Memory cache for TTS audio MP3 buffers per word (Instant 0ms retrieval & rate-limit prevention)
+const audioBufferCache = new Map();
+
+/**
+ * Helper: Fetches or returns cached TTS audio buffer for a given word
+ */
+async function getAudioBuffer(word, lang = 'th') {
+  const cacheKey = `${lang}:${String(word).trim()}`;
+  if (audioBufferCache.has(cacheKey)) {
+    return audioBufferCache.get(cacheKey);
+  }
+
+  try {
+    const base64Audio = await googleTTS.getAudioBase64(String(word).trim(), {
+      lang,
+      slow: false,
+      host: 'https://translate.google.com',
+      timeout: 10000,
+    });
+    const buffer = Buffer.from(base64Audio, 'base64');
+    audioBufferCache.set(cacheKey, buffer);
+    return buffer;
+  } catch (err) {
+    console.warn(`[minigames] TTS fetch failed for "${cacheKey}", retrying once...`, err.message);
+    // Retry once on temporary network hiccup
+    const base64AudioRetry = await googleTTS.getAudioBase64(String(word).trim(), {
+      lang,
+      slow: false,
+      host: 'https://translate.google.com',
+      timeout: 10000,
+    });
+    const buffer = Buffer.from(base64AudioRetry, 'base64');
+    audioBufferCache.set(cacheKey, buffer);
+    return buffer;
+  }
+}
 
 /**
  * Restores active game sessions from Supabase DB on bot restart
@@ -116,11 +152,10 @@ function buildGamePayload(gameId, questionData) {
         `-# - ระดับ: ${diffLabel}`;
       break;
     }
-    case 5: { // เรียงคำศัพท์ไทย
-      const scrambled = scrambleWord(questionData.wordOrQuestion);
-      questionData.scrambled = scrambled;
-      contentText = `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ เรียงคำศัพท์ไทย 𓂃 \`__\n` +
-        `# ${scrambled}`;
+    case 5: { // ฟังเสียงแล้วพิมพ์ตอบ (อังกฤษ)
+      contentText = `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ ฟังเสียงแล้วพิมพ์ตอบ (อังกฤษ) 𓂃 \`__\n` +
+        `# 🔊 Listen to the audio message above and type the correct English word in chat`;
+      mediaItem = null;
       break;
     }
     case 6: { // เรียงคำศัพท์อังกฤษ
@@ -157,8 +192,8 @@ function buildGamePayload(gameId, questionData) {
     }
     case 12: { // ฟังเสียงแล้วพิมพ์ตอบ (ไทย)
       contentText = `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ ฟังเสียงแล้วพิมพ์ตอบ (ไทย) 𓂃 \`__\n` +
-        `# 🔊 จงฟังไฟล์เสียงที่แนบไว้ แล้วพิมพ์คำตอบภาษาไทยให้ถูกต้อง`;
-      mediaItem = { media: { url: 'attachment://audio.mp3' } };
+        `# 🔊 จงฟังไฟล์เสียงในข้อความด้านบน แล้วพิมพ์คำตอบภาษาไทยให้ถูกต้อง`;
+      mediaItem = null;
       break;
     }
     case 13: { // จริงหรือเท็จ
@@ -170,9 +205,13 @@ function buildGamePayload(gameId, questionData) {
 
   const containerComponents = [];
 
-  // For Games 7 & 8: Media Component (12) comes FIRST, then Separator (14), then Section Component (9)
+  // For Games 7 & 8: Media Component (12), For Game 12: File Component (13)
   if (mediaItem) {
-    containerComponents.push({ type: 12, items: [mediaItem] });
+    if (mediaItem.type === 13) {
+      containerComponents.push(mediaItem);
+    } else {
+      containerComponents.push({ type: 12, items: [mediaItem] });
+    }
     containerComponents.push({ type: 14, spacing: 2 });
     containerComponents.push({
       type: 9,
@@ -276,7 +315,8 @@ function buildWinnerPayload(gameId, questionData, winnerDisplayName) {
   };
 
   let titleText = 'มินิเกม';
-  if (gameId === 9) titleText = 'ทายคำแปลภาษาอังกฤษ';
+  if (gameId === 5) titleText = 'ฟังเสียงแล้วพิมพ์ตอบ (อังกฤษ)';
+  else if (gameId === 9) titleText = 'ทายคำแปลภาษาอังกฤษ';
   else if (gameId === 10) titleText = 'ทายคำแปลภาษาไทย';
   else if (gameId === 11) titleText = 'เกมต่อคำ';
   else if (gameId === 12) titleText = 'ฟังเสียงแล้วพิมพ์ตอบ (ไทย)';
@@ -370,16 +410,23 @@ async function sendNextGameQuestion(client, supabase, channelOrId, gameId, retri
       const buffer = createTextImageBuffer(questionData.wordOrQuestion);
       const file = new AttachmentBuilder(buffer, { name: 'text_image.png' });
       sentMsg = await channel.send({ ...payload, files: [file] });
-    } else if (gameId === 12) {
-      const base64Audio = await googleTTS.getAudioBase64(questionData.answer, {
-        lang: 'th',
-        slow: false,
-        host: 'https://translate.google.com',
-        timeout: 10000,
-      });
-      const buffer = Buffer.from(base64Audio, 'base64');
-      const file = new AttachmentBuilder(buffer, { name: 'audio.mp3' });
-      sentMsg = await channel.send({ ...payload, files: [file] });
+    } else if (gameId === 5 || gameId === 12) {
+      let audioMsgId = null;
+      const lang = gameId === 5 ? 'en' : 'th';
+      try {
+        const buffer = await getAudioBuffer(questionData.answer, lang);
+        const audioFile = new AttachmentBuilder(buffer, { name: 'audio.mp3' });
+        const audioMsg = await channel.send({ files: [audioFile] });
+        audioMsgId = audioMsg.id;
+      } catch (audioErr) {
+        console.error(`[minigames] Failed to generate/send TTS audio message for Game ${gameId}:`, audioErr.message);
+      }
+
+      sentMsg = await channel.send(payload);
+
+      if (audioMsgId) {
+        questionData.audioMessageId = audioMsgId;
+      }
     } else {
       sentMsg = await channel.send(payload);
     }
@@ -824,7 +871,7 @@ function setupMinigames(client) {
     const correctAnswer = String(session.questionData.answer).trim();
 
     // Check correctness: exact comparison for Thai, case-insensitive for English
-    const isThaiGame = matchedGameId === 1 || matchedGameId === 5 || matchedGameId === 7 || matchedGameId === 12;
+    const isThaiGame = matchedGameId === 1 || matchedGameId === 7 || matchedGameId === 12;
     const isCorrect = isThaiGame
       ? userText === correctAnswer
       : userText.toLowerCase() === correctAnswer.toLowerCase();
@@ -870,8 +917,11 @@ function setupMinigames(client) {
       // 1. Instantly react checkmark to winner message (non-blocking UI)
       message.react(CHECKMARK_EMOJI_ID).catch(() => {});
 
-      // 2. Edit previous question message to show solved state
-      if (session.messageId) {
+      // Delete Component V2 card message for Game 5 & 12 (keep MP3 audio message)
+      if ((matchedGameId === 5 || matchedGameId === 12) && session.messageId) {
+        message.channel.messages.delete(session.messageId).catch(() => {});
+      } else if (session.messageId) {
+        // Edit previous question message for other games to show solved state
         const winnerName = message.member?.displayName || message.author.username;
         message.channel.messages.fetch(session.messageId)
           .then(oldMsg => {

@@ -52,11 +52,22 @@ module.exports = {
 
       // ── 1.1 เจ้าของห้องบ้านเช่า เข้าห้องบ้านเช่าของตัวเอง → ส่งแผงควบคุม Rent House Panel ทันที ──
       const joinedCh = guild.channels.cache.get(joinedChannel);
-      if (joinedCh && joinedCh.parentId === RENT_HOUSE_CATEGORY_ID) {
-        const isOwner = await isRentHouseOwner(joinedCh, member.id);
-        if (isOwner) {
-          console.log(`🏠 เจ้าของบ้านเช่า "${member.user.tag}" เข้าห้องตัวเอง (${joinedCh.name}) — ส่งแผงควบคุมบ้านเช่าอัตโนมัติ`);
-          await sendRentHousePanel(joinedCh, member).catch(console.error);
+      if (joinedCh) {
+        if (joinedCh.parentId === RENT_HOUSE_CATEGORY_ID) {
+          const isOwner = await isRentHouseOwner(joinedCh, member.id);
+          if (isOwner) {
+            console.log(`🏠 เจ้าของบ้านเช่า "${member.user.tag}" เข้าห้องตัวเอง (${joinedCh.name}) — ส่งแผงควบคุมบ้านเช่าอัตโนมัติ`);
+            await sendRentHousePanel(joinedCh, member).catch(console.error);
+          }
+        }
+
+        // ── 1.2 ตั้งค่า Voice Status สำหรับห้องในหมวดหมู่ Point x2 (แสดงเมื่อมีสมาชิก 2 คนขึ้นไป) ──
+        if (joinedCh.parentId === "1543974947561537646") {
+          const nonBotCount = joinedCh.members ? joinedCh.members.filter(m => !m.user?.bot).size : 0;
+          const statusText = nonBotCount >= 2 ? "<a:59217leaf:1512014878796152862> ลงห้องรับ 𝐏𝐨𝐢𝐧𝐭 𝐱𝟐 มาเลย!" : "";
+          guild.client.rest.put(`/channels/${joinedChannel}/voice-status`, {
+            body: { status: statusText }
+          }).catch(() => {});
         }
       }
     }
@@ -76,8 +87,17 @@ module.exports = {
       }
     }
 
-    // ── 2. คนออกจากห้อง → เช็คว่าว่างไหม ─────────────────────────
-    if (leftChannel) {
+    // ── 2. คนออกจากห้อง ─────────────────────────────────────────
+    if (leftChannel && joinedChannel !== leftChannel) {
+      const leftCh = guild.channels.cache.get(leftChannel);
+      if (leftCh && leftCh.parentId === "1543974947561537646") {
+        const nonBotCount = leftCh.members ? leftCh.members.filter(m => !m.user?.bot).size : 0;
+        const statusText = nonBotCount >= 2 ? "<a:59217leaf:1512014878796152862> ลงห้องรับ 𝐏𝐨𝐢𝐧𝐭 𝐱𝟐 มาเลย!" : "";
+        guild.client.rest.put(`/channels/${leftChannel}/voice-status`, {
+          body: { status: statusText }
+        }).catch(() => {});
+      }
+
       if (!rooms[leftChannel]) return; // ไม่ใช่ห้องที่บอทสร้าง
 
       const channel = guild.channels.cache.get(leftChannel);

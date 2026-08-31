@@ -47,6 +47,31 @@ function getDailyResetTimestamp() {
   return Math.floor(tomorrowMidnight.getTime() / 1000);
 }
 
+/**
+ * คำนวณตัวคูณแต้มห้องเสียง (Voice Point Multiplier)
+ * หมวดหมู่ 1543974947561537646:
+ * - หากในห้องมีสมาชิก (คนจริง ไม่นับบอท) >= 2 คน -> ได้ x2
+ * - หากมีเพียง 1 คน หรือไม่ใช่หมวดหมู่นี้ -> ได้ x1
+ */
+function getVoicePointMultiplier(channel) {
+  if (!channel) return 1;
+  const POINT_X2_CATEGORY_ID = '1543974947561537646';
+  if (channel.parentId === POINT_X2_CATEGORY_ID) {
+    let nonBotMembersCount = 0;
+    if (channel.members) {
+      if (typeof channel.members.filter === 'function') {
+        nonBotMembersCount = channel.members.filter(m => !m.user?.bot).size;
+      } else if (typeof channel.members.values === 'function') {
+        for (const member of channel.members.values()) {
+          if (!member.user?.bot) nonBotMembersCount++;
+        }
+      }
+    }
+    return nonBotMembersCount >= 2 ? 2 : 1;
+  }
+  return 1;
+}
+
 async function addPointsWithCap(supabase, member, userId, pointsDelta) {
   const maxCap = member ? getMaxPoints(member) : 750;
   const dailyCap = getDailyCap(maxCap);
@@ -174,6 +199,7 @@ module.exports = {
   getDailyCap,
   getMaxPoints,
   getDailyResetTimestamp,
+  getVoicePointMultiplier,
   addPointsWithCap,
   deductPoints
 };

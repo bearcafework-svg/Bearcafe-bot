@@ -86,6 +86,7 @@ setupFeature("security", "./src/features/security", "setupSecurity", supabaseEnv
 setupFeature("cafe", "./src/features/cafe", "setupCafe");
 setupFeature("guildTagNotification", "./src/features/guildTagNotification", "setupGuildTagNotification");
 setupFeature("tagWarn", "./src/features/tagWarn", "setupTagWarn", supabaseEnvKeys);
+setupFeature("copyCategoryPerms", "./src/commands/copyCategoryPerms", "setupCopyCategoryPerms");
 
 
 
@@ -109,6 +110,30 @@ client.once("clientReady", async () => {
   // ตั้งค่าสถานะบอทเริ่มต้น (รอ 5 วินาทีให้ cache พร้อม) และตั้งเวลาอัปเดตทุก 10 นาที
   setTimeout(() => updateBotPresence(client), 5000);
   setInterval(() => updateBotPresence(client), 10 * 60 * 1000);
+
+  // ตั้งค่า Voice Status เริ่มต้นสำหรับห้องเสียงในหมวดหมู่ Point x2 (1543974947561537646)
+  setTimeout(() => {
+    try {
+      const pointX2CategoryId = "1543974947561537646";
+      const voiceStatusText = "<a:59217leaf:1512014878796152862> ลงห้องรับ 𝐏𝐨𝐢𝐧𝐭 𝐱𝟐 มาเลย!";
+      const channels = client.channels.cache.filter(c => c.parentId === pointX2CategoryId && c.isVoiceBased());
+      let activeCount = 0;
+      for (const [chId, ch] of channels) {
+        const nonBotCount = ch.members ? ch.members.filter(m => !m.user?.bot).size : 0;
+        if (nonBotCount >= 2) {
+          client.rest.put(`/channels/${chId}/voice-status`, { body: { status: voiceStatusText } }).catch(() => {});
+          activeCount++;
+        } else {
+          client.rest.put(`/channels/${chId}/voice-status`, { body: { status: "" } }).catch(() => {});
+        }
+      }
+      if (channels.size > 0) {
+        console.log(`🍃 [VoiceStatus] ตรวจสอบ ${channels.size} ห้องในหมวดหมู่ Point x2 (มีสมาชิกครบ 2 คนขึ้นไป ${activeCount} ห้อง)`);
+      }
+    } catch (e) {
+      console.error("⚠️ ตั้งค่า Voice Status เริ่มต้นไม่สำเร็จ:", e.message);
+    }
+  }, 6000);
 
   // โหลด separator IDs จาก Redis
   try {

@@ -425,11 +425,11 @@ async function sendNextGameQuestion(client, supabase, channelOrId, gameId, retri
     const payload = buildGamePayload(gameId, questionData);
     let sentMsg = null;
 
-    if (gameId === 7 || gameId === 8) {
+    if (gameId === 6 || gameId === 7) {
       const buffer = createTextImageBuffer(questionData.wordOrQuestion);
       const file = new AttachmentBuilder(buffer, { name: 'text_image.png' });
       sentMsg = await channel.send({ ...payload, files: [file] });
-    } else if (gameId === 5 || gameId === 12) {
+    } else if (gameId === 5 || gameId === 11) {
       let audioMsgId = null;
       const lang = gameId === 5 ? 'en' : 'th';
       try {
@@ -876,8 +876,8 @@ function setupMinigames(client) {
       }
     }
 
-    // Ignore if not a game channel or if it's game 9, 10, 11, 13 (which use buttons)
-    if (!matchedGameId || [9, 10, 11, 13].includes(matchedGameId)) return;
+    // Ignore if not a game channel or if it's game 8, 9, 10, 12 (which use buttons)
+    if (!matchedGameId || [8, 9, 10, 12].includes(matchedGameId)) return;
 
     const session = activeSessions.get(message.channelId);
     if (!session || session.gameId !== matchedGameId) {
@@ -890,7 +890,7 @@ function setupMinigames(client) {
     const correctAnswer = String(session.questionData.answer).trim();
 
     // Check correctness: exact comparison for Thai, case-insensitive for English
-    const isThaiGame = matchedGameId === 1 || matchedGameId === 7 || matchedGameId === 12;
+    const isThaiGame = matchedGameId === 1 || matchedGameId === 4 || matchedGameId === 6 || matchedGameId === 11;
     const isCorrect = isThaiGame
       ? userText === correctAnswer
       : userText.toLowerCase() === correctAnswer.toLowerCase();
@@ -936,8 +936,8 @@ function setupMinigames(client) {
       // 1. Instantly react checkmark to winner message (non-blocking UI)
       message.react(CHECKMARK_EMOJI_ID).catch(() => {});
 
-      // Delete Component V2 card message for Game 5 & 12 (keep MP3 audio message)
-      if ((matchedGameId === 5 || matchedGameId === 12) && session.messageId) {
+      // Delete Component V2 card message for Game 5 & 11 (keep MP3 audio message)
+      if ((matchedGameId === 5 || matchedGameId === 11) && session.messageId) {
         message.channel.messages.delete(session.messageId).catch(() => {});
       } else if (session.messageId) {
         // Edit previous question message for other games to show solved state

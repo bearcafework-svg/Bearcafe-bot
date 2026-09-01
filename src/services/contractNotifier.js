@@ -172,7 +172,7 @@ async function checkAndNotifyContracts(client) {
  * เริ่มต้นระบบ Auto Contract Notifier
  */
 function setupContractNotifier(client) {
-  client.once("ready", () => {
+  client.once("clientReady", () => {
     console.log("[contractNotifier] ✅ ระบบแจ้งเตือนสัญญาเช่าอัตโนมัติพร้อมทำงานแล้ว");
     // สแกนทันทีเมื่อบอทออนไลน์
     checkAndNotifyContracts(client).catch(console.error);

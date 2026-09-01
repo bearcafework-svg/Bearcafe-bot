@@ -98,3 +98,57 @@ if (accImg) ctx.drawImage(accImg, 0, 0, 500, 500);
 **Related Files:**  
 - [`src/features/beeGacha/beeRenderer.js`](file:///d:/bearcafe-bot/src/features/beeGacha/beeRenderer.js)
 - [`src/utils/fontLoader.js`](file:///d:/bearcafe-bot/src/utils/fontLoader.js)
+
+---
+
+### 4. Minigame Restart Anti-Spam (Smart Discord Message Recovery)
+**Date:** 2026-09-01  
+**Domain:** Discord API / Minigames Engine  
+**Description of Issue:**  
+เมื่อทำการรีสตาร์ทบอท (PM2 Restart / Deploy) บอทส่งข้อความโจทย์มินิเกมใหม่ลงทุกช่องโดยอัตโนมัติ ส่งผลให้เกิดข้อความรกในช่องสนทนามุมมองของผู้ใช้
+
+**Root Cause:**  
+1. เมื่อบอทเปิดขึ้นมา หากใน RAM ความจำชั่วคราว (`activeSessions` Map) ยังไม่มีเซสชันของช่องนั้นๆ ตัวตรวจเช็กสถานะ Self-Healing Keeper จะมองว่าไม่มีเกมรันอยู่ และสั่งรัน `sendNextGameQuestion` ส่งโจทย์ใหม่ทันที
+2. บอทไม่ได้ตรวจเช็กประวัติข้อความล่าสุดในช่อง Discord ว่ามีโจทย์เดิมของบอทเปิดค้างไว้อยู่แล้วหรือไม่
+
+**Resolution / Workaround:**  
+1. ออกแบบสถาปัตยกรรม **Smart Discord Message Recovery**: ในช่วง `clientReady` หรือเมื่อ `restoreActiveSessions` รัน หากใน RAM ไม่มีเซสชัน ให้บอทสแกนประวัติ 5 ข้อความล่าสุด (`channel.messages.fetch({ limit: 5 })`)
+2. หากพบข้อความการ์ดโจทย์เดิมของบอท ให้ดึง `message.id` มาผูกคืนเข้า RAM (`activeSessions.set(channelId, ...)`) ทันทีโดย **ไม่โพสต์ข้อความโจทย์ใหม่ลงไปในช่องเด็ดขาด**
+
+```javascript
+const recentMsgs = await channel.messages.fetch({ limit: 5 }).catch(() => null);
+const lastBotMsg = recentMsgs?.find(m => m.author.id === client.user.id);
+if (lastBotMsg) {
+  activeSessions.set(channelId, {
+    gameId,
+    questionData: { wordOrQuestion: 'โจทย์ปัจจุบัน', answer: '', rewardPoints: 3 },
+    messageId: lastBotMsg.id,
+    channelId
+  });
+}
+```
+
+**Related Files:**  
+- [`src/features/minigames/minigames.js`](file:///d:/bearcafe-bot/src/features/minigames/minigames.js)
+
+---
+
+### 5. Stale Game ID Checks & Event Listener Deprecation (`clientReady`)
+**Date:** 2026-09-01  
+**Domain:** Discord.js v14 / Refactoring Hygiene  
+**Description of Issue:**  
+1. มินิเกมฟังเสียงภาษาไทย (เกม 11) ไม่ยอมสร้างไฟล์เสียง `audio.mp3` และไม่ยอมตรวจคำตอบในแชท
+2. บอทแสดงคำเตือน `DeprecationWarning: The ready event has been renamed to clientReady` ตอนเปิดเครื่อง
+
+**Root Cause:**  
+1. หลังจากลบมินิเกมเดิมออก การจัดลำดับเลขเกมใหม่ทำให้เกม 12 เปลี่ยนเป็นเกม 11 แต่ในโค้ดยังค้างเงื่อนไข `gameId === 12` และใน Chat Listener Ignore List ยังมีเลข 11 ติดอยู่
+2. โค้ดเก่าในบริการ `contractNotifier.js` ยังใช้ `client.once("ready")` แทน `client.once("clientReady")`
+
+**Resolution / Workaround:**  
+1. เมื่อทำการเปลี่ยนเลข ID หรือลบรายการ Enums/IDs ในระบบ ต้องทำการสแกนสวิตช์และเงื่อนไขเปรียบเทียบเลขทั้งหมดทั่วทั้งไฟล์
+2. เปลี่ยนอีเวนต์พร้อมทำงานบอทเป็น `clientReady` ทุกไฟล์ให้ตรงตามมาตรฐาน Discord.js v14
+
+**Related Files:**  
+- [`src/features/minigames/minigames.js`](file:///d:/bearcafe-bot/src/features/minigames/minigames.js)
+- [`src/services/contractNotifier.js`](file:///d:/bearcafe-bot/src/services/contractNotifier.js)
+

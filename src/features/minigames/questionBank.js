@@ -454,30 +454,30 @@ async function getNextQuestion(supabase, gameId, gameSettings = null) {
     }
   }
 
-  // Games 9 & 10: Dynamic 3-Choice Generation
-  if (gameId === 9) {
-    // Game 9: English word -> Thai choices
+  // Games 8 & 9: Dynamic 3-Choice Generation for Translations, Game 10: Word Chain, Games 5 & 11: Audio, Game 12: True/False
+  if (gameId === 8) {
+    // Game 8: English word -> Thai choices
     wordOrQuestion = selected.word_or_question; // English word
     answer = selected.answer;                   // Thai answer
     const wrongPool = allTranslations.map(t => t.answer).filter(a => a !== answer);
     const shuffledWrong = shuffleArray(wrongPool);
     const choices = [answer, shuffledWrong[0] || 'ส้ม', shuffledWrong[1] || 'กล้วย'];
     options = shuffleArray(choices);
-  } else if (gameId === 10) {
-    // Game 10: Thai word -> English choices
+  } else if (gameId === 9) {
+    // Game 9: Thai word -> English choices
     wordOrQuestion = selected.answer;           // Thai word
     answer = selected.word_or_question;         // English answer
     const wrongPool = allTranslations.map(t => t.word_or_question).filter(w => w !== answer);
     const shuffledWrong = shuffleArray(wrongPool);
     const choices = [answer, shuffledWrong[0] || 'Orange', shuffledWrong[1] || 'Banana'];
     options = shuffleArray(choices);
-  } else if (gameId === 5 || gameId === 12) {
-    // Game 5: ฟังเสียงแล้วพิมพ์ตอบ (อังกฤษ), Game 12: ฟังเสียงแล้วพิมพ์ตอบ (ไทย)
+  } else if (gameId === 5 || gameId === 11) {
+    // Game 5: ฟังเสียงแล้วพิมพ์ตอบ (อังกฤษ), Game 11: ฟังเสียงแล้วพิมพ์ตอบ (ไทย)
     wordOrQuestion = selected.word_or_question || selected.answer;
     answer = selected.answer || selected.word_or_question;
     options = [];
-  } else if (gameId === 11) {
-    // Game 11: Word Association (Dynamic Choice Generator from Answer Pool)
+  } else if (gameId === 10) {
+    // Game 10: Word Chain (Dynamic Choice Generator from Answer Pool)
     wordOrQuestion = selected.word_or_question;
     answer = selected.answer;
 
@@ -503,14 +503,11 @@ async function getNextQuestion(supabase, gameId, gameSettings = null) {
 
       options = shuffleArray(choices);
     }
-  } else if (gameId === 13) {
+  } else if (gameId === 12) {
+    // Game 12: จริงหรือเท็จ
     wordOrQuestion = selected.word_or_question;
     answer = selected.answer;
-    if (Array.isArray(selected.options) && selected.options.length > 0) {
-      options = ["จริง", "เท็จ"];
-    } else {
-      options = ["จริง", "เท็จ"];
-    }
+    options = ["จริง", "เท็จ"];
   }
 
   return {
@@ -532,14 +529,14 @@ async function getNextQuestion(supabase, gameId, gameSettings = null) {
  */
 function generateHint(gameId, questionData, hintLevel, previousHintData = null) {
   const fullAnswer = String(questionData.answer || '').trim();
-  const isThai = gameId === 1 || gameId === 12;
+  const isThai = gameId === 1 || gameId === 11;
   const clusters = isThai ? getGraphemeClusters(fullAnswer) : Array.from(fullAnswer);
   const totalLength = clusters.length;
 
-  if (gameId === 1 || gameId === 2) {
-    // Fill-in-the-blank game (เติมคำ)
-    // Extract current display state from question string (e.g., "ส _ ั _ _ ี" or "A _ _ L _")
-    const questionStr = String(questionData.wordOrQuestion || '').trim();
+  if (gameId === 1 || gameId === 2 || gameId === 5) {
+    // Fill-in-the-blank / Audio hint (เติมคำ / เสียง)
+    // Extract current display state from question string
+    const questionStr = (gameId === 5) ? '_'.repeat(totalLength) : String(questionData.wordOrQuestion || '').trim();
     let currentUnits = questionStr.includes(' ') ? questionStr.split(/\s+/) : (isThai ? getGraphemeClusters(questionStr) : Array.from(questionStr));
     
     // Ensure unit array length matches full answer clusters length
@@ -593,34 +590,6 @@ function generateHint(gameId, questionData, hintLevel, previousHintData = null) 
       error: null,
       hintText: hintMsg,
       updatedHintData: { revealedIndices: Array.from(revealedIndices) }
-    };
-  }
-
-  if (gameId === 5 || gameId === 6) {
-    // Word scramble game (เรียงคำ)
-    let currentLockedCount = previousHintData?.lockedCount || 0;
-    
-    const maxAllowedLocked = Math.min(totalLength - 1, Math.max(1, Math.floor(totalLength * 0.5)));
-
-    let newlyLockCount = 1;
-    if (hintLevel === 2) {
-      newlyLockCount = Math.max(1, maxAllowedLocked - currentLockedCount);
-    }
-
-    const totalLockedCount = Math.min(maxAllowedLocked, currentLockedCount + newlyLockCount);
-    const lockedUnits = clusters.slice(0, totalLockedCount);
-    
-    const remainingUnits = clusters.slice(totalLockedCount);
-    const scrambledRemaining = scrambleWord(remainingUnits.join(''), isThai);
-    const remainingDisplayUnits = isThai ? getGraphemeClusters(scrambledRemaining) : Array.from(scrambledRemaining);
-
-    const displayUnits = [...lockedUnits, ...remainingDisplayUnits];
-    const hintMsg = `# \`${displayUnits.join(' ')}\`\n\n${lockedUnits.map((char, idx) => `- ตำแหน่งที่ **${idx + 1}** คือ **"${char}"**`).join('\n')}`;
-
-    return {
-      error: null,
-      hintText: hintMsg,
-      updatedHintData: { lockedCount: totalLockedCount }
     };
   }
 

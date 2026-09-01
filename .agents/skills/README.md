@@ -191,3 +191,28 @@
 **เรียกใช้:**
 
 `@skill-logger`
+
+---
+skill-impact-analysis
+วิเคราะห์ผลกระทบแบบลูกโซ่และตรวจสอบความเชื่อมโยงของไฟล์ทั้งระบบ (Discord Bot, Database, Config และ Frontend bear-cafe-web) ก่อนและหลังการแก้ไขโค้ด
+
+ใช้เมื่อ:
+
+ต้องการเปลี่ยนชื่อตัวแปร, Game ID, Role ID, Custom ID, หรือแก้ Config Key ที่มีหลายไฟล์เรียกใช้
+
+ปรับเปลี่ยน Database Schema, Supabase RPC หรือโครงสร้าง JSON ที่เชื่อมโยงระหว่าง Bot และ Web Dashboard
+
+ต้องการให้ AI กวาดหาทุกไฟล์ที่เกี่ยวข้อง (Blast Radius) และอัปเดตไปพร้อมกันแบบ Synchronized เพื่อไม่ให้หน้าเว็บหรือบอตพัง
+
+ชื่อโฟลเดอร์: skill-impact-analysis
+
+เรียกใช้:
+
+@skill-impact-analysis
+
+วิธีสั่งงานร่วมกับ Antigravity IDE เพื่อไม่ให้เกิดการแก้ไฟล์เดียวทิ้งไว้
+เมื่อต้องการเปลี่ยนค่าหรือแก้ระบบที่มีความเชื่อมโยง ให้พิมพ์สั่งโดยเรียกใช้ @skill-impact-analysis นำหน้าเสมอ เช่น:
+
+@skill-impact-analysis ฉันต้องการเปลี่ยน Game ID จาก 1 เป็น 2 ช่วยสแกนหาไฟล์ที่เกี่ยวข้องทั้งหมดทั้งในฝั่ง bot, config, database และหน้าแสดงผลของ bear-cafe-web พร้อมทำ Checklist ให้ดูก่อนแก้
+
+AI จะหยุดการแก้แบบโดดเดี่ยว และกวาดค้นหาไฟล์ทั่วทั้ง Workspace เพื่อนำเสนอ Cross-System Impact Report ให้เห็นภาพรวมทั้งหมดก่อนเริ่มแก้ไขไฟล์พร้อมกันทุกจุด

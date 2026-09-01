@@ -180,7 +180,7 @@ function buildGamePayload(gameId, questionData) {
     }
     case 5: { // ฟังเสียงแล้วพิมพ์ตอบ (อังกฤษ)
       contentText = `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ ฟังเสียงแล้วพิมพ์ตอบ (อังกฤษ) 𓂃 \`__\n` +
-        `# 🔊 Listen to the audio message above and type the correct English word in chat`;
+        `🔊 จงฟังไฟล์เสียงในข้อความด้านบน แล้วพิมพ์คำตอบภาษาอังกฤษให้ถูกต้อง`;
       mediaItem = null;
       break;
     }
@@ -573,7 +573,7 @@ function setupMinigames(client) {
           const session = activeSessions.get(channelId);
           if (!session && !processingChannels.has(channelId)) {
             console.log(`[minigames] 🏥 Self-Healing Keeper: Auto-starting missing game ${gameId} (${gInfo.name}) in channel ${channelId}`);
-            await sendNextGameQuestion(client, supabase, channelId, gameId).catch(() => {});
+            await sendNextGameQuestion(client, supabase, channelId, gameId).catch(() => { });
           }
         }
       } catch (err) {
@@ -617,7 +617,7 @@ function setupMinigames(client) {
       const session = activeSessions.get(interaction.channelId);
       if (!session || session.gameId !== gameId) {
         // Auto-Heal: ถ้าเซสชันขาดหลุดไป ให้สร้างโจทย์ข้อใหม่ส่งเข้าช่องนี้ให้อัตโนมัติทันที!
-        sendNextGameQuestion(client, supabase, interaction.channelId, gameId).catch(() => {});
+        sendNextGameQuestion(client, supabase, interaction.channelId, gameId).catch(() => { });
         return interaction.reply({ content: 'โจทย์ข้อนี้จบไปแล้วค่ะ! กำลังส่งโจทย์ข้อใหม่ให้ในช่องเรียบร้อยแล้วนะคะ 🎮', flags: FLAG_EPHEMERAL });
       }
 
@@ -654,7 +654,7 @@ function setupMinigames(client) {
       processingChannels.add(interaction.channelId);
       activeSessions.delete(interaction.channelId);
       if (supabase) {
-        Promise.resolve(supabase.from('minigame_active_sessions').delete().eq('channel_id', interaction.channelId)).catch(() => {});
+        Promise.resolve(supabase.from('minigame_active_sessions').delete().eq('channel_id', interaction.channelId)).catch(() => { });
       }
 
       // Fallback safety timeout: Auto-release lock after 10s if process stalls
@@ -745,7 +745,7 @@ function setupMinigames(client) {
           }
           return rowJson;
         });
-        await interaction.message.edit({ components: updatedComponents }).catch(() => {});
+        await interaction.message.edit({ components: updatedComponents }).catch(() => { });
       }
 
       // Fetch active session record from Supabase DB to check used hints
@@ -882,7 +882,7 @@ function setupMinigames(client) {
     const session = activeSessions.get(message.channelId);
     if (!session || session.gameId !== matchedGameId) {
       // Auto-Heal: หากเซสชันหลุดไป ให้เปิดเกมและส่งโจทย์ข้อใหม่เข้าช่องนี้ให้อัตโนมัติทันที
-      sendNextGameQuestion(client, supabase, message.channelId, matchedGameId).catch(() => {});
+      sendNextGameQuestion(client, supabase, message.channelId, matchedGameId).catch(() => { });
       return;
     }
 
@@ -898,7 +898,7 @@ function setupMinigames(client) {
     if (!isCorrect) {
       trackUserDailyQuestProgress(message.author.id, "MINIGAME_PLAY", 1);
       // Delete wrong text message asynchronously
-      message.delete().catch(() => {});
+      message.delete().catch(() => { });
 
       const userId = message.author.id;
       const penalty = Math.floor(Math.random() * 11) + 5; // 5-15
@@ -912,7 +912,7 @@ function setupMinigames(client) {
       const penaltyMsg = await message.channel.send({
         content: `${message.author} ❌ ตอบผิดค่ะ! ถูกหักแต้ม **${penalty} แต้ม** 🔻`
       });
-      setTimeout(() => penaltyMsg.delete().catch(() => {}), 5000);
+      setTimeout(() => penaltyMsg.delete().catch(() => { }), 5000);
       return;
     }
 
@@ -922,7 +922,7 @@ function setupMinigames(client) {
     trackUserDailyQuestProgress(message.author.id, "MINIGAME_PLAY", 1);
     trackUserDailyQuestProgress(message.author.id, "MINIGAME_WIN", 1);
     if (supabase) {
-      Promise.resolve(supabase.from('minigame_active_sessions').delete().eq('channel_id', message.channelId)).catch(() => {});
+      Promise.resolve(supabase.from('minigame_active_sessions').delete().eq('channel_id', message.channelId)).catch(() => { });
     }
 
     const safetyLockTimeout = setTimeout(() => {
@@ -934,11 +934,11 @@ function setupMinigames(client) {
 
     try {
       // 1. Instantly react checkmark to winner message (non-blocking UI)
-      message.react(CHECKMARK_EMOJI_ID).catch(() => {});
+      message.react(CHECKMARK_EMOJI_ID).catch(() => { });
 
       // Delete Component V2 card message for Game 5 & 11 (keep MP3 audio message)
       if ((matchedGameId === 5 || matchedGameId === 11) && session.messageId) {
-        message.channel.messages.delete(session.messageId).catch(() => {});
+        message.channel.messages.delete(session.messageId).catch(() => { });
       } else if (session.messageId) {
         // Edit previous question message for other games to show solved state
         const winnerName = message.member?.displayName || message.author.username;
@@ -960,10 +960,10 @@ function setupMinigames(client) {
                     }
                   ]
                 }]
-              }).catch(() => {});
+              }).catch(() => { });
             }
           })
-          .catch(() => {});
+          .catch(() => { });
       }
 
       // 3. Award points and record win stats asynchronously in background

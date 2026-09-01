@@ -297,8 +297,8 @@ async function getNextQuestion(supabase, gameId, gameSettings = null) {
   if (supabase) {
     // Determine target game_id filters for standalone & shared vocabulary pools
     let targetGameIds = [gameId];
-    if (gameId === 1) targetGameIds = [1, 6];
-    if (gameId === 2) targetGameIds = [2, 7];
+    if (gameId === 1 || gameId === 6) targetGameIds = [1, 6];
+    if (gameId === 2 || gameId === 7) targetGameIds = [2, 7];
     if (gameId === 5) targetGameIds = [5];   // Standalone Game 5 (Audio English)
     if (gameId === 11) targetGameIds = [11]; // Standalone Game 11 (Audio Thai)
     if (gameId === 8 || gameId === 9) targetGameIds = [8, 9];
@@ -316,8 +316,8 @@ async function getNextQuestion(supabase, gameId, gameSettings = null) {
 
   // Fallback to default questions if DB is empty
   if (questionsPool.length === 0) {
-    if (gameId === 1) questionsPool = DEFAULT_QUESTIONS[1] || [];
-    else if (gameId === 2) questionsPool = DEFAULT_QUESTIONS[2] || [];
+    if (gameId === 1 || gameId === 6) questionsPool = DEFAULT_QUESTIONS[1] || [];
+    else if (gameId === 2 || gameId === 7) questionsPool = DEFAULT_QUESTIONS[2] || [];
     else if (gameId === 5) questionsPool = DEFAULT_QUESTIONS[5] || [];
     else if (gameId === 11) questionsPool = DEFAULT_QUESTIONS[11] || [];
     else if (gameId === 8 || gameId === 9) questionsPool = DEFAULT_QUESTIONS[8] || [];
@@ -330,7 +330,7 @@ async function getNextQuestion(supabase, gameId, gameSettings = null) {
 
   // Filter candidates per game logic
   let candidates = [];
-  if (gameId === 1) {
+  if (gameId === 1 || gameId === 6) {
     // Thai games: extract words that are Thai and have NO '_' in raw text
     candidates = questionsPool.map(q => {
       let word = null;
@@ -347,7 +347,7 @@ async function getNextQuestion(supabase, gameId, gameSettings = null) {
       return { id: q.id, word_or_question: cleanW, answer: cleanW, category: q.category || 'คำทั่วไป' };
     }).filter(Boolean);
     if (candidates.length === 0) candidates = DEFAULT_QUESTIONS[1] || [];
-  } else if (gameId === 2) {
+  } else if (gameId === 2 || gameId === 7) {
     // English games: extract words that are English and have NO '_' in raw text
     candidates = questionsPool.map(q => {
       let word = null;
@@ -419,7 +419,7 @@ async function getNextQuestion(supabase, gameId, gameSettings = null) {
   let options = [];
   let initialRevealedIndices = [];
 
-  // Games 1 & 2: Fill-in-the-blank / Games 5 & 6: Word Scramble
+  // Games 1 & 2: Fill-in-the-blank / Games 6 & 7: Fast Typing
   if (gameId === 1) {
     let clean = (selected.answer && !selected.answer.includes('_')) ? selected.answer : selected.word_or_question;
     clean = String(clean || '').replace(/_/g, '').replace(/\s+/g, '').trim();
@@ -434,10 +434,10 @@ async function getNextQuestion(supabase, gameId, gameSettings = null) {
     wordOrQuestion = masked.maskedStr;
     answer = clean;
     initialRevealedIndices = masked.initialRevealedIndices || [];
-  } else if (gameId === 6) {
+  } else if (gameId === 6 || gameId === 7) {
     let clean = (selected.answer && !selected.answer.includes('_')) ? selected.answer : selected.word_or_question;
     clean = String(clean || '').replace(/_/g, '').replace(/\s+/g, '').trim();
-    wordOrQuestion = scrambleWord(clean, false);
+    wordOrQuestion = clean;
     answer = clean;
   }
   if (gameId === 4) {

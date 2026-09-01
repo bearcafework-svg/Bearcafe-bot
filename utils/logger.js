@@ -58,6 +58,21 @@ const logger = {
   secretChat: (message, ...args) => {
     console.log(`${formatTag('SECRET-CHAT', colors.purple, '🔒')} ${message}`, ...args);
   },
+  core: (message, ...args) => {
+    console.log(`${formatTag('CORE', colors.cyan, '🚀')} ${message}`, ...args);
+  },
+  commands: (message, ...args) => {
+    console.log(`${formatTag('COMMANDS', colors.emerald, '📋')} ${message}`, ...args);
+  },
+  cleanup: (message, ...args) => {
+    console.log(`${formatTag('CLEANUP', colors.blue, '🧹')} ${message}`, ...args);
+  },
+  database: (message, ...args) => {
+    console.log(`${formatTag('DATABASE', colors.purple, '🗄️')} ${message}`, ...args);
+  },
+  security: (message, ...args) => {
+    console.log(`${formatTag('SECURITY', colors.rose, '🛡️')} ${message}`, ...args);
+  },
   banner: (botName, pingMs) => {
     const line = "═".repeat(60);
     console.log(`\n${colors.cyan}╔${line}╗${colors.reset}`);

@@ -1,5 +1,23 @@
-// src/features/dailyQuest/dailyQuestManager.js — ตัวจัดการลอจิกและฐานข้อมูลภารกิจประจำวัน
 const questPool = require("./questPool");
+const logger = require("../../../utils/logger");
+
+let isSupabaseQuotaRestricted = false;
+
+function isQuotaError(err) {
+  const msg = err?.message || err?.details || (typeof err === "string" ? err : "");
+  return msg.includes("exceed_egress_quota") || msg.includes("restricted due to the following violations") || err?.code === "402";
+}
+
+function checkQuotaRestriction(err) {
+  if (isQuotaError(err)) {
+    if (!isSupabaseQuotaRestricted) {
+      isSupabaseQuotaRestricted = true;
+      logger.warn("SUPABASE", "Service restricted: Egress Quota Exceeded. DailyQuest local fallback mode activated.");
+    }
+    return true;
+  }
+  return false;
+}
 
 /**
  * ดึงวันที่ปัจจุบันใน timezone GMT+7 (Bangkok) ในรูปแบบ YYYY-MM-DD
@@ -44,23 +62,9 @@ async function ensureMasterQuestsSeeded(supabase) {
 async function getOrAssignDailyQuests(supabase, userId) {
   const today = getTodayBangkok();
 
-  if (!supabase) {
-    // Fallback เมื่อไม่มี Supabase (Local Mode)
-    return {
-      quests: questPool.slice(0, 5).map(q => ({
-        quest_id: q.id,
-        category: q.category,
-        title: q.title,
-        description: q.description,
-        target_count: q.targetCount,
-        unit: q.unit,
-        reward_points: q.rewardPoints,
-        current_progress: 0,
-        is_completed: false,
-        is_claimed: false
-      })),
-      summary: { completed_count: 0, is_jackpot_claimed: false, reroll_used: 0 }
-    };
+  if (!supabase || isSupabaseQuotaRestricted) {
+    const { getOrAssignDailyQuestsLocal } = require("./mockDailyQuestStore");
+    return getOrAssignDailyQuestsLocal(userId);
   }
 
   try {
@@ -72,7 +76,11 @@ async function getOrAssignDailyQuests(supabase, userId) {
       .eq("quest_date", today);
 
     if (error) {
-      console.error("[dailyQuestManager] Error fetching user quests:", error);
+      if (checkQuotaRestriction(error)) {
+        const { getOrAssignDailyQuestsLocal } = require("./mockDailyQuestStore");
+        return getOrAssignDailyQuestsLocal(userId);
+      }
+      console.error("[dailyQuestManager] Error fetching user quests:", error.message || error);
     }
 
     if (existingQuests && existingQuests.length === 5) {
@@ -151,7 +159,11 @@ async function getOrAssignDailyQuests(supabase, userId) {
  * อัปเดตความคืบหน้าภารกิจเมื่อเกิด Event
  */
 async function addProgress(supabase, userId, trackerType, amount = 1) {
-  if (!supabase || !userId) return;
+  if (!supabase || isSupabaseQuotaRestricted) {
+    const { addProgressLocal } = require("./mockDailyQuestStore");
+    return addProgressLocal(userId, trackerType, amount);
+  }
+  if (!userId) return;
   const today = getTodayBangkok();
 
   try {
@@ -212,7 +224,10 @@ async function addProgress(supabase, userId, trackerType, amount = 1) {
  * กดรับรางวัลของภารกิจ 1 ข้อ
  */
 async function claimReward(supabase, userId, questId) {
-  if (!supabase) return { success: false, pointsEarned: 0 };
+  if (!supabase || isSupabaseQuotaRestricted) {
+    const { claimRewardLocal } = require("./mockDailyQuestStore");
+    return claimRewardLocal(userId, questId);
+  }
   const today = getTodayBangkok();
 
   try {
@@ -250,7 +265,10 @@ async function claimReward(supabase, userId, questId) {
  * กดรับรางวัลทั้งหมดรวมถึง Daily Jackpot
  */
 async function claimAllRewards(supabase, userId) {
-  if (!supabase) return { success: false, totalEarned: 0 };
+  if (!supabase || isSupabaseQuotaRestricted) {
+    const { claimAllRewardsLocal } = require("./mockDailyQuestStore");
+    return claimAllRewardsLocal(userId);
+  }
   const today = getTodayBangkok();
 
   try {
@@ -294,7 +312,10 @@ async function claimAllRewards(supabase, userId) {
  * สุ่มเปลี่ยนภารกิจ 1 ข้อ (Re-roll)
  */
 async function rerollQuest(supabase, userId, questIdToSwap) {
-  if (!supabase) return false;
+  if (!supabase || isSupabaseQuotaRestricted) {
+    const { rerollQuestLocal } = require("./mockDailyQuestStore");
+    return rerollQuestLocal(userId, questIdToSwap);
+  }
   const today = getTodayBangkok();
 
   try {

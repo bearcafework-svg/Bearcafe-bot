@@ -459,19 +459,18 @@ async function generateTop3Canvas(top3Details) {
 
 const GAME_LIST = [
   { label: "รวมทุกเกม (Overall)", value: "all", emoji: "🏆" },
-  { label: "1. เติมคำศัพท์ไทย", value: "1", emoji: "🇹🇭" },
-  { label: "2. เติมคำศัพท์ภาษาอังกฤษ", value: "2", emoji: "🇬🇧" },
+  { label: "1. เติมคำศัพท์ (ไทย)", value: "1", emoji: "🇹🇭" },
+  { label: "2. เติมคำศัพท์ (อังกฤษ)", value: "2", emoji: "🇬🇧" },
   { label: "3. สุ่มโจทย์คณิตฯ", value: "3", emoji: "🔢" },
   { label: "4. ทายคำจากคำใบ้", value: "4", emoji: "💡" },
-  { label: "5. เรียงคำศัพท์ไทย", value: "5", emoji: "🔤" },
-  { label: "6. เรียงคำศัพท์อังกฤษ", value: "6", emoji: "🔡" },
-  { label: "7. พิมพ์คำต่อไปนี้ (ไทย)", value: "7", emoji: "⌨️" },
-  { label: "8. พิมพ์คำต่อไปนี้ (อังกฤษ)", value: "8", emoji: "⌨️" },
-  { label: "9. ทายคำแปลภาษาอังกฤษ", value: "9", emoji: "🌐" },
-  { label: "10. ทายคำแปลภาษาไทย", value: "10", emoji: "🌐" },
-  { label: "11. เกมต่อคำ", value: "11", emoji: "🔗" },
-  { label: "12. ข้อไหนไม่เข้าพวก", value: "12", emoji: "❓" },
-  { label: "13. จริงหรือเท็จ", value: "13", emoji: "✅" }
+  { label: "5. ฟังเสียงแล้วพิมพ์ตอบ (อังกฤษ)", value: "5", emoji: "🎧" },
+  { label: "6. พิมพ์คำต่อไปนี้ (ไทย)", value: "6", emoji: "⌨️" },
+  { label: "7. พิมพ์คำต่อไปนี้ (อังกฤษ)", value: "7", emoji: "💻" },
+  { label: "8. ทายคำแปลภาษาอังกฤษ", value: "8", emoji: "🌐" },
+  { label: "9. ทายคำแปลภาษาไทย", value: "9", emoji: "🇹🇭" },
+  { label: "10. เกมต่อคำ", value: "10", emoji: "🔗" },
+  { label: "11. ฟังเสียงแล้วพิมพ์ตอบ (ไทย)", value: "11", emoji: "🔊" },
+  { label: "12. จริงหรือเท็จ", value: "12", emoji: "❓" }
 ];
 
 // ── สร้าง Component V2 Payload + รูปภาพแบนเนอร์ ───────────────

@@ -87,6 +87,10 @@ setupFeature("cafe", "./src/features/cafe", "setupCafe");
 setupFeature("guildTagNotification", "./src/features/guildTagNotification", "setupGuildTagNotification");
 setupFeature("tagWarn", "./src/features/tagWarn", "setupTagWarn", supabaseEnvKeys);
 setupFeature("copyCategoryPerms", "./src/commands/copyCategoryPerms", "setupCopyCategoryPerms");
+setupFeature("beeGacha", "./src/features/beeGacha", "setupBeeGacha", supabaseEnvKeys);
+setupFeature("dailyQuest", "./src/features/dailyQuest", "setupDailyQuest");
+
+
 
 
 

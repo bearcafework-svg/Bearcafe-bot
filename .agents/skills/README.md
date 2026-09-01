@@ -118,3 +118,76 @@
 **ชื่อโฟลเดอร์:** `skill-system-consult`  
 **เรียกใช้:**  
 `@skill-system-consult`
+
+---
+
+## skill-feature
+
+ควบคุมการออกแบบและพัฒนาฟีเจอร์ใหม่แบบครบวงจร (End-to-End Feature Development) ให้สอดคล้องกับสถาปัตยกรรมของบอต Bear Cafe
+
+**ใช้เมื่อ:**
+
+* ต้องการพัฒนาฟีเจอร์ใหม่, ระบบมินิเกม, ระบบแต้ม, ร้านค้า หรือคำสั่ง Discord ใหม่
+* วางโครงสร้างโค้ดตั้งแต่ Database Schema (Supabase) -> Service Logic -> Controller Handler -> UI Feedback
+* ต้องการจำกัดและป้องกันปัญหา Supabase Quota / Egress Exceeded และจัดการ Interaction Timeout
+
+**ชื่อโฟลเดอร์:** `skill-feature`
+
+**เรียกใช้:**
+
+`@skill-feature`
+
+---
+
+## skill-refactor
+
+ปรับปรุงโครงสร้างโค้ดและลดภาระทางเทคนิค (Technical Debt) โดยไม่กระทบการทำงานเดิมของระบบ
+
+**ใช้เมื่อ:**
+
+* ต้องการแยก Business Logic, Database Calls และ UI Payload ออกจาก Interaction Handlers
+* ลดความซ้ำซ้อนของโค้ด (DRY) เช่น การรวม Constants, Shared Payloads หรือ Wrappers
+* ปรับจูนและรวมคิวรี Supabase เพื่อลด Data Transfer / Egress
+* ปรับเปลี่ยนคำสั่ง Discord API ให้ครอบด้วย Safety Wrappers เพื่อป้องกัน Interaction Errors
+
+**ชื่อโฟลเดอร์:** `skill-refactor`
+
+**เรียกใช้:**
+
+`@skill-refactor`
+
+---
+
+## skill-learn
+
+ศูนย์รวมและจัดเก็บบันทึกองค์ความรู้ เทคนิคเฉพาะทาง (Tech Quirks) และแนวทางแก้ปัญหาของระบบ
+
+**ใช้เมื่อ:**
+
+* แก้ปัญหาบั๊กที่ซับซ้อนสำเร็จ และต้องการบันทึก Root Cause ไว้ป้องกันเกิดซ้ำ
+* ค้นพบข้อจำกัด/วิธีรับมือกับบริการภายนอก เช่น Supabase Quota Limits, Discord API Timeouts หรือ Canvas Font Rendering
+* ต้องการสร้างเอกสาร Post-mortem หรือ Standard Operating Procedure (SOP) ประจำโปรเจกต์
+
+**ชื่อโฟลเดอร์:** `skill-learn`
+
+**เรียกใช้:**
+
+`@skill-learn`
+
+---
+
+## skill-logger
+
+จัดระเบียบและปรับแต่งข้อความ Terminal Console Log ในขณะเริ่มต้นรันบอทและระหว่างการทำงาน ให้เป็นรูปแบบ CLI Dashboard อ่านง่ายระดับมืออาชีพ
+
+**ใช้เมื่อ:**
+
+* ปรับแต่งข้อความ `console.log` ที่รบกวนหน้าจอให้เป็นระเบียบสวยงาม
+* บันทึกสถานะการทำงานของบอทแบ่งหมวดหมู่ (`[CORE]`, `[COMMANDS]`, `[CLEANUP]`, `[DATABASE]`, `[SECURITY]`, `[MODULE]`)
+* จัดการแสดงคำเตือน Supabase Egress Quota Exceeded แบบ Warning Banner สวยงาม
+
+**ชื่อโฟลเดอร์:** `skill-logger`
+
+**เรียกใช้:**
+
+`@skill-logger`

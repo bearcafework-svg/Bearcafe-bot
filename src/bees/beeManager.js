@@ -132,8 +132,38 @@ function getSettingBee() {
   }
 }
 
-// ─── Helper: ดึงการตั้งค่าระบบผึ้งจากไฟล์ settingBee.json ───────────────────────
+// ─── Helper: ดึงการตั้งค่าระบบผึ้ง (Supabase Primary + Local JSON Fallback) ───
 async function fetchBeeSystemConfig() {
+  const supabase = getSupabase();
+  if (supabase) {
+    try {
+      const { data: sysData, error: sysErr } = await supabase
+        .from('bee_system_settings')
+        .select('*')
+        .eq('id', 1)
+        .maybeSingle();
+
+      const { data: beeRows, error: beeErr } = await supabase
+        .from('bee_configs')
+        .select('*')
+        .order('sequence_order', { ascending: true });
+
+      if (!sysErr && sysData && !beeErr && beeRows && beeRows.length > 0) {
+        return {
+          channel_id: sysData.channel_id,
+          auto_spawn_enabled: sysData.auto_spawn_enabled,
+          min_spawn_minutes: sysData.min_spawn_minutes,
+          max_spawn_minutes: sysData.max_spawn_minutes,
+          spawn_mode: sysData.spawn_mode,
+          garden_background_url: sysData.garden_background_url,
+          bees: beeRows
+        };
+      }
+    } catch (err) {
+      console.warn('[bees] fetchBeeSystemConfig from Supabase failed, using local settingBee.json:', err.message);
+    }
+  }
+
   const local = getSettingBee();
   return {
     channel_id: local.channel_id || '1524123413122125964',

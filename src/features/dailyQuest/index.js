@@ -14,6 +14,7 @@ const {
   getWeeklyProgress,
   claimWeeklyMilestone
 } = require("./dailyQuestManager");
+const { safeRespond, safeDeferReply } = require("../../../utils/discordSafety");
 const sharedConfig = require("../../sharedSettings.json");
 
 const FLAG_V2 = 32768; // MessageFlags.IsComponentsV2
@@ -27,8 +28,6 @@ const voiceJoinTimes = new Map();
 let globalSupabase = null;
 
 function setupDailyQuest(client) {
-  console.log("[dailyQuest] Daily Quest system is temporarily disabled.");
-  return;
   if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
     globalSupabase = createClient(
       process.env.SUPABASE_URL,
@@ -100,14 +99,7 @@ function setupDailyQuest(client) {
     const cmd = interaction.commandName.toLowerCase();
     if (cmd !== "เควสของฉัน") return;
 
-    // ตรวจสอบสิทธิ์ Owner / Staff ก่อน
-    if (!isServerOwner(interaction)) {
-      return interaction.reply({
-        content: "⚠️ **คำสั่งนี้เปิดใช้งานเฉพาะ Owner / Staff ของเซิร์ฟเวอร์ในขณะนี้ค่ะ**",
-        flags: FLAG_EPHEMERAL
-      });
-    }
-
+    await safeDeferReply(interaction, { flags: FLAG_EPHEMERAL });
     const userId = interaction.user.id;
 
     try {
@@ -122,10 +114,10 @@ function setupDailyQuest(client) {
       const weeklyInfo = await getWeeklyProgress(supabase, userId);
       const payload = buildDailyQuestPayload(userId, quests, summary, weeklyInfo);
 
-      await interaction.reply(payload);
+      await safeRespond(interaction, payload);
     } catch (err) {
       console.error("[dailyQuest] Error handling slash command /เควสของฉัน:", err);
-      await interaction.reply({
+      await safeRespond(interaction, {
         content: "❌ เกิดข้อผิดพลาดในการโหลดภารกิจประจำวัน กรุณาลองใหม่อีกครั้งค่ะ",
         flags: FLAG_EPHEMERAL
       });
@@ -135,6 +127,7 @@ function setupDailyQuest(client) {
   // ── C. Chat Progress Tracker ──────────────────────────────────────────
   client.on("messageCreate", async (message) => {
     if (message.author.bot || !message.guild) return;
+    const userId = message.author.id;
     const now = Date.now();
     const lastChatTime = chatCooldowns.get(userId) || 0;
 

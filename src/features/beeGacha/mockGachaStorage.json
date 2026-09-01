@@ -1,0 +1,40 @@
+{
+  "users": {
+    "test_user_12345": {
+      "points": 1000,
+      "honey_dust": 140,
+      "inventory": [
+        "hat_cowboy",
+        "outfit_chef",
+        "acc_glasses",
+        "hat_straw",
+        "outfit_doctor"
+      ],
+      "equipped": {
+        "BACKGROUND": null,
+        "OUTFIT": null,
+        "HAT": "hat_cowboy",
+        "ACCESSORY": null
+      }
+    },
+    "944920660759707658": {
+      "points": 0,
+      "honey_dust": 530,
+      "inventory": [
+        "outfit_chef",
+        "acc_wand",
+        "hat_straw",
+        "acc_glasses",
+        "outfit_doctor",
+        "bg_garden",
+        "hat_cowboy"
+      ],
+      "equipped": {
+        "BACKGROUND": "bg_garden",
+        "OUTFIT": "outfit_chef",
+        "HAT": "hat_straw",
+        "ACCESSORY": "acc_wand"
+      }
+    }
+  }
+}

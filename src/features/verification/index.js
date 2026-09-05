@@ -13,6 +13,7 @@ const {
 const { createClient } = require("@supabase/supabase-js");
 const sharedConfig = require("../../sharedSettings.json");
 const { startQueueProcessor } = require("./queueProcessor");
+const { queueVerifiedMember } = require("./staffNotifier");
 const { blacklistPayload, dmClosedPayload } = require("../shared/tarotComponents");
 const { safeShowModal, safeUpdate } = require("../../../utils/discordSafety");
 
@@ -199,6 +200,13 @@ async function completeVerification(interaction) {
 
     // 1. Assign role
     await member.roles.add(MEMBER_ROLE_ID);
+
+    // 1.1 Queue verified member for batched staff notification
+    try {
+      queueVerifiedMember(interaction.guild, member);
+    } catch (notifierErr) {
+      console.error("[verification] Error queueing member for staff alert:", notifierErr);
+    }
 
     // 2. Fetch staff members to get random staff nickname & notes
     let staffName = "ทีมงาน";

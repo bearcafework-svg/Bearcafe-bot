@@ -1,0 +1,162 @@
+{
+  "users": {
+    "user_test_9999": {
+      "dates": {
+        "2026-09-01": {
+          "quests": [
+            {
+              "quest_id": "CHAT-01",
+              "category": "CHAT",
+              "title": "นักคุยประจำวัน",
+              "description": "พิมพ์คุยกับเพื่อน ๆ บนแชทภายในคาเฟ่หมี",
+              "target_count": 25,
+              "unit": "ข้อความ",
+              "reward_points": 15,
+              "tracker_type": "MESSAGE_COUNT",
+              "current_progress": 25,
+              "is_completed": true,
+              "is_claimed": true
+            },
+            {
+              "quest_id": "VOICE-03",
+              "category": "VOICE",
+              "title": "คุยกับเพื่อน",
+              "description": "อยู่ในห้องเสียงพร้อมสมาชิกคนอื่นอย่างน้อย 15 นาที",
+              "target_count": 15,
+              "unit": "นาที",
+              "reward_points": 20,
+              "tracker_type": "VOICE_WITH_FRIENDS",
+              "current_progress": 0,
+              "is_completed": false,
+              "is_claimed": false
+            },
+            {
+              "quest_id": "GAME-05",
+              "category": "MINIGAME",
+              "title": "ห้ามพลาด",
+              "description": "ตอบคำถามมินิเกมถูกต้องต่อเนื่องกัน 2 ข้อโดยไม่ผิด",
+              "target_count": 2,
+              "unit": "ชนะติดกัน",
+              "reward_points": 20,
+              "tracker_type": "MINIGAME_STREAK",
+              "current_progress": 0,
+              "is_completed": false,
+              "is_claimed": false
+            },
+            {
+              "quest_id": "FEATURE-01",
+              "category": "FEATURE",
+              "title": "เติมพลังใจ",
+              "description": "ใช้คำสั่งที่ห้อง ",
+              "target_count": 1,
+              "unit": "ครั้ง",
+              "reward_points": 15,
+              "tracker_type": "USE_HEALJAI",
+              "current_progress": 0,
+              "is_completed": false,
+              "is_claimed": false
+            },
+            {
+              "quest_id": "SOCIAL-01",
+              "category": "SOCIAL",
+              "title": "หาเพื่อนคุย",
+              "description": "ใช้คำสั่งที่ห้อง <#1524124222555947109>",
+              "target_count": 1,
+              "unit": "ครั้ง",
+              "reward_points": 15,
+              "tracker_type": "USE_MATCHMAKING",
+              "current_progress": 0,
+              "is_completed": false,
+              "is_claimed": false
+            }
+          ],
+          "summary": {
+            "completed_count": 1,
+            "is_jackpot_claimed": false,
+            "reroll_used": 0
+          }
+        }
+      },
+      "points": 1015
+    },
+    "944920660759707658": {
+      "dates": {
+        "2026-09-01": {
+          "quests": [
+            {
+              "quest_id": "CHAT-06",
+              "category": "CHAT",
+              "title": "คนไม่หาย",
+              "description": "แวะกลับมาพิมพ์ข้อความหลังจากออนไลน์ผ่านไปแล้ว 3 ชั่วโมง",
+              "target_count": 1,
+              "unit": "ครั้ง",
+              "reward_points": 20,
+              "tracker_type": "CHAT_AFTER_DELAY",
+              "current_progress": 0,
+              "is_completed": false,
+              "is_claimed": false
+            },
+            {
+              "quest_id": "VOICE-02",
+              "category": "VOICE",
+              "title": "เข้ารังหมี",
+              "description": "แวะเข้าห้องเสียงต่างกันอย่างน้อย 2 ห้อง",
+              "target_count": 2,
+              "unit": "ห้อง",
+              "reward_points": 15,
+              "tracker_type": "VOICE_CHANNELS",
+              "current_progress": 0,
+              "is_completed": false,
+              "is_claimed": false
+            },
+            {
+              "quest_id": "GAME-05",
+              "category": "MINIGAME",
+              "title": "ห้ามพลาด",
+              "description": "ตอบคำถามมินิเกมถูกต้องต่อเนื่องกัน 2 ข้อโดยไม่ผิด",
+              "target_count": 2,
+              "unit": "ชนะติดกัน",
+              "reward_points": 20,
+              "tracker_type": "MINIGAME_STREAK",
+              "current_progress": 0,
+              "is_completed": false,
+              "is_claimed": false
+            },
+            {
+              "quest_id": "FEATURE-04",
+              "category": "FEATURE",
+              "title": "แวะตลาดหมี",
+              "description": "เปิดดูหน้า Bear Market หรือเมนูร้านค้า",
+              "target_count": 1,
+              "unit": "ครั้ง",
+              "reward_points": 10,
+              "tracker_type": "VIEW_BEAR_MARKET",
+              "current_progress": 0,
+              "is_completed": false,
+              "is_claimed": false
+            },
+            {
+              "quest_id": "SOCIAL-02",
+              "category": "SOCIAL",
+              "title": "ไม่ได้มาคนเดียว",
+              "description": "อยู่ในห้องเสียงที่มีสมาชิกอยู่อย่างน้อย 3 คนขึ้นไป ครบ 10 นาที",
+              "target_count": 10,
+              "unit": "นาที",
+              "reward_points": 20,
+              "tracker_type": "VOICE_CROWD",
+              "current_progress": 0,
+              "is_completed": false,
+              "is_claimed": false
+            }
+          ],
+          "summary": {
+            "completed_count": 0,
+            "is_jackpot_claimed": false,
+            "reroll_used": 0
+          }
+        }
+      },
+      "points": 1000
+    }
+  }
+}

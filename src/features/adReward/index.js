@@ -9,6 +9,7 @@ const {
   buildLootLabsUrl,
   registerActiveSession
 } = require("./adBoxManager");
+const { safeRespond } = require("../../../utils/discordSafety");
 
 // ── Main Setup ──────────────────────────────────────────────────────────
 function setupAdReward(client) {
@@ -70,7 +71,7 @@ function setupAdReward(client) {
 
     // Check ownership of interaction
     if (targetUserId && interaction.user.id !== targetUserId) {
-      return interaction.reply({
+      return await safeRespond(interaction, {
         content: `❌ ปุ่มนี้ใช้ได้เฉพาะ <@${targetUserId}> ที่เรียกคำสั่ง b!box เท่านั้นค่ะ`,
         flags: 64 // Ephemeral
       });

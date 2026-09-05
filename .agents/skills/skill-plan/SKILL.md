@@ -24,21 +24,20 @@ The primary goal is to transform a requirement or approved system design into a 
 
 ## Planning Process
 
-### 1. Understand the Requirement
+### 1. Inquire & Formulate Doubts (Hypothesis-Driven Exploration)
+Before jumping to solutions, actively identify critical unknowns and technical risks:
+- **State & Edge Cases:** What happens during null values, network disconnects, or concurrent requests?
+- **Quota & Timeout Impact:** Will this trigger Supabase egress depletion or hit the 3-second Discord interaction limit?
+- **Cross-System Boundaries:** How does this affect both `bearcafe-bot` and the `bear-cafe-web` frontend?
+- **Trade-Off Matrix:** Compare Option A vs Option B (e.g. In-Memory Cache vs Database Table) before deciding.
 
+### 2. Understand the Requirement & System Consultation
 Identify:
+- Goal & user-facing behavior
+- Architectural fit with existing services and database schema
+- Functional and non-functional constraints
 
-- Goal
-- User-facing behavior
-- Functional requirements
-- Non-functional requirements
-- Constraints
-- Existing systems that must remain compatible
-- Expected success criteria
-
-Convert vague requirements into concrete implementation requirements when possible.
-
-### 2. Inspect the Existing Project
+### 3. Inspect the Existing Project
 
 Before creating the plan, inspect relevant parts of the repository.
 

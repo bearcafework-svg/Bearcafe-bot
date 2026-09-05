@@ -7,26 +7,26 @@ const CATEGORY_ICONS = {
   VOICE: "🎙️",
   MINIGAME: "🎮",
   FEATURE: "🌱",
-  SOCIAL: "🤝"
+  SOCIAL: "🤝",
+  GAME: "🎮"
 };
 
 /**
- * คำนวณเวลาคงเหลือก่อนถึงเที่ยงคืน (00:00 น. นครกรุงเทพ GMT+7)
+ * คำนวณ Unix Timestamp วินาทีสำหรับเวลารีเซ็ตภารกิจถัดไป (03:00 น. เวลาไทย GMT+7)
  */
-function getRemainingTimeString() {
+function getNextResetTimestamp() {
   const now = new Date();
-  // แปลงเวลาเป็น UTC+7 (Bangkok)
-  const bangkokTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Bangkok" }));
-  const midnight = new Date(bangkokTime);
-  midnight.setHours(24, 0, 0, 0); // 00:00:00 ของวันถัดไป
-
-  const diffMs = midnight.getTime() - bangkokTime.getTime();
-  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-  const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-
-  const padH = String(diffHours).padStart(2, "0");
-  const padM = String(diffMinutes).padStart(2, "0");
-  return `${padH} ชั่วโมง ${padM} นาที`;
+  // เวลาตี 3 ของไทย (03:00 GMT+7) ตรงกับ 20:00 UTC ของวันก่อนหน้า
+  const resetUtc = new Date(Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate(),
+    20, 0, 0, 0
+  ));
+  if (now.getTime() >= resetUtc.getTime()) {
+    resetUtc.setUTCDate(resetUtc.getUTCDate() + 1);
+  }
+  return Math.floor(resetUtc.getTime() / 1000);
 }
 
 /**
@@ -54,12 +54,12 @@ function buildProgressBar(current, maxPoints = 30, slots = 10) {
 /**
  * สร้าง Component V2 Payload สำหรับผู้ใช้
  * @param {string} userId - Discord User ID
- * @param {Array} userQuests - รายการภารกิจ 5 ข้อของผู้ใช้
+ * @param {Array} userQuests - รายการภารกิจของผู้ใช้
  * @param {Object} summary - ข้อมูลสรุปภาพรวมรายวัน ({ completed_count, is_jackpot_claimed, reroll_used })
  * @param {Object} weeklyInfo - ข้อมูลความคืบหน้าสัปดาห์ ({ count, claimedTiers })
  */
 function buildDailyQuestPayload(userId, userQuests, summary = {}, weeklyInfo = { count: 0, claimedTiers: [] }) {
-  const remainingTimeStr = getRemainingTimeString();
+  const resetTimestamp = getNextResetTimestamp();
   const completedCount = summary.completed_count || userQuests.filter(q => q.is_completed).length;
   const maxReroll = 1; // สิทธิ์เปลี่ยนภารกิจ 1 ครั้ง/วัน สำหรับทั่วไป
   const rerollUsed = summary.reroll_used || 0;
@@ -79,7 +79,7 @@ function buildDailyQuestPayload(userId, userQuests, summary = {}, weeklyInfo = {
         content:
           `## <a:jumpingstar:1538597613547560960>︲__\` 𝖣𝖺𝗂𝗅𝗒 𝖬𝗂𝗌𝗌𝗂𝗈𝗇𝗌 ₊ ภารกิจคาเฟ่ประจำวัน 𓂃 \`__\n` +
           `> (<:bee20000:1256669436350562355>)⠀<@${userId}>\n` +
-          `> (<a:7596clock:1160230591892029510>)⠀รีเซ็ตภารกิจในอีก: ${remainingTimeStr}`
+          `> (<a:7596clock:1160230591892029510>)⠀รีเซ็ตภารกิจ: <t:${resetTimestamp}:R>`
       }
     ],
     accessory: {
@@ -131,7 +131,7 @@ function buildDailyQuestPayload(userId, userQuests, summary = {}, weeklyInfo = {
           name: "68492gift",
           animated: false
         },
-        custom_id: `dq_claim_${quest.quest_id}`
+        custom_id: `dq_claim_${quest.quest_id}_${userId}`
       };
     } else if (current > 0) {
       const remainingNeeded = Math.max(1, target - current);
@@ -176,7 +176,7 @@ function buildDailyQuestPayload(userId, userQuests, summary = {}, weeklyInfo = {
   innerComponents.push({
     type: 10,
     content:
-      `🏆︰ความคืบหน้ารวม: **\` ${completedCount}/5 ภารกิจ \`**\n` +
+      `🏆︰ความคืบหน้ารวม: **\` ${completedCount}/3 ภารกิจ \`**\n` +
       `<:22594lootbox:1538601553542512701>︰รางวัลพิชิตครบประจำวัน: กล่องสุ่มสมบัติหมีน้อย (+100 แต้ม)\n`
   });
 
@@ -185,28 +185,28 @@ function buildDailyQuestPayload(userId, userQuests, summary = {}, weeklyInfo = {
   // 4. Weekly Milestone Section
   const weeklyCount = weeklyInfo.count || 0;
   const claimedTiers = weeklyInfo.claimedTiers || [];
-  const progressBarStr = buildProgressBar(weeklyCount, 30, 10);
+  const progressBarStr = buildProgressBar(weeklyCount, 21, 10);
 
   let nextTargetStr = "สะสมครบเป้าหมายสูงสุดสัปดาห์นี้แล้ว! 👑";
   let hasClaimableWeekly = false;
 
-  if (weeklyCount >= 10 && !claimedTiers.includes(1)) hasClaimableWeekly = true;
-  if (weeklyCount >= 20 && !claimedTiers.includes(2)) hasClaimableWeekly = true;
-  if (weeklyCount >= 30 && !claimedTiers.includes(3)) hasClaimableWeekly = true;
+  if (weeklyCount >= 5 && !claimedTiers.includes(1)) hasClaimableWeekly = true;
+  if (weeklyCount >= 12 && !claimedTiers.includes(2)) hasClaimableWeekly = true;
+  if (weeklyCount >= 18 && !claimedTiers.includes(3)) hasClaimableWeekly = true;
 
-  if (weeklyCount < 10) {
-    nextTargetStr = `เป้าหมายถัดไป: **10 ภารกิจ** (รับโบนัส +50 แต้ม)`;
-  } else if (weeklyCount < 20) {
-    nextTargetStr = `เป้าหมายถัดไป: **20 ภารกิจ** (รับโบนัส +150 แต้ม)`;
-  } else if (weeklyCount < 30) {
-    nextTargetStr = `เป้าหมายถัดไป: **30 ภารกิจ** (รับโบนัส +350 แต้ม + 🍰 เค้กหมี)`;
+  if (weeklyCount < 5) {
+    nextTargetStr = `เป้าหมายถัดไป: **5 ภารกิจ** (รับโบนัส +50 แต้ม)`;
+  } else if (weeklyCount < 12) {
+    nextTargetStr = `เป้าหมายถัดไป: **12 ภารกิจ** (รับโบนัส +150 แต้ม)`;
+  } else if (weeklyCount < 18) {
+    nextTargetStr = `เป้าหมายถัดไป: **18 ภารกิจ** (รับโบนัส +350 แต้ม + 🍰 เค้กหมี)`;
   }
 
   innerComponents.push({
     type: 10,
     content:
       `🏆︲__\` 𝖶𝖾𝖾𝗄𝗅𝗒 𝖬𝗂𝗅𝖾𝗌𝗍𝗈𝗇𝖾 ₊ ความคืบหน้าประจำสัปดาห์ 𓂃 \`__\n` +
-      `> (<:bee20000:1256669436350562355>)⠀ทำสำเร็จแล้ว **${weeklyCount}/30** ภารกิจ (สัปดาห์นี้)\n` +
+      `> (<:bee20000:1256669436350562355>)⠀ทำสำเร็จแล้ว **${weeklyCount}/21** ภารกิจ (สัปดาห์นี้)\n` +
       `> (<:cuteplant:1152834055528783872>)⠀${nextTargetStr}\n` +
       `${progressBarStr}`
   });
@@ -214,6 +214,7 @@ function buildDailyQuestPayload(userId, userQuests, summary = {}, weeklyInfo = {
   innerComponents.push({ type: 14, divider: false });
 
   // 5. Action Row (Type 1 ActionRow with Buttons)
+  const isGameEnabled = summary.enable_game_quest === true;
   const actionButtons = [
     {
       style: 1, // Blurple
@@ -224,20 +225,40 @@ function buildDailyQuestPayload(userId, userQuests, summary = {}, weeklyInfo = {
         name: "68492gift",
         animated: false
       },
-      custom_id: "dq_claim_all",
+      custom_id: `dq_claim_all_${userId}`,
       disabled: !hasUnclaimed,
       flow: { actions: [] }
     },
     {
       style: 2, // Secondary / Grey
       type: 2,
-      label: `︲เปลี่ยนภารกิจ (${rerollRemaining} ครั้ง)`,
+      label: "︲รีเฟรช",
+      emoji: {
+        name: "🔄"
+      },
+      custom_id: `dq_refresh_${userId}`,
+      flow: { actions: [] }
+    },
+    {
+      style: isGameEnabled ? 3 : 2, // Success Green if ON, Secondary Grey if OFF
+      type: 2,
+      label: isGameEnabled ? "︲เควสเกม: เปิด" : "︲เควสเกม: ปิด",
+      emoji: {
+        name: "🎮"
+      },
+      custom_id: `dq_toggle_game_${userId}`,
+      flow: { actions: [] }
+    },
+    {
+      style: 2, // Secondary / Grey
+      type: 2,
+      label: `︲เปลี่ยน (${rerollRemaining})`,
       emoji: {
         id: "1510390943172399195",
         name: "516185loading",
         animated: true
       },
-      custom_id: "dq_reroll_menu",
+      custom_id: `dq_reroll_menu_${userId}`,
       disabled: rerollRemaining <= 0,
       flow: { actions: [] }
     }
@@ -254,7 +275,7 @@ function buildDailyQuestPayload(userId, userQuests, summary = {}, weeklyInfo = {
         name: "jumpingstar",
         animated: true
       },
-      custom_id: "dq_claim_weekly",
+      custom_id: `dq_claim_weekly_${userId}`,
       flow: { actions: [] }
     });
   }
@@ -278,6 +299,7 @@ function buildDailyQuestPayload(userId, userQuests, summary = {}, weeklyInfo = {
 
 module.exports = {
   buildDailyQuestPayload,
-  getRemainingTimeString,
+  getNextResetTimestamp,
+  getRemainingTimeString: getNextResetTimestamp,
   buildProgressBar
 };

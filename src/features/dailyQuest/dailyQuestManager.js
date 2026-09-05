@@ -1,6 +1,9 @@
 const questPool = require("./questPool");
 const logger = require("../../../utils/logger");
 
+const DAILY_QUEST_COUNT = 3;
+const ACTIVE_CATEGORIES = ["CHAT", "VOICE", "FEATURE"];
+
 let isSupabaseQuotaRestricted = false;
 
 function isQuotaError(err) {
@@ -20,11 +23,13 @@ function checkQuotaRestriction(err) {
 }
 
 /**
- * ดึงวันที่ปัจจุบันใน timezone GMT+7 (Bangkok) ในรูปแบบ YYYY-MM-DD
+ * ดึงวันที่ปัจจุบันใน timezone GMT+7 (Bangkok) โดยรีเซ็ตรอบวันใหม่ ณ เวลา 03:00 น. (ตี 3)
  */
 function getTodayBangkok() {
   const d = new Date();
-  const bangkokDate = new Date(d.toLocaleString("en-US", { timeZone: "Asia/Bangkok" }));
+  // ลบ 3 ชั่วโมงเพื่อให้รอบวันใหม่เริ่มที่เวลา 03:00 น. (ตี 3)
+  const adjustedTime = new Date(d.getTime() - 3 * 60 * 60 * 1000);
+  const bangkokDate = new Date(adjustedTime.toLocaleString("en-US", { timeZone: "Asia/Bangkok" }));
   const year = bangkokDate.getFullYear();
   const month = String(bangkokDate.getMonth() + 1).padStart(2, "0");
   const day = String(bangkokDate.getDate()).padStart(2, "0");
@@ -83,7 +88,7 @@ async function getOrAssignDailyQuests(supabase, userId) {
       console.error("[dailyQuestManager] Error fetching user quests:", error.message || error);
     }
 
-    if (existingQuests && existingQuests.length === 5) {
+    if (existingQuests && existingQuests.length === DAILY_QUEST_COUNT) {
       // ดึงสรุปรายวัน
       const { data: summaryData } = await supabase
         .from("user_quest_daily_summary")
@@ -111,8 +116,8 @@ async function getOrAssignDailyQuests(supabase, userId) {
       };
     }
 
-    // 2. ถ้ายังไม่มี ให้สุ่มภารกิจใหม่ 5 ข้อ (หมวดละ 1 ข้อ)
-    const categories = ["CHAT", "VOICE", "MINIGAME", "FEATURE", "SOCIAL"];
+    // 2. ถ้ายังไม่มี ให้สุ่มภารกิจใหม่ 3 ข้อ (หมวดละ 1 ข้อ)
+    const categories = ACTIVE_CATEGORIES;
     const assignedQuestIds = [];
 
     for (const cat of categories) {
@@ -155,6 +160,30 @@ async function getOrAssignDailyQuests(supabase, userId) {
   }
 }
 
+const TRACKER_ALIASES = {
+  MESSAGE_COUNT: ["MESSAGE_COUNT", "CHAT_CHANNELS", "TIME_GREETINGS", "TIME_SLOTS", "CHAT_AFTER_DELAY", "VISIT_CHANNELS"],
+  MESSAGE_REPLIED: ["MESSAGE_REPLIED"],
+  VOICE_MINUTES: ["VOICE_MINUTES", "VOICE_INTERACTION", "VOICE_CONTINUOUS"],
+  VOICE_CHANNELS: ["VOICE_CHANNELS"],
+  VOICE_WITH_FRIENDS: ["VOICE_WITH_FRIENDS", "NEW_FRIENDS_INTERACT"],
+  VOICE_CONTINUOUS: ["VOICE_CONTINUOUS"],
+  VOICE_SESSIONS: ["VOICE_SESSIONS"],
+  VOICE_CROWD: ["VOICE_CROWD"],
+  CREATE_ROOM: ["CREATE_ROOM", "JOIN_SERVER_EVENT"],
+  MINIGAME_PLAY: ["MINIGAME_PLAY", "MINIGAME_TYPES_2", "MINIGAME_TYPES_3"],
+  MINIGAME_WIN: ["MINIGAME_WIN", "MINIGAME_STREAK", "MINIGAME_PERFECT"],
+  USE_HEALJAI: ["USE_HEALJAI", "USE_MULTI_FEATURES"],
+  USE_HOROSCOPE: ["USE_HOROSCOPE", "USE_MULTI_FEATURES"],
+  VIEW_BEAR_MARKET: ["VIEW_BEAR_MARKET", "USE_AD_REWARD", "USE_MULTI_FEATURES"],
+  USE_MATCHMAKING: ["USE_MATCHMAKING"],
+  JOIN_GAME_TABLE: ["JOIN_GAME_TABLE"],
+  GAME_MINUTES: ["GAME_MINUTES"]
+};
+
+function getTrackersToUpdate(trackerType) {
+  return TRACKER_ALIASES[trackerType] || [trackerType];
+}
+
 /**
  * อัปเดตความคืบหน้าภารกิจเมื่อเกิด Event
  */
@@ -165,16 +194,17 @@ async function addProgress(supabase, userId, trackerType, amount = 1) {
   }
   if (!userId) return;
   const today = getTodayBangkok();
+  const trackersToUpdate = getTrackersToUpdate(trackerType);
 
   try {
-    // หาภารกิจของผู้ใช้ที่ยังไม่สำเร็จและตรงกับ trackerType
+    // หาภารกิจของผู้ใช้ที่ยังไม่สำเร็จและตรงกับ trackerType หรือ Aliases
     const { data: userQuests } = await supabase
       .from("user_daily_quests")
       .select("*, daily_quest_master!inner(tracker_type, target_count)")
       .eq("discord_id", userId)
       .eq("quest_date", today)
       .eq("is_completed", false)
-      .eq("daily_quest_master.tracker_type", trackerType);
+      .in("daily_quest_master.tracker_type", trackersToUpdate);
 
     if (!userQuests || userQuests.length === 0) return;
 
@@ -254,6 +284,21 @@ async function claimReward(supabase, userId, questId) {
     // เติมแต้มผู้เล่นใน user_points
     await addPointsToUser(supabase, userId, reward);
 
+    // เช็คกรณีทำภารกิจครบ 3/3 ข้อเพื่อรับ Daily Jackpot Bonus (+100 แต้ม)
+    const { quests, summary } = await getOrAssignDailyQuests(supabase, userId);
+    const completedAll = quests.length >= DAILY_QUEST_COUNT && quests.every(q => q.is_completed);
+
+    if (completedAll && summary && !summary.is_jackpot_claimed) {
+      const jackpotReward = 100;
+      await addPointsToUser(supabase, userId, jackpotReward);
+
+      await supabase
+        .from("user_quest_daily_summary")
+        .update({ is_jackpot_claimed: true, updated_at: new Date().toISOString() })
+        .eq("discord_id", userId)
+        .eq("quest_date", today);
+    }
+
     return { success: true, pointsEarned: reward };
   } catch (err) {
     console.error(`[dailyQuestManager] Error claiming reward ${questId} for ${userId}:`, err);
@@ -285,9 +330,9 @@ async function claimAllRewards(supabase, userId) {
       }
     }
 
-    // 2. เช็คการรับ Daily Jackpot Bonus (ทำครบ 5/5)
+    // 2. เช็คการรับ Daily Jackpot Bonus (ทำครบ 3/3)
     const updatedQuests = (await getOrAssignDailyQuests(supabase, userId)).quests;
-    const completedAll = updatedQuests.every(q => q.is_completed);
+    const completedAll = updatedQuests.length >= DAILY_QUEST_COUNT && updatedQuests.every(q => q.is_completed);
 
     if (completedAll && !summary.is_jackpot_claimed) {
       const jackpotReward = 100; // แต้มกล่องสุ่มสมบัติหมีน้อย
@@ -329,12 +374,9 @@ async function rerollQuest(supabase, userId, questIdToSwap) {
       return false; // ไม่พบภารกิจ หรือสำเร็จไปแล้ว ห้ามเปลี่ยน
     }
 
-    // สุ่มหาภารกิจใหม่ในหมวดเดียวกันที่ไม่ซ้ำกับของเดิมผู้เล่น
-    const currentCategory = targetQuest.category;
+    // สุ่มหาภารกิจใหม่จากทั้ง Pool 30 ข้อที่ไม่ซ้ำกับของเดิมผู้เล่น ( cross-category reroll )
     const currentAssignedIds = quests.map(q => q.quest_id);
-    const availablePool = questPool.filter(
-      q => q.category === currentCategory && !currentAssignedIds.includes(q.id)
-    );
+    const availablePool = questPool.filter(q => !currentAssignedIds.includes(q.id));
 
     if (availablePool.length === 0) return false;
 
@@ -412,11 +454,13 @@ async function runAutoCleanup(supabase) {
 }
 
 /**
- * ดึงวันที่เริ่มต้นสัปดาห์ (วันจันทร์) ใน timezone GMT+7
+ * ดึงวันที่เริ่มต้นสัปดาห์ (วันจันทร์) ใน timezone GMT+7 โดยรีเซ็ตรอบสัปดาห์ ณ เวลา 03:00 น.
  */
 function getWeekStartDateBangkok() {
   const d = new Date();
-  const bangkokDate = new Date(d.toLocaleString("en-US", { timeZone: "Asia/Bangkok" }));
+  // ลบ 3 ชั่วโมงเพื่อให้รอบสัปดาห์ใหม่เริ่มที่เวลา 03:00 น. วันจันทร์
+  const adjustedTime = new Date(d.getTime() - 3 * 60 * 60 * 1000);
+  const bangkokDate = new Date(adjustedTime.toLocaleString("en-US", { timeZone: "Asia/Bangkok" }));
   const dayOfWeek = bangkokDate.getDay();
   const distanceToMonday = (dayOfWeek + 6) % 7;
   bangkokDate.setDate(bangkokDate.getDate() - distanceToMonday);
@@ -482,11 +526,11 @@ async function claimWeeklyMilestone(supabase, userId) {
   const weekStart = getWeekStartDateBangkok();
   const { count, claimedTiers } = await getWeeklyProgress(supabase, userId);
 
-  // กำหนดเกณฑ์รางวัล 3 ขั้น
+  // กำหนดเกณฑ์รางวัล 3 ขั้น (สอดคล้องกับ 3 ภารกิจ/วัน สูงสุด 21 ภารกิจ/สัปดาห์)
   const TIERS = [
-    { tier: 1, target: 10, points: 50, cakes: 0, name: "ขั้นที่ 1 (10 ภารกิจ)" },
-    { tier: 2, target: 20, points: 150, cakes: 0, name: "ขั้นที่ 2 (20 ภารกิจ)" },
-    { tier: 3, target: 30, points: 350, cakes: 1, name: "ขั้นที่ 3 (30 ภารกิจ - Master)" }
+    { tier: 1, target: 5, points: 50, cakes: 0, name: "ขั้นที่ 1 (5 ภารกิจ)" },
+    { tier: 2, target: 12, points: 150, cakes: 0, name: "ขั้นที่ 2 (12 ภารกิจ)" },
+    { tier: 3, target: 18, points: 350, cakes: 1, name: "ขั้นที่ 3 (18 ภารกิจ - Master)" }
   ];
 
   // หา Tier สูงสุดที่ทำถึงแต่ยังไม่ได้กดรับ
@@ -539,17 +583,13 @@ async function claimWeeklyMilestone(supabase, userId) {
  * คำนวณและอัปเดตเวลานั่งห้องเสียงของผู้ใช้ ณ ปัจจุบัน (Real-time Flush)
  */
 async function flushVoiceProgressRealtime(supabase, userId, voiceChannel, joinTimestamp) {
-  if (!supabase || !userId || !joinTimestamp || !voiceChannel) return;
+  if (!supabase || !userId || !joinTimestamp || !voiceChannel) return 0;
 
   const now = Date.now();
   const elapsedMinutes = Math.floor((now - joinTimestamp) / (1000 * 60));
-  if (elapsedMinutes < 1) return;
+  if (elapsedMinutes < 1) return 0;
 
   await addProgress(supabase, userId, "VOICE_MINUTES", elapsedMinutes);
-
-  if (elapsedMinutes >= 30) {
-    await addProgress(supabase, userId, "VOICE_CONTINUOUS", elapsedMinutes);
-  }
 
   const memberCount = voiceChannel.members ? voiceChannel.members.size : 0;
   if (memberCount >= 2) {
@@ -559,6 +599,33 @@ async function flushVoiceProgressRealtime(supabase, userId, voiceChannel, joinTi
   if (memberCount >= 3) {
     await addProgress(supabase, userId, "VOICE_CROWD", elapsedMinutes);
   }
+
+  return elapsedMinutes;
+}
+
+/**
+ * คำนวณและอัปเดตเวลาเล่นเกมของผู้ใช้ ณ ปัจจุบัน (Real-time Flush)
+ */
+async function flushGameProgressRealtime(supabase, userId, gameSessions) {
+  if (!userId || !gameSessions) return 0;
+  const session = gameSessions.get(userId);
+  if (!session || !session.startTime) return 0;
+
+  const now = Date.now();
+  const elapsedMinutes = Math.floor((now - session.startTime) / (1000 * 60));
+  if (elapsedMinutes < 1) return 0;
+
+  await addProgress(supabase, userId, "GAME_MINUTES", elapsedMinutes);
+  session.startTime += elapsedMinutes * 60 * 1000;
+  return elapsedMinutes;
+}
+
+/**
+ * สลับสถานะเปิด-ปิดเควสเกมของผู้ใช้ (Toggle)
+ */
+async function toggleGameQuestPreference(supabase, userId) {
+  const { toggleGameQuestPreferenceLocal } = require("./mockDailyQuestStore");
+  return toggleGameQuestPreferenceLocal(userId);
 }
 
 module.exports = {
@@ -572,6 +639,8 @@ module.exports = {
   rerollQuest,
   runAutoCleanup,
   flushVoiceProgressRealtime,
+  flushGameProgressRealtime,
+  toggleGameQuestPreference,
   getWeeklyProgress,
   claimWeeklyMilestone
 };

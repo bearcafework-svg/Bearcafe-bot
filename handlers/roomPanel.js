@@ -13,7 +13,7 @@ const {
 const config = require("../config");
 const { deleteRoom, getAllRooms, getRoom, updateRoom } = require("../state/redisClient");
 const { syncAllSeparators } = require("../utils/separatorManager");
-const { saveSmartRoomPreset } = require("../utils/smartRoomPresets");
+const { saveSmartRoomPreset, getSmartRoomPreset } = require("../utils/smartRoomPresets");
 const {
   EPHEMERAL_FLAG,
   safeDeferReply,
@@ -33,6 +33,7 @@ const CUSTOM_IDS = {
   unblock: "p_314733300217905153",
   kick: "p_314733387149479938",
   delete: "p_314733640162480141",
+  image: "p_panel_custom_image",
   permissionsList: "p_permissions_list",
   selectTrust: "room_panel_select_trust",
   selectUntrust: "room_panel_select_untrust",
@@ -41,12 +42,16 @@ const CUSTOM_IDS = {
   selectKick: "room_panel_select_kick",
   modalName: "room_panel_modal_name",
   modalLimit: "room_panel_modal_limit",
+  modalImage: "room_panel_modal_image",
 };
 
 const PANEL_BUTTON_IDS = new Set(Object.values(CUSTOM_IDS).filter((id) => id.startsWith("p_")));
 const SET_VOICE_CHANNEL_STATUS = PermissionFlagsBits.SetVoiceChannelStatus || (1n << 48n);
 const PANEL_ZONE_ID = "vip";
 const DEPRECATED_TRANSFER_ID = "p_314733566908960771";
+const SPECIAL_IMAGE_ROLE_ID = "1383998275711012956";
+const DEFAULT_VIP_IMAGE_URL =
+  "https://cdn.discordapp.com/attachments/1524704267015819274/1532018949703729234/NewsBoard_-_bearcafe_17.png?ex=6a6b5355&is=6a6a01d5&hm=7f51d2a4e6791f5046fe887f0a1a23d91bc64806712520785e0209fd7c701b17&";
 
 function ephemeral(options) {
   return { ...options, flags: EPHEMERAL_FLAG };
@@ -103,13 +108,26 @@ async function sendRoomPanel(channel, ownerMember, room) {
     return false;
   }
 
-  const payload = createComponentV2PanelPayload(ownerMember, room);
+  let customImageUrl = null;
+  const isSpecialRole = ownerMember?.roles?.cache?.has(SPECIAL_IMAGE_ROLE_ID);
+  if (isSpecialRole) {
+    if (room.settings?.imageUrl) {
+      customImageUrl = room.settings.imageUrl;
+    } else {
+      const preset = await getSmartRoomPreset(room.ownerId, room.zoneId);
+      if (preset?.imageUrl) {
+        customImageUrl = preset.imageUrl;
+      }
+    }
+  }
+
+  const payload = createComponentV2PanelPayload(ownerMember, room, customImageUrl);
 
   try {
     await channel.send(payload);
   } catch (e) {
     console.error("Component v2 panel send failed, using fallback:", e.message);
-    await channel.send(createFallbackPanelPayload(ownerMember, room)).catch((fallbackError) => {
+    await channel.send(createFallbackPanelPayload(ownerMember, room, customImageUrl)).catch((fallbackError) => {
       console.error("Fallback room panel send failed:", fallbackError.message);
       throw fallbackError;
     });
@@ -123,6 +141,10 @@ async function handlePanelButton(interaction) {
 
   if (interaction.customId === CUSTOM_IDS.limit) {
     return await showLimitModal(interaction);
+  }
+
+  if (interaction.customId === CUSTOM_IDS.image) {
+    return await showImageModal(interaction);
   }
 
   await deferEphemeral(interaction);
@@ -309,6 +331,71 @@ async function handlePanelModal(interaction) {
     });
   }
 
+  if (interaction.customId === CUSTOM_IDS.modalImage) {
+    const member = interaction.member;
+    if (!member || !member.roles.cache.has(SPECIAL_IMAGE_ROLE_ID)) {
+      return await respondEphemeral(interaction, {
+        content: `❌ ขออภัยค่ะ ฟังก์ชันตั้งค่ารูปภาพแผงสงวนสิทธิ์เฉพาะสมาชิกที่มีบทบาท <@&${SPECIAL_IMAGE_ROLE_ID}> เท่านั้นนะคะ`,
+      });
+    }
+
+    const input = interaction.fields.getTextInputValue("panel_image_url").trim();
+    let newImageUrl = null;
+    const isReset = input.toLowerCase() === "reset" || input.toLowerCase() === "default";
+
+    if (!isReset) {
+      if (!input.startsWith("https://")) {
+        return await respondEphemeral(interaction, {
+          content: "❌ ลิงก์รูปภาพไม่ถูกต้องค่ะ ต้องขึ้นต้นด้วย `https://` เท่านั้นนะคะ",
+        });
+      }
+      newImageUrl = input;
+    }
+
+    // 1. บันทึกลงใน smart_room_presets
+    const currentSettings = getSettings(context.room);
+    const updatedSettings = {
+      ...currentSettings,
+      imageUrl: newImageUrl,
+    };
+    const room = await updateRoom(context.channel.id, {
+      settings: updatedSettings,
+    });
+    await persistRoomPreset(context.channel, room);
+
+    // 2. Auto-Sync ไปยัง rent_house_settings สำหรับ owner_id เดียวกัน
+    try {
+      const { getSupabase } = require("../src/features/rentHouse/services/rentHouseService");
+      const supabase = getSupabase ? getSupabase() : null;
+      if (supabase) {
+        await supabase
+          .from("rent_house_settings")
+          .update({ image_url: newImageUrl, updated_at: new Date().toISOString() })
+          .eq("owner_id", context.room.ownerId);
+      }
+    } catch (err) {
+      console.warn("[roomPanel] Auto-sync to rent_house_settings failed:", err.message);
+    }
+
+    // 3. รีเฟรชรูปบนข้อความแผงควบคุมในห้องทันที
+    try {
+      const messages = await context.channel.messages.fetch({ limit: 10 });
+      const botMsg = messages.find((m) => m.author.id === interaction.client.user.id && (m.flags?.has(32768) || m.flags?.bitfield === 32768));
+      if (botMsg) {
+        const updatedPayload = createComponentV2PanelPayload(member, room, newImageUrl);
+        await botMsg.edit(updatedPayload);
+      }
+    } catch (err) {
+      console.warn("[roomPanel] Failed to edit existing panel message:", err.message);
+    }
+
+    return await respondEphemeral(interaction, {
+      content: isReset
+        ? "✅ รีเซ็ตรูปภาพแผงควบคุมกลับเป็นภาพเริ่มต้นเรียบร้อยแล้วค่ะ"
+        : `✅ ตั้งค่ารูปภาพแผงควบคุมเรียบร้อยแล้วค่ะ! (มีผลกับทั้งห้อง VIP และบ้านเช่าของคุณ)\n🔗 ลิงก์: ${newImageUrl}`,
+    });
+  }
+
   return false;
 }
 
@@ -381,6 +468,34 @@ async function showLimitModal(interaction) {
   return true;
 }
 
+async function showImageModal(interaction) {
+  if (interaction.replied || interaction.deferred) return false;
+
+  const member = interaction.member;
+  if (!member || !member.roles.cache.has(SPECIAL_IMAGE_ROLE_ID)) {
+    return await respondEphemeral(interaction, {
+      content: `❌ ขออภัยค่ะ ฟังก์ชันตั้งค่ารูปภาพแผงสงวนสิทธิ์เฉพาะสมาชิกที่มีบทบาท <@&${SPECIAL_IMAGE_ROLE_ID}> เท่านั้นนะคะ`,
+    });
+  }
+
+  const modal = new ModalBuilder()
+    .setCustomId(CUSTOM_IDS.modalImage)
+    .setTitle("ตั้งค่ารูปภาพแผงควบคุม")
+    .addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("panel_image_url")
+          .setLabel("ลิงก์รูปภาพ (Image URL)")
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder("https://... หรือพิมพ์ reset เพื่อใช้ภาพเดิม")
+          .setRequired(true)
+      )
+    );
+
+  await safeShowModal(interaction, modal);
+  return true;
+}
+
 async function safeShowModal(interaction, modal) {
   try {
     await interaction.showModal(modal);
@@ -444,8 +559,9 @@ async function deleteOwnedRoom(interaction, context) {
   return true;
 }
 
-function createComponentV2PanelPayload(ownerMember, room) {
+function createComponentV2PanelPayload(ownerMember, room, customImageUrl = null) {
   const summary = getPanelSummary(room);
+  const imageUrl = customImageUrl || DEFAULT_VIP_IMAGE_URL;
   return {
     flags: 32768,
     components: [
@@ -457,7 +573,7 @@ function createComponentV2PanelPayload(ownerMember, room) {
             items: [
               {
                 media: {
-                  url: "https://cdn.discordapp.com/attachments/1524704267015819274/1532018949703729234/NewsBoard_-_bearcafe_17.png?ex=6a6b5355&is=6a6a01d5&hm=7f51d2a4e6791f5046fe887f0a1a23d91bc64806712520785e0209fd7c701b17&",
+                  url: imageUrl,
                 },
               },
             ],
@@ -492,6 +608,7 @@ function createComponentV2PanelPayload(ownerMember, room) {
             type: 1,
             components: [
               button(ButtonStyle.Primary, CUSTOM_IDS.permissionsList, "ตรวจสอบสิทธิ์สมาชิก", "📋"),
+              button(ButtonStyle.Secondary, CUSTOM_IDS.image, "ตั้งค่ารูปภาพแผง", "🖼️"),
             ],
           },
           { type: 14, spacing: 2 },
@@ -501,13 +618,14 @@ function createComponentV2PanelPayload(ownerMember, room) {
   };
 }
 
-function createFallbackPanelPayload(ownerMember, room) {
+function createFallbackPanelPayload(ownerMember, room, customImageUrl = null) {
+  const imageUrl = customImageUrl || DEFAULT_VIP_IMAGE_URL;
   return {
     content: `${ownerMember} ห้อง VIP ของคุณพร้อมแล้วค่ะ\n${getPanelSummary(room)}`,
     embeds: [
       {
         image: {
-          url: "https://cdn.discordapp.com/attachments/1524704267015819274/1532018949703729234/NewsBoard_-_bearcafe_17.png?ex=6a6b5355&is=6a6a01d5&hm=7f51d2a4e6791f5046fe887f0a1a23d91bc64806712520785e0209fd7c701b17&",
+          url: imageUrl,
         },
       },
     ],
@@ -552,6 +670,7 @@ function getSettings(room) {
     blockedUserIds: settings.blockedUserIds || [],
     limit: settings.limit,
     name: settings.name,
+    imageUrl: settings.imageUrl,
   };
 }
 

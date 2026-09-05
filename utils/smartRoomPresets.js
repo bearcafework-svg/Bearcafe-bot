@@ -27,6 +27,9 @@ function normalizePresetSettings(settings = {}) {
   const name = typeof settings.name === "string" && settings.name.trim()
     ? settings.name.trim().slice(0, 100)
     : undefined;
+  const imageUrl = typeof settings.imageUrl === "string" && settings.imageUrl.trim()
+    ? settings.imageUrl.trim()
+    : (settings.imageUrl === null ? null : undefined);
 
   return {
     locked: Boolean(settings.locked),
@@ -35,6 +38,7 @@ function normalizePresetSettings(settings = {}) {
     blockedUserIds: Array.isArray(settings.blockedUserIds) ? settings.blockedUserIds : [],
     ...(limit !== undefined ? { limit } : {}),
     ...(name ? { name } : {}),
+    ...(imageUrl !== undefined ? { imageUrl } : {}),
   };
 }
 
@@ -48,6 +52,7 @@ function rowToSettings(row) {
     blockedUserIds: row.blocked_user_ids,
     limit: row.user_limit,
     name: row.room_name,
+    imageUrl: row.image_url,
   });
 }
 
@@ -63,6 +68,7 @@ function settingsToRow(ownerId, zoneId, settings) {
     hidden: normalized.hidden,
     trusted_user_ids: normalized.trustedUserIds,
     blocked_user_ids: normalized.blockedUserIds,
+    image_url: normalized.imageUrl || null,
     updated_at: new Date().toISOString(),
   };
 }
@@ -73,7 +79,7 @@ async function getSmartRoomPreset(ownerId, zoneId) {
 
   const { data, error } = await client
     .from(TABLE)
-    .select("room_name,user_limit,locked,hidden,trusted_user_ids,blocked_user_ids")
+    .select("room_name,user_limit,locked,hidden,trusted_user_ids,blocked_user_ids,image_url")
     .eq("owner_id", ownerId)
     .eq("zone_id", zoneId)
     .maybeSingle();

@@ -1,4 +1,5 @@
 const UNKNOWN_CHANNEL = 10003;
+const UNKNOWN_MESSAGE = 10008;
 const UNKNOWN_INTERACTION = 10062;
 const INTERACTION_ALREADY_ACKNOWLEDGED = 40060;
 const TARGET_USER_NOT_CONNECTED = 40032;
@@ -39,7 +40,7 @@ async function safeRespond(interaction, payload = {}) {
     }
     return true;
   } catch (error) {
-    if (!isDiscordCode(error, [INTERACTION_ALREADY_ACKNOWLEDGED, UNKNOWN_INTERACTION, UNKNOWN_CHANNEL])) {
+    if (!isDiscordCode(error, [INTERACTION_ALREADY_ACKNOWLEDGED, UNKNOWN_INTERACTION, UNKNOWN_CHANNEL, UNKNOWN_MESSAGE])) {
       console.error("[discordSafety] interaction response failed:", error);
     }
     return false;
@@ -54,7 +55,7 @@ async function safeEditReply(interaction, payload = {}) {
     await interaction.editReply(payload);
     return true;
   } catch (error) {
-    if (!isDiscordCode(error, [INTERACTION_ALREADY_ACKNOWLEDGED, UNKNOWN_INTERACTION, UNKNOWN_CHANNEL])) {
+    if (!isDiscordCode(error, [INTERACTION_ALREADY_ACKNOWLEDGED, UNKNOWN_INTERACTION, UNKNOWN_CHANNEL, UNKNOWN_MESSAGE])) {
       console.error("[discordSafety] editReply failed:", error);
     }
     return false;
@@ -68,7 +69,7 @@ async function safeFollowUp(interaction, payload = {}) {
     await interaction.followUp(ephemeral(payload));
     return true;
   } catch (error) {
-    if (!isDiscordCode(error, [INTERACTION_ALREADY_ACKNOWLEDGED, UNKNOWN_INTERACTION, UNKNOWN_CHANNEL])) {
+    if (!isDiscordCode(error, [INTERACTION_ALREADY_ACKNOWLEDGED, UNKNOWN_INTERACTION, UNKNOWN_CHANNEL, UNKNOWN_MESSAGE])) {
       console.error("[discordSafety] followUp failed:", error);
     }
     return false;

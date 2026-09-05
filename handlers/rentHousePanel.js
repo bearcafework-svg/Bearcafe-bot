@@ -7,6 +7,7 @@ const {
   createRentHousePanelPayload,
   buildRentNameModal,
   buildRentLimitModal,
+  buildRentImageModal,
   buildUserSelectMenuPayload,
 } = require("../src/features/rentHouse/components/rentHousePayloads");
 
@@ -18,16 +19,28 @@ const {
   toggleRentHouseHide,
   getRentHousePermissionsInfo,
   processRentUserSelect,
+  saveRentHouseImage,
 } = require("../src/features/rentHouse/services/rentHouseService");
 
 const { safeShowModal } = require("../utils/discordSafety");
 const { safeSetChannelName } = require("../utils/channelRenameGuard");
 
+const SPECIAL_IMAGE_ROLE_ID = "1383998275711012956";
+
 async function sendRentHousePanel(channel, ownerMember) {
   if (!channel || typeof channel.send !== "function") return null;
 
   try {
-    const payload = createRentHousePanelPayload(ownerMember || "เจ้าของบ้านเช่า");
+    let customImageUrl = null;
+    const isSpecialRole = ownerMember?.roles?.cache?.has(SPECIAL_IMAGE_ROLE_ID);
+    if (isSpecialRole) {
+      const setting = await getRentHousePermissionsInfo(channel);
+      if (setting?.image_url) {
+        customImageUrl = setting.image_url;
+      }
+    }
+
+    const payload = createRentHousePanelPayload(ownerMember || "เจ้าของบ้านเช่า", customImageUrl);
     const msg = await channel.send(payload);
     return msg;
   } catch (err) {
@@ -86,11 +99,15 @@ async function handleRentHousePanelInteraction(interaction) {
   if (interaction.isStringSelectMenu() && customId === RENT_CUSTOM_IDS.panelSelect) {
     const selected = interaction.values[0];
 
+    const memberSetting = await getRentHousePermissionsInfo(channel);
+    const hasImageRole = interaction.member?.roles?.cache?.has(SPECIAL_IMAGE_ROLE_ID);
+    const activeCustomImg = (hasImageRole && memberSetting?.image_url) ? memberSetting.image_url : null;
+
     if (selected === "rh_opt_name") {
       if (!interaction.replied && !interaction.deferred) {
         const modal = buildRentNameModal(channel.name);
         await safeShowModal(interaction, modal);
-        await interaction.message?.edit(createRentHousePanelPayload(interaction.member)).catch(() => {});
+        await interaction.message?.edit(createRentHousePanelPayload(interaction.member, activeCustomImg)).catch(() => {});
         return true;
       }
       return false;
@@ -100,13 +117,35 @@ async function handleRentHousePanelInteraction(interaction) {
       if (!interaction.replied && !interaction.deferred) {
         const modal = buildRentLimitModal(channel.userLimit ?? 0);
         await safeShowModal(interaction, modal);
-        await interaction.message?.edit(createRentHousePanelPayload(interaction.member)).catch(() => {});
+        await interaction.message?.edit(createRentHousePanelPayload(interaction.member, activeCustomImg)).catch(() => {});
         return true;
       }
       return false;
     }
 
-    await interaction.update(createRentHousePanelPayload(interaction.member)).catch(() => {});
+    if (selected === "rh_opt_image") {
+      if (!hasImageRole) {
+        await interaction.deferUpdate().catch(() => {});
+        return await sendInteractionResponse(
+          interaction,
+          createV2CardResponse(
+            "การเข้าถึงถูกปฏิเสธ",
+            `> ❌ ขออภัยค่ะ ฟังก์ชันตั้งค่ารูปภาพแผงสงวนสิทธิ์เฉพาะสมาชิกที่มีบทบาท <@&${SPECIAL_IMAGE_ROLE_ID}> เท่านั้นนะคะ`,
+            "🔒"
+          )
+        );
+      }
+
+      if (!interaction.replied && !interaction.deferred) {
+        const modal = buildRentImageModal(memberSetting?.image_url || "");
+        await safeShowModal(interaction, modal);
+        await interaction.message?.edit(createRentHousePanelPayload(interaction.member, activeCustomImg)).catch(() => {});
+        return true;
+      }
+      return false;
+    }
+
+    await interaction.update(createRentHousePanelPayload(interaction.member, activeCustomImg)).catch(() => {});
 
     switch (selected) {
       case "rh_opt_info":
@@ -213,6 +252,63 @@ async function handleRentHousePanelInteraction(interaction) {
         return await sendInteractionResponse(interaction, createV2CardResponse("เปลี่ยนจำนวนคนสำเร็จ", `> 👥 เปลี่ยนจำนวนคนที่เข้าบ้านเช่าเป็น **${limit || "ไม่จำกัด"}** เรียบร้อยแล้วค่ะ`, "👥"));
       }
       return await sendInteractionResponse(interaction, createV2CardResponse("ข้อมูลไม่ถูกต้อง", "> ❌ กรุณาระบุตัวเลขจำนวนคนระหว่าง 0 ถึง 99 ค่ะ", "⚠️"));
+    }
+
+    if (customId === RENT_CUSTOM_IDS.modalImage) {
+      const member = interaction.member;
+      if (!member || !member.roles.cache.has(SPECIAL_IMAGE_ROLE_ID)) {
+        return await sendInteractionResponse(
+          interaction,
+          createV2CardResponse(
+            "การเข้าถึงถูกปฏิเสธ",
+            `> ❌ ขออภัยค่ะ ฟังก์ชันตั้งค่ารูปภาพแผงสงวนสิทธิ์เฉพาะสมาชิกที่มีบทบาท <@&${SPECIAL_IMAGE_ROLE_ID}> เท่านั้นนะคะ`,
+            "🔒"
+          )
+        );
+      }
+
+      const input = interaction.fields.getTextInputValue("panel_image_url").trim();
+      let newImageUrl = null;
+      const isReset = input.toLowerCase() === "reset" || input.toLowerCase() === "default";
+
+      if (!isReset) {
+        if (!input.startsWith("https://")) {
+          return await sendInteractionResponse(
+            interaction,
+            createV2CardResponse(
+              "ข้อมูลไม่ถูกต้อง",
+              "> ❌ ลิงก์รูปภาพไม่ถูกต้องค่ะ ต้องขึ้นต้นด้วย `https://` เท่านั้นนะคะ",
+              "⚠️"
+            )
+          );
+        }
+        newImageUrl = input;
+      }
+
+      // 1. บันทึกรูปบ้านเช่า และ Auto-Sync ไปยังห้อง VIP
+      await saveRentHouseImage(channel.id, interaction.user.id, newImageUrl);
+
+      // 2. รีเฟรชรูปภาพบนข้อความแผงควบคุมในห้องทันที
+      try {
+        const messages = await channel.messages.fetch({ limit: 10 });
+        const botMsg = messages.find((m) => m.author.id === interaction.client.user.id && (m.flags?.has(32768) || m.flags?.bitfield === 32768));
+        if (botMsg) {
+          await botMsg.edit(createRentHousePanelPayload(member, newImageUrl));
+        }
+      } catch (err) {
+        console.warn("[rentHousePanel] Failed to edit existing panel message:", err.message);
+      }
+
+      return await sendInteractionResponse(
+        interaction,
+        createV2CardResponse(
+          isReset ? "รีเซ็ตรูปภาพสำเร็จ" : "ตั้งค่ารูปภาพสำเร็จ",
+          isReset
+            ? "> ✅ รีเซ็ตรูปภาพแผงควบคุมกลับเป็นภาพเริ่มต้นเรียบร้อยแล้วค่ะ"
+            : `> ✅ ตั้งค่ารูปภาพแผงควบคุมเรียบร้อยแล้วค่ะ! (มีผลกับทั้งบ้านเช่าและห้อง VIP ของคุณ)\n> 🔗 ลิงก์: ${newImageUrl}`,
+          "🖼️"
+        )
+      );
     }
   }
 

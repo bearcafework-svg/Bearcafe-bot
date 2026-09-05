@@ -1,0 +1,11 @@
+[
+  {
+    "guild_id": "1536199707922141254",
+    "user_id": "test_user_123",
+    "version": "v1.0",
+    "consent_type": "agreement",
+    "role_assigned": true,
+    "accepted_at": "2026-09-04T03:30:28.817Z",
+    "metadata": {}
+  }
+]

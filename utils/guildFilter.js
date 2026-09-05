@@ -1,15 +1,18 @@
 // ===================================================
-// utils/guildFilter.js — ตัวกรองและอนุญาตเฉพาะ GuildID ที่กำหนด (Allowlist Filter)
+// utils/guildFilter.js — ตัวกรองและแยกสภาพแวดล้อมระดับ Guild (Two-Domain Isolation Router)
 // ===================================================
 
 const config = require("../config");
 
+const BEARCAFE_GUILD_ID = process.env.GUILD_ID || (config.bearCafeGuildId || "1144251788493602848");
+const HEALJAI_GUILD_ID = process.env.HEALJAI_GUILD_ID || (config.healJai && config.healJai.guildId) || "1536199707922141254";
+
 /**
- * Custom Guild IDs ที่กำหนดในโค้ดให้สิทธิ์ทำงานเสมอ
+ * Custom Guild IDs ที่กำหนดในโค้ดให้สิทธิ์ทำงาน
  */
 const CUSTOM_ALLOWED_GUILD_IDS = [
-  "1144251788493602848", // Bear Cafe Server หลัก
-  "1536199707922141254", // Custom Guild ID
+  BEARCAFE_GUILD_ID,
+  HEALJAI_GUILD_ID,
 ];
 
 /**
@@ -33,21 +36,28 @@ function getAllowedGuildIds() {
     }
   }
 
-  // 3. ดึงจาก ALLOWED_GUILD_IDS ใน process.env
+  // 3. ดึงจาก HEALJAI_GUILD_ID ใน process.env
+  if (process.env.HEALJAI_GUILD_ID) {
+    for (const id of process.env.HEALJAI_GUILD_ID.split(",")) {
+      if (id.trim()) allowedSet.add(id.trim());
+    }
+  }
+
+  // 4. ดึงจาก ALLOWED_GUILD_IDS ใน process.env
   if (process.env.ALLOWED_GUILD_IDS) {
     for (const id of process.env.ALLOWED_GUILD_IDS.split(",")) {
       if (id.trim()) allowedSet.add(id.trim());
     }
   }
 
-  // 4. ดึงจาก config.allowedGuildIds (ถ้ามี)
+  // 5. ดึงจาก config.allowedGuildIds (ถ้ามี)
   if (config.allowedGuildIds && Array.isArray(config.allowedGuildIds)) {
     for (const id of config.allowedGuildIds) {
       if (id) allowedSet.add(String(id).trim());
     }
   }
 
-  // 5. ดึงจาก Custom Guild IDs ที่กำหนดในโค้ด
+  // 6. ดึงจาก Custom Guild IDs ที่กำหนดในโค้ด
   for (const id of CUSTOM_ALLOWED_GUILD_IDS) {
     if (id) allowedSet.add(String(id).trim());
   }
@@ -115,7 +125,7 @@ function extractGuildIdFromArgs(args) {
 function getValidGuild(client, targetGuildId) {
   if (!client || !client.guilds || !client.guilds.cache) return null;
 
-  const defaultGuildId = targetGuildId || process.env.DISCORD_GUILD_ID || process.env.GUILD_ID || "1144251788493602848";
+  const defaultGuildId = targetGuildId || process.env.DISCORD_GUILD_ID || BEARCAFE_GUILD_ID;
   const targetGuild = client.guilds.cache.get(defaultGuildId);
 
   if (targetGuild && isAllowedGuild(targetGuild.id)) {
@@ -126,7 +136,7 @@ function getValidGuild(client, targetGuildId) {
 }
 
 /**
- * ตรวจสอบว่า Event นี้เกี่ยวข้องกับระบบ HealJai หรือไม่
+ * ตรวจสอบว่า Event นี้เกี่ยวข้องกับระบบ HealJai (ฮิลใจ) หรือไม่
  * @param {string} eventName 
  * @param {Array} args 
  * @returns {boolean}
@@ -136,8 +146,19 @@ function isHealJaiEvent(eventName, args) {
 
   if (eventName === "interactionCreate") {
     const interaction = args[0];
-    if (interaction && typeof interaction.customId === "string" && interaction.customId.startsWith("heal_jai_")) {
+    if (!interaction) return false;
+
+    // 1. ตรวจสอบ Component Buttons / Select Menus / Modals ของ HealJai
+    if (typeof interaction.customId === "string" && interaction.customId.startsWith("heal_jai_")) {
       return true;
+    }
+
+    // 2. ตรวจสอบ Slash Commands ของ HealJai
+    if (typeof interaction.isChatInputCommand === "function" && interaction.isChatInputCommand()) {
+      const name = interaction.commandName ? interaction.commandName.toLowerCase() : "";
+      if (name.startsWith("heal") || name.startsWith("ฮิลใจ") || name === "send-component") {
+        return true;
+      }
     }
   }
 
@@ -145,7 +166,8 @@ function isHealJaiEvent(eventName, args) {
     const message = args[0];
     if (message && typeof message.content === "string") {
       const text = message.content.trim().toLowerCase();
-      if (text.startsWith("b!reset-menu") || text.startsWith("b!heal")) {
+      // คำสั่ง Prefix ประจำโปรเจกต์ฮิลใจ
+      if (text.startsWith("b!reset-menu") || text.startsWith("b!heal") || text.startsWith("!heal")) {
         return true;
       }
     }
@@ -155,7 +177,7 @@ function isHealJaiEvent(eventName, args) {
 }
 
 /**
- * ติดตั้ง Event Interceptor เพื่ออนุญาตเฉพาะ GuildIDs ใน Allowlist
+ * ติดตั้ง Event Interceptor เพื่อแยกสภาพแวดล้อม (Two-Domain Isolation Router)
  * @param {import('discord.js').Client} client 
  */
 function setupGuildFilter(client) {
@@ -163,25 +185,49 @@ function setupGuildFilter(client) {
 
   client.emit = function (eventName, ...args) {
     const guildId = extractGuildIdFromArgs(args);
-    if (guildId && !isAllowedGuild(guildId)) {
-      // ยกเว้นฟีเจอร์ HealJai ให้ทำงานได้ตามปกติ
-      if (isHealJaiEvent(eventName, args)) {
+    if (guildId) {
+      const cleanGuildId = String(guildId).trim();
+
+      // ── 1. กรณีเกิดในกิลด์ HealJai (1536199707922141254) ───────────
+      // อนุญาตเฉพาะ Event ของฮิลใจเท่านั้น!
+      // คำสั่งของ Bear Cafe ทั้งหมด (b!cafe, b!box, b!reset-verify, slash commands, voice ฯลฯ) จะถูกบล็อกทันที
+      if (cleanGuildId === HEALJAI_GUILD_ID) {
+        if (!isHealJaiEvent(eventName, args)) {
+          return false;
+        }
         return originalEmit.apply(this, [eventName, ...args]);
       }
-      // ปฏิเสธการส่ง Event สำหรับ Guild ที่ไม่อยู่ใน Allowlist
-      return false;
+
+      // ── 2. กรณีเกิดในกิลด์ Bear Cafe หลัก (1144251788493602848) ────
+      // ห้าม Event ของ HealJai (b!reset-menu, ปุ่มกด heal_jai_*) เข้ามาทำงานในเซิร์ฟเวอร์ Bear Cafe เด็ดขาด
+      if (cleanGuildId === BEARCAFE_GUILD_ID) {
+        if (isHealJaiEvent(eventName, args)) {
+          return false;
+        }
+        return originalEmit.apply(this, [eventName, ...args]);
+      }
+
+      // ── 3. กรณีเป็น Guild อื่นๆ ตรวจสอบตาม Allowlist ปกติ ──────────
+      if (!isAllowedGuild(cleanGuildId)) {
+        return false;
+      }
     }
+
     return originalEmit.apply(this, [eventName, ...args]);
   };
 
-  const allowedList = Array.from(getAllowedGuildIds()).join(", ");
-  console.log(`🛡️ [GuildFilter] ระบบกรอง Guild Filter ทำงานแล้ว — อนุญาตเฉพาะ Guilds: ${allowedList}`);
+  console.log(`🛡️ [GuildFilter] Two-Domain Isolation Router พร้อมทำงาน:`);
+  console.log(`   ☕ Bear Cafe Guild : ${BEARCAFE_GUILD_ID}`);
+  console.log(`   💚 HealJai Guild   : ${HEALJAI_GUILD_ID}`);
 }
 
 module.exports = {
+  BEARCAFE_GUILD_ID,
+  HEALJAI_GUILD_ID,
   getAllowedGuildIds,
   isAllowedGuild,
   isIgnoredGuild,
+  isHealJaiEvent,
   extractGuildIdFromArgs,
   getValidGuild,
   setupGuildFilter,

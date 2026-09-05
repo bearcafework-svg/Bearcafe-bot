@@ -1,218 +1,152 @@
-# Agent Skills Index
+# 🐻 Bear Cafe Bot — Agent Skills System Guide
 
-ดัชนีรวมรายการ Agent Skills ของโปรเจกต์ เรียงลำดับตามชื่อโฟลเดอร์ขึ้นต้นด้วย `skill-` เพื่อให้สามารถค้นหาและเรียกใช้ผ่านสัญลักษณ์ `@` ใน Antigravity IDE ได้อย่างสะดวกรวดเร็ว
-
----
-
-## skill-analyze-log
-วิเคราะห์ log, stack trace และรวบรวมหลักฐานเพื่อหาสาเหตุของปัญหา
-
-**ใช้เมื่อ:**
-- ต้องวิเคราะห์ Error log / Stack trace / Runtime failure
-- ต้องการแยกแยะสาเหตุหลัก (Root cause) ออกจากผลกระทบข้างเคียง
-
-**ชื่อโฟลเดอร์:** `skill-analyze-log`  
-**เรียกใช้:**  
-`@skill-analyze-log`
+คู่มือมาตรฐานการใช้งาน **Agent Skills** สำหรับโปรเจกต์ Bear Cafe Bot ออกแบบมาเพื่อลดขั้นตอนการทำงาน (Consolidated Workflow) จากเดิม 17 ทักษะย่อย ให้เหลือเพียง **6 Core Skills** ตามวงจรการพัฒนาจริง ช่วยให้เรียกใช้ผ่านสัญลักษณ์ `@` ใน Antigravity IDE ได้อย่างรวดเร็ว แม่นยำ และไม่สับสน
 
 ---
 
-## skill-diagnose-system
-วินิจฉัยระบบหรือฟีเจอร์ที่ทำงานผิดปกติ ไม่ครบถ้วน หรือไม่ตรงตามข้อกำหนด
+## 🗺️ แผนผังลำดับขั้นตอนการใช้งาน (Workflow Pipelines)
 
-**ใช้เมื่อ:**
-- ระบบทำงานผิดพลาดโดยไม่มี Error log หรือได้ผลลัพธ์ไม่ตรงตามที่คาดหวัง
-- ต้องการไล่เรียง Execution Flow (Expected vs Actual) ก่อนเสนอวิธีแก้ไข
+การทำงานจริงจะแบ่งออกเป็น 2 ลูปหลัก: **การสร้าง/ปรับฟีเจอร์** และ **การแก้บั๊ก/รับมือปัญหา**
 
-**ชื่อโฟลเดอร์:** `skill-diagnose-system`  
-**เรียกใช้:**  
-`@skill-diagnose-system`
+### ลูปที่ 1: พัฒนาฟีเจอร์ใหม่ / ปรับปรุงระบบ (Feature Development Loop)
 
----
+```mermaid
+flowchart LR
+    A["1️⃣ @skill-plan<br/>วางแผน & วิเคราะห์"] --> B["2️⃣ @skill-feature<br/>ลงมือสร้าง & คุมผลกระทบ"]
+    B --> C["3️⃣ @skill-review<br/>ตรวจรอบด้าน & คุม Scope"]
+    C --> D["4️⃣ @skill-ship<br/>สรุปผลงาน & Push Git"]
+```
 
-## skill-discord-check
-ตรวจสอบและทบทวนฟีเจอร์ Discord Bot ด้านความถูกต้อง สิทธิ์ และประสิทธิภาพ
-
-**ใช้เมื่อ:**
-- ตรวจสอบหรือแก้ไขฟีเจอร์ Discord Bot
-- ตรวจสอบ Permissions, Intents, Event Handling, Interaction Timeout และ API Rate Limits
-
-**ชื่อโฟลเดอร์:** `skill-discord-check`  
-**เรียกใช้:**  
-`@skill-discord-check`
-
----
-
-## skill-fix-error
-สืบหาและแก้ไขข้อผิดพลาด (Application Errors) พร้อมยืนยันผลการแก้ไข
-
-**ใช้เมื่อ:**
-- ต้องการสืบหาสาเหตุและดำเนินการแก้ไข Bug หรือ Runtime Error
-- ตรวจสอบและทดสอบยืนยันหลังการแก้ไขโค้ด
-
-**ชื่อโฟลเดอร์:** `skill-fix-error`  
-**เรียกใช้:**  
-`@skill-fix-error`
+1. **Step 1: วางแผนและออกแบบ (`@skill-plan`)**
+   - ใช้เมื่อมีโจทย์ใหม่ หรือต้องการขยายระบบ
+   - AI จะตั้งข้อสงสัย สำรวจโค้ดจริง ทำตารางเปรียบเทียบ (Trade-off Matrix เช่น In-Memory vs Supabase) และร่างแผนงานพร้อมรายการไฟล์ที่จะแก้
+2. **Step 2: ลงมือพัฒนาโค้ด (`@skill-feature`)**
+   - สแกนผลกระทบข้ามระบบ (Blast Radius) ทั้ง Discord Bot, Database และเว็บ `bear-cafe-web`
+   - พัฒนาตามโครงสร้างคลีน: Service Logic -> Controller Handler -> UI Components V2 / Canvas
+   - จัด Format console log ให้สวยงามตามมาตรฐานระบบ
+3. **Step 3: ตรวจสอบคุณภาพและความปลอดภัย (`@skill-review`)**
+   - ตรวจความปลอดภัยครบ 4 มิติ: Discord API (ดัก 3s Timeout), Supabase (RLS/Egress), คุณภาพโค้ด และสั่ง **"Good Enough - หยุดแก้"** ในจุดที่ผ่านแล้ว
+4. **Step 4: สรุปงานและส่งมอบ (`@skill-ship`)**
+   - กรองโค้ดตกค้าง (Tokens, TODOs, console.log รกๆ)
+   - สร้างสรุปผลงานสวยงามพร้อมก๊อปปี้ส่งใน Discord
+   - สร้าง Conventional Commit message และรัน Git Push เมื่อยืนยัน
 
 ---
 
-## skill-plan
-วางแผนการพัฒนาหรือปรับปรุงระบบอย่างเป็นขั้นตอน (Implementation Plan) ก่อนลงมือทำ
+### ลูปที่ 2: วินิจฉัยและแก้ปัญหา (Incident & Bugfix Loop)
 
-**ใช้เมื่อ:**
-- มีโจทย์ชัดเจนและต้องการแผนการพัฒนาที่ระบุไฟล์ที่จะแก้ไข, Data Flow, Security และแผนการทดสอบ
-- ต้องการประเมินความเสี่ยงและขั้นตอนการทำงานอย่างเป็นระบบ
+```mermaid
+flowchart LR
+    E["1️⃣ @skill-debug<br/>หาสาเหตุ & แก้ไข"] --> F["2️⃣ @skill-review<br/>ตรวจความเรียบร้อย"]
+    F --> G["3️⃣ @skill-learn<br/>(ถ้าเป็นบั๊กซับซ้อน)<br/>บันทึก Tech Quirk"]
+    G --> H["4️⃣ @skill-ship<br/>สรุปผล & Push Git"]
+    F --> H
+```
 
-**ชื่อโฟลเดอร์:** `skill-plan`  
-**เรียกใช้:**  
-`@skill-plan`
-
----
-
-## skill-pre-deploy
-ตรวจสอบความพร้อมของระบบก่อนนำขึ้น Production (Pre-deployment readiness check)
-
-**ใช้เมื่อ:**
-- ก่อนทำการ Deploy แอปพลิเคชัน, Discord Bot, Web App หรือ Database Changes
-- ตรวจสอบ Build, Unit Tests, Configuration, Secret Leakage และ Security Risks
-
-**ชื่อโฟลเดอร์:** `skill-pre-deploy`  
-**เรียกใช้:**  
-`@skill-pre-deploy`
+1. **Step 1: วินิจฉัยและแก้บั๊ก (`@skill-debug`)**
+   - รองรับทั้งกรณีมี Error log / Stack trace หรือกรณีที่ระบบทำงานผิดปกติแต่ไม่มี log
+   - ไล่เรียง Expected vs Actual หา Root Cause และแก้โค้ดเฉพาะจุดความเสี่ยงต่ำ
+2. **Step 2: ตรวจความเรียบร้อย (`@skill-review`)**
+   - ตรวจสอบว่าจุดที่แก้ไม่สร้างผลข้างเคียง (Regression) หรือกินโควตา Supabase เพิ่ม
+3. **Step 3: บันทึกองค์ความรู้ (`@skill-learn`)** *(ถ้าเข้าข่าย)*
+   - หากเป็นบั๊กเชิงเทคนิค เช่น Discord 3-second Timeout, Supabase Egress Quota, หรือ Canvas ภาษาไทย บันทึกเข้า KNOWLEDGE ฐานข้อมูลกลางทันที
+4. **Step 4: สรุปและปล่อยอัปเดต (`@skill-ship`)**
+   - ออกรายงาน Discord Summary และ Commit/Push ขึ้น GitHub
 
 ---
 
-## skill-review-code
-รีวิวโค้ดเน้นด้านความถูกต้อง ความปลอดภัย ประสิทธิภาพ และความเสี่ยงในการกระทบส่วนอื่น
-
-**ใช้เมื่อ:**
-- ต้องการรีวิวโค้ดที่เขียนขึ้นใหม่ หรือตรวจสอบ Diff ของโปรเจกต์
-- ตรวจสอบคุณภาพโค้ดก่อนรวมโค้ดหรือ Deploy
-
-**ชื่อโฟลเดอร์:** `skill-review-code`  
-**เรียกใช้:**  
-`@skill-review-code`
+## 📚 รายละเอียดและวิธีเรียกใช้งาน 6 Core Skills
 
 ---
 
-## skill-supabase-check
-ตรวจสอบและ Audit การใช้งาน Supabase Database, RLS และ Edge Functions
-
-**ใช้เมื่อ:**
-- ทบทวนการออกแบบฐานข้อมูล Supabase, Migrations, RLS Policies, RPC Functions
-- ตรวจสอบความปลอดภัยและการเข้าถึงข้อมูลใน Supabase
-
-**ชื่อโฟลเดอร์:** `skill-supabase-check`  
-**เรียกใช้:**  
-`@skill-supabase-check`
-
----
-
-## skill-system-consult
-ให้คำปรึกษาด้านสถาปัตยกรรมและการออกแบบระบบก่อนเริ่มพัฒนา
-
-**ใช้เมื่อ:**
-- ต้องการแนวทางการออกแบบสถาปัตยกรรมระบบ (System Architecture) ใหม่
-- วางแผน User Flow, Database Design, Integration Boundaries และเปรียบเทียบทางเลือก
-
-**ชื่อโฟลเดอร์:** `skill-system-consult`  
-**เรียกใช้:**  
-`@skill-system-consult`
+### 1️⃣ `@skill-plan` — วางแผน ออกแบบ และวิเคราะห์ทางเลือก
+* **รวมความสามารถของ:** `skill-system-consult` + `skill-inquire-refine` + `skill-plan`
+* **หน้าที่:** วิเคราะห์ความต้องการเชิงลึก ตั้งข้อสงสัย ค้นหลักฐานในโค้ด เปรียบเทียบทางเลือก (Trade-offs) ออกแบบสถาปัตยกรรม และวาง Implementation Plan ก่อนลงมือแตะต้องโค้ด
+* **เมื่อไหร่ควรใช้:** 
+  - เมื่อได้รับโจทย์ฟีเจอร์ใหม่ แต่ยังไม่แน่ใจเรื่องการออกแบบ
+  - เมื่อโจทย์มีความคลุมเครือ และต้องการให้ AI ถามคำถามชี้ขาดก่อนเริ่มทำ
+  - ต้องการ Checklist รายการไฟล์ที่จะแก้ แผนสำรอง และการประเมิน Supabase Egress
+* **ตัวอย่างการสั่ง:**
+  ```text
+  @skill-plan ต้องการทำระบบสะสมแต้มเวลาอยู่ในห้องเสียง แล้วให้แลกไอเทมในหน้าเว็บ bear-cafe-web ได้ ช่วยเปรียบเทียบทางเลือกและวางแผนระบบให้หน่อย
+  ```
 
 ---
 
-## skill-feature
-
-ควบคุมการออกแบบและพัฒนาฟีเจอร์ใหม่แบบครบวงจร (End-to-End Feature Development) ให้สอดคล้องกับสถาปัตยกรรมของบอต Bear Cafe
-
-**ใช้เมื่อ:**
-
-* ต้องการพัฒนาฟีเจอร์ใหม่, ระบบมินิเกม, ระบบแต้ม, ร้านค้า หรือคำสั่ง Discord ใหม่
-* วางโครงสร้างโค้ดตั้งแต่ Database Schema (Supabase) -> Service Logic -> Controller Handler -> UI Feedback
-* ต้องการจำกัดและป้องกันปัญหา Supabase Quota / Egress Exceeded และจัดการ Interaction Timeout
-
-**ชื่อโฟลเดอร์:** `skill-feature`
-
-**เรียกใช้:**
-
-`@skill-feature`
+### 2️⃣ `@skill-feature` — พัฒนาฟีเจอร์ ปรับโครงสร้าง และควบคุมผลกระทบ
+* **รวมความสามารถของ:** `skill-feature` + `skill-refactor` + `skill-impact-analysis` + `skill-logger`
+* **หน้าที่:** ลงมือสร้างฟีเจอร์ใหม่หรือ Refactor โค้ดเดิม โดยบังคับใช้มาตรฐาน Clean Architecture (แยก Service, Controller, UI Payload) พร้อมสแกนหาไฟล์เชื่อมโยง (Blast Radius) ทั้ง Bot, Supabase และหน้าเว็บ `bear-cafe-web` ไม่ให้เกิดปัญหาแก้ไม่ครบจุด
+* **เมื่อไหร่ควรใช้:**
+  - ลงมือเขียนโค้ดตามแผนที่วางไว้
+  - ปรับปรุงโค้ดที่รกรุงรัง (Spaghetti Code) แยกโค้ดออกจาก Interaction Handler
+  - เปลี่ยนชื่อตัวแปร, Game ID, Custom ID, Database Column ที่แชร์ระหว่าง Bot กับ Web
+* **ตัวอย่างการสั่ง:**
+  ```text
+  @skill-feature พัฒนาระบบร้านค้าแลกของรางวัลตามแผนที่วางไว้ พร้อมสแกนผลกระทบไปยังหน้าเว็บ bear-cafe-web
+  ```
 
 ---
 
-## skill-refactor
-
-ปรับปรุงโครงสร้างโค้ดและลดภาระทางเทคนิค (Technical Debt) โดยไม่กระทบการทำงานเดิมของระบบ
-
-**ใช้เมื่อ:**
-
-* ต้องการแยก Business Logic, Database Calls และ UI Payload ออกจาก Interaction Handlers
-* ลดความซ้ำซ้อนของโค้ด (DRY) เช่น การรวม Constants, Shared Payloads หรือ Wrappers
-* ปรับจูนและรวมคิวรี Supabase เพื่อลด Data Transfer / Egress
-* ปรับเปลี่ยนคำสั่ง Discord API ให้ครอบด้วย Safety Wrappers เพื่อป้องกัน Interaction Errors
-
-**ชื่อโฟลเดอร์:** `skill-refactor`
-
-**เรียกใช้:**
-
-`@skill-refactor`
+### 3️⃣ `@skill-debug` — วินิจฉัยและแก้ปัญหาบั๊กทุกระดับ
+* **รวมความสามารถของ:** `skill-analyze-log` + `skill-diagnose-system` + `skill-fix-error`
+* **หน้าที่:** สืบหาสาเหตุรากเหง้า (Root Cause) ของปัญหา ไม่ว่าจะมี Error log หรือไม่มี log ก็ตาม จากนั้นดำเนินการแก้ไขเฉพาะจุดอย่างปลอดภัย และตรวจสอบยืนยันผลลัพธ์
+* **เมื่อไหร่ควรใช้:**
+  - บอตแจ้ง Error 10062 Unknown Interaction หรือ Supabase Error
+  - ฟีเจอร์ทำงานไม่ครบ เช่น กดปุ่มแล้วแต้มไม่ลด ข้อมูลในเว็บไม่ขึ้น
+  - มี Runtime crash หรือระบบค้าง
+* **ตัวอย่างการสั่ง:**
+  ```text
+  @skill-debug ผู้ใช้กดรับกล่องรางวัลแล้วสถานะขึ้นโหลดค้าง ไม่มี error ใน console ช่วยตรวจสอบหาสาเหตุและแก้ไขให้หน่อย
+  ```
 
 ---
 
-## skill-learn
-
-ศูนย์รวมและจัดเก็บบันทึกองค์ความรู้ เทคนิคเฉพาะทาง (Tech Quirks) และแนวทางแก้ปัญหาของระบบ
-
-**ใช้เมื่อ:**
-
-* แก้ปัญหาบั๊กที่ซับซ้อนสำเร็จ และต้องการบันทึก Root Cause ไว้ป้องกันเกิดซ้ำ
-* ค้นพบข้อจำกัด/วิธีรับมือกับบริการภายนอก เช่น Supabase Quota Limits, Discord API Timeouts หรือ Canvas Font Rendering
-* ต้องการสร้างเอกสาร Post-mortem หรือ Standard Operating Procedure (SOP) ประจำโปรเจกต์
-
-**ชื่อโฟลเดอร์:** `skill-learn`
-
-**เรียกใช้:**
-
-`@skill-learn`
+### 4️⃣ `@skill-review` — ตรวจสอบคุณภาพ ความปลอดภัย และควบคุมขอบเขต
+* **รวมความสามารถของ:** `skill-review-code` + `skill-discord-check` + `skill-supabase-check` + `skill-audit`
+* **หน้าที่:** ออดิตคุณภาพโค้ดแบบครบวงจรในรอบเดียว (Discord Safety, Supabase RLS/Egress, Logic Bugs, Memory Leaks) พร้อมทั้งประกาศชัดเจนว่าส่วนใดถือว่า **"Good Enough"** ให้หยุดแก้เพื่อป้องกัน Over-engineering
+* **เมื่อไหร่ควรใช้:**
+  - เขียนฟีเจอร์หรือแก้บั๊กเสร็จแล้ว และต้องการรีวิวความถูกต้องก่อน Push
+  - ต้องการประเมินความปลอดภัยและประสิทธิภาพของ Supabase queries
+  - รู้สึกว่ากำลังติดลูปแก้ไม่จบ ต้องการให้ออดิตและสั่งตัดจบ
+* **ตัวอย่างการสั่ง:**
+  ```text
+  @skill-review ช่วยรีวิวโค้ดระบบคาเฟ่ที่เพิ่งแก้ไป ตรวจดูว่ามีจุดเสี่ยงเรื่อง Timeout หรือ Egress รั่วไหลหรือไม่
+  ```
 
 ---
 
-## skill-logger
-
-จัดระเบียบและปรับแต่งข้อความ Terminal Console Log ในขณะเริ่มต้นรันบอทและระหว่างการทำงาน ให้เป็นรูปแบบ CLI Dashboard อ่านง่ายระดับมืออาชีพ
-
-**ใช้เมื่อ:**
-
-* ปรับแต่งข้อความ `console.log` ที่รบกวนหน้าจอให้เป็นระเบียบสวยงาม
-* บันทึกสถานะการทำงานของบอทแบ่งหมวดหมู่ (`[CORE]`, `[COMMANDS]`, `[CLEANUP]`, `[DATABASE]`, `[SECURITY]`, `[MODULE]`)
-* จัดการแสดงคำเตือน Supabase Egress Quota Exceeded แบบ Warning Banner สวยงาม
-
-**ชื่อโฟลเดอร์:** `skill-logger`
-
-**เรียกใช้:**
-
-`@skill-logger`
+### 5️⃣ `@skill-ship` — สรุปรายงานผลงานและเตรียมขึ้น Production
+* **รวมความสามารถของ:** `skill-summary` + `skill-pre-deploy`
+* **หน้าที่:** ด่านตรวจสุดท้ายก่อน Commit/Push ตรวจสอบว่าไม่มี Token หลุด หรือ console.log รก พร้อมสร้างการ์ดสรุปผลงานในรูปแบบ Discord Markdown สำหรับส่งให้ทีม และสร้าง Conventional Commit
+* **เมื่อไหร่ควรใช้:**
+  - เมื่อการทำงานเสร็จสมบูรณ์และพร้อมบันทึกลง Git
+  - ต้องการสรุปสั้นๆ เอาไปวางรายงานในเซิร์ฟเวอร์ Discord
+* **ตัวอย่างการสั่ง:**
+  ```text
+  @skill-ship ตรวจสอบความเรียบร้อยและสรุปรายงานสิ่งที่ทำวันนี้ให้ด้วย
+  ```
 
 ---
-skill-impact-analysis
-วิเคราะห์ผลกระทบแบบลูกโซ่และตรวจสอบความเชื่อมโยงของไฟล์ทั้งระบบ (Discord Bot, Database, Config และ Frontend bear-cafe-web) ก่อนและหลังการแก้ไขโค้ด
 
-ใช้เมื่อ:
+### 6️⃣ `@skill-learn` — คลังบันทึกความรู้และเทคนิคเฉพาะระบบ
+* **หน้าที่:** บันทึกข้อจำกัดเชิงเทคนิค (Technical Quirks), สาเหตุของปัญหาเฉพาะตัว (Post-mortem), และวิธีรับมือที่ค้นพบ เพื่ออัปเดตเข้าสู่ `KNOWLEDGE.md` ประจำโปรเจกต์
+* **เมื่อไหร่ควรใช้:**
+  - เมื่อแก้ปัญหาซับซ้อนสำเร็จ (เช่น ปัญหา Canvas ฟอนต์ไทยเบี้ยว, โควตา Supabase เต็ม)
+  - มีข้อตกลงใหม่ในการเขียนโค้ดที่ต้องการให้ AI จดจำในอนาคต
+* **ตัวอย่างการสั่ง:**
+  ```text
+  @skill-learn บันทึกวิธีแก้ปัญหา Canvas Font Noto Sans Thai ตกขอบลงในคลังความรู้
+  ```
 
-ต้องการเปลี่ยนชื่อตัวแปร, Game ID, Role ID, Custom ID, หรือแก้ Config Key ที่มีหลายไฟล์เรียกใช้
+---
 
-ปรับเปลี่ยน Database Schema, Supabase RPC หรือโครงสร้าง JSON ที่เชื่อมโยงระหว่าง Bot และ Web Dashboard
+## 🔄 ตารางเปรียบเทียบการรวม (Old Skills ➡️ New Core Skills)
 
-ต้องการให้ AI กวาดหาทุกไฟล์ที่เกี่ยวข้อง (Blast Radius) และอัปเดตไปพร้อมกันแบบ Synchronized เพื่อไม่ให้หน้าเว็บหรือบอตพัง
-
-ชื่อโฟลเดอร์: skill-impact-analysis
-
-เรียกใช้:
-
-@skill-impact-analysis
-
-วิธีสั่งงานร่วมกับ Antigravity IDE เพื่อไม่ให้เกิดการแก้ไฟล์เดียวทิ้งไว้
-เมื่อต้องการเปลี่ยนค่าหรือแก้ระบบที่มีความเชื่อมโยง ให้พิมพ์สั่งโดยเรียกใช้ @skill-impact-analysis นำหน้าเสมอ เช่น:
-
-@skill-impact-analysis ฉันต้องการเปลี่ยน Game ID จาก 1 เป็น 2 ช่วยสแกนหาไฟล์ที่เกี่ยวข้องทั้งหมดทั้งในฝั่ง bot, config, database และหน้าแสดงผลของ bear-cafe-web พร้อมทำ Checklist ให้ดูก่อนแก้
-
-AI จะหยุดการแก้แบบโดดเดี่ยว และกวาดค้นหาไฟล์ทั่วทั้ง Workspace เพื่อนำเสนอ Cross-System Impact Report ให้เห็นภาพรวมทั้งหมดก่อนเริ่มแก้ไขไฟล์พร้อมกันทุกจุด
+| หมวดหมู่เดิม (17 ทักษะ) | จัดเข้าสู่ Core Skill ใหม่ | ประโยชน์ที่ได้รับ |
+| :--- | :--- | :--- |
+| `skill-system-consult`<br/>`skill-inquire-refine`<br/>`skill-plan` | 👉 **`@skill-plan`** | ถาม-ตอบ-วิเคราะห์-เทียบทางเลือก และจบที่แผนงานในที่เดียว ไม่ต้องสั่งซ้ำซ้อน |
+| `skill-feature`<br/>`skill-refactor`<br/>`skill-analysis2` (impact)<br/>`skill-logger` | 👉 **`@skill-feature`** | พัฒนาหรือรีแฟกเตอร์พร้อมสแกน Blast Radius ข้ามไปเว็บทันที โค้ดไม่หลุดซิงก์ |
+| `skill-analyze-log`<br/>`skill-diagnose-system`<br/>`skill-fix-error` | 👉 **`@skill-debug`** | จบงานแก้บั๊กในคำสั่งเดียว ไม่ต้องแยกดู log ก่อนแล้วค่อยมาสั่งแก้ |
+| `skill-review-code`<br/>`skill-discord-check`<br/>`skill-supabase-check`<br/>`skill-audit` | 👉 **`@skill-review`** | รีวิวรวดเดียวทั้ง Discord + Database + Code Quality พร้อมบอกจุดที่ควรหยุดแตะ |
+| `skill-summary`<br/>`skill-pre-deploy` | 👉 **`@skill-ship`** | ได้การ์ดสรุปงานสำหรับ Discord ทันที พร้อมตรวจความปลอดภัยก่อน Git Push |
+| `skill-learn` | 👉 **`@skill-learn`** | เก็บรักษาองค์ความรู้และข้อจำกัดของระบบเป็นฐานข้อมูลกลาง |

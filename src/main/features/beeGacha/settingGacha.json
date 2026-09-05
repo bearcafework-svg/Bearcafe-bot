@@ -1,0 +1,97 @@
+{
+  "single_roll_price": 100,
+  "ten_roll_price": 900,
+  "pity_guarantee_ten_roll": "RARE",
+  "rarity_weights": {
+    "COMMON": 65,
+    "RARE": 25,
+    "EPIC": 8,
+    "LEGENDARY": 2
+  },
+  "rarity_colors": {
+    "COMMON": "#9E9E9E",
+    "RARE": "#2196F3",
+    "EPIC": "#9C27B0",
+    "LEGENDARY": "#FFD700"
+  },
+  "rarity_emojis": {
+    "COMMON": "⚪",
+    "RARE": "🔵",
+    "EPIC": "🟣",
+    "LEGENDARY": "🟡"
+  },
+  "cosmetics": [
+    {
+      "id": "hat_straw",
+      "name": "หมวกสานบังแดด",
+      "slot": "HAT",
+      "rarity": "COMMON",
+      "dust_value": 15,
+      "color": "#D7CCC8"
+    },
+    {
+      "id": "hat_cowboy",
+      "name": "หมวกคาวบอยสุดเท่",
+      "slot": "HAT",
+      "rarity": "RARE",
+      "dust_value": 40,
+      "color": "#8D6E63"
+    },
+    {
+      "id": "hat_crown",
+      "name": "มงกุฎราชาผึ้ง",
+      "slot": "HAT",
+      "rarity": "LEGENDARY",
+      "dust_value": 300,
+      "color": "#FFD700"
+    },
+    {
+      "id": "outfit_chef",
+      "name": "ชุดเชฟเบเกอรี",
+      "slot": "OUTFIT",
+      "rarity": "RARE",
+      "dust_value": 50,
+      "color": "#ECEFF1"
+    },
+    {
+      "id": "outfit_doctor",
+      "name": "ชุดคุณหมอฟันหวาน",
+      "slot": "OUTFIT",
+      "rarity": "RARE",
+      "dust_value": 50,
+      "color": "#E0F7FA"
+    },
+    {
+      "id": "outfit_knight",
+      "name": "ชุดเกราะอัศวินผึ้งน้อย",
+      "slot": "OUTFIT",
+      "rarity": "EPIC",
+      "dust_value": 120,
+      "color": "#78909C"
+    },
+    {
+      "id": "acc_glasses",
+      "name": "แว่นตากันแดดวิ้งๆ",
+      "slot": "ACCESSORY",
+      "rarity": "COMMON",
+      "dust_value": 15,
+      "color": "#37474F"
+    },
+    {
+      "id": "acc_wand",
+      "name": "คทาเวทมนตร์น้ำผึ้ง",
+      "slot": "ACCESSORY",
+      "rarity": "EPIC",
+      "dust_value": 150,
+      "color": "#BA68C8"
+    },
+    {
+      "id": "bg_garden",
+      "name": "ฉากหลังสวนดอกไม้คาเฟ่",
+      "slot": "BACKGROUND",
+      "rarity": "COMMON",
+      "dust_value": 20,
+      "color": "#81C784"
+    }
+  ]
+}

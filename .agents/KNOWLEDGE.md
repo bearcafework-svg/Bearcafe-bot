@@ -152,3 +152,53 @@ if (lastBotMsg) {
 - [`src/features/minigames/minigames.js`](file:///d:/bearcafe-bot/src/features/minigames/minigames.js)
 - [`src/services/contractNotifier.js`](file:///d:/bearcafe-bot/src/services/contractNotifier.js)
 
+---
+
+### 6. Standardized Discord Emojis & Custom IDs Knowledge System
+**Date:** 2026-09-02  
+**Domain:** Discord UI / Design System / Component V2  
+**Description:**  
+การจัดเก็บองค์ความรู้ Custom Emojis และ Custom IDs ประจำโปรเจกต์ เพื่ออ้างอิงนำไปใช้ในการออกแบบ Discord Components V2 และคำสั่งบอททุกระบบ
+
+**Rules & SOPs:**  
+1. **Custom Emojis Standard (`EMOJIS.md`):**  
+   - ใช้งานเอกสาร [`EMOJIS.md`](file:///d:/bearcafe-bot/EMOJIS.md) ในการค้นหา Custom Emoji, ID, Raw Format `<:name:id>` และคำแนะนำ Use-Case สำหรับจุดประสงค์ของ UI  
+   - ตัวอย่าง: `<:bee20000:1256669436350562355>` ใช้สำหรับหัวข้อหลัก (`###`), `<:strawberryv2:1520439075100688614>` ใช้สำหรับไอคอนคะแนนแต้ม, `<:cuteplant:1152834055528783872>` ใช้สำหรับตกแต่งท้ายข้อความ
+2. **Custom IDs Standard (`CUSTOM_IDS.md`):**  
+   - ใช้งานเอกสาร [`CUSTOM_IDS.md`](file:///d:/bearcafe-bot/CUSTOM_IDS.md) และโมดูล [`src/shared/customIdsAndEmojis.js`](file:///d:/bearcafe-bot/src/shared/customIdsAndEmojis.js) สำหรับอ้างอิง Prefix และ Naming Convention ของ Custom IDs ในทุกระบบ
+
+**Related Files:**  
+- [`EMOJIS.md`](file:///d:/bearcafe-bot/EMOJIS.md)
+- [`CUSTOM_IDS.md`](file:///d:/bearcafe-bot/CUSTOM_IDS.md)
+- [`src/shared/customIdsAndEmojis.js`](file:///d:/bearcafe-bot/src/shared/customIdsAndEmojis.js)
+
+---
+
+### 7. HealJai (ฮิลใจ) Project Scope & Two-Domain Guild Isolation SOP
+**Date:** 2026-09-04  
+**Domain:** Architecture / Guild Isolation / Multi-Project Routing  
+**Description:**  
+โปรเจกต์ **"ฮิลใจ" (HealJai)** เป็นระบบบริการและเมนูบำบัดจิตใจที่รันภายใต้โปรเซสบอทหลัก (Bear Cafe Bot) แต่แยกสภาพแวดล้อมออกจากเซิร์ฟเวอร์หลัก 100%
+
+**Rules & SOPs:**  
+1. **โฟลเดอร์ประจำโปรเจกต์ (Project Directory):**  
+   - เมื่อใดก็ตามที่ผู้ใช้งานพูดถึง **"ฮิลใจ"** หรือ **"HealJai"** การสร้างไฟล์, แก้ไขโค้ด, พัฒนาฟีเจอร์ หรือออกแบบคำสั่งทั้งหมด **ต้องทำที่ [`src/features/healJai`](file:///d:/bearcafe-bot/src/features/healJai) เท่านั้น**
+2. **การแยกเซิร์ฟเวอร์ (Two-Domain Isolation Architecture):**  
+   - **เซิร์ฟเวอร์ฮิลใจ (`HEALJAI_GUILD_ID = 1536199707922141254`):**
+     - คำสั่งของ Bear Cafe ทั้งหมด ทั้งคำสั่ง Prefix (`b!cafe`, `b!box`, `b!reset-*`) และ `/slash` ทั้งหมด **ต้องไม่แสดงและไม่ทำงาน**
+     - ได้รับการปกป้องโดย [`utils/guildFilter.js`](file:///d:/bearcafe-bot/utils/guildFilter.js) ในระดับ `client.emit` โดยอนุญาตเฉพาะ Event ของฮิลใจ (`heal_jai_*`, `b!reset-menu`, `b!heal`) เท่านั้น
+   - **เซิร์ฟเวอร์ Bear Cafe (`GUILD_ID = 1144251788493602848`):**
+     - คำสั่งและระบบของฮิลใจทั้งหมด (`b!reset-menu`, ปุ่มกด `heal_jai_*`) **ต้องไม่แสดงผลและไม่ทำงาน** ในเซิร์ฟเวอร์หลักนี้
+   - **บอทอาการิ (Akari Bot):**
+     - แยกออกจากฮิลใจโดยสิ้นเชิง โดยถูก Exclude ผ่าน `AKARI_EXCLUDED_GUILD_IDS`
+3. **Defense-in-Depth Guild Check:**  
+   - ภายใน Event Handlers ของ [`src/features/healJai/index.js`](file:///d:/bearcafe-bot/src/features/healJai/index.js) ต้องตรวจสอบ `if (guildId !== HEALJAI_GUILD_ID) return;` เสมอ
+
+**Related Files:**  
+- [`src/features/healJai/index.js`](file:///d:/bearcafe-bot/src/features/healJai/index.js)
+- [`utils/guildFilter.js`](file:///d:/bearcafe-bot/utils/guildFilter.js)
+- [`src/akari/filters/guildIgnoreFilter.js`](file:///d:/bearcafe-bot/src/akari/filters/guildIgnoreFilter.js)
+- [`config.js`](file:///d:/bearcafe-bot/config.js)
+
+
+

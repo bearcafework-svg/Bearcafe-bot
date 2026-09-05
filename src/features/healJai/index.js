@@ -8,13 +8,23 @@ const { trackUserDailyQuestProgress } = require("../dailyQuest");
 const FLAG_V2 = MessageFlags.IsComponentsV2 || 32768;
 const FLAG_EPHEMERAL = MessageFlags.Ephemeral || 64;
 
+const {
+  getMainAgreementPayload,
+  getFullTermsPayload,
+  getConsentSuccessPayload,
+} = require("./components/agreementPayloads");
+const { recordUserConsent } = require("./services/consentService");
+
 const CUSTOM_IDS = {
   OPEN_MENU: "heal_jai_open_menu",
+  VIEW_FULL_TERMS: "heal_jai_view_full_terms",
   ACCEPT_TERMS: "heal_jai_accept_terms",
   CANCEL_TICKET: "heal_jai_cancel_ticket",
 };
 
+const HEALJAI_GUILD_ID = process.env.HEALJAI_GUILD_ID || (config.healJai && config.healJai.guildId) || "1536199707922141254";
 const STAFF_ROLE_ID = (config.healJai && config.healJai.staffRoleId) || "1536208040582316032";
+const CONSENT_ROLE_ID = "1545271910328180777";
 const TIMEOUT_MS = (config.healJai && config.healJai.timeoutMinutes ? config.healJai.timeoutMinutes : 15) * 60 * 1000;
 
 let supabaseClient;
@@ -186,6 +196,9 @@ function setupHealJai(client) {
   client.on("messageCreate", async (message) => {
     if (message.author.bot) return;
 
+    // Defense-in-depth: ทำงานเฉพาะใน Guild ของ HealJai เท่านั้น
+    if (message.guildId && message.guildId !== HEALJAI_GUILD_ID) return;
+
     if (message.content.trim() === "b!reset-menu") {
       try {
         await message.channel.send(getMainMenuPayload());
@@ -198,8 +211,37 @@ function setupHealJai(client) {
     }
   });
 
-  // ── 2. Interaction Buttons ─────────────────────────────────────────
+  // ── 2. Interaction Listener (Slash Commands & Buttons) ────────────
   client.on("interactionCreate", async (interaction) => {
+    // Defense-in-depth: ทำงานเฉพาะใน Guild ของ HealJai เท่านั้น
+    if (interaction.guildId && interaction.guildId !== HEALJAI_GUILD_ID) return;
+
+    // ── 2.1 คำสั่ง Slash Command: /send-component ────────────────────
+    if (interaction.isChatInputCommand && interaction.isChatInputCommand() && interaction.commandName === "send-component") {
+      const chosenType = interaction.options.getString("ตัวเลือก") || interaction.options.getString("type");
+
+      if (chosenType === "agreement" || chosenType === "ข้อตกลง") {
+        try {
+          // ส่ง Component V2 ออกมาแบบไม่ติดกับคำสั่ง /slash (ส่งตรงเข้าห้อง)
+          await interaction.channel.send(getMainAgreementPayload());
+
+          // ตอบกลับแบบ Ephemeral สั้นๆ ให้ผู้สั่งการ
+          return interaction.reply({
+            content: "✅ ส่ง Component V2 (ข้อตกลง) เรียบร้อยแล้วค่ะ",
+            flags: FLAG_EPHEMERAL,
+          });
+        } catch (sendErr) {
+          console.error("[HealJai] Error sending agreement component:", sendErr);
+          return interaction.reply({
+            content: `❌ เกิดข้อผิดพลาดในการส่งข้อความ: ${sendErr.message}`,
+            flags: FLAG_EPHEMERAL,
+          });
+        }
+      }
+      return;
+    }
+
+    // ── 2.2 จัดการปุ่มกด (Buttons) ──────────────────────────────────
     if (!interaction.isButton()) return;
 
     const { customId, guild, member, user } = interaction;
@@ -299,7 +341,6 @@ function setupHealJai(client) {
         const noticeMsg = await newChannel.send(getNoticePayload());
 
         // บันทึกลง Supabase
-        trackUserDailyQuestProgress(user.id, "USE_HEALJAI", 1);
         if (supabase) {
           await supabase.from("heal_jai_tickets").insert({
             guild_id: guild.id,
@@ -340,37 +381,76 @@ function setupHealJai(client) {
       return;
     }
 
-    // ── 2.2 กดปุ่ม "ยอมรับเงื่อนไข" ─────────────────────────────────
+    // ── 2.2.1 กดปุ่ม "อ่านข้อตกลงฉบับเต็ม" ─────────────────────────
+    if (customId === CUSTOM_IDS.VIEW_FULL_TERMS) {
+      try {
+        return interaction.reply(getFullTermsPayload());
+      } catch (err) {
+        console.error("[HealJai] Error displaying full terms:", err);
+      }
+      return;
+    }
+
+    // ── 2.2.2 กดปุ่ม "ข้ามการอ่านและยินยอม" (ยอมรับเงื่อนไข) ─────────
     if (customId === CUSTOM_IDS.ACCEPT_TERMS) {
       try {
-        const channel = interaction.channel;
+        // 1. ตอบกลับผู้ใช้แบบเฉพาะ user (Ephemeral) ด้วย 2 Containers (การ์ดข้อตกลง + การ์ดบันทึกสำเร็จ)
+        await interaction.reply(getConsentSuccessPayload(user.id));
 
-        // ปรับ Permission ให้ส่งข้อความได้
-        await channel.permissionOverwrites.edit(user.id, {
-          SendMessages: true,
-          ViewChannel: true,
-          ReadMessageHistory: true,
-        });
-
-        // ลบ Notice payload
-        if (interaction.message && interaction.message.deletable) {
-          await interaction.message.delete().catch(() => {});
+        // 2. Add role: 1545271910328180777
+        let roleAssigned = false;
+        try {
+          if (member && member.roles) {
+            await member.roles.add(CONSENT_ROLE_ID);
+            roleAssigned = true;
+          }
+        } catch (roleErr) {
+          console.error("[HealJai] Error assigning consent role 1545271910328180777:", roleErr.message);
         }
 
-        // แท็ก Staff Role
-        await channel.send({
-          content: `<@&${STAFF_ROLE_ID}> 💖 **<@${user.id}> ยอมรับเงื่อนไขเรียบร้อยแล้วค่ะ!** ทีมงานเข้ามาดูแลได้เลยนะคะ`,
+        // 3. บันทึกข้อมูลลง new table (heal_jai_consents)
+        await recordUserConsent(supabase, {
+          guildId: guild.id,
+          userId: user.id,
+          version: "v1.0",
+          roleAssigned,
+          metadata: {
+            channel_id: interaction.channelId,
+            custom_id: customId,
+          },
         });
 
-        // ยกเลิก 15-min timer
-        clearAutoDeleteTimer(channel.id);
+        // 4. กรณีเป็นการกดยินยอมภายในห้อง Ticket ส่วนตัว ให้เปิดสิทธิ์ห้องและแท็กทีมงาน
+        const channel = interaction.channel;
+        if (channel) {
+          clearAutoDeleteTimer(channel.id);
 
-        // อัปเดต DB
-        if (supabase) {
-          await supabase
-            .from("heal_jai_tickets")
-            .update({ status: "accepted", updated_at: new Date().toISOString() })
-            .eq("channel_id", channel.id);
+          if (channel.permissionOverwrites) {
+            await channel.permissionOverwrites.edit(user.id, {
+              SendMessages: true,
+              ViewChannel: true,
+              ReadMessageHistory: true,
+            }).catch(() => {});
+          }
+
+          if (supabase) {
+            const { data: ticket } = await supabase
+              .from("heal_jai_tickets")
+              .select("*")
+              .eq("channel_id", channel.id)
+              .maybeSingle();
+
+            if (ticket && ticket.status === "pending") {
+              await channel.send({
+                content: `<@&${STAFF_ROLE_ID}> 💖 **<@${user.id}> ยอมรับเงื่อนไขเรียบร้อยแล้วค่ะ!** ทีมงานเข้ามาดูแลได้เลยนะคะ`,
+              }).catch(() => {});
+
+              await supabase
+                .from("heal_jai_tickets")
+                .update({ status: "accepted", updated_at: new Date().toISOString() })
+                .eq("channel_id", channel.id);
+            }
+          }
         }
       } catch (err) {
         console.error("[HealJai] Error processing accept terms:", err);
@@ -403,7 +483,60 @@ function setupHealJai(client) {
     }
   });
 
-  // ── 3. Recovery on Startup ───────────────────────────────────────
+  // ── 3. ลงทะเบียน Slash Command /send-component บนกิลด์ฮิลใจ ───────
+  async function registerHealJaiCommands() {
+    try {
+      let healJaiGuild = client.guilds.cache.get(HEALJAI_GUILD_ID);
+      if (!healJaiGuild && client.guilds && typeof client.guilds.fetch === "function") {
+        healJaiGuild = await client.guilds.fetch(HEALJAI_GUILD_ID).catch(() => null);
+      }
+
+      if (healJaiGuild) {
+        await healJaiGuild.commands.set([
+          {
+            name: "send-component",
+            description: "ส่ง Component V2 ไปยังห้องแชทปัจจุบัน (เฉพาะทีมงานฮิลใจ)",
+            options: [
+              {
+                name: "ตัวเลือก",
+                description: "เลือกประเภท Component V2 ที่ต้องการส่ง",
+                type: 3, // ApplicationCommandOptionType.String
+                required: true,
+                choices: [
+                  {
+                    name: "ข้อตกลง",
+                    value: "agreement",
+                  },
+                ],
+              },
+            ],
+          },
+        ]);
+        console.log(`[HealJai] ✅ Slash command /send-component synchronized on guild: ${healJaiGuild.name} (${healJaiGuild.id})`);
+      } else {
+        console.warn(`[HealJai] ⚠️ Could not find HealJai guild (${HEALJAI_GUILD_ID}) in cache or fetch. Slash commands not registered.`);
+      }
+    } catch (err) {
+      console.error("[HealJai] Error registering slash command:", err.message);
+    }
+  }
+
+  // ลงทะเบียนเมื่อบอทพร้อม
+  if (client.isReady && client.isReady()) {
+    registerHealJaiCommands();
+  } else {
+    client.once("clientReady", registerHealJaiCommands);
+  }
+
+  // ลงทะเบียนซ้ำอัตโนมัติหากบอทถูกเตะแล้วเชิญเข้ามาใหม่ (guildCreate)
+  client.on("guildCreate", async (guild) => {
+    if (guild.id === HEALJAI_GUILD_ID) {
+      console.log(`[HealJai] 📥 Bot joined HealJai guild (${guild.name}). Auto-registering slash commands...`);
+      await registerHealJaiCommands();
+    }
+  });
+
+  // ── 4. Recovery on Startup ───────────────────────────────────────
   client.once("clientReady", async () => {
     const supabase = getSupabase();
     if (!supabase) return;

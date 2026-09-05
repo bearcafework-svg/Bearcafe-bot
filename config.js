@@ -3,13 +3,12 @@
 // ===================================================
 
 module.exports = {
-  // รายชื่อ Guild IDs ที่ปฏิเสธไม่ให้ระบบทำงาน (เพื่อไม่ให้ทำงานชนกัน)
-  ignoredGuildIds: [
-    "1536199707922141254",
-  ],
+  // Guild IDs ประจำแต่ละโปรเจกต์
+  bearCafeGuildId: process.env.GUILD_ID || "1144251788493602848",
 
-  // ตั้งค่าสำหรับระบบ HealJai
+  // ตั้งค่าสำหรับระบบ HealJai (ฮิลใจ)
   healJai: {
+    guildId: process.env.HEALJAI_GUILD_ID || "1536199707922141254",
     staffRoleId: "1536208040582316032",
     timeoutMinutes: 15,
   },

@@ -1,12 +1,14 @@
 {
   "channel_id": "1524122838775238777",
   "roles": {
+    "premium_1h": "1383998275711012956",
     "premium_5h": "1520607360836435988",
     "premium_4h": "1520598680690884644",
     "premium_2h": "1520600682179199116"
   },
   "cooldown_ms": {
     "normal": 28800000,
+    "premium_1h": 3600000,
     "premium_5h": 18000000,
     "premium_4h": 14400000,
     "premium_2h": 7200000
@@ -29,7 +31,7 @@
     {
       "name": "Rare",
       "points": 250,
-      "rate": 50,
+      "rate": 65,
       "url": "https://cdn.discordapp.com/attachments/1524704267015819274/1524706442266021888/20260630_094223_0001.png?ex=6a50b907&is=6a4f6787&hm=7ded7a712674cffe0f6acd97a7d65297ac8e9eb1526f39956c055e58a1a5e793&"
     },
     {
@@ -41,7 +43,7 @@
     {
       "name": "Legendary",
       "points": 1000,
-      "rate": 0.99,
+      "rate": 5,
       "url": "https://cdn.discordapp.com/attachments/1524704267015819274/1524706442798698496/20260630_094223_0003.png?ex=6a50b907&is=6a4f6787&hm=5d77e70c673b2eb2a26a287d776032e77eb340f75cf204b9cd0736030649ec5e&"
     },
     {

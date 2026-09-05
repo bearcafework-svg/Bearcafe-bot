@@ -1,37 +1,45 @@
-# Skill: Feature Development (`skill-feature`)
+---
+name: skill-feature
+description: End-to-end feature development, refactoring, and cross-system sync skill. Guiding implementation from Schema to Service, Controller, and UI, while enforcing Cross-System Blast Radius checks between Discord Bot, Database, and bear-cafe-web.
+---
 
-## Objective
-To guide the end-to-end development of new features for the Bear Cafe Discord Bot. This skill ensures that new features are built consistently, securely, and efficiently, adhering to the project's architecture, database constraints (Supabase), and Discord UI standards.
+# Unified Feature Development & Refactoring (`skill-feature`)
 
-## Triggered When
-*   Developing a new Discord command or interaction.
-*   Implementing a new backend logic flow (e.g., Minigames, Point systems, Store).
-*   Integrating new database tables or Supabase RPCs.
+Use this skill when building new features, refactoring legacy spaghetti code, or modifying shared parameters/schemas across Discord Bot and Web Dashboard.
 
-## Execution Workflow
+## Core Directives
 
-### Phase 1: Database & Backend Planning (Supabase)
-1.  **Schema Design:** Define tables, columns, and foreign keys. Ensure Row Level Security (RLS) is considered if applicable.
-2.  **Quota & Egress Optimization:** 
-    *   Design queries to fetch *only* necessary columns.
-    *   Avoid N+1 query problems; use JOINs or Supabase RPCs (Stored Procedures) for complex aggregations.
-    *   Implement caching strategies for frequently accessed, rarely changing data to prevent "Egress Exceeded" or "All services are restricted" errors.
+### 1. Cross-System Blast Radius (Bot ↔ Web Sync)
+Before and during edits to any shared entity (e.g. Game IDs, Point Keys, Supabase Columns, or API types):
+- Scan both `bearcafe-bot` and `bear-cafe-web`.
+- Ensure changes are applied in sync so frontend dashboards and bot controllers never diverge.
+- Audit dead references and deprecated keys after editing.
 
-### Phase 2: Business Logic Isolation
-1.  **Service Layer:** Place heavy computational logic, math (e.g., gacha rates, point calculations), and direct database interactions in `src/features/<feature_name>/services/`.
-2.  **Decoupling:** Do not write business logic directly inside the Discord Interaction Handler.
+### 2. Clean Architecture & Separation of Concerns (SoC)
+- **Service Layer:** Put database queries, point calculations, and domain logic into `src/features/<feature>/services/`.
+- **Controller/Handler:** Interaction handlers must only parse input, invoke services, and pass results to the UI layer. Keep handlers lightweight.
+- **Payload Builders:** Extract UI builders into dedicated `payloadBuilder.js` files rather than inlining complex JSON inside handlers.
 
-### Phase 3: Discord Controller & Handler
-1.  **Event Handling:** Map the Discord interaction (Command, Button, Modal) to the appropriate service function.
-2.  **Safety First:** Always wrap interactions using the `discordSafety.js` helpers (`safeDeferReply`, `safeRespond`) to prevent the 3-second `10062 Unknown Interaction` timeout.
-3.  **Error Handling:** Implement `try-catch` blocks. Return user-friendly error messages using the Ephemeral V2 Flag (`flags: 32768 | 64`).
+### 3. Supabase Quota & Egress Protection
+- Always specify column projections: avoid `select *`.
+- Eliminate N+1 queries; use joins or RPCs.
+- Cache static or slow-changing configurations in-memory.
 
-### Phase 4: UI / Feedback Generation
-1.  **Components V2:** Use `skill-ui` guidelines to build the interface using `type: 17` containers.
-2.  **Canvas Assets:** If the feature requires dynamic imagery, implement `@napi-rs/canvas` generators utilizing the `Noto Sans Thai` font and Bear Cafe color palette.
+### 4. Discord Interaction Safety (Zero 10062 Guarantee)
+- For fast ephemeral replies: use `await safeRespond(interaction, { content, flags: 64 })`.
+- For heavy operations (Canvas rendering, database calls, or external APIs):
+  Call `await interaction.deferUpdate().catch(() => {})` or `await safeDeferReply(interaction)` within the first 500ms, then finalize with `interaction.editReply(...)`.
+
+### 5. Standardized Console Logging
+Format terminal logs using the unified project logger format:
+`[HH:mm:ss] <EMOJI> [<CATEGORY>] <MESSAGE>`
+Group batch operations (e.g. command registration or voice cleanups) rather than dumping individual lines.
+
+---
 
 ## Definition of Done (DoD)
-- [ ] Database queries are optimized for Supabase egress limits.
-- [ ] UI correctly implements Components V2 (No legacy Embeds for dashboards).
-- [ ] Interaction is protected against Discord timeouts.
-- [ ] Edge cases (e.g., user not found, insufficient points) are handled with Ephemeral UI messages.
+- [ ] Cross-system impact scanned (Discord Bot + Web Dashboard).
+- [ ] Database queries optimized for egress limits.
+- [ ] Interactions protected with `safeRespond` / `deferUpdate` against 10062 timeouts.
+- [ ] Business logic isolated in `services/`, UI isolated in payload builders.
+- [ ] Zero dangling references left across the repository.

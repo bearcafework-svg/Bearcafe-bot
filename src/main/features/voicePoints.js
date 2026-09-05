@@ -1,0 +1,208 @@
+const axios = require("axios");
+const crypto = require("crypto");
+const { isSupabaseQuotaError, shouldLogThrottledError } = require("../../../utils/errorThrottler");
+
+const EXCLUDED_CATEGORY_ID = "1524122689604816986";
+const HEARTBEAT_INTERVAL_MS = 15 * 60 * 1000;
+
+const webhookQueue = [];
+const recentWebhookEvents = new Map();
+let webhookProcessing = false;
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function setupVoicePoints(client) {
+  const webhookUrl = process.env.WEBHOOK_URL;
+  const voicePointsUrl = process.env.VOICE_POINTS_URL;
+  const voiceJoinTimes = new Map();
+
+  function getUserCountInChannel(guild, channelId) {
+    if (!channelId) return 0;
+    return guild.voiceStates.cache.filter(
+      (vs) => vs.channelId === channelId && !vs.member?.user?.bot
+    ).size;
+  }
+
+  async function sendWebhook(payload) {
+    if (!webhookUrl) return;
+
+    const key = `${payload.event}:${payload.data?.user_id}:${payload.data?.channel_id || "none"}`;
+    const now = Date.now();
+    const previous = recentWebhookEvents.get(key);
+    recentWebhookEvents.set(key, now);
+    for (const [eventKey, timestamp] of recentWebhookEvents) {
+      if (now - timestamp > 10000) recentWebhookEvents.delete(eventKey);
+    }
+    if (previous && now - previous < 3000) return;
+
+    webhookQueue.push(payload);
+    processWebhookQueue().catch((err) => {
+      console.error("[voice-points] webhook queue:", err.message);
+    });
+  }
+
+  async function processWebhookQueue() {
+    if (webhookProcessing) return;
+    webhookProcessing = true;
+
+    while (webhookQueue.length > 0) {
+      const payload = webhookQueue.shift();
+      await postWebhook(payload);
+      await delay(350);
+    }
+
+    webhookProcessing = false;
+  }
+
+  async function postWebhook(payload, attempt = 0) {
+    try {
+      if (payload.isPointsApi && voicePointsUrl) {
+        // Use voice points API
+        const res = await axios.post(voicePointsUrl, payload.data, { timeout: 10000 });
+        const data = res.data;
+        if (data.skipped) {
+          console.log(`[voice-points] ${payload.data.userId} skipped: ${data.reason}`);
+        } else {
+          console.log(`[voice-points] ${payload.data.userId} +${data.earned} pts`);
+        }
+      } else if (webhookUrl) {
+        // Use webhook URL
+        await axios.post(webhookUrl, payload, { timeout: 10000 });
+      }
+    } catch (err) {
+      const status = err.response?.status;
+      const responseData = err.response?.data;
+      const errorCode = responseData?.code;
+      const isDegraded = errorCode === "SUPABASE_EDGE_RUNTIME_SERVICE_DEGRADED" || (typeof responseData?.message === "string" && responseData.message.includes("Service is temporarily unavailable"));
+
+      const isQuota = isSupabaseQuotaError(err) || isSupabaseQuotaError(responseData);
+      // Retry on 429 (Rate Limit), network timeouts, 5xx server errors, or Supabase Degraded status
+      const isRetryable = !isQuota && (status === 429 || !status || status >= 500 || isDegraded);
+
+      const retryAfterSeconds = Number(responseData?.retry_after);
+      const retryWaitMs = Number.isFinite(retryAfterSeconds)
+        ? Math.ceil(retryAfterSeconds * 1000)
+        : Math.min(1000 * Math.pow(2, attempt) + Math.floor(Math.random() * 500), 10000);
+
+      if (isRetryable && attempt < 3) {
+        console.warn(`[voice-points] Webhook attempt ${attempt + 1}/3 failed (${status || errorCode || err.message}). Retrying in ${retryWaitMs}ms...`);
+        await delay(retryWaitMs);
+        return await postWebhook(payload, attempt + 1);
+      }
+
+      const { shouldLog, message } = shouldLogThrottledError("voice_points_webhook", responseData ?? err.message, 5 * 60 * 1000);
+      if (shouldLog) {
+        console.error("[voice-points] webhook:", message);
+      }
+    }
+  }
+
+  async function awardVoicePoints(userId, durationSeconds, userCount, channelName, parentId) {
+    if (!voicePointsUrl) return;
+    if (parentId === EXCLUDED_CATEGORY_ID) return;
+
+    const eventId = `voice-${userId}-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`;
+    
+    // Add to webhook queue for rate limiting
+    webhookQueue.push({
+      event: "AWARD_VOICE_POINTS",
+      data: {
+        eventId,
+        userId,
+        duration: durationSeconds,
+        userCount,
+        channelName,
+      },
+      isPointsApi: true,
+    });
+    processWebhookQueue().catch((err) => {
+      console.error("[voice-points] webhook queue:", err.message);
+    });
+  }
+
+  async function trackJoinState(guild) {
+    for (const [memberId, voiceState] of guild.voiceStates.cache) {
+      if (!voiceState.channelId || voiceState.member?.user?.bot) continue;
+      if (voiceJoinTimes.has(memberId)) continue;
+
+      voiceJoinTimes.set(memberId, {
+        joinedAt: Date.now(),
+        channelId: voiceState.channelId,
+        channelName: voiceState.channel?.name ?? null,
+        parentId: voiceState.channel?.parentId ?? null,
+      });
+
+      await sendWebhook({
+        event: "VOICE_STATE_UPDATE",
+        data: {
+          user_id: memberId,
+          channel_id: voiceState.channelId,
+          channel_name: voiceState.channel?.name ?? null,
+          guild_id: guild.id,
+        },
+      });
+    }
+  }
+
+  const { isIgnoredGuild } = require("../../../utils/guildFilter");
+
+  client.once("clientReady", async () => {
+    for (const guild of client.guilds.cache.values()) {
+      if (isIgnoredGuild(guild.id)) continue;
+      await trackJoinState(guild);
+    }
+  });
+
+  setInterval(async () => {
+    if (!client.isReady()) return;
+    for (const guild of client.guilds.cache.values()) {
+      if (isIgnoredGuild(guild.id)) continue;
+      await trackJoinState(guild);
+    }
+  }, HEARTBEAT_INTERVAL_MS);
+
+  client.on("voiceStateUpdate", async (oldState, newState) => {
+    if (oldState.channelId === newState.channelId) return;
+
+    const userId = newState.id;
+    const isBot = newState.member?.user?.bot ?? oldState.member?.user?.bot ?? false;
+    if (isBot) return;
+
+    if (oldState.channelId) {
+      const session = voiceJoinTimes.get(userId);
+      if (session) {
+        const durationSeconds = Math.floor((Date.now() - session.joinedAt) / 1000);
+        const userCount = getUserCountInChannel(oldState.guild, oldState.channelId) + 1;
+        const channelName = oldState.channel?.name ?? session.channelName ?? "ห้องพูดคุย";
+        const parentId = oldState.channel?.parentId ?? session.parentId ?? null;
+        await awardVoicePoints(userId, durationSeconds, userCount, channelName, parentId);
+      }
+      voiceJoinTimes.delete(userId);
+    }
+
+    if (newState.channelId) {
+      voiceJoinTimes.set(userId, {
+        joinedAt: Date.now(),
+        channelId: newState.channelId,
+        channelName: newState.channel?.name ?? null,
+        parentId: newState.channel?.parentId ?? null,
+      });
+    }
+
+    await sendWebhook({
+      event: "VOICE_STATE_UPDATE",
+      data: {
+        user_id: userId,
+        channel_id: newState.channelId || null,
+        channel_name: newState.channel?.name ?? null,
+        guild_id: newState.guild.id,
+      },
+    });
+  });
+
+  console.log("[voice-points] Module loaded successfully");
+}
+
+module.exports = { setupVoicePoints };

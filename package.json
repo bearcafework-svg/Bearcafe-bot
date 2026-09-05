@@ -5,9 +5,12 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
+    "akari": "node index-akari.js",
     "local": "node scripts/local-start.js",
     "preflight": "node scripts/preflight.js",
-    "dev": "node --watch index.js"
+    "dev": "node scripts/dev-both.js",
+    "dev:main": "node --watch index.js",
+    "dev:akari": "node --watch index-akari.js"
   },
   "engines": {
     "node": "20.x",

@@ -19,12 +19,32 @@ const logger = require("./utils/logger");
 const config = require("./config");
 const { startVoiceLogWorker } = require("./utils/voiceLogWorker");
 
-const isLocalFastStart = process.env.LOCAL_FAST_START === "true" || process.env.DISABLE_BACKGROUND_SERVICES === "true" || process.env.LOCAL_DEV === "true";
+const isDevMode = process.env.DEV_MODE === "true";
+const isLocalFastStart = isDevMode || process.env.LOCAL_FAST_START === "true" || process.env.DISABLE_BACKGROUND_SERVICES === "true" || process.env.LOCAL_DEV === "true";
 const supabaseEnvKeys = ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"];
 
-if (!process.env.BOT_TOKEN) {
-  console.error("[env] BOT_TOKEN is missing. Refusing to start so this project cannot accidentally use another bot token.");
+const activeBotToken = isDevMode
+  ? (process.env.SECONDARY_BOT_TOKEN || process.env.BOT_TOKEN)
+  : process.env.BOT_TOKEN;
+
+if (!activeBotToken) {
+  console.error("[env] BOT_TOKEN (or SECONDARY_BOT_TOKEN in DEV_MODE) is missing. Refusing to start.");
   process.exit(1);
+}
+
+const devAllowedFeatures = (process.env.DEV_FEATURES || "bees")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+if (isDevMode) {
+  console.log("=========================================================");
+  console.log("🛠️  [DEV SANDBOX MODE ACTIVATED]");
+  console.log("   - Running using SECONDARY_BOT_TOKEN (Zero-Downtime)");
+  console.log(`   - Allowed Channel IDs: ${process.env.DEV_CHANNEL_IDS || "ALL"}`);
+  console.log(`   - Active Features: ${devAllowedFeatures.join(", ")}`);
+  console.log("   - Voice state, General chat & unselected features are muted");
+  console.log("=========================================================");
 }
 
 const client = new Client({
@@ -97,6 +117,10 @@ setupFeature("dailyQuest", "./src/features/dailyQuest", "setupDailyQuest");
 
 
 function setupFeature(name, modulePath, setupName, requiredEnv = []) {
+  if (isDevMode && !devAllowedFeatures.includes(name)) {
+    return;
+  }
+
   const missing = requiredEnv.filter((key) => !process.env[key]);
   if (missing.length && isLocalFastStart) {
     console.warn(`[local] Skipping ${name}; missing ${missing.join(", ")}.`);
@@ -236,16 +260,19 @@ async function startupCleanup() {
 
 // ── จับ event เข้า/ออกห้อง Voice ─────────────────────────────────
 client.on("voiceStateUpdate", (oldState, newState) => {
+  if (isDevMode) return;
   voiceStateUpdate.execute(oldState, newState).catch(console.error);
 });
 
 client.on("messageCreate", async (message) => {
+  if (isDevMode) return;
   const handledRent = await handleRentHousePanelMessage(message).catch(console.error);
   if (handledRent) return;
   handleRoomPanel(message).catch(console.error);
 });
 
 client.on("interactionCreate", async (interaction) => {
+  if (isDevMode) return;
   const handledRoom = await handleRoomPanelInteraction(interaction).catch(console.error);
   if (handledRoom) return;
   await handleRentHousePanelInteraction(interaction).catch(console.error);
@@ -351,4 +378,4 @@ client.on("error", (e) => console.error("Discord client error:", e));
 process.on("unhandledRejection", (e) => console.error("Unhandled rejection:", e));
 
 // ── Login ──────────────────────────────────────────────────────────
-client.login(process.env.BOT_TOKEN);
+client.login(activeBotToken);

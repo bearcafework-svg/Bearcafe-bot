@@ -54,5 +54,68 @@
 
 ---
 
+## 🎨 คู่มือและชุด Prompt สำหรับสร้างภาพ Sprite Sheet (16-bit Pixel Art)
+
+สำหรับนำไปใช้กับ AI Image Generator (Midjourney v6, Niji 6, DALL-E 3, Stable Diffusion) เพื่อนำภาพไปตัดแยก (Slice) พัฒนาเกมต่อ:
+
+### 📌 กฎเหล็กของ Asset:
+1. **จัดวางเป็นตารางอย่างเป็นระเบียบ (Grid Layout):** เว้นระยะห่างเท่ากันทุกด้าน ไม่ซ้อน ไม่ติดกัน ไม่โดนตัดขอบ
+2. **พื้นหลังโปร่งใส (Transparent Background):** หรือพื้นหลังสีเรียบ เพื่อให้ไดคัทและนำไปใช้ใน Game Engine ง่าย
+3. **คุมสไตล์เดียวกันทั้งหมด:** ใช้สัดส่วนตัวกลม (Chubby Chibi), เส้นขอบ 1-pixel Dark Chocolate, ทิศทางแสงเฉียงบนซ้าย, และชุดสีเดียวกัน
+4. **เจ้าผึ้งสายลับ (Spy Bee):** เป็นลูกผสมผึ้งกับหมู (ตัวอ้วนกลมลายผึ้ง มีปีกผึ้ง หน้าตา/จมูก/หูเป็นหมูน้อยสีชมพู ใส่แว่นดำ)
+
+---
+
+### 📋 Master Prompt (คัดลอกไปใช้ได้ทันที)
+
+```text
+A retro 16-bit pixel art sprite sheet grid of cute chubby bee game characters for a 2D indie video game. Top-down / side-scroller RPG asset sheet.
+จัดวาง Assets เป็นตารางอย่างเป็นระเบียบ เว้นระยะห่างเท่ากัน ทุกชิ้นแยกออกจากกันชัดเจน ไม่ซ้อน ไม่ติดกัน ไม่ถูกตัดขอบ ไม่มีข้อความ โลโก้ หรือลายน้ำ ใช้พื้นหลังโปร่งใส เพื่อให้ง่ายต่อการตัดแยกและนำไปพัฒนาเกมต่อ
+Transparent background, isolated sprites, crisp pixel borders, no background shadows touching tile borders.
+
+Character breakdown by their exact game states:
+
+1. เจ้าผึ้งอ้วนตัวกลม - Chubby Worker Bee (3 states):
+   - [Spawn]: Flying happily carrying a juicy red strawberry.
+   - [Win]: Shocked expression, mouth wide open, strawberry is missing.
+   - [Lose]: Angry puffy red cheeks, stinging forward with a sharp stinger.
+
+2. นางพญาผึ้งอ้วนตัวกลม - Queen Bee (4 states):
+   - [Spawn]: Floating gracefully with a tiny sparkling golden crown and royal fluffy collar.
+   - [Win]: Shocked expression with hands on cheeks, gasping in disbelief.
+   - [Crown]: Dramatic crying tears as her precious crown gets stolen.
+   - [Lose]: Furious royal glare, swinging an angry stinging attack.
+
+3. เจ้าผึ้งแวมไพร์ - Vampire Bee (4 states):
+   - [Spawn]: Sleepy hovering with tiny cute bat wings, cozy sleepy eyes.
+   - [Awaken]: Glowing crimson eyes, spread bat wings, dark magic aura.
+   - [Win]: Grinning proudly with cute goofy little vampire fangs.
+   - [Lose]: Embarrassed chuckling face, blushing, scratching head with wing.
+
+4. เจ้าผึ้งสายลับ - Spy Pig-Bee Hybrid (5 states):
+   *Design: Adorable chubby round pig-bee hybrid, bee-striped round body with buzzing translucent bee wings, but with a cute pink pig face, floppy pig ears, round piggy snout, and cool black sunglasses.*
+   - [Spawn]: Sneaking stealthily in mid-air wearing black sunglasses, holding a 3-star badge.
+   - [Plus Point]: Chubby pig-bee lying lazily on back, happily offering fresh strawberries with tiny hooves.
+   - [Minus Point]: Drooling greedily from pig snout, happily munching on stolen strawberries.
+   - [Meme]: Striking a hilariously handsome anime bishounen pose, sparkly rose, cool smirk on pig face.
+   - [All Gone]: Sweating profusely with big panic sweat drops as all stars vanish.
+
+5. อาจารย์บีเรขา - Math Bee (2 states):
+   - [Spawn]: Floating proudly wearing oversized round glasses, holding a wooden ruler and blackboard chalk.
+   - [Win]: Joyfully dancing with confetti, waving an A+ score paper.
+
+Art Style & Technical Rules:
+- Authentic 16-bit SNES / Game Boy Advance pixel art aesthetic with crisp pixel clusters.
+- Exact same scale and chubby spherical proportions across all characters.
+- Consistent 1-pixel dark chocolate brown outline, uniform top-left light source.
+- Cohesive color palette: warm honeycomb yellow, pastel cream, strawberry red, soft piggy pink, and deep royal accents.
+- Perfectly spaced grid with wide empty margins between each sprite.
+- Strictly transparent background, no background artifacts, no anti-aliased translucent halo.
+- No text, no letters, no UI icons, no watermark, no signature. --ar 16:9 --v 6.0
+```
+
+---
+
 ## 📝 รายชื่อไฟล์สำหรับ Template ผึ้งตัวใหม่
 - [beeTemplate.json](file:///d:/bearcafe-bot/src/bees/beeTemplate.json) — ไฟล์แม่แบบ JSON สำหรับคัดลอกสร้างผึ้งลง Supabase DB
+- [settingBee.json](file:///d:/bearcafe-bot/src/bees/settingBee.json) — ไฟล์คอนฟิกระบบผึ้งหลัก

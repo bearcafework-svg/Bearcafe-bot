@@ -200,5 +200,54 @@ if (lastBotMsg) {
 - [`src/akari/filters/guildIgnoreFilter.js`](file:///d:/bearcafe-bot/src/akari/filters/guildIgnoreFilter.js)
 - [`config.js`](file:///d:/bearcafe-bot/config.js)
 
+---
 
+### 8. Discord Components V2 Rules & Constraints (`MESSAGE_CANNOT_USE_LEGACY_FIELDS_WITH_COMPONENTS_V2`)
+**Date:** 2026-09-06  
+**Domain:** Discord API / UI / Components V2  
+**Description of Issue:**  
+เมื่อส่งข้อความที่เปิดใช้งาน Components V2 (`flags: 32768` หรือ `MessageFlags.IsComponentsV2`) Discord จะปฏิเสธข้อความด้วย Error:
+`content[MESSAGE_CANNOT_USE_LEGACY_FIELDS_WITH_COMPONENTS_V2]: The 'content' field cannot be used when using MessageFlags.IS_COMPONENTS_V2` หรือ `Cannot have separator as last element in container`.
 
+**Root Cause:**  
+1. **ห้ามใช้ Top-level `content`:** ใน Discord Components V2 ข้อความทุกอย่างต้องอยู่ใน Text Component (`type: 10`) ภายใน Container (`type: 17`) เท่านั้น ไม่อนุญาตให้ใส่ฟิลด์ `content` ใน Payload ระดับนอกสุดเด็ดขาด
+2. **ห้ามมี Trailing Separator:** องค์ประกอบตัวสุดท้ายภายใน Container (`type: 17`) **ห้ามเป็น Separator/Divider (`type: 14`)** หากไม่มี ActionRow/Button มารองรับด้านล่าง ต้องไม่ใส่ Divider ปิดท้าย
+
+**Resolution & Standard Implementation:**  
+1. การแท็กผู้ใช้ (เช่น `<@userId>`) ให้ใส่ไว้ใน Text Component (`type: 10`) ภายใน Container เสมอ:
+```javascript
+// ❌ ผิด (ห้ามมี content ระดับนอกสุด):
+return {
+  content: `<@${userId}>`,
+  flags: FLAG_V2,
+  components: [{ type: 17, components: [...] }]
+};
+
+// ✅ ถูกต้อง:
+return {
+  flags: FLAG_V2,
+  components: [
+    {
+      type: 17,
+      components: [
+        { type: 14, divider: false },
+        {
+          type: 9,
+          components: [
+            {
+              type: 10,
+              content: `ยินดีด้วย <@${userId}> คุณได้รับรางวัลแล้ว!`
+            }
+          ]
+        }
+        // หากไม่มี ActionRow ด้านล่าง ห้ามใส่ { type: 14 } ปิดท้าย!
+      ]
+    }
+  ]
+};
+```
+
+**Related Files:**  
+- [`src/bees/beePayloads.js`](file:///d:/bearcafe-bot/src/bees/beePayloads.js)
+- [`src/main/bees/beePayloads.js`](file:///d:/bearcafe-bot/src/main/bees/beePayloads.js)
+- [`src/bees/index.js`](file:///d:/bearcafe-bot/src/bees/index.js)

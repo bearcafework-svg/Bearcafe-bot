@@ -578,7 +578,7 @@ async function handleBeeInteraction(interaction, client, supabase) {
 
   // 1. ปุ่ม "ผึ้งคืออะไร"
   if (interaction.customId === 'bee_info') {
-    return interaction.reply(beeInfoPayload());
+    return interaction.reply(beeInfoPayload()).catch(() => {});
   }
 
   // ปุ่ม "คลิกไม่ได้แล้ว" (สำหรับผึ้งบินกลับรังไปแล้ว)
@@ -586,7 +586,7 @@ async function handleBeeInteraction(interaction, client, supabase) {
     return interaction.reply({
       content: '## 🐝︲ปุ่มนี้ไม่สามารถคลิกได้แล้วค่ะ เนื่องจากผึ้งบินกลับรังไปแล้ว 𓂃',
       flags: FLAG_EPHEMERAL
-    });
+    }).catch(() => {});
   }
 
   // 2. ปุ่มของ เจ้าผึ้งสายลับ (spy_bee)
@@ -595,7 +595,7 @@ async function handleBeeInteraction(interaction, client, supabase) {
       return interaction.reply({
         content: '## ⏳︲กรุณารอสักครู่ กำลังเตรียมความพร้อมของดวงดาว . . . 𓂃',
         flags: FLAG_EPHEMERAL
-      });
+      }).catch(() => {});
     }
 
     const lastUnderscore = interaction.customId.lastIndexOf('_');
@@ -608,7 +608,7 @@ async function handleBeeInteraction(interaction, client, supabase) {
       memberRoles?.cache ? memberRoles.cache.has(id) : (Array.isArray(memberRoles) ? memberRoles.includes(id) : false)
     );
     if (isBlacklisted) {
-      return interaction.reply(blacklistPayload(interaction.user.id));
+      return interaction.reply(blacklistPayload(interaction.user.id)).catch(() => {});
     }
 
     // ดึงข้อมูล Session จาก Memory หรือ Supabase DB
@@ -646,7 +646,7 @@ async function handleBeeInteraction(interaction, client, supabase) {
       return interaction.reply({
         content: '## 🐝︲เจ้าผึ้งตัวนี้บินกลับรังไปแล้วค่ะ! เนื่องจากไม่มีการตอบสนองภายใน 15 นาที 𓂃',
         flags: FLAG_EPHEMERAL
-      });
+      }).catch(() => {});
     }
 
     // หากไม่พบ session หรือดาวหมดแล้ว
@@ -654,7 +654,7 @@ async function handleBeeInteraction(interaction, client, supabase) {
       return interaction.reply({
         content: '## ⭐︲ดาวของเจ้าผึ้งรอบนี้ถูกเก็บไปหมดแล้วค่ะ! รอสุ่มรอบถัดไปน้า 𓂃',
         flags: FLAG_EPHEMERAL
-      });
+      }).catch(() => {});
     }
 
     const userId = interaction.user.id;
@@ -664,7 +664,7 @@ async function handleBeeInteraction(interaction, client, supabase) {
       return interaction.reply({
         content: `## <:bear7:1148271118709436416>︲<@${userId}> นี่ เธอเก็บดาวไปแล้วนะ แบ่งคนอื่นบ้างสิ!`,
         flags: FLAG_EPHEMERAL
-      });
+      }).catch(() => {});
     }
 
     // เช็กว่าดาวดวงนี้ถูกเก็บไปหรือยัง
@@ -672,7 +672,7 @@ async function handleBeeInteraction(interaction, client, supabase) {
       return interaction.reply({
         content: '## ⭐︲ดาวดวงนี้มีคนเก็บไปแล้วค่ะ! ลองกดดวงอื่นดูน้า 𓂃',
         flags: FLAG_EPHEMERAL
-      });
+      }).catch(() => {});
     }
 
     // เคลมดาว
@@ -790,7 +790,7 @@ async function handleBeeInteraction(interaction, client, supabase) {
       return interaction.reply({
         content: '## ⏳︲กรุณารอสักครู่ กำลังเตรียมความพร้อมของโจทย์ . . . 𓂃',
         flags: FLAG_EPHEMERAL
-      });
+      }).catch(() => {});
     }
 
     const lastUnderscore = interaction.customId.lastIndexOf('_');
@@ -803,7 +803,7 @@ async function handleBeeInteraction(interaction, client, supabase) {
       memberRoles?.cache ? memberRoles.cache.has(id) : (Array.isArray(memberRoles) ? memberRoles.includes(id) : false)
     );
     if (isBlacklisted) {
-      return interaction.reply(blacklistPayload(interaction.user.id));
+      return interaction.reply(blacklistPayload(interaction.user.id)).catch(() => {});
     }
 
     // ดึงข้อมูล Session จาก Memory หรือ Supabase DB
@@ -839,7 +839,7 @@ async function handleBeeInteraction(interaction, client, supabase) {
       return interaction.reply({
         content: '## 🐝︲เจ้าผึ้งตัวนี้บินกลับรังไปแล้วค่ะ! เนื่องจากไม่มีการตอบสนองภายใน 15 นาที 𓂃',
         flags: FLAG_EPHEMERAL
-      });
+      }).catch(() => {});
     }
 
     // หากไม่พบ session หรือมีคนตอบถูกไปแล้ว
@@ -847,7 +847,7 @@ async function handleBeeInteraction(interaction, client, supabase) {
       return interaction.reply({
         content: '## 🐝︲ข้อนี้มีคนตอบถูกไปแล้วค่ะ! รอสุ่มรอบถัดไปน้า 𓂃',
         flags: FLAG_EPHEMERAL
-      });
+      }).catch(() => {});
     }
 
     const mathData = session.mathData;
@@ -856,7 +856,7 @@ async function handleBeeInteraction(interaction, client, supabase) {
       return interaction.reply({
         content: '## ⚠️︲ไม่พบตัวเลือกคำตอบนี้ค่ะ',
         flags: FLAG_EPHEMERAL
-      });
+      }).catch(() => {});
     }
 
     const userId = interaction.user.id;
@@ -869,7 +869,7 @@ async function handleBeeInteraction(interaction, client, supabase) {
         return interaction.reply({
           content: '## <a:bearg11:1396016056035840140>︲ค่อย ๆ ตอบนะคะคนเก่ง...',
           flags: FLAG_EPHEMERAL
-        });
+        }).catch(() => {});
       }
 
       // บันทึก Cooldown 7 วินาที
@@ -940,7 +940,7 @@ async function handleBeeInteraction(interaction, client, supabase) {
       memberRoles?.cache ? memberRoles.cache.has(id) : (Array.isArray(memberRoles) ? memberRoles.includes(id) : false)
     );
     if (isBlacklisted) {
-      return interaction.reply(blacklistPayload(interaction.user.id));
+      return interaction.reply(blacklistPayload(interaction.user.id)).catch(() => {});
     }
 
     // ดึงข้อมูล Session จาก Memory หรือ Supabase DB
@@ -974,7 +974,7 @@ async function handleBeeInteraction(interaction, client, supabase) {
       return interaction.reply({
         content: '## 🐝︲เจ้าผึ้งตัวนี้บินกลับรังไปแล้วค่ะ! เนื่องจากไม่มีการตอบสนองภายใน 15 นาที 𓂃',
         flags: FLAG_EPHEMERAL
-      });
+      }).catch(() => {});
     }
 
     // หากไม่พบ session หรือมีคนเก็บผึ้งตัวนี้ไปแล้ว
@@ -982,13 +982,16 @@ async function handleBeeInteraction(interaction, client, supabase) {
       return interaction.reply({
         content: '## 🐝︲เจ้าผึ้งตัวนี้ถูกจับไปแล้วค่ะ! รอสุ่มรอบถัดไปน้า 𓂃',
         flags: FLAG_EPHEMERAL
-      });
+      }).catch(() => {});
     }
 
     // ทำการล็อค Session ป้องกันการกดพร้อมกัน และลบ session ใน DB
     session.claimed = true;
     activeSessions.delete(customId);
     await clearActiveBeeSession(interaction.channelId);
+
+    // ตอบรับ Interaction ทันทีเพื่อป้องกัน 3s Timeout / 10062 Unknown Interaction
+    await interaction.deferUpdate().catch(() => {});
 
     const userId = interaction.user.id;
     const beeConfig = session.beeConfig;

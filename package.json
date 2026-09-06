@@ -9,8 +9,8 @@
     "local": "node scripts/local-start.js",
     "preflight": "node scripts/preflight.js",
     "dev": "node scripts/dev-both.js",
-    "dev:main": "node --watch index.js",
-    "dev:akari": "node --watch index-akari.js"
+    "dev:main": "nodemon index.js",
+    "dev:akari": "nodemon index-akari.js"
   },
   "engines": {
     "node": "20.x",
@@ -25,5 +25,8 @@
     "dotenv": "^16.4.5",
     "google-tts-api": "^2.0.2",
     "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
   }
 }

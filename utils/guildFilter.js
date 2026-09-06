@@ -117,6 +117,33 @@ function extractGuildIdFromArgs(args) {
 }
 
 /**
+ * ดึง ChannelID จากอาร์กิวเมนต์ของ event
+ * @param {Array} args 
+ * @returns {string|null}
+ */
+function extractChannelIdFromArgs(args) {
+  if (!args || args.length === 0) return null;
+
+  for (const arg of args) {
+    if (!arg) continue;
+
+    if (typeof arg.channelId === "string" && arg.channelId) {
+      return arg.channelId;
+    }
+
+    if (arg.channel && typeof arg.channel.id === "string" && arg.channel.id) {
+      return arg.channel.id;
+    }
+
+    if (typeof arg.id === "string" && arg.id && (arg.constructor?.name === "TextChannel" || arg.constructor?.name === "VoiceChannel" || arg.type !== undefined)) {
+      return arg.id;
+    }
+  }
+
+  return null;
+}
+
+/**
  * ค้นหา Guild ที่ได้รับอนุญาตจาก client.guilds.cache
  * @param {import('discord.js').Client} client 
  * @param {string} [targetGuildId] 
@@ -184,6 +211,28 @@ function setupGuildFilter(client) {
   const originalEmit = client.emit;
 
   client.emit = function (eventName, ...args) {
+    // ── DEV SANDBOX RESTRICTION ─────────────────────────────────────
+    if (process.env.DEV_MODE === "true") {
+      // 1. Mute all voice state updates to prevent voice points collision with prod
+      if (eventName === "voiceStateUpdate") {
+        return false;
+      }
+
+      // 2. Channel-scoped check for message & interaction events
+      const devChannels = (process.env.DEV_CHANNEL_IDS || "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      if (devChannels.length > 0) {
+        const channelId = extractChannelIdFromArgs(args);
+        // If event is tied to a specific channel and that channel is not in whitelist, drop it!
+        if (channelId && !devChannels.includes(channelId)) {
+          return false;
+        }
+      }
+    }
+
     const guildId = extractGuildIdFromArgs(args);
     if (guildId) {
       const cleanGuildId = String(guildId).trim();
@@ -219,6 +268,9 @@ function setupGuildFilter(client) {
   console.log(`🛡️ [GuildFilter] Two-Domain Isolation Router พร้อมทำงาน:`);
   console.log(`   ☕ Bear Cafe Guild : ${BEARCAFE_GUILD_ID}`);
   console.log(`   💚 HealJai Guild   : ${HEALJAI_GUILD_ID}`);
+  if (process.env.DEV_MODE === "true") {
+    console.log(`   🛠️ Dev Sandbox     : Channel-scoped to ${process.env.DEV_CHANNEL_IDS || "ALL"}`);
+  }
 }
 
 module.exports = {
@@ -229,6 +281,7 @@ module.exports = {
   isIgnoredGuild,
   isHealJaiEvent,
   extractGuildIdFromArgs,
+  extractChannelIdFromArgs,
   getValidGuild,
   setupGuildFilter,
 };

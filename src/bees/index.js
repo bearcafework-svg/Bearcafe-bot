@@ -175,7 +175,7 @@ function setupBees(client) {
             return interaction.reply({
               content: '## ⚠️︲เฉพาะ Staff ของคาเฟ่หมีเท่านั้นที่สามารถใช้คำสั่งนี้ได้ค่ะ',
               flags: 64
-            });
+            }).catch(() => {});
           }
 
           const requestedBeeId = interaction.options.getString('bee_id');
@@ -185,7 +185,7 @@ function setupBees(client) {
           await interaction.reply({
             content: `## 🐝︲กำลังปล่อยเจ้าผึ้ง (${requestedBeeId || 'สุ่มอัตโนมัติ'})${targetChannel ? ` ลงในช่อง <#${targetChannel.id}>` : ' ลงในสวน'} เรียบร้อยแล้วค่ะ!`,
             flags: 64
-          });
+          }).catch(() => {});
 
           await spawnBee(client, requestedBeeId, targetChannelId);
           return;
@@ -197,7 +197,7 @@ function setupBees(client) {
             return interaction.reply({
               content: '## ⚠️︲เฉพาะ Staff ของคาเฟ่หมีเท่านั้นที่สามารถใช้คำสั่งนี้ได้ค่ะ',
               flags: 64
-            });
+            }).catch(() => {});
           }
 
           const setting = getSettingBee();
@@ -227,7 +227,7 @@ function setupBees(client) {
                 ]
               }
             ]
-          });
+          }).catch(() => {});
         }
 
         // 3. คำสั่ง /test_bee (สำหรับทดสอบพรีวิว UI หรือปล่อยผึ้งมาเล่นจริง)
@@ -236,7 +236,7 @@ function setupBees(client) {
             return interaction.reply({
               content: '## ⚠️︲เฉพาะ Staff ของคาเฟ่หมีเท่านั้นที่สามารถใช้คำสั่งนี้ได้ค่ะ',
               flags: 64
-            });
+            }).catch(() => {});
           }
 
           const beeId = interaction.options.getString('bee_id');
@@ -253,7 +253,7 @@ function setupBees(client) {
             await interaction.reply({
               content: `## 🧪︲[โหมดทดสอบ] กำลังปล่อย **${beeConfig.name}** ออกมาให้กดทดสอบในห้องนี้ค่ะ!`,
               flags: 64
-            });
+            }).catch(() => {});
             await spawnBee(client, beeId, interaction.channelId);
             return;
           }
@@ -262,7 +262,7 @@ function setupBees(client) {
           await interaction.reply({
             content: `## 🎨︲[โหมดพรีวิว] กำลังแสดงผล UI สถานะต่างๆ ของ **${beeConfig.name}** ในห้องนี้ค่ะ!`,
             flags: 64
-          });
+          }).catch(() => {});
 
           const channel = interaction.channel;
           if (!channel) return;

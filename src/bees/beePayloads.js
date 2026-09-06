@@ -1080,11 +1080,11 @@ function buildSpyBeeRewardPayload(beeConfig, userId, rewardType, rewardData, gar
     {
       type: 12,
       items: [{ media: { url: bottomBgUrl } }]
-    },
-    { type: 14, divider: true, spacing: 2 }
+    }
   ];
 
   if (actionRowComponents.length > 0) {
+    innerComponents.push({ type: 14, divider: true, spacing: 2 });
     innerComponents.push({
       type: 1,
       components: actionRowComponents
@@ -1092,7 +1092,6 @@ function buildSpyBeeRewardPayload(beeConfig, userId, rewardType, rewardData, gar
   }
 
   return {
-    content: `<@${userId}>`,
     flags: FLAG_V2,
     components: [
       {
@@ -1116,7 +1115,6 @@ function buildSpyBeeQuestResultPayload(beeConfig, userId, questType, rewardPoint
     const bannerUrl = beeConfig?.quest_banner_url || "https://cdn.discordapp.com/attachments/1144675871798591569/1369788093682548837/27.png";
 
     return {
-      content: `<@${userId}>`,
       flags: FLAG_V2,
       components: [
         {
@@ -1131,7 +1129,7 @@ function buildSpyBeeQuestResultPayload(beeConfig, userId, questType, rewardPoint
                   content:
                     `## <:bear_star1:1152782839671169184>︲<@&${roleId}> *!*\n` +
                     `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${dialogueText}\n` +
-                    ` > (<:cuteplant:1152834055528783872>)⠀**__\`𝗂𝗇𝖿𝗈\`__** : ยินดีด้วย คุณได้รับยศอีเวนต์ถาวรเรียบร้อยแล้ว!`
+                    ` > (<:cuteplant:1152834055528783872>)⠀**__\`𝗂𝗇𝖿𝗈\`__** : ยินดีด้วย <@${userId}> คุณได้รับยศอีเวนต์ถาวรเรียบร้อยแล้ว!`
                 }
               ],
               accessory: {
@@ -1143,8 +1141,7 @@ function buildSpyBeeQuestResultPayload(beeConfig, userId, questType, rewardPoint
             {
               type: 12,
               items: [{ media: { url: bannerUrl } }]
-            },
-            { type: 14, divider: false, spacing: 2 }
+            }
           ]
         }
       ]
@@ -1156,7 +1153,6 @@ function buildSpyBeeQuestResultPayload(beeConfig, userId, questType, rewardPoint
     const bannerUrl = beeConfig?.quest_banner_url || "https://cdn.discordapp.com/attachments/1144675871798591569/1369788093682548837/27.png";
 
     return {
-      content: `<@${userId}>`,
       flags: FLAG_V2,
       components: [
         {
@@ -1171,7 +1167,7 @@ function buildSpyBeeQuestResultPayload(beeConfig, userId, questType, rewardPoint
                   content:
                     `## <:bee20000:1256669436350562355>︲__\` 𝖡𝖾𝖾 ₊ ${beeConfig?.name || 'เจ้าผึ้งสายลับ'} 𓂃 \`__\n` +
                     `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${dialogueText}\n` +
-                    ` > (${iconStr})⠀**__\`𝗋𝖾𝗐𝖺𝗋𝖽\`__** : เจ้าผึ้งสายลับคายสตรอเบอรี่ให้คุณ **+${rewardPoints}** ${iconStr}`
+                    ` > (${iconStr})⠀**__\`𝗋𝖾𝗐𝖺𝗋𝖽\`__** : เจ้าผึ้งสายลับคายสตรอเบอรี่ให้ <@${userId}> **+${rewardPoints}** ${iconStr}`
                 }
               ],
               accessory: {
@@ -1238,8 +1234,7 @@ function buildSpyBeeAllGonePayload(beeConfig, gardenUrl = null) {
           {
             type: 12,
             items: [{ media: { url: bgUrl } }]
-          },
-          { type: 14, divider: false, spacing: 2 }
+          }
         ]
       }
     ]

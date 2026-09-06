@@ -29,7 +29,6 @@
       "spawn_image_url": "https://cdn.discordapp.com/attachments/1448266116307877990/1448269341530521721/1.png",
       "win_image_url": "https://cdn.discordapp.com/attachments/1528780402544611348/1528782037371191336/bee1.png",
       "lose_image_url": "https://cdn.discordapp.com/attachments/1528780402544611348/1528805982757453975/bee1-2.png",
-      "poison_image_url": "https://cdn.discordapp.com/attachments/1528780402544611348/1528805982757453975/bee1-2.png",
       "dialogues": {
         "spawn": "(บินวนแถวสวนของคาเฟ่หมี) ว้าว~ สตรอเบอรี่แดงฉ่ำเลย! ต้องรีบเก็บน้ำหวานไปทำรังแล้ว~",
         "win": "(ตกใจ) ห๊ะ!? สตรอว์เบอร์รีหายไปไหน!? ใครกล้ามาขโมยของฉันเนี่ย!",
@@ -52,7 +51,6 @@
       "win_image_url": "https://cdn.discordapp.com/attachments/1448266116307877990/1448269345552863413/6.png",
       "crown_image_url": "https://cdn.discordapp.com/attachments/1448266116307877990/1448269346261438464/7.png",
       "lose_image_url": "https://cdn.discordapp.com/attachments/1448266116307877990/1448269344738906203/5.png",
-      "poison_image_url": "https://cdn.discordapp.com/attachments/1448266116307877990/1448269344738906203/5.png",
       "dialogues": {
         "spawn": "(บินโบยบินมาอย่างช้า ๆ เพราะตัวกลม ๆ หนัก ๆ) วันนี้แดดดีจัง ดอกไม้ก็บานเต็มทุ่ง… หอมจนจั๊กจี้จมูกแน่ะ ดีจังเลยน้า~ แบบนี้ต้องถือโอกาสออกมาหาน้ำหวานอร่อย ๆ สักหน่อยแล้ว~!",
         "win": "(ตกใจ) มะ…ไม่จริง… สตรอเบอรี่ของฉัน… น้ำหวานของรังเรา… ถูกใครขโมยไป…?",
@@ -73,10 +71,7 @@
       "button_delay_ms": 6000,
       "owner_id": "944920660759707658",
       "tips": "หากได้เป็นพันธมิตรกับเจ้าผึ้งแวมไพร์บอกเลยว่าคุ้ม!",
-      "spawn_image_url": "https://cdn.discordapp.com/attachments/1448266116307877990/1448269347301757041/8.png",
-      "win_image_url": "https://cdn.discordapp.com/attachments/1448266116307877990/1448269347301757041/8.png",
-      "lose_image_url": "https://cdn.discordapp.com/attachments/1448266116307877990/1448269347301757041/8.png",
-      "poison_image_url": "https://cdn.discordapp.com/attachments/1448266116307877990/1448269347301757041/8.png",
+      "image_url": "https://cdn.discordapp.com/attachments/1448266116307877990/1448269347301757041/8.png",
       "dialogues": {
         "spawn": "(บินหาเหยื่อ) ฮึๆ กลิ่นหวานๆ แบบนี้... ช่างเย้ายวนเหลือเกิน~ เจ้าน้ำผึ้งนี่... ไม่ต่างอะไรจากเลือดของดอกไม้เลยนะ หอมหวาน และน่าลิ้มลอง...",
         "awaken": "(กระซิบ) มาเถอะ...มาเป็นเหมือนข้าสิ สัมผัสรสของน้ำผึ้งที่ไม่ใช่แค่หวาน...แต่มันคือพลัง!",
@@ -136,7 +131,6 @@
       "button_delay_ms": 6000,
       "tips": "คณิตศาสตร์ไม่ยากอย่างที่คิด... ถ้าตอบถูกนะ!",
       "image_url": "https://cdn.discordapp.com/attachments/1448266116307877990/1448269349239525376/10.png",
-      "win_image_url": "https://cdn.discordapp.com/attachments/1448266116307877990/1448269349239525376/10.png",
       "dialogues": {
         "spawn": "(บินถือไม้บรรทัด) ไหนใครว่าวิชาคณิตยาก? ลองหาคำตอบของโจทย์ข้อนี้ดูสิ ถ้าตอบถูกรับสตรอเบอรี่ไปเลย! <:cuteplant:1152834055528783872>",
         "win": "(เต้นรอบตัวคุณ) เก่งมาก คุณคือผึ้งหน้าห้อง ผึ้งเด็กเรียนยังไงล่ะ! <:cuteplant:1152834055528783872>",

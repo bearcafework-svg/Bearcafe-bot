@@ -1,0 +1,29 @@
+{
+  "watch": [
+    "index.js",
+    "index-akari.js",
+    "src",
+    "handlers",
+    "events",
+    "utils",
+    "state",
+    "config.js"
+  ],
+  "ext": "js,json",
+  "ignore": [
+    "*.md",
+    "*.sql",
+    "*.txt",
+    "*.log",
+    ".git",
+    ".env",
+    "node_modules",
+    "data/**",
+    "logs/**",
+    ".gemini/**",
+    ".agents/**",
+    ".hermes/**",
+    "scratch/**"
+  ],
+  "delay": "2500"
+}

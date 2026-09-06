@@ -56,7 +56,7 @@ const GAME_DESCRIPTIONS = {
  * @param {import('discord.js').Client} client 
  */
 async function registerAkariCommands(client) {
-  client.once("ready", async () => {
+  client.once("clientReady", async () => {
     try {
       if (!client.application) return;
 

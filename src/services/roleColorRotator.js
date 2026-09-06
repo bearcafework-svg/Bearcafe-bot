@@ -163,7 +163,7 @@ function setupRoleColorRotator(client) {
   if (client.isReady()) {
     startSchedule();
   } else {
-    client.once("ready", startSchedule);
+    client.once("clientReady", startSchedule);
   }
 }
 

@@ -666,7 +666,7 @@ function setupAkariMinigames(client, supabase) {
   if (client.isReady && typeof client.isReady === 'function' && client.isReady()) {
     onReady();
   } else {
-    client.once('ready', onReady);
+    client.once('clientReady', onReady);
   }
 
   // ── Event listener: ดักฟังเมื่อมีการลบช่องใน Discord (Channel Delete Self-Healing) ──

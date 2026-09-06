@@ -51,7 +51,7 @@ const client = new Client({
     GatewayIntentBits.DirectMessages,
   ],
 });
-client.setMaxListeners(30);
+client.setMaxListeners(50);
 
 // 3. ติดตั้ง Guild Ignore Filter (ปฏิเสธการตอบสนองทุกชนิดต่อ Bear Cafe Main Guild ID)
 setupAkariGuildFilter(client);
@@ -103,7 +103,7 @@ client.on("interactionCreate", async (interaction) => {
 });
 
 // 7. clientReady Event
-client.once("ready", () => {
+client.once("clientReady", () => {
   console.log(`🏮 Akari Public Bot "${client.user.tag}" พร้อมใช้งานแล้ว! (ID: ${client.user.id})`);
 
   client.user.setPresence({

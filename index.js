@@ -58,7 +58,7 @@ const client = new Client({
     GatewayIntentBits.DirectMessages,
   ],
 });
-client.setMaxListeners(30);
+client.setMaxListeners(50);
 
 const { setupGuildFilter, getValidGuild } = require("./utils/guildFilter");
 setupGuildFilter(client);

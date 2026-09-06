@@ -4,7 +4,7 @@
  * แล้วส่งสรุปแจ้งเตือนทีมงานเป็น Discord Component V2 เข้าห้อง Staff
  */
 
-const STAFF_CHANNEL_ID = "1524123372210880664";
+const STAFF_CHANNEL_ID = "1546141748508758117";
 const STAFF_ROLE_IDS = ["1144697989986791576", "1144698080239829092"];
 const WELCOME_CHANNEL_URL = "https://discord.com/channels/1144251788493602848/1524124134387224828";
 const BATCH_TIMEOUT_MS = 15000; // 15 วินาที

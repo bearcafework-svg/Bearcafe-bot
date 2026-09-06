@@ -220,7 +220,7 @@ module.exports = [
     id: "FEATURE-02",
     category: "FEATURE",
     title: "เปิดไพ่ให้ตัวเอง",
-    description: "ใช้คำสั่งเช็คดวง / เปิดไพ่ประจำวัน",
+    description: "ใช้คำสั่งเช็กดวง / เปิดไพ่ประจำวัน",
     targetCount: 1,
     unit: "ครั้ง",
     rewardPoints: 15,

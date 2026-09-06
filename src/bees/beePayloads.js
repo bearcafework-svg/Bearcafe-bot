@@ -1031,7 +1031,7 @@ function buildSpyBeeRewardPayload(beeConfig, userId, rewardType, rewardData, gar
     actionRowComponents.push({
       style: 5,
       type: 2,
-      label: "︲เช็คแต้มของคุณ",
+      label: "︲เช็กแต้มของคุณ",
       emoji: { id: "1522154708200849449", name: "bagpack_icon", animated: false },
       url: "https://discord.com/channels/1144251788493602848/1524123727724417276"
     });
@@ -1043,7 +1043,7 @@ function buildSpyBeeRewardPayload(beeConfig, userId, rewardType, rewardData, gar
     actionRowComponents.push({
       style: 5,
       type: 2,
-      label: "︲เช็คแต้มของคุณ",
+      label: "︲เช็กแต้มของคุณ",
       emoji: { id: "1522154708200849449", name: "bagpack_icon", animated: false },
       url: "https://discord.com/channels/1144251788493602848/1524123727724417276"
     });
@@ -1187,7 +1187,7 @@ function buildSpyBeeQuestResultPayload(beeConfig, userId, questType, rewardPoint
                 {
                   style: 5,
                   type: 2,
-                  label: "︲เช็คแต้มของคุณ",
+                  label: "︲เช็กแต้มของคุณ",
                   emoji: { id: "1522154708200849449", name: "bagpack_icon", animated: false },
                   url: "https://discord.com/channels/1144251788493602848/1524123727724417276"
                 }
@@ -1381,7 +1381,7 @@ function buildMathBeeWinPayload(beeConfig, userId, mathData, gardenUrl = null) {
               {
                 type: 2,
                 style: 5,
-                label: "︲เช็คแต้มของคุณ",
+                label: "︲เช็กแต้มของคุณ",
                 emoji: { id: "1522154708200849449", name: "bagpack_icon", animated: false },
                 url: "https://discord.com/channels/1144251788493602848/1524123727724417276"
               },

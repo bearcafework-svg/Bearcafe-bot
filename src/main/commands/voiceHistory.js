@@ -429,36 +429,7 @@ function buildVoiceHistoryPayload(targetUser, retrievedLogs, period, page, calle
  * @param {Client} client 
  */
 function setupVoiceHistory(client) {
-  // 1. ลงทะเบียน Slash Command
-  client.once("clientReady", async () => {
-    try {
-      const { getValidGuild } = require("../../utils/guildFilter");
-      const guildId = process.env.GUILD_ID || "1144251788493602848";
-      const guild = getValidGuild(client, guildId);
-
-      if (guild) {
-        await guild.commands.create({
-          name: "ประวัติลงห้อง",
-          description: "ตรวจสอบประวัติห้องคุยเสียงของวันนี้",
-          options: [
-            {
-              name: "user",
-              description: "เลือกสมาชิกที่ต้องการตรวจสอบ (เว้นว่างเพื่อตรวจสอบตัวเอง)",
-              type: 6, // USER
-              required: false
-            }
-          ]
-        });
-        console.log(`[voiceHistory] Command /ประวัติลงห้อง registered on guild ${guild.name}.`);
-      } else {
-        console.warn("[voiceHistory] No guild found for slash command registration.");
-      }
-    } catch (err) {
-      console.error("[voiceHistory] Failed to register slash command:", err.message);
-    }
-  });
-
-  // 2. จัดการ Event Interaction
+  // จัดการ Event Interaction (Slash command ลงทะเบียนรวมที่ slashCommandRegistry)
   client.on(Events.InteractionCreate, async (interaction) => {
     // ── 2.1 จัดการ Slash Command ──────────────────────────────────────
     if (interaction.isChatInputCommand() && interaction.commandName === "ประวัติลงห้อง") {

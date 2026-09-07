@@ -538,31 +538,7 @@ function setupMinigames(client) {
     // 2. Restore active game sessions from Supabase Database
     await restoreActiveSessions(supabase);
 
-    // 3. Register slash command /เปิดเกม
-    try {
-      const guild = client.guilds.cache.get('1144251788493602848');
-      if (guild) {
-        await guild.commands.create({
-          name: 'เปิดเกม',
-          description: 'เปิดใช้งานมินิเกมประจำช่อง (สำหรับผู้ดูแลระบบ)',
-          options: [
-            {
-              name: 'เกม',
-              description: 'เลือกชื่อมินิเกม 1-12',
-              type: 4, // INTEGER
-              required: true,
-              choices: Object.entries(GAME_CHANNELS).map(([id, info]) => ({
-                name: `${id}. ${info.name}`,
-                value: parseInt(id, 10)
-              }))
-            }
-          ]
-        });
-        console.log('[minigames] Command /เปิดเกม registered on guild.');
-      }
-    } catch (e) {
-      console.error('[minigames] Failed to register command /เปิดเกม:', e.message);
-    }
+    // (Slash command /เปิดเกม ลงทะเบียนรวมที่ slashCommandRegistry)
 
     // 4. Background Health Check Keeper: Automatically heal games every 5 minutes if missing active session
     setInterval(async () => {

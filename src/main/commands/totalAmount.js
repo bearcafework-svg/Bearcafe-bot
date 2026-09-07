@@ -122,43 +122,7 @@ function buildBillingMessage(userId, amount, channelId) {
  * @param {Client} client 
  */
 function setupTotalAmount(client) {
-  // 1. ลงทะเบียน Slash Command เมื่อบอทพร้อม
-  client.once("clientReady", async () => {
-    try {
-      const { getValidGuild } = require("../../utils/guildFilter");
-      const guildId = process.env.GUILD_ID || "1144251788493602848";
-      const guild = getValidGuild(client, guildId);
-      
-      if (guild) {
-        await guild.commands.create({
-          name: "ยอดรวม",
-          description: "คำนวณและแสดงยอดรวมสำหรับแจ้งชำระเงิน (เฉพาะทีมงาน)",
-          options: [
-            {
-              name: "user",
-              description: "เลือกผู้ใช้ที่ต้องการเรียกเก็บเงิน",
-              type: 6, // USER
-              required: true
-            },
-            {
-              name: "amount",
-              description: "จำนวนเงินที่ต้องชำระ (1 บาทขึ้นไป)",
-              type: 4, // INTEGER
-              required: true,
-              minValue: 1
-            }
-          ]
-        });
-        console.log(`[totalAmount] Command /ยอดรวม registered on guild ${guild.name} (${guild.id}).`);
-      } else {
-        console.warn("[totalAmount] No guild found for slash command registration.");
-      }
-    } catch (err) {
-      console.error("[totalAmount] Failed to register slash command:", err.message);
-    }
-  });
-
-  // 2. จัดการการทำงานของ Interactions
+  // จัดการการทำงานของ Interactions (Slash command ลงทะเบียนรวมที่ slashCommandRegistry)
   client.on(Events.InteractionCreate, async (interaction) => {
     // ── จัดการ Slash Command ──────────────────────────────────────────
     if (interaction.isChatInputCommand() && interaction.commandName === "ยอดรวม") {

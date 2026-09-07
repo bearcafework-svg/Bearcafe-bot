@@ -9,26 +9,7 @@ const cfg = require('./settingGacha.json');
 const COMMAND_NAME = 'gacha-bee';
 
 function setupBeeGacha(client) {
-  // ── A. Client Ready Event & Slash Command Registration ──────────────────
-  client.once('clientReady', async () => {
-    try {
-      const { getValidGuild } = require('../../../utils/guildFilter');
-      const guildId = process.env.GUILD_ID || '1144251788493602848';
-      const guild = getValidGuild(client, guildId);
-
-      if (guild) {
-        await guild.commands.create({
-          name: COMMAND_NAME,
-          description: '🐝 เปิดตู้สุ่มกาชาแต่งตัวผึ้งอ้วนและจัดการคลังชุดแต่งกาย'
-        });
-        console.log(`[beeGacha] Registered slash command /${COMMAND_NAME}`);
-      }
-    } catch (err) {
-      console.error('[beeGacha] Failed to register slash command:', err.message);
-    }
-  });
-
-  // ── B. Interaction Handler ──────────────────────────────────────────────
+  // ── B. Interaction Handler (Slash command ลงทะเบียนรวมที่ slashCommandRegistry) ──────────────────────────────────────────
   client.on('interactionCreate', async (interaction) => {
     try {
       // 1. Slash Command /gacha-bee

@@ -153,21 +153,7 @@ function setupMyPoints(client) {
     { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
   );
 
-  client.once('clientReady', async () => {
-    try {
-      const guild = client.guilds.cache.get('1144251788493602848');
-      if (guild) {
-        await guild.commands.create({
-          name: 'แต้มของฉัน',
-          description: 'ดูแต้มสะสมปัจจุบัน และสิทธิ์ในการแลกรางวัลต่าง ๆ'
-        });
-        console.log('[myPoints] Command /แต้มของฉัน registered on guild.');
-      }
-    } catch (e) {
-      console.error('[myPoints] Failed to register command:', e.message);
-    }
-  });
-
+  // จัดการการทำงานของ Interactions (Slash command ลงทะเบียนรวมที่ slashCommandRegistry)
   client.on('interactionCreate', async (interaction) => {
     if (interaction.isChatInputCommand() && interaction.commandName === 'แต้มของฉัน') {
       if (interaction.channelId !== '1524123727724417276') {

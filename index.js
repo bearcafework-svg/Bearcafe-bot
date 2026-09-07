@@ -8,6 +8,7 @@ const http = require("http");
 const { Client, GatewayIntentBits, ActivityType, Events } = require("discord.js");
 const { startMonitor } = require("./handlers/roomMonitor");
 const { destroyRoom } = require("./handlers/roomDestroyer");
+const { createRoom } = require("./handlers/roomCreator");
 const { handleRoomPanel, handleRoomPanelInteraction } = require("./handlers/roomPanel");
 const { handleRentHousePanelInteraction, handleRentHousePanelMessage } = require("./handlers/rentHousePanel");
 const { setupContractNotifier } = require("./src/services/contractNotifier");
@@ -15,6 +16,7 @@ const { setupBroadcastScheduler } = require("./src/services/broadcastScheduler")
 const voiceStateUpdate = require("./events/voiceStateUpdate");
 const { getAllRooms, getAllSeparators } = require("./state/redisClient");
 const { syncAllSeparators } = require("./utils/separatorManager");
+const { registerAllGuildCommands } = require("./src/commands/slashCommandRegistry");
 const logger = require("./utils/logger");
 const config = require("./config");
 const { startVoiceLogWorker } = require("./utils/voiceLogWorker");
@@ -131,39 +133,75 @@ function setupFeature(name, modulePath, setupName, requiredEnv = []) {
   feature[setupName](client);
 }
 
+// ── ฟังก์ชันช่วยซิงค์สถานะห้องเสียง Point x2 ───────────────────────
+function syncPointX2VoiceStatus(client) {
+  try {
+    const pointX2CategoryId = "1543974947561537646";
+    const voiceStatusText = "<a:59217leaf:1512014878796152862> ลงห้องรับ 𝐏𝐨𝐢𝐧𝐭 𝐱𝟐 มาเลย!";
+    const channels = client.channels.cache.filter((c) => c.parentId === pointX2CategoryId && c.isVoiceBased());
+    let activeCount = 0;
+    for (const [chId, ch] of channels) {
+      const nonBotCount = ch.members ? ch.members.filter((m) => !m.user?.bot).size : 0;
+      if (nonBotCount >= 2) {
+        client.rest.put(`/channels/${chId}/voice-status`, { body: { status: voiceStatusText } }).catch(() => {});
+        activeCount++;
+      } else {
+        client.rest.put(`/channels/${chId}/voice-status`, { body: { status: "" } }).catch(() => {});
+      }
+    }
+    if (channels.size > 0) {
+      console.log(`🍃 [VoiceStatus] ตรวจสอบ ${channels.size} ห้องในหมวดหมู่ Point x2 (มีสมาชิกครบ 2 คนขึ้นไป ${activeCount} ห้อง)`);
+    }
+  } catch (e) {
+    console.error("⚠️ ตั้งค่า Voice Status เริ่มต้นไม่สำเร็จ:", e.message);
+  }
+}
+
+// ── ระบบเช็กห้องสร้างในกรณีบอทดับกลางคัน (Lobby Auto-Recovery) ──────
+async function recoverWaitingLobbyMembers(guild) {
+  if (!guild || !config.zones || !Array.isArray(config.zones)) return;
+
+  for (const zone of config.zones) {
+    if (!zone.lobbyChannelId) continue;
+    const lobbyCh = guild.channels.cache.get(zone.lobbyChannelId);
+    if (!lobbyCh || !lobbyCh.isVoiceBased()) continue;
+
+    const waitingMembers = lobbyCh.members.filter((m) => !m.user?.bot);
+    if (waitingMembers.size > 0) {
+      console.log(`🔄 [Recovery] พบสมาชิก ${waitingMembers.size} คนค้างในห้องสร้างโซน "${zone.name}" กำลังสร้างห้องให้...`);
+      for (const [, member] of waitingMembers) {
+        try {
+          console.log(`➕ [Recovery] กำลังสร้างห้องให้ ${member.user?.tag || member.id} (โซน "${zone.name}")...`);
+          await createRoom(guild, member, zone);
+        } catch (err) {
+          console.error(`❌ [Recovery] ไม่สามารถสร้างห้องให้ ${member.user?.tag || member.id}:`, err.message);
+        }
+      }
+    }
+  }
+}
+
 // ── ตอนบอท ready ──────────────────────────────────────────────────
 client.once("clientReady", async () => {
   console.log(`✅ บอท "${client.user.tag}" พร้อมใช้งานแล้ว!`);
 
-  // ตั้งค่าสถานะบอทเริ่มต้น (รอ 5 วินาทีให้ cache พร้อม) และตั้งเวลาอัปเดตทุก 10 นาที
-  setTimeout(() => updateBotPresence(client), 5000);
+  const guild = getValidGuild(client);
+
+  // 1. ตั้งค่าสถานะบอทเริ่มต้นทันที และตั้งเวลาอัปเดตทุก 10 นาที
+  updateBotPresence(client);
   setInterval(() => updateBotPresence(client), 10 * 60 * 1000);
 
-  // ตั้งค่า Voice Status เริ่มต้นสำหรับห้องเสียงในหมวดหมู่ Point x2 (1543974947561537646)
-  setTimeout(() => {
-    try {
-      const pointX2CategoryId = "1543974947561537646";
-      const voiceStatusText = "<a:59217leaf:1512014878796152862> ลงห้องรับ 𝐏𝐨𝐢𝐧𝐭 𝐱𝟐 มาเลย!";
-      const channels = client.channels.cache.filter(c => c.parentId === pointX2CategoryId && c.isVoiceBased());
-      let activeCount = 0;
-      for (const [chId, ch] of channels) {
-        const nonBotCount = ch.members ? ch.members.filter(m => !m.user?.bot).size : 0;
-        if (nonBotCount >= 2) {
-          client.rest.put(`/channels/${chId}/voice-status`, { body: { status: voiceStatusText } }).catch(() => {});
-          activeCount++;
-        } else {
-          client.rest.put(`/channels/${chId}/voice-status`, { body: { status: "" } }).catch(() => {});
-        }
-      }
-      if (channels.size > 0) {
-        console.log(`🍃 [VoiceStatus] ตรวจสอบ ${channels.size} ห้องในหมวดหมู่ Point x2 (มีสมาชิกครบ 2 คนขึ้นไป ${activeCount} ห้อง)`);
-      }
-    } catch (e) {
-      console.error("⚠️ ตั้งค่า Voice Status เริ่มต้นไม่สำเร็จ:", e.message);
-    }
-  }, 6000);
+  // 2. ซิงค์ Voice Status สำหรับห้องเสียงในหมวดหมู่ Point x2 ทันที
+  syncPointX2VoiceStatus(client);
 
-  // โหลด separator IDs จาก Redis
+  // 3. ลงทะเบียน Slash Commands รวมแบบ Bulk Set (เร็วขึ้น 15x)
+  if (guild) {
+    registerAllGuildCommands(guild).catch((err) =>
+      console.error("[slash] Bulk command registration error:", err.message)
+    );
+  }
+
+  // 4. โหลด separator IDs จาก Redis
   try {
     const separators = await getAllSeparators();
     for (const zone of config.zones) {
@@ -180,21 +218,28 @@ client.once("clientReady", async () => {
     console.warn("[slash] CLEAR_SLASH_COMMANDS_ON_START is disabled in this project to avoid wiping another bot's slash commands.");
   }
 
-  // ── Startup Cleanup — ลบห้องค้างจากก่อนบอทดับ ─────────────────
+  // 5. Startup Cleanup — ลบห้องค้างจากก่อนบอทดับ & สร้างห้องให้สมาชิกที่ค้างใน Lobby
   if (isLocalFastStart) {
     console.log("[local] Skipping startup cleanup.");
   } else {
-    startupCleanup().catch((e) => console.error("Startup cleanup failed:", e.message));
+    try {
+      await startupCleanup();
+      if (guild) {
+        await recoverWaitingLobbyMembers(guild);
+      }
+    } catch (e) {
+      console.error("Startup cleanup/recovery failed:", e.message);
+    }
   }
 
-  // เริ่ม monitor loop (ข้ามเมื่อเป็นโหมด Local/Dev)
+  // 6. เริ่ม monitor loop (ข้ามเมื่อเป็นโหมด Local/Dev)
   if (!isLocalFastStart && process.env.DISABLE_ROOM_MONITOR !== "true") {
     startMonitor(client);
   } else {
     console.log("[local] ⏭️ Skipping roomMonitor loop in Local/Dev mode.");
   }
 
-  // เริ่มต้นทำงาน Voice Log Worker ดึงประวัติจาก Redis ลง Supabase (ข้ามเมื่อเป็นโหมด Local/Dev)
+  // 7. เริ่มต้นทำงาน Voice Log Worker ดึงประวัติจาก Redis ลง Supabase (ข้ามเมื่อเป็นโหมด Local/Dev)
   if (!isLocalFastStart && process.env.DISABLE_VOICE_WORKER !== "true") {
     startVoiceLogWorker().catch((e) => console.error("Voice Log Worker failed to start:", e.message));
   } else {
@@ -213,9 +258,6 @@ async function startupCleanup() {
     if (roomIds.length === 0) {
       console.log("✅ ไม่มีห้องค้าง");
     }
-
-    // รอให้ guild cache โหลดก่อน
-    await new Promise((r) => setTimeout(r, 2000));
 
     let deletedCount = 0;
 

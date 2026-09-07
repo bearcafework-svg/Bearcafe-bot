@@ -11,51 +11,7 @@ const FLAG_EPHEMERAL = MessageFlags.Ephemeral || 64;
  * @param {Client} client 
  */
 function setupCopyCategoryPerms(client) {
-  // 1. ลงทะเบียน Slash Command เมื่อบอทพร้อม
-  client.once("clientReady", async () => {
-    try {
-      const { getValidGuild } = require("../../utils/guildFilter");
-      const guildId = process.env.GUILD_ID || "1144251788493602848";
-      const guild = getValidGuild(client, guildId);
-
-      if (guild) {
-        await guild.commands.create({
-          name: "คัดลอกสิทธิ์หมวดหมู่",
-          description: "คัดลอก Permission Overwrites จากหมวดหมู่หนึ่งไปอีกหมวดหมู่หนึ่ง (เฉพาะ Server Owner)",
-          default_member_permissions: PermissionFlagsBits.ManageChannels.toString(),
-          options: [
-            {
-              name: "source",
-              description: "หมวดหมู่ต้นทางที่ต้องการคัดลอกสิทธิ์มา",
-              type: 7, // CHANNEL
-              channel_types: [ChannelType.GuildCategory], // 4
-              required: true
-            },
-            {
-              name: "target",
-              description: "หมวดหมู่ปลายทางที่ต้องการให้สิทธิ์เปลี่ยนตาม",
-              type: 7, // CHANNEL
-              channel_types: [ChannelType.GuildCategory], // 4
-              required: true
-            },
-            {
-              name: "sync_channels",
-              description: "ปรับปรุง (Sync) สิทธิ์ของช่องย่อยในหมวดหมู่ปลายทางทันทีหรือไม่ (Default: true)",
-              type: 5, // BOOLEAN
-              required: false
-            }
-          ]
-        });
-        console.log(`[copyCategoryPerms] Command /คัดลอกสิทธิ์หมวดหมู่ registered on guild ${guild.name}.`);
-      } else {
-        console.warn("[copyCategoryPerms] No guild found for slash command registration.");
-      }
-    } catch (err) {
-      console.error("[copyCategoryPerms] Failed to register slash command:", err.message);
-    }
-  });
-
-  // 2. จัดการการทำงานของ Interactions
+  // จัดการการทำงานของ Interactions (Slash command ลงทะเบียนรวมที่ slashCommandRegistry)
   client.on(Events.InteractionCreate, async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
     if (interaction.commandName !== "คัดลอกสิทธิ์หมวดหมู่") return;

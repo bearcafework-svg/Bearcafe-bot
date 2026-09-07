@@ -30,45 +30,7 @@ function setupRandomQuestion(client) {
     { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
   );
 
-  client.once("clientReady", async () => {
-    try {
-      const { getValidGuild } = require("../../utils/guildFilter");
-      const guildId = process.env.GUILD_ID || "1144251788493602848";
-      const guild = getValidGuild(client, guildId);
-
-      if (guild) {
-        await guild.commands.create({
-          name: "สุ่มคำถาม",
-          description: "สุ่มคำถามเพื่อกระชับความสัมพันธ์",
-          options: [
-            {
-              name: "category",
-              description: "เลือกหมวดหมู่คำถาม (ไม่จำเป็นต้องเลือก)",
-              type: 3, // STRING
-              required: false,
-              choices: [
-                { name: "👤 ทั่วไป", value: "general" },
-                { name: "❤️ ความรัก", value: "love" },
-                { name: "🎨 ความชอบ", value: "favorites" },
-                { name: "💭 มุมมอง", value: "thoughts" },
-                { name: "🎲 สมมติว่า...", value: "choose" },
-                { name: "😂 เรื่องฮา", value: "funny" },
-                { name: "🍜 อาหาร", value: "food" },
-                { name: "🎮 เกม", value: "gaming" },
-                { name: "🎬 บันเทิง", value: "entertainment" }
-              ]
-            }
-          ]
-        });
-        console.log(`[randomQuestion] Command /สุ่มคำถาม registered on guild ${guild.name}.`);
-      } else {
-        console.warn("[randomQuestion] No guild found for slash command registration.");
-      }
-    } catch (err) {
-      console.error("[randomQuestion] Failed to register slash command:", err.message);
-    }
-  });
-
+  // จัดการการทำงานของ Interactions (Slash command ลงทะเบียนรวมที่ slashCommandRegistry)
   client.on(Events.InteractionCreate, async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
     if (interaction.commandName !== "สุ่มคำถาม") return;

@@ -53,28 +53,7 @@ function setupDailyQuest(client) {
         await ensureMasterQuestsSeeded(supabase);
       }
 
-      const { getValidGuild } = require("../../../utils/guildFilter");
-      const guildId = process.env.GUILD_ID || "1144251788493602848";
-      const guild = getValidGuild(client, guildId);
-
-      if (guild) {
-        // ลบคำสั่งเก่า /quest และ /daily ออกจาก Discord Guild
-        const existingCmds = await guild.commands.fetch().catch(() => new Map());
-        for (const [id, cmd] of existingCmds) {
-          if (cmd.name === "quest" || cmd.name === "daily") {
-            await guild.commands.delete(id).catch(() => {});
-            console.log(`[dailyQuest] Deleted old slash command /${cmd.name}`);
-          }
-        }
-
-        // ลงทะเบียนเฉพาะ Slash Command /เควสของฉัน
-        await guild.commands.create({
-          name: "เควสของฉัน",
-          description: "☕ เปิดเมนูภารกิจคาเฟ่ประจำวัน (Daily Quests)"
-        });
-
-        console.log("[dailyQuest] Registered Slash Command /เควสของฉัน successfully.");
-      }
+      // (Slash command /เควสของฉัน ลงทะเบียนรวมที่ slashCommandRegistry)
 
       // ตั้งเวลา Cleanup ขยะข้อมูลทุก 24 ชั่วโมง
       setInterval(() => runAutoCleanup(supabase), 24 * 60 * 60 * 1000);

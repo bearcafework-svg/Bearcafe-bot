@@ -123,36 +123,7 @@ function setupCreatePersonalRole(client) {
     { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
   );
 
-  // 1. ลงทะเบียน Slash Command เมื่อบอทพร้อม
-  client.once("clientReady", async () => {
-    try {
-      const { getValidGuild } = require("../../../utils/guildFilter");
-      const guildId = process.env.GUILD_ID || "1144251788493602848";
-      const guild = getValidGuild(client, guildId);
-
-      if (guild) {
-        await guild.commands.create({
-          name: "สร้างยศส่วนตัว",
-          description: "ตรวจสอบสิทธิ์และส่งแบบฟอร์มสร้างยศส่วนตัวให้กับผู้ใช้ (เฉพาะทีมงาน)",
-          options: [
-            {
-              name: "user",
-              description: "เลือกผู้ใช้ที่ต้องการให้ตรวจสอบและสร้างยศส่วนตัว",
-              type: 6, // USER
-              required: true
-            }
-          ]
-        });
-        console.log(`[createPersonalRole] Command /สร้างยศส่วนตัว registered on guild ${guild.name}.`);
-      } else {
-        console.warn("[createPersonalRole] No guild found for slash command registration.");
-      }
-    } catch (err) {
-      console.error("[createPersonalRole] Failed to register slash command:", err.message);
-    }
-  });
-
-  // 2. จัดการการทำงานของ Interactions
+  // จัดการการทำงานของ Interactions (Slash command ลงทะเบียนรวมที่ slashCommandRegistry)
   client.on(Events.InteractionCreate, async (interaction) => {
     // ── จัดการ Slash Command ──────────────────────────────────────────
     if (interaction.isChatInputCommand() && interaction.commandName === "สร้างยศส่วนตัว") {

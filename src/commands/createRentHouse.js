@@ -29,36 +29,7 @@ function hasStaffPermission(member) {
  * @param {Client} client 
  */
 function setupCreateRentHouse(client) {
-  // 1. ลงทะเบียน Slash Command เมื่อบอทพร้อม
-  client.once("clientReady", async () => {
-    try {
-      const { getValidGuild } = require("../../utils/guildFilter");
-      const guildId = process.env.GUILD_ID || "1144251788493602848";
-      const guild = getValidGuild(client, guildId);
-
-      if (guild) {
-        await guild.commands.create({
-          name: "สร้างบ้านเช่า",
-          description: "สร้างห้อง Voice ส่วนตัวสำหรับสมาชิกที่ระบุ (เฉพาะทีมงาน)",
-          options: [
-            {
-              name: "user",
-              description: "เลือกสมาชิกที่ต้องการสร้างบ้านเช่าให้",
-              type: 6, // USER
-              required: true
-            }
-          ]
-        });
-        console.log(`[createRentHouse] Command /สร้างบ้านเช่า registered on guild ${guild.name}.`);
-      } else {
-        console.warn("[createRentHouse] No guild found for slash command registration.");
-      }
-    } catch (err) {
-      console.error("[createRentHouse] Failed to register slash command:", err.message);
-    }
-  });
-
-  // 2. จัดการการทำงานของ Interactions
+  // จัดการการทำงานของ Interactions (Slash command ลงทะเบียนรวมที่ slashCommandRegistry)
   client.on(Events.InteractionCreate, async (interaction) => {
     if (interaction.isChatInputCommand() && interaction.commandName === "สร้างบ้านเช่า") {
       // ตรวจสอบสิทธิ์ทีมงานที่ใช้คำสั่ง

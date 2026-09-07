@@ -223,36 +223,7 @@ function buildRemoveUserSelectPayload(role) {
  * @param {Client} client 
  */
 function setupCheckRole(client) {
-  // 1. ลงทะเบียน Slash Command เมื่อบอทพร้อม
-  client.once("clientReady", async () => {
-    try {
-      const { getValidGuild } = require("../../utils/guildFilter");
-      const guildId = process.env.GUILD_ID || "1144251788493602848";
-      const guild = getValidGuild(client, guildId);
-
-      if (guild) {
-        await guild.commands.create({
-          name: "เช็กบทบาท",
-          description: "ตรวจสอบและจัดการข้อมูลบทบาท (เฉพาะ Owner และทีมงาน)",
-          options: [
-            {
-              name: "role",
-              description: "เลือกบทบาทที่ต้องการตรวจสอบ",
-              type: 8, // ROLE
-              required: true
-            }
-          ]
-        });
-        console.log(`[checkRole] Command /เช็กบทบาท registered on guild ${guild.name}.`);
-      } else {
-        console.warn("[checkRole] No guild found for slash command registration.");
-      }
-    } catch (err) {
-      console.error("[checkRole] Failed to register slash command:", err.message);
-    }
-  });
-
-  // 2. จัดการ Interactions ทั้งหมดของคำสั่ง /เช็กบทบาท
+  // จัดการ Interactions ทั้งหมดของคำสั่ง /เช็กบทบาท (Slash command ลงทะเบียนรวมที่ slashCommandRegistry)
   client.on(Events.InteractionCreate, async (interaction) => {
     // ── 2.1 จัดการ Slash Command /เช็กบทบาท ────────────────────────────
     if (interaction.isChatInputCommand() && interaction.commandName === "เช็กบทบาท") {

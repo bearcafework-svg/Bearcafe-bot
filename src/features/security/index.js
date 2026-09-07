@@ -56,58 +56,17 @@ function setupSecurity(client) {
     }
   });
 
-  // 3. รัน Audit และลงทะเบียน Slash Commands เมื่อพร้อม
+  // 3. รัน Audit เมื่อพร้อม (Slash commands ลงทะเบียนรวมที่ slashCommandRegistry)
   client.once(Events.ClientReady, async () => {
     try {
       const guildId = process.env.GUILD_ID || "1144251788493602848";
       const guild = getValidGuild(client, guildId);
 
       if (guild) {
-        // 3.1 ลงทะเบียน /backup
-        await guild.commands.create({
-          name: "backup",
-          description: "สำรองโครงสร้างเซิร์ฟเวอร์เฉพาะห้องถาวร (เฉพาะ Server Owner)",
-          options: [
-            {
-              name: "create",
-              description: "สร้าง Backup ใหม่",
-              type: ApplicationCommandOptionType.Subcommand,
-              options: [
-                {
-                  name: "name",
-                  description: "ตั้งชื่อภาพสำรองข้อมูล (Optional)",
-                  type: ApplicationCommandOptionType.String,
-                  required: false,
-                },
-              ],
-            },
-            {
-              name: "list",
-              description: "ดูรายการ Backup ทั้งหมด",
-              type: ApplicationCommandOptionType.Subcommand,
-            },
-          ],
-        });
-
-        // 3.2 ลงทะเบียน /restore
-        await guild.commands.create({
-          name: "restore",
-          description: "เรียกคืนโครงสร้างเซิร์ฟเวอร์จาก Backup ID (เฉพาะ Server Owner)",
-          options: [
-            {
-              name: "backup_id",
-              description: "ระบุ Backup ID ที่ต้องการ Restore (ดูได้จาก /backup list)",
-              type: ApplicationCommandOptionType.String,
-              required: true,
-            },
-          ],
-        });
-
-        logger.info(`[security] Slash commands /backup & /restore registered on guild ${guild.name}.`);
         await auditGuildPermissions(guild);
       }
     } catch (err) {
-      logger.error(`[security] Failed registering slash commands or running audit: ${err.message}`);
+      logger.error(`[security] Failed running audit: ${err.message}`);
     }
   });
 }

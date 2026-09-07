@@ -312,38 +312,6 @@ function setupGiveFlower(client) {
 
   client.once("clientReady", async () => {
     try {
-      const { getValidGuild } = require("../../utils/guildFilter");
-      const guildId = process.env.GUILD_ID || "1144251788493602848";
-      const guild = getValidGuild(client, guildId);
-
-      if (guild) {
-        await guild.commands.create({
-          name: "มอบดอกไม้",
-          description: "มอบดอกไม้ให้สมาชิกที่คุณรู้สึกดีด้วย",
-          options: [
-            {
-              name: "user",
-              description: "เลือกสมาชิกที่ต้องการมอบดอกไม้ให้",
-              type: 6, // USER
-              required: true
-            },
-            {
-              name: "flower",
-              description: "เลือกดอกไม้ที่ต้องการมอบ",
-              type: 3, // STRING
-              required: true,
-              choices: Object.keys(FLOWERS).map(key => ({
-                name: FLOWERS[key].flower,
-                value: key
-              }))
-            }
-          ]
-        });
-        console.log(`[giveFlower] Command /มอบดอกไม้ registered on guild ${guild.name}.`);
-      } else {
-        console.warn("[giveFlower] No guild found for slash command registration.");
-      }
-
       await restoreSessionsFromDb(client, supabase);
     } catch (err) {
       console.error("[giveFlower] Failed during clientReady setup:", err.message);

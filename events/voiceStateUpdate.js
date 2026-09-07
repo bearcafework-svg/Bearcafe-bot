@@ -17,13 +17,16 @@ module.exports = {
     const member = newState.member || oldState.member;
     if (!member || member.user.bot) return; // ไม่สนใจบอท
 
+    const joinedChannel = newState.channelId; // ช่องที่เข้ามาใหม่
+    const leftChannel = oldState.channelId; // ช่องที่ออกไป
+
+    // ⚡ Short-circuit: หากไม่ได้เปลี่ยนห้อง (เช่น Mute/Unmute/เปิดกล้อง) ให้ข้ามทันที
+    if (joinedChannel === leftChannel) return;
+
     // บันทึกประวัติห้องเสียงลง Redis Buffer Queue
     logVoiceEvent(oldState, newState).catch(console.error);
 
     const guild = newState.guild || oldState.guild;
-    const joinedChannel = newState.channelId; // ช่องที่เข้ามาใหม่
-    const leftChannel = oldState.channelId; // ช่องที่ออกไป
-
     const rooms = await getAllRooms();
 
     // ── 1. คนเข้า Lobby → สร้างห้องใหม่ ──────────────────────────

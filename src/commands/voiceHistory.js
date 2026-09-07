@@ -2,8 +2,9 @@
 // ระบบตรวจสอบประวัติการลงห้องสำหรับสมาชิก (Voice Log History Command)
 // รองรับ Discord Component V2, Cooldown, Blacklist, และการคำนวณเซสชันสิงห้องข้ามคืนอัตโนมัติ
 
-const { createClient } = require("@supabase/supabase-js");
 const { Events, MessageFlags } = require("discord.js");
+const { getSupabaseClient } = require("../services/supabaseClient");
+const { registerCommand, registerButton, registerSelectMenu } = require("../interactions/router");
 const sharedConfig = require("../sharedSettings.json");
 const { blacklistPayload, cooldownContent } = require("../features/shared/tarotComponents");
 const { getCooldown, setCooldown } = require("../utils/cooldownManager");
@@ -25,12 +26,8 @@ const PERIOD_LABELS = {
   "bxE4waaQGS": "ช่วงเย็น/ค่ำ (18:00 – 23:59)"
 };
 
-let supabaseClient;
 function getSupabase() {
-  if (!supabaseClient && process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    supabaseClient = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
-  }
-  return supabaseClient;
+  return getSupabaseClient();
 }
 
 /**
@@ -429,215 +426,212 @@ function buildVoiceHistoryPayload(targetUser, retrievedLogs, period, page, calle
  * @param {Client} client 
  */
 function setupVoiceHistory(client) {
-  // จัดการ Event Interaction (Slash command ลงทะเบียนรวมที่ slashCommandRegistry)
-  client.on(Events.InteractionCreate, async (interaction) => {
-    // ── 2.1 จัดการ Slash Command ──────────────────────────────────────
-    if (interaction.isChatInputCommand() && interaction.commandName === "ประวัติลงห้อง") {
-      // ตรวจเช็ค Blacklist
-      if (checkUserBlacklisted(interaction.member)) {
-        const payload = blacklistPayload(interaction.user.id);
-        payload.flags = FLAG_V2_EPH;
-        return interaction.reply(payload);
-      }
+  // ── 2.1 จัดการ Slash Command ──────────────────────────────────────
+  registerCommand("ประวัติลงห้อง", async (interaction) => {
+    // ตรวจเช็ค Blacklist
+    if (checkUserBlacklisted(interaction.member)) {
+      const payload = blacklistPayload(interaction.user.id);
+      payload.flags = FLAG_V2_EPH;
+      return interaction.reply(payload);
+    }
 
-      // ตรวจเช็คช่องการรันคำสั่ง
-      if (!ALLOWED_CHANNELS.includes(interaction.channelId)) {
+    // ตรวจเช็คช่องการรันคำสั่ง
+    if (!ALLOWED_CHANNELS.includes(interaction.channelId)) {
+      return interaction.reply({
+        content: `❌ คำสั่งนี้สามารถใช้งานได้เฉพาะในห้องที่กำหนดเท่านั้นนะคะ (<#1524123194653671464> หรือ <#1524124043022831717>)`,
+        flags: FLAG_EPHEMERAL
+      });
+    }
+
+    const supabase = getSupabase();
+    if (!supabase) {
+      return interaction.reply({
+        content: "❌ ระบบเกิดข้อผิดพลาด (Database Connection Error) กรุณาแจ้งผู้พัฒนาระบบ",
+        flags: FLAG_EPHEMERAL
+      });
+    }
+
+    // ตรวจเช็คคูลดาวน์ (ยกเว้น Owner และยศ STAFF_ROLE_ID)
+    const now = Date.now();
+    const cooldownName = "voiceHistory";
+    if (!isExemptFromCooldown(interaction)) {
+      const expiresAt = await getCooldown(supabase, interaction.user.id, cooldownName);
+      if (now < expiresAt) {
+        const readyTimestamp = Math.floor(expiresAt / 1000);
         return interaction.reply({
-          content: `❌ คำสั่งนี้สามารถใช้งานได้เฉพาะในห้องที่กำหนดเท่านั้นนะคะ (<#1524123194653671464> หรือ <#1524124043022831717>)`,
-          flags: FLAG_EPHEMERAL
+          content: cooldownContent(interaction.user.id, readyTimestamp),
+          flags: FLAG_V2_EPH
         });
       }
+    }
 
+    const targetUser = interaction.options.getUser("user") || interaction.user;
+
+    // ส่ง Defer Reply ไว้ก่อนเนื่องจากต้องมีการเรียก DB
+    await interaction.deferReply();
+
+    // บันทึก Cooldown
+    if (!isExemptFromCooldown(interaction)) {
+      await setCooldown(supabase, interaction.user.id, cooldownName, now + 60000); // 1 นาที
+    }
+
+    // ดึงข้อมูลสำหรับ Target User พร้อมตรวจเช็กสิงห้องข้ามคืน
+    const { data: retrievedLogs, error } = await fetchTodayLogsWithOvernightCheck(supabase, targetUser.id);
+
+    if (error) {
+      console.error("[voiceHistory] Supabase fetch error:", error.message);
+      return interaction.editReply({ content: "❌ ไม่สามารถดึงประวัติได้ในขณะนี้ กรุณาลองใหม่อีกครั้งค่ะ" });
+    }
+
+    // ตรวจสอบว่า targetUser มี member caching หรือไม่
+    let targetMember = null;
+    try {
+      targetMember = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
+    } catch (e) {
+      // ignore
+    }
+    targetUser.member = targetMember;
+
+    const payload = buildVoiceHistoryPayload(targetUser, retrievedLogs || [], "uA21LdmKiE", 1, interaction.user.id);
+    return interaction.editReply(payload);
+  });
+
+  // ── 2.2 จัดการปุ่มกด (Buttons) ──────────────────────────────────────
+  registerButton("vh_btn:", async (interaction) => {
+    // ตรวจเช็ค Blacklist ของคนกด
+    if (checkUserBlacklisted(interaction.member)) {
+      const payload = blacklistPayload(interaction.user.id);
+      payload.flags = FLAG_V2_EPH;
+      return interaction.reply(payload);
+    }
+
+    const parts = interaction.customId.split(":");
+    const action = parts[1];
+    const targetUserId = parts[2];
+    const period = parts[3];
+    const currentPage = parseInt(parts[4], 10);
+    const callerId = parts[5];
+
+    // ตรวจสอบว่าผู้กดปุ่มคือคนที่รันคำสั่งจริง
+    if (interaction.user.id !== callerId) {
+      return interaction.reply({
+        content: "❌ ขออภัยค่ะ เฉพาะผู้ที่รันคำสั่งนี้เท่านั้นที่สามารถกดใช้งานปุ่มได้นะคะ",
+        flags: FLAG_EPHEMERAL
+      });
+    }
+
+    if (messageLocks.has(interaction.message.id)) {
+      return; // ป้องกันการกดเบิ้ลที่ตัวบอท
+    }
+    messageLocks.add(interaction.message.id);
+
+    try {
       const supabase = getSupabase();
-      if (!supabase) {
-        return interaction.reply({
-          content: "❌ ระบบเกิดข้อผิดพลาด (Database Connection Error) กรุณาแจ้งผู้พัฒนาระบบ",
-          flags: FLAG_EPHEMERAL
-        });
-      }
+      if (!supabase) return;
 
-      // ตรวจเช็คคูลดาวน์ (ยกเว้น Owner และยศ STAFF_ROLE_ID)
-      const now = Date.now();
-      const cooldownName = "voiceHistory";
-      if (!isExemptFromCooldown(interaction)) {
-        const expiresAt = await getCooldown(supabase, interaction.user.id, cooldownName);
-        if (now < expiresAt) {
-          const readyTimestamp = Math.floor(expiresAt / 1000);
-          return interaction.reply({
-            content: cooldownContent(interaction.user.id, readyTimestamp),
-            flags: FLAG_V2_EPH
-          });
-        }
-      }
+      // ปิดสถานะปุ่ม (Disable) ป้องกันคนกดซ้ำซ้อน
+      const disabledComponents = getDisabledComponents(interaction.message.components);
+      await interaction.update({ components: disabledComponents });
 
-      const targetUser = interaction.options.getUser("user") || interaction.user;
-
-      // ส่ง Defer Reply ไว้ก่อนเนื่องจากต้องมีการเรียก DB
-      await interaction.deferReply();
-
-      // บันทึก Cooldown
-      if (!isExemptFromCooldown(interaction)) {
-        await setCooldown(supabase, interaction.user.id, cooldownName, now + 60000); // 1 นาที
-      }
-
-      // ดึงข้อมูลสำหรับ Target User พร้อมตรวจเช็กสิงห้องข้ามคืน
-      const { data: retrievedLogs, error } = await fetchTodayLogsWithOvernightCheck(supabase, targetUser.id);
+      // ดึงข้อมูลใหม่พร้อมตรวจเช็กสิงห้องข้ามคืน
+      const { data: retrievedLogs, error } = await fetchTodayLogsWithOvernightCheck(supabase, targetUserId);
 
       if (error) {
-        console.error("[voiceHistory] Supabase fetch error:", error.message);
-        return interaction.editReply({ content: "❌ ไม่สามารถดึงประวัติได้ในขณะนี้ กรุณาลองใหม่อีกครั้งค่ะ" });
+        console.error("[voiceHistory] Supabase fetch error during pagination:", error.message);
+        return interaction.editReply({ content: "❌ ไม่สามารถเปลี่ยนหน้าได้เนื่องจากฐานข้อมูลขัดข้อง" });
       }
 
-      // ตรวจสอบว่า targetUser มี member caching หรือไม่
+      // กรองและคำนวณจำนวนหน้า
+      const filteredLogs = filterLogsByPeriod(retrievedLogs || [], period);
+      const ITEMS_PER_PAGE = 10;
+      const totalPages = Math.max(1, Math.ceil(filteredLogs.length / ITEMS_PER_PAGE));
+
+      let newPage = currentPage;
+      if (action === "prev") newPage = Math.max(1, currentPage - 1);
+      if (action === "next") newPage = Math.min(totalPages, currentPage + 1);
+      if (action === "first") newPage = 1;
+      if (action === "last") newPage = totalPages;
+
+      const targetUser = await interaction.client.users.fetch(targetUserId).catch(() => null);
+      if (!targetUser) return;
+      
       let targetMember = null;
       try {
-        targetMember = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
+        targetMember = await interaction.guild.members.fetch(targetUserId).catch(() => null);
       } catch (e) {
         // ignore
       }
       targetUser.member = targetMember;
 
-      const payload = buildVoiceHistoryPayload(targetUser, retrievedLogs || [], "uA21LdmKiE", 1, interaction.user.id);
-      return interaction.editReply(payload);
+      const payload = buildVoiceHistoryPayload(targetUser, retrievedLogs || [], period, newPage, callerId);
+      await interaction.editReply(payload);
+    } catch (err) {
+      console.error("[voiceHistory] Error handling button interaction:", err.message);
+    } finally {
+      messageLocks.delete(interaction.message.id);
+    }
+  });
+
+  // ── 2.3 จัดการเมนูเลือกช่วงเวลา (Dropdown Menu) ──────────────────────
+  registerSelectMenu("vh_sel:", async (interaction) => {
+    // ตรวจเช็ค Blacklist ของคนสับเปลี่ยนเมนู
+    if (checkUserBlacklisted(interaction.member)) {
+      const payload = blacklistPayload(interaction.user.id);
+      payload.flags = FLAG_V2_EPH;
+      return interaction.reply(payload);
     }
 
-    // ── 2.2 จัดการปุ่มกด (Buttons) ──────────────────────────────────────
-    if (interaction.isButton() && interaction.customId.startsWith("vh_btn:")) {
-      // ตรวจเช็ค Blacklist ของคนกด
-      if (checkUserBlacklisted(interaction.member)) {
-        const payload = blacklistPayload(interaction.user.id);
-        payload.flags = FLAG_V2_EPH;
-        return interaction.reply(payload);
-      }
+    const parts = interaction.customId.split(":");
+    const targetUserId = parts[1];
+    const callerId = parts[2];
+    const selectedPeriod = interaction.values[0];
 
-      const parts = interaction.customId.split(":");
-      const action = parts[1];
-      const targetUserId = parts[2];
-      const period = parts[3];
-      const currentPage = parseInt(parts[4], 10);
-      const callerId = parts[5];
-
-      // ตรวจสอบว่าผู้กดปุ่มคือคนที่รันคำสั่งจริง
-      if (interaction.user.id !== callerId) {
-        return interaction.reply({
-          content: "❌ ขออภัยค่ะ เฉพาะผู้ที่รันคำสั่งนี้เท่านั้นที่สามารถกดใช้งานปุ่มได้นะคะ",
-          flags: FLAG_EPHEMERAL
-        });
-      }
-
-      if (messageLocks.has(interaction.message.id)) {
-        return; // ป้องกันการกดเบิ้ลที่ตัวบอท
-      }
-      messageLocks.add(interaction.message.id);
-
-      try {
-        const supabase = getSupabase();
-        if (!supabase) return;
-
-        // ปิดสถานะปุ่ม (Disable) ป้องกันคนกดซ้ำซ้อน
-        const disabledComponents = getDisabledComponents(interaction.message.components);
-        await interaction.update({ components: disabledComponents });
-
-        // ดึงข้อมูลใหม่พร้อมตรวจเช็กสิงห้องข้ามคืน
-        const { data: retrievedLogs, error } = await fetchTodayLogsWithOvernightCheck(supabase, targetUserId);
-
-        if (error) {
-          console.error("[voiceHistory] Supabase fetch error during pagination:", error.message);
-          return interaction.editReply({ content: "❌ ไม่สามารถเปลี่ยนหน้าได้เนื่องจากฐานข้อมูลขัดข้อง" });
-        }
-
-        // กรองและคำนวณจำนวนหน้า
-        const filteredLogs = filterLogsByPeriod(retrievedLogs || [], period);
-        const ITEMS_PER_PAGE = 10;
-        const totalPages = Math.max(1, Math.ceil(filteredLogs.length / ITEMS_PER_PAGE));
-
-        let newPage = currentPage;
-        if (action === "prev") newPage = Math.max(1, currentPage - 1);
-        if (action === "next") newPage = Math.min(totalPages, currentPage + 1);
-        if (action === "first") newPage = 1;
-        if (action === "last") newPage = totalPages;
-
-        const targetUser = await interaction.client.users.fetch(targetUserId).catch(() => null);
-        if (!targetUser) return;
-        
-        let targetMember = null;
-        try {
-          targetMember = await interaction.guild.members.fetch(targetUserId).catch(() => null);
-        } catch (e) {
-          // ignore
-        }
-        targetUser.member = targetMember;
-
-        const payload = buildVoiceHistoryPayload(targetUser, retrievedLogs || [], period, newPage, callerId);
-        await interaction.editReply(payload);
-      } catch (err) {
-        console.error("[voiceHistory] Error handling button interaction:", err.message);
-      } finally {
-        messageLocks.delete(interaction.message.id);
-      }
+    // ตรวจสอบว่าผู้เลือกช่วงเวลาคือคนที่รันคำสั่งจริง
+    if (interaction.user.id !== callerId) {
+      return interaction.reply({
+        content: "❌ ขออภัยค่ะ เฉพาะผู้ที่รันคำสั่งนี้เท่านั้นที่สามารถเลือกช่วงเวลาได้นะคะ",
+        flags: FLAG_EPHEMERAL
+      });
     }
 
-    // ── 2.3 จัดการเมนูเลือกช่วงเวลา (Dropdown Menu) ──────────────────────
-    if (interaction.isStringSelectMenu() && interaction.customId.startsWith("vh_sel:")) {
-      // ตรวจเช็ค Blacklist ของคนสับเปลี่ยนเมนู
-      if (checkUserBlacklisted(interaction.member)) {
-        const payload = blacklistPayload(interaction.user.id);
-        payload.flags = FLAG_V2_EPH;
-        return interaction.reply(payload);
+    if (messageLocks.has(interaction.message.id)) {
+      return; // ป้องกันการกดเบิ้ลที่ตัวบอท
+    }
+    messageLocks.add(interaction.message.id);
+
+    try {
+      const supabase = getSupabase();
+      if (!supabase) return;
+
+      // ปิดปุ่มทั้งหมดชั่วคราว
+      const disabledComponents = getDisabledComponents(interaction.message.components);
+      await interaction.update({ components: disabledComponents });
+
+      // ดึงข้อมูลพร้อมตรวจเช็กสิงห้องข้ามคืน
+      const { data: retrievedLogs, error } = await fetchTodayLogsWithOvernightCheck(supabase, targetUserId);
+
+      if (error) {
+        console.error("[voiceHistory] Supabase fetch error during dropdown switch:", error.message);
+        return interaction.editReply({ content: "❌ ไม่สามารถแสดงประวัติได้เนื่องจากฐานข้อมูลขัดข้อง" });
       }
 
-      const parts = interaction.customId.split(":");
-      const targetUserId = parts[1];
-      const callerId = parts[2];
-      const selectedPeriod = interaction.values[0];
+      const targetUser = await interaction.client.users.fetch(targetUserId).catch(() => null);
+      if (!targetUser) return;
 
-      // ตรวจสอบว่าผู้เลือกช่วงเวลาคือคนที่รันคำสั่งจริง
-      if (interaction.user.id !== callerId) {
-        return interaction.reply({
-          content: "❌ ขออภัยค่ะ เฉพาะผู้ที่รันคำสั่งนี้เท่านั้นที่สามารถเลือกช่วงเวลาได้นะคะ",
-          flags: FLAG_EPHEMERAL
-        });
-      }
-
-      if (messageLocks.has(interaction.message.id)) {
-        return; // ป้องกันการกดเบิ้ลที่ตัวบอท
-      }
-      messageLocks.add(interaction.message.id);
-
+      let targetMember = null;
       try {
-        const supabase = getSupabase();
-        if (!supabase) return;
-
-        // ปิดปุ่มทั้งหมดชั่วคราว
-        const disabledComponents = getDisabledComponents(interaction.message.components);
-        await interaction.update({ components: disabledComponents });
-
-        // ดึงข้อมูลพร้อมตรวจเช็กสิงห้องข้ามคืน
-        const { data: retrievedLogs, error } = await fetchTodayLogsWithOvernightCheck(supabase, targetUserId);
-
-        if (error) {
-          console.error("[voiceHistory] Supabase fetch error during dropdown switch:", error.message);
-          return interaction.editReply({ content: "❌ ไม่สามารถแสดงประวัติได้เนื่องจากฐานข้อมูลขัดข้อง" });
-        }
-
-        const targetUser = await interaction.client.users.fetch(targetUserId).catch(() => null);
-        if (!targetUser) return;
-
-        let targetMember = null;
-        try {
-          targetMember = await interaction.guild.members.fetch(targetUserId).catch(() => null);
-        } catch (e) {
-          // ignore
-        }
-        targetUser.member = targetMember;
-
-        const payload = buildVoiceHistoryPayload(targetUser, retrievedLogs || [], selectedPeriod, 1, callerId);
-        await interaction.editReply(payload);
-      } catch (err) {
-        console.error("[voiceHistory] Error handling select menu interaction:", err.message);
-      } finally {
-        messageLocks.delete(interaction.message.id);
+        targetMember = await interaction.guild.members.fetch(targetUserId).catch(() => null);
+      } catch (e) {
+        // ignore
       }
+      targetUser.member = targetMember;
+
+      const payload = buildVoiceHistoryPayload(targetUser, retrievedLogs || [], selectedPeriod, 1, callerId);
+      await interaction.editReply(payload);
+    } catch (err) {
+      console.error("[voiceHistory] Error handling select menu interaction:", err.message);
+    } finally {
+      messageLocks.delete(interaction.message.id);
     }
   });
 

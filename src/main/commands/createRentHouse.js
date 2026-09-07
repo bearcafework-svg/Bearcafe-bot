@@ -28,17 +28,18 @@ function hasStaffPermission(member) {
  * ฟังก์ชันหลักของโมดูลสร้างบ้านเช่า
  * @param {Client} client 
  */
+const { registerCommand } = require("../interactions/router");
+
 function setupCreateRentHouse(client) {
-  // จัดการการทำงานของ Interactions (Slash command ลงทะเบียนรวมที่ slashCommandRegistry)
-  client.on(Events.InteractionCreate, async (interaction) => {
-    if (interaction.isChatInputCommand() && interaction.commandName === "สร้างบ้านเช่า") {
-      // ตรวจสอบสิทธิ์ทีมงานที่ใช้คำสั่ง
-      if (!hasStaffPermission(interaction.member)) {
-        return interaction.reply({
-          content: "❌ ขออภัยค่ะ เฉพาะทีมงานที่ได้รับอนุญาตเท่านั้นที่สามารถใช้คำสั่งนี้ได้",
-          flags: 64 // Ephemeral
-        });
-      }
+  // จัดการการทำงานของ Slash Command ผ่าน Interaction Router กลาง
+  registerCommand("สร้างบ้านเช่า", async (interaction) => {
+    // ตรวจสอบสิทธิ์ทีมงานที่ใช้คำสั่ง
+    if (!hasStaffPermission(interaction.member)) {
+      return interaction.reply({
+        content: "❌ ขออภัยค่ะ เฉพาะทีมงานที่ได้รับอนุญาตเท่านั้นที่สามารถใช้คำสั่งนี้ได้",
+        flags: 64 // Ephemeral
+      });
+    }
 
       const targetUser = interaction.options.getUser("user");
       const targetUserId = targetUser.id;
@@ -119,8 +120,7 @@ function setupCreateRentHouse(client) {
           console.error("[createRentHouse] Failed to send error reply:", editErr.message);
         }
       }
-    }
-  });
+    });
 
   console.log("[createRentHouse] ✅ ระบบสร้างบ้านเช่าเสียงพร้อมใช้งาน");
 }

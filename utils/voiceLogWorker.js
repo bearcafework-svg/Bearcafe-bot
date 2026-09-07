@@ -2,16 +2,12 @@
 // Worker พื้นหลังทำหน้าที่ดึงข้อมูลจาก Redis Queue 
 // และเขียนลงฐานข้อมูล Supabase แบบกลุ่ม (Batch Insert)
 
-const { createClient } = require("@supabase/supabase-js");
+const { getSupabaseClient } = require("../src/services/supabaseClient");
 const { getRedis } = require("../state/redisClient");
 const { isSupabaseQuotaError, shouldLogThrottledError } = require("./errorThrottler");
 
-let supabaseClient;
 function getSupabase() {
-  if (!supabaseClient && process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    supabaseClient = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
-  }
-  return supabaseClient;
+  return getSupabaseClient();
 }
 
 let isProcessing = false;

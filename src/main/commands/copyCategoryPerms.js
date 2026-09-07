@@ -10,11 +10,11 @@ const FLAG_EPHEMERAL = MessageFlags.Ephemeral || 64;
  * ฟังก์ชันหลักของโมดูลคัดลอกสิทธิ์หมวดหมู่
  * @param {Client} client 
  */
+const { registerCommand } = require("../interactions/router");
+
 function setupCopyCategoryPerms(client) {
-  // จัดการการทำงานของ Interactions (Slash command ลงทะเบียนรวมที่ slashCommandRegistry)
-  client.on(Events.InteractionCreate, async (interaction) => {
-    if (!interaction.isChatInputCommand()) return;
-    if (interaction.commandName !== "คัดลอกสิทธิ์หมวดหมู่") return;
+  // จัดการการทำงานของ Slash Command ผ่าน Interaction Router กลาง
+  registerCommand("คัดลอกสิทธิ์หมวดหมู่", async (interaction) => {
 
     // ตรวจสอบสิทธิ์: เฉพาะ Server Owner เท่านั้น
     const isOwner = interaction.guild && interaction.user.id === interaction.guild.ownerId;

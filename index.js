@@ -65,6 +65,9 @@ client.setMaxListeners(50);
 const { setupGuildFilter, getValidGuild } = require("./utils/guildFilter");
 setupGuildFilter(client);
 
+const { initInteractionRouter } = require("./src/interactions/router");
+initInteractionRouter(client);
+
 setupFeature("secretChat", "./src/features/secretChat", "setupSecretChat", supabaseEnvKeys);
 setupFeature("donate", "./src/features/donate", "setupDonate", supabaseEnvKeys);
 setupFeature("tarot1", "./src/features/horoscope/tarot1", "setupTarot1", supabaseEnvKeys);
@@ -292,7 +295,7 @@ async function startupCleanup() {
     // หา guild แรกที่บอทอยู่ (ที่ไม่ถูกปฏิเสธ)
     const guild = getValidGuild(client);
     if (guild) {
-      await syncAllSeparators(guild, remainingRooms);
+      await syncAllSeparators(guild, remainingRooms, { immediate: true });
     }
 
   } catch (e) {

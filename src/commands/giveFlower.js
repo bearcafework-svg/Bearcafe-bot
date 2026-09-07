@@ -1,7 +1,8 @@
 // src/commands/giveFlower.js
 // ระบบ Slash Command /มอบดอกไม้ พร้อมระบบคูลดาวน์ Blacklist และ persistence session
 
-const { createClient } = require("@supabase/supabase-js");
+const { getSupabaseClient } = require("../services/supabaseClient");
+const { registerCommand, registerButton } = require("../interactions/router");
 const { MessageFlags, Events } = require("discord.js");
 const sharedConfig = require("../sharedSettings.json");
 const { blacklistPayload, cooldownContent } = require("../features/shared/tarotComponents");
@@ -304,11 +305,7 @@ async function restoreSessionsFromDb(client, supabase) {
 }
 
 function setupGiveFlower(client) {
-  const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY,
-    { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
-  );
+  const supabase = getSupabaseClient();
 
   client.once("clientReady", async () => {
     try {
@@ -318,194 +315,191 @@ function setupGiveFlower(client) {
     }
   });
 
-  client.on(Events.InteractionCreate, async (interaction) => {
-    // ── 1. Slash Command Handling ──────────────────────────────────────────
-    if (interaction.isChatInputCommand() && interaction.commandName === "มอบดอกไม้") {
-      // 1.0 Channel check
-      if (interaction.channelId !== TARGET_CHANNEL_ID) {
-        return interaction.reply({
-          content: `คำสั่งนี้ใช้ได้เฉพาะห้อง <#${TARGET_CHANNEL_ID}> เท่านั้นนะคะ`,
-          flags: FLAG_EPHEMERAL
-        });
-      }
-
-      const member = interaction.member;
-      const userId = interaction.user.id;
-
-      // 1.1 Role blacklist check
-      if (checkUserBlacklisted(member)) {
-        const payload = blacklistPayload(userId);
-        payload.flags = FLAG_V2;
-        return interaction.reply(payload);
-      }
-
-      // 1.2 Target check
-      const targetUser = interaction.options.getUser("user");
-      if (!targetUser) {
-        return interaction.reply({
-          content: "❌ กรุณาระบุสมาชิกที่ต้องการมอบดอกไม้ให้ค่ะ",
-          flags: FLAG_EPHEMERAL
-        });
-      }
-      if (targetUser.id === userId) {
-        return interaction.reply({
-          content: "❌ คุณไม่สามารถมอบดอกไม้ให้ตัวเองได้นะคะ",
-          flags: FLAG_EPHEMERAL
-        });
-      }
-      if (targetUser.bot) {
-        return interaction.reply({
-          content: "❌ คุณไม่สามารถมอบดอกไม้ให้บอทได้นะคะ",
-          flags: FLAG_EPHEMERAL
-        });
-      }
-
-      // 1.3 Cooldown 1m (60,000 ms)
-      const now = Date.now();
-      const cdExpiry = await getCooldown(supabase, userId, "giveFlower");
-      if (now < cdExpiry) {
-        const readyTimestamp = Math.floor(cdExpiry / 1000);
-        return interaction.reply({
-          content: cooldownContent(userId, readyTimestamp),
-          flags: FLAG_EPHEMERAL
-        });
-      }
-
-      const flowerKey = interaction.options.getString("flower");
-      const flowerObj = getFlowerInfo(flowerKey);
-
-      // Set cooldown 1 minute
-      await setCooldown(supabase, userId, "giveFlower", now + 60000);
-
-      const expireTimestamp = Math.floor((now + 30 * 60 * 1000) / 1000);
-      const sessionId = Date.now().toString(36) + Math.random().toString(36).substring(2, 7);
-
-      const payload = buildInitialPayload(userId, targetUser.id, flowerObj.flower, flowerObj.img, expireTimestamp, sessionId);
-
-      try {
-        await interaction.reply(payload);
-        const replyMsg = await interaction.fetchReply();
-
-        const session = {
-          id: sessionId,
-          channel_id: interaction.channelId,
-          message_id: replyMsg.id,
-          sender_id: userId,
-          target_id: targetUser.id,
-          flower_key: flowerKey,
-          expires_at: now + 30 * 60 * 1000
-        };
-
-        // Save session to Memory & DB
-        inMemorySessions.set(sessionId, session);
-        const { error: insertErr } = await supabase.from("flower_sessions").insert(session);
-        if (insertErr) {
-          console.error("[giveFlower] Could not persist session to DB:", insertErr.message);
-        }
-
-        // Schedule timeout
-        scheduleSessionTimeout(client, supabase, session);
-      } catch (err) {
-        console.error("[giveFlower] Error sending initial reply:", err.message);
-      }
-      return;
+  // ── 1. Slash Command Handling ──────────────────────────────────────────
+  registerCommand("มอบดอกไม้", async (interaction) => {
+    // 1.0 Channel check
+    if (interaction.channelId !== TARGET_CHANNEL_ID) {
+      return interaction.reply({
+        content: `คำสั่งนี้ใช้ได้เฉพาะห้อง <#${TARGET_CHANNEL_ID}> เท่านั้นนะคะ`,
+        flags: FLAG_EPHEMERAL
+      });
     }
 
-    // ── 2. Button Interaction Handling ─────────────────────────────────────
-    if (interaction.isButton() && interaction.customId.startsWith("give_flower:")) {
-      const parts = interaction.customId.split(":");
-      const action = parts[1];
-      const sessionId = parts[2];
+    const member = interaction.member;
+    const userId = interaction.user.id;
 
-      const member = interaction.member;
-      const userId = interaction.user.id;
+    // 1.1 Role blacklist check
+    if (checkUserBlacklisted(member)) {
+      const payload = blacklistPayload(userId);
+      payload.flags = FLAG_V2;
+      return interaction.reply(payload);
+    }
 
-      // 2.1 Role blacklist check for button clicker
-      if (checkUserBlacklisted(member)) {
-        const payload = blacklistPayload(userId);
-        payload.flags = FLAG_V2;
-        return interaction.reply(payload);
+    // 1.2 Target check
+    const targetUser = interaction.options.getUser("user");
+    if (!targetUser) {
+      return interaction.reply({
+        content: "❌ กรุณาระบุสมาชิกที่ต้องการมอบดอกไม้ให้ค่ะ",
+        flags: FLAG_EPHEMERAL
+      });
+    }
+    if (targetUser.id === userId) {
+      return interaction.reply({
+        content: "❌ คุณไม่สามารถมอบดอกไม้ให้ตัวเองได้นะคะ",
+        flags: FLAG_EPHEMERAL
+      });
+    }
+    if (targetUser.bot) {
+      return interaction.reply({
+        content: "❌ คุณไม่สามารถมอบดอกไม้ให้บอทได้นะคะ",
+        flags: FLAG_EPHEMERAL
+      });
+    }
+
+    // 1.3 Cooldown 1m (60,000 ms)
+    const now = Date.now();
+    const cdExpiry = await getCooldown(supabase, userId, "giveFlower");
+    if (now < cdExpiry) {
+      const readyTimestamp = Math.floor(cdExpiry / 1000);
+      return interaction.reply({
+        content: cooldownContent(userId, readyTimestamp),
+        flags: FLAG_EPHEMERAL
+      });
+    }
+
+    const flowerKey = interaction.options.getString("flower");
+    const flowerObj = getFlowerInfo(flowerKey);
+
+    // Set cooldown 1 minute
+    await setCooldown(supabase, userId, "giveFlower", now + 60000);
+
+    const expireTimestamp = Math.floor((now + 30 * 60 * 1000) / 1000);
+    const sessionId = Date.now().toString(36) + Math.random().toString(36).substring(2, 7);
+
+    const payload = buildInitialPayload(userId, targetUser.id, flowerObj.flower, flowerObj.img, expireTimestamp, sessionId);
+
+    try {
+      await interaction.reply(payload);
+      const replyMsg = await interaction.fetchReply();
+
+      const session = {
+        id: sessionId,
+        channel_id: interaction.channelId,
+        message_id: replyMsg.id,
+        sender_id: userId,
+        target_id: targetUser.id,
+        flower_key: flowerKey,
+        expires_at: now + 30 * 60 * 1000
+      };
+
+      // Save session to Memory & DB
+      inMemorySessions.set(sessionId, session);
+      const { error: insertErr } = await supabase.from("flower_sessions").insert(session);
+      if (insertErr) {
+        console.error("[giveFlower] Could not persist session to DB:", insertErr.message);
       }
 
-      // Fetch session from Memory first, then DB fallback
-      let session = inMemorySessions.get(sessionId);
+      // Schedule timeout
+      scheduleSessionTimeout(client, supabase, session);
+    } catch (err) {
+      console.error("[giveFlower] Error sending initial reply:", err.message);
+    }
+  });
 
-      if (!session) {
-        try {
-          const { data } = await supabase
-            .from("flower_sessions")
-            .select("*")
-            .eq("id", sessionId)
-            .single();
-          if (data) session = data;
-        } catch (err) {
-          // Ignore DB error
-        }
-      }
+  // ── 2. Button Interaction Handling ─────────────────────────────────────
+  registerButton("give_flower:", async (interaction) => {
+    const parts = interaction.customId.split(":");
+    const action = parts[1];
+    const sessionId = parts[2];
 
-      if (!session) {
-        return interaction.reply({
-          content: "❌ ดอกไม้นี้ถูกดำเนินการไปแล้วหรือหมดเวลาแล้วค่ะ",
-          flags: FLAG_EPHEMERAL
-        });
-      }
+    const member = interaction.member;
+    const userId = interaction.user.id;
 
-      // 2.2 Target authorization check (only tagged user can click)
-      if (userId !== session.target_id) {
-        return interaction.reply({
-          content: `❌ เฉพาะ <@${session.target_id}> เท่านั้นที่สามารถกดรับหรือปฏิเสธดอกไม้นี้ได้ค่ะ`,
-          flags: FLAG_EPHEMERAL
-        });
-      }
+    // 2.1 Role blacklist check for button clicker
+    if (checkUserBlacklisted(member)) {
+      const payload = blacklistPayload(userId);
+      payload.flags = FLAG_V2;
+      return interaction.reply(payload);
+    }
 
-      // Clear memory, timer and remove from DB
-      inMemorySessions.delete(sessionId);
-      if (activeTimers.has(sessionId)) {
-        clearTimeout(activeTimers.get(sessionId));
-        activeTimers.delete(sessionId);
-      }
+    // Fetch session from Memory first, then DB fallback
+    let session = inMemorySessions.get(sessionId);
+
+    if (!session) {
       try {
-        await supabase.from("flower_sessions").delete().eq("id", sessionId);
-      } catch (e) {
-        // ignore
+        const { data } = await supabase
+          .from("flower_sessions")
+          .select("*")
+          .eq("id", sessionId)
+          .single();
+        if (data) session = data;
+      } catch (err) {
+        // Ignore DB error
       }
+    }
 
-      const flowerObj = getFlowerInfo(session.flower_key);
+    if (!session) {
+      return interaction.reply({
+        content: "❌ ดอกไม้นี้ถูกดำเนินการไปแล้วหรือหมดเวลาแล้วค่ะ",
+        flags: FLAG_EPHEMERAL
+      });
+    }
 
-      // Delete old message containing slash command and buttons
-      await interaction.message.delete().catch(() => null);
+    // 2.2 Target authorization check (only tagged user can click)
+    if (userId !== session.target_id) {
+      return interaction.reply({
+        content: `❌ เฉพาะ <@${session.target_id}> เท่านั้นที่สามารถกดรับหรือปฏิเสธดอกไม้นี้ได้ค่ะ`,
+        flags: FLAG_EPHEMERAL
+      });
+    }
 
-      if (action === "accept") {
-        // แอดบทบาท "1288406430864511029" ให้ผู้โดนแท็ก
-        try {
-          const guildMember = await interaction.guild?.members.fetch(session.target_id).catch(() => null);
-          if (guildMember) {
-            await guildMember.roles.add(TARGET_ROLE_ID).catch(err => {
-              console.error("[giveFlower] Failed to add special role:", err.message);
-            });
-          }
-        } catch (err) {
-          console.error("[giveFlower] Error fetching guild member for role addition:", err.message);
+    // Clear memory, timer and remove from DB
+    inMemorySessions.delete(sessionId);
+    if (activeTimers.has(sessionId)) {
+      clearTimeout(activeTimers.get(sessionId));
+      activeTimers.delete(sessionId);
+    }
+    try {
+      await supabase.from("flower_sessions").delete().eq("id", sessionId);
+    } catch (e) {
+      // ignore
+    }
+
+    const flowerObj = getFlowerInfo(session.flower_key);
+
+    // Delete old message containing slash command and buttons
+    await interaction.message.delete().catch(() => null);
+
+    if (action === "accept") {
+      // แอดบทบาท "1288406430864511029" ให้ผู้โดนแท็ก
+      try {
+        const guildMember = await interaction.guild?.members.fetch(session.target_id).catch(() => null);
+        if (guildMember) {
+          await guildMember.roles.add(TARGET_ROLE_ID).catch(err => {
+            console.error("[giveFlower] Failed to add special role:", err.message);
+          });
         }
-
-        const acceptedPayload = buildAcceptedPayload(
-          session.sender_id,
-          session.target_id,
-          flowerObj.flower,
-          flowerObj.mean,
-          flowerObj.img
-        );
-
-        await interaction.channel.send(acceptedPayload).catch(err => {
-          console.error("[giveFlower] Error sending accepted payload:", err.message);
-        });
-      } else if (action === "decline") {
-        const declinedPayload = buildDeclinedPayload(session.sender_id, session.target_id);
-
-        await interaction.channel.send(declinedPayload).catch(err => {
-          console.error("[giveFlower] Error sending declined payload:", err.message);
-        });
+      } catch (err) {
+        console.error("[giveFlower] Error fetching guild member for role addition:", err.message);
       }
+
+      const acceptedPayload = buildAcceptedPayload(
+        session.sender_id,
+        session.target_id,
+        flowerObj.flower,
+        flowerObj.mean,
+        flowerObj.img
+      );
+
+      await interaction.channel.send(acceptedPayload).catch(err => {
+        console.error("[giveFlower] Error sending accepted payload:", err.message);
+      });
+    } else if (action === "decline") {
+      const declinedPayload = buildDeclinedPayload(session.sender_id, session.target_id);
+
+      await interaction.channel.send(declinedPayload).catch(err => {
+        console.error("[giveFlower] Error sending declined payload:", err.message);
+      });
     }
   });
 

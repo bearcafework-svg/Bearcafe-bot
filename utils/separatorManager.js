@@ -6,6 +6,8 @@ const config = require("../config");
 const syncLocks = new Set();
 const syncPending = new Set();
 const retryTimers = new Set();
+const debounceTimers = new Map();
+const DEBOUNCE_DELAY_MS = 1200;
 
 function getSeparatorNames(zone) {
   return [
@@ -309,7 +311,35 @@ async function runSeparatorSync(guild, roomsInput) {
   }
 }
 
-async function syncAllSeparators(guild, roomsInput) {
+async function syncAllSeparators(guild, roomsInput, options = {}) {
+  if (!guild || !guild.id) return;
+
+  // หากส่ง options.immediate: true (เช่น ช่วง startup cleanup) ให้รันทันที
+  if (options.immediate) {
+    return await _executeSyncAllSeparators(guild, roomsInput);
+  }
+
+  // ดีบาวน์ 1,200ms เพื่อรวบรวมคำขอที่เข้ามาถี่ๆ ป้องกัน Discord Rate Limit 429
+  return new Promise((resolve) => {
+    if (debounceTimers.has(guild.id)) {
+      clearTimeout(debounceTimers.get(guild.id));
+    }
+
+    const timer = setTimeout(async () => {
+      debounceTimers.delete(guild.id);
+      try {
+        await _executeSyncAllSeparators(guild, roomsInput);
+      } catch (err) {
+        console.error(`syncAllSeparators debounced error (${guild.id}):`, err.message);
+      }
+      resolve();
+    }, DEBOUNCE_DELAY_MS);
+
+    debounceTimers.set(guild.id, timer);
+  });
+}
+
+async function _executeSyncAllSeparators(guild, roomsInput) {
   if (syncLocks.has(guild.id)) {
     syncPending.add(guild.id);
     return;

@@ -1,8 +1,9 @@
 // src/commands/randomQuestion.js
 // ระบบ Slash Command /สุ่มคำถาม สุ่มคำถามจากตาราง public.question_collect
 
-const { createClient } = require("@supabase/supabase-js");
-const { MessageFlags, Events } = require("discord.js");
+const { getSupabaseClient } = require("../services/supabaseClient");
+const { registerCommand } = require("../interactions/router");
+const { MessageFlags } = require("discord.js");
 const sharedConfig = require("../sharedSettings.json");
 const { blacklistPayload, cooldownContent } = require("../features/shared/tarotComponents");
 const { getCooldown, setCooldown } = require("../utils/cooldownManager");
@@ -24,16 +25,10 @@ const CATEGORY_MAP = {
 };
 
 function setupRandomQuestion(client) {
-  const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY,
-    { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
-  );
+  const supabase = getSupabaseClient();
 
-  // จัดการการทำงานของ Interactions (Slash command ลงทะเบียนรวมที่ slashCommandRegistry)
-  client.on(Events.InteractionCreate, async (interaction) => {
-    if (!interaction.isChatInputCommand()) return;
-    if (interaction.commandName !== "สุ่มคำถาม") return;
+  // จัดการการทำงานของ Slash Command ผ่าน Interaction Router กลาง
+  registerCommand("สุ่มคำถาม", async (interaction) => {
 
     // 1. ตอบสนองเฉพาะ ChannelID = 1524124012492619847
     if (interaction.channelId !== TARGET_CHANNEL_ID) {

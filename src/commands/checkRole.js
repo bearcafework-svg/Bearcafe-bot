@@ -218,121 +218,46 @@ function buildRemoveUserSelectPayload(role) {
   };
 }
 
+const { registerCommand, registerButton, registerModal, registerSelectMenu } = require("../interactions/router");
+
 /**
  * ตั้งค่าระบบตรวจสอบบทบาท
  * @param {Client} client 
  */
 function setupCheckRole(client) {
-  // จัดการ Interactions ทั้งหมดของคำสั่ง /เช็กบทบาท (Slash command ลงทะเบียนรวมที่ slashCommandRegistry)
-  client.on(Events.InteractionCreate, async (interaction) => {
-    // ── 2.1 จัดการ Slash Command /เช็กบทบาท ────────────────────────────
-    if (interaction.isChatInputCommand() && interaction.commandName === "เช็กบทบาท") {
-      if (!isAuthorized(interaction)) {
-        return interaction.reply({
-          content: `## ${EMOJIS.fail}︲__\` ไม่มีสิทธิ์ใช้งาน \`__\nขออภัยค่ะ คำสั่งนี้สามารถใช้งานได้เฉพาะ **Owner** หรือสมาชิกที่มีบทบาท <@&${ALLOWED_ROLE_ID}> เท่านั้นนะคะ`,
-          flags: FLAG_EPHEMERAL
-        });
-      }
-
-      const role = interaction.options.getRole("role");
-      if (!role) {
-        return interaction.reply({
-          content: `## ${EMOJIS.fail}︲ไม่พบบทบาทที่เลือกในระบบ`,
-          flags: FLAG_EPHEMERAL
-        });
-      }
-
-      const payload = buildRolePayload(role);
-      return interaction.reply(payload);
+  // ── 2.1 จัดการ Slash Command /เช็กบทบาท ────────────────────────────
+  registerCommand("เช็กบทบาท", async (interaction) => {
+    if (!isAuthorized(interaction)) {
+      return interaction.reply({
+        content: `## ${EMOJIS.fail}︲__\` ไม่มีสิทธิ์ใช้งาน \`__\nขออภัยค่ะ คำสั่งนี้สามารถใช้งานได้เฉพาะ **Owner** หรือสมาชิกที่มีบทบาท <@&${ALLOWED_ROLE_ID}> เท่านั้นนะคะ`,
+        flags: FLAG_EPHEMERAL
+      });
     }
 
-    // ── 2.2 จัดการปุ่มกด (Buttons) ──────────────────────────────────────
-    if (interaction.isButton() && interaction.customId.startsWith("checkrole_")) {
-      if (!isAuthorized(interaction)) {
-        return interaction.reply({
-          content: `## ${EMOJIS.fail}︲__\` ไม่มีสิทธิ์ใช้งาน \`__\nขออภัยค่ะ คำสั่งนี้สามารถใช้งานได้เฉพาะ **Owner** หรือสมาชิกที่มีบทบาท <@&${ALLOWED_ROLE_ID}> เท่านั้นนะคะ`,
-          flags: FLAG_EPHEMERAL
-        });
-      }
-
-      // ปุ่มแก้ไขบทบาท -> แสดง Modal แก้ไขเฉพาะชื่อบทบาท
-      if (interaction.customId.startsWith("checkrole_edit_")) {
-        const roleId = interaction.customId.replace("checkrole_edit_", "");
-        const role = interaction.guild?.roles.cache.get(roleId);
-
-        if (!role) {
-          return interaction.reply({
-            content: `## ${EMOJIS.fail}︲ไม่พบบทบาทนี้ในเซิร์ฟเวอร์แล้ว`,
-            flags: FLAG_EPHEMERAL
-          });
-        }
-
-        const modal = new ModalBuilder()
-          .setCustomId(`checkrole_modal_${role.id}`)
-          .setTitle("แก้ไขชื่อบทบาท");
-
-        const nameInput = new TextInputBuilder()
-          .setCustomId("role_name")
-          .setLabel("ชื่อบทบาทใหม่")
-          .setStyle(TextInputStyle.Short)
-          .setValue(role.name)
-          .setRequired(true);
-
-        modal.addComponents(new ActionRowBuilder().addComponents(nameInput));
-
-        return interaction.showModal(modal);
-      }
-
-      // ปุ่มเพิ่มคนใส่อยศ -> แสดง User Select Menu
-      if (interaction.customId.startsWith("checkrole_add_btn_")) {
-        const roleId = interaction.customId.replace("checkrole_add_btn_", "");
-        const role = interaction.guild?.roles.cache.get(roleId);
-        if (!role) {
-          return interaction.reply({
-            content: `## ${EMOJIS.fail}︲ไม่พบบทบาทนี้ในเซิร์ฟเวอร์แล้ว`,
-            flags: FLAG_EPHEMERAL
-          });
-        }
-        return interaction.reply(buildAddUserSelectPayload(role));
-      }
-
-      // ปุ่มลบคนใส่อยศ -> แสดง User Select Menu
-      if (interaction.customId.startsWith("checkrole_remove_btn_")) {
-        const roleId = interaction.customId.replace("checkrole_remove_btn_", "");
-        const role = interaction.guild?.roles.cache.get(roleId);
-        if (!role) {
-          return interaction.reply({
-            content: `## ${EMOJIS.fail}︲ไม่พบบทบาทนี้ในเซิร์ฟเวอร์แล้ว`,
-            flags: FLAG_EPHEMERAL
-          });
-        }
-        return interaction.reply(buildRemoveUserSelectPayload(role));
-      }
-
-      // ปุ่มรีเฟรชข้อมูล
-      if (interaction.customId.startsWith("checkrole_refresh_")) {
-        const roleId = interaction.customId.replace("checkrole_refresh_", "");
-        const role = interaction.guild?.roles.cache.get(roleId);
-        if (!role) {
-          return interaction.reply({
-            content: `## ${EMOJIS.fail}︲ไม่พบบทบาทนี้ในเซิร์ฟเวอร์แล้ว`,
-            flags: FLAG_EPHEMERAL
-          });
-        }
-        return interaction.update(buildRolePayload(role));
-      }
+    const role = interaction.options.getRole("role");
+    if (!role) {
+      return interaction.reply({
+        content: `## ${EMOJIS.fail}︲ไม่พบบทบาทที่เลือกในระบบ`,
+        flags: FLAG_EPHEMERAL
+      });
     }
 
-    // ── 2.3 จัดการ Modal Submit ─────────────────────────────────────────
-    if (interaction.isModalSubmit() && interaction.customId.startsWith("checkrole_modal_")) {
-      if (!isAuthorized(interaction)) {
-        return interaction.reply({
-          content: `## ${EMOJIS.fail}︲__\` ไม่มีสิทธิ์ใช้งาน \`__\nขออภัยค่ะ คุณไม่มีสิทธิ์จัดการบทบาทนี้นะคะ`,
-          flags: FLAG_EPHEMERAL
-        });
-      }
+    const payload = buildRolePayload(role);
+    return interaction.reply(payload);
+  });
 
-      const roleId = interaction.customId.replace("checkrole_modal_", "");
+  // ── 2.2 จัดการปุ่มกด (Buttons) ──────────────────────────────────────
+  registerButton("checkrole_", async (interaction) => {
+    if (!isAuthorized(interaction)) {
+      return interaction.reply({
+        content: `## ${EMOJIS.fail}︲__\` ไม่มีสิทธิ์ใช้งาน \`__\nขออภัยค่ะ คำสั่งนี้สามารถใช้งานได้เฉพาะ **Owner** หรือสมาชิกที่มีบทบาท <@&${ALLOWED_ROLE_ID}> เท่านั้นนะคะ`,
+        flags: FLAG_EPHEMERAL
+      });
+    }
+
+    // ปุ่มแก้ไขบทบาท -> แสดง Modal แก้ไขเฉพาะชื่อบทบาท
+    if (interaction.customId.startsWith("checkrole_edit_")) {
+      const roleId = interaction.customId.replace("checkrole_edit_", "");
       const role = interaction.guild?.roles.cache.get(roleId);
 
       if (!role) {
@@ -342,113 +267,187 @@ function setupCheckRole(client) {
         });
       }
 
-      const newName = interaction.fields.getTextInputValue("role_name").trim();
+      const modal = new ModalBuilder()
+        .setCustomId(`checkrole_modal_${role.id}`)
+        .setTitle("แก้ไขชื่อบทบาท");
 
-      try {
-        if (newName) {
-          await role.setName(newName);
-        }
-        // อัปเดตการแสดงผลบนข้อความหลัก
-        return interaction.update(buildRolePayload(role));
-      } catch (err) {
-        console.error("[checkRole] Failed to edit role name:", err.message);
-        return interaction.reply({
-          content: `## ${EMOJIS.fail}︲__\` ไม่สามารถแก้ไขบทบาทได้ \`__\n${err.message.includes("Privilege") || err.message.includes("Hierarchy") ? "บทบาทนี้อยู่สูงกว่าหรือเท่ากับบทบาทของบอท จึงไม่สามารถแก้ไขได้ค่ะ" : err.message}`,
-          flags: FLAG_EPHEMERAL
-        });
-      }
+      const nameInput = new TextInputBuilder()
+        .setCustomId("role_name")
+        .setLabel("ชื่อบทบาทใหม่")
+        .setStyle(TextInputStyle.Short)
+        .setValue(role.name)
+        .setRequired(true);
+
+      modal.addComponents(new ActionRowBuilder().addComponents(nameInput));
+
+      return interaction.showModal(modal);
     }
 
-    // ── 2.4 จัดการ User Select Menus (เพิ่ม/ลบคนใส่อยศ) ───────────────────
-    if (interaction.isUserSelectMenu() && interaction.customId.startsWith("checkrole_")) {
-      if (!isAuthorized(interaction)) {
+    // ปุ่มเพิ่มคนใส่อยศ -> แสดง User Select Menu
+    if (interaction.customId.startsWith("checkrole_add_btn_")) {
+      const roleId = interaction.customId.replace("checkrole_add_btn_", "");
+      const role = interaction.guild?.roles.cache.get(roleId);
+      if (!role) {
         return interaction.reply({
-          content: `## ${EMOJIS.fail}︲__\` ไม่มีสิทธิ์ใช้งาน \`__\nขออภัยค่ะ คุณไม่มีสิทธิ์จัดการบทบาทนี้นะคะ`,
+          content: `## ${EMOJIS.fail}︲ไม่พบบทบาทนี้ในเซิร์ฟเวอร์แล้ว`,
+          flags: FLAG_EPHEMERAL
+        });
+      }
+      return interaction.reply(buildAddUserSelectPayload(role));
+    }
+
+    // ปุ่มลบคนใส่อยศ -> แสดง User Select Menu
+    if (interaction.customId.startsWith("checkrole_remove_btn_")) {
+      const roleId = interaction.customId.replace("checkrole_remove_btn_", "");
+      const role = interaction.guild?.roles.cache.get(roleId);
+      if (!role) {
+        return interaction.reply({
+          content: `## ${EMOJIS.fail}︲ไม่พบบทบาทนี้ในเซิร์ฟเวอร์แล้ว`,
+          flags: FLAG_EPHEMERAL
+        });
+      }
+      return interaction.reply(buildRemoveUserSelectPayload(role));
+    }
+
+    // ปุ่มรีเฟรชข้อมูล
+    if (interaction.customId.startsWith("checkrole_refresh_")) {
+      const roleId = interaction.customId.replace("checkrole_refresh_", "");
+      const role = interaction.guild?.roles.cache.get(roleId);
+      if (!role) {
+        return interaction.reply({
+          content: `## ${EMOJIS.fail}︲ไม่พบบทบาทนี้ในเซิร์ฟเวอร์แล้ว`,
+          flags: FLAG_EPHEMERAL
+        });
+      }
+      return interaction.update(buildRolePayload(role));
+    }
+  });
+
+  // ── 2.3 จัดการ Modal Submit ─────────────────────────────────────────
+  registerModal("checkrole_modal_", async (interaction) => {
+    if (!isAuthorized(interaction)) {
+      return interaction.reply({
+        content: `## ${EMOJIS.fail}︲__\` ไม่มีสิทธิ์ใช้งาน \`__\nขออภัยค่ะ คุณไม่มีสิทธิ์จัดการบทบาทนี้นะคะ`,
+        flags: FLAG_EPHEMERAL
+      });
+    }
+
+    const roleId = interaction.customId.replace("checkrole_modal_", "");
+    const role = interaction.guild?.roles.cache.get(roleId);
+
+    if (!role) {
+      return interaction.reply({
+        content: `## ${EMOJIS.fail}︲ไม่พบบทบาทนี้ในเซิร์ฟเวอร์แล้ว`,
+        flags: FLAG_EPHEMERAL
+      });
+    }
+
+    const newName = interaction.fields.getTextInputValue("role_name").trim();
+
+    try {
+      if (newName) {
+        await role.setName(newName);
+      }
+      // อัปเดตการแสดงผลบนข้อความหลัก
+      return interaction.update(buildRolePayload(role));
+    } catch (err) {
+      console.error("[checkRole] Failed to edit role name:", err.message);
+      return interaction.reply({
+        content: `## ${EMOJIS.fail}︲__\` ไม่สามารถแก้ไขบทบาทได้ \`__\n${err.message.includes("Privilege") || err.message.includes("Hierarchy") ? "บทบาทนี้อยู่สูงกว่าหรือเท่ากับบทบาทของบอท จึงไม่สามารถแก้ไขได้ค่ะ" : err.message}`,
+        flags: FLAG_EPHEMERAL
+      });
+    }
+  });
+
+  // ── 2.4 จัดการ User Select Menus (เพิ่ม/ลบคนใส่อยศ) ───────────────────
+  registerSelectMenu("checkrole_", async (interaction) => {
+    if (!isAuthorized(interaction)) {
+      return interaction.reply({
+        content: `## ${EMOJIS.fail}︲__\` ไม่มีสิทธิ์ใช้งาน \`__\nขออภัยค่ะ คุณไม่มีสิทธิ์จัดการบทบาทนี้นะคะ`,
+        flags: FLAG_EPHEMERAL
+      });
+    }
+
+    // เพิ่มคนใส่อยศ
+    if (interaction.customId.startsWith("checkrole_add_select_")) {
+      const roleId = interaction.customId.replace("checkrole_add_select_", "");
+      const role = interaction.guild?.roles.cache.get(roleId);
+
+      if (!role) {
+        return interaction.reply({
+          content: `## ${EMOJIS.fail}︲ไม่พบบทบาทนี้ในเซิร์ฟเวอร์แล้ว`,
           flags: FLAG_EPHEMERAL
         });
       }
 
-      // เพิ่มคนใส่อยศ
-      if (interaction.customId.startsWith("checkrole_add_select_")) {
-        const roleId = interaction.customId.replace("checkrole_add_select_", "");
-        const role = interaction.guild?.roles.cache.get(roleId);
+      await interaction.deferReply({ flags: FLAG_EPHEMERAL });
 
-        if (!role) {
-          return interaction.reply({
-            content: `## ${EMOJIS.fail}︲ไม่พบบทบาทนี้ในเซิร์ฟเวอร์แล้ว`,
-            flags: FLAG_EPHEMERAL
-          });
-        }
+      const selectedUserIds = interaction.values;
+      let successCount = 0;
+      const failedUsers = [];
 
-        await interaction.deferReply({ flags: FLAG_EPHEMERAL });
-
-        const selectedUserIds = interaction.values;
-        let successCount = 0;
-        const failedUsers = [];
-
-        for (const userId of selectedUserIds) {
-          try {
-            const member = await interaction.guild.members.fetch(userId);
-            if (member) {
-              await member.roles.add(role);
-              successCount++;
-            }
-          } catch (err) {
-            console.error(`[checkRole] Error adding role ${roleId} to user ${userId}:`, err.message);
-            failedUsers.push(`<@${userId}>`);
+      for (const userId of selectedUserIds) {
+        try {
+          const member = await interaction.guild.members.fetch(userId);
+          if (member) {
+            await member.roles.add(role);
+            successCount++;
           }
+        } catch (err) {
+          console.error(`[checkRole] Error adding role ${roleId} to user ${userId}:`, err.message);
+          failedUsers.push(`<@${userId}>`);
         }
-
-        let resultMsg = `## ${EMOJIS.pass}︲__\` เพิ่มบทบาทเรียบร้อย \`__\n` +
-          `เพิ่มบทบาท <@&${role.id}> ให้กับสมาชิกเรียบร้อยแล้ว **${successCount}/${selectedUserIds.length}** คน`;
-
-        if (failedUsers.length > 0) {
-          resultMsg += `\n-# ไม่สามารถเพิ่มยศให้: ${failedUsers.join(", ")} (ยศบอทต่ำกว่า หรือเกิดข้อผิดพลาด)`;
-        }
-
-        return interaction.editReply({ content: resultMsg });
       }
 
-      // ลบคนใส่อยศ
-      if (interaction.customId.startsWith("checkrole_remove_select_")) {
-        const roleId = interaction.customId.replace("checkrole_remove_select_", "");
-        const role = interaction.guild?.roles.cache.get(roleId);
+      let resultMsg = `## ${EMOJIS.pass}︲__\` เพิ่มบทบาทเรียบร้อย \`__\n` +
+        `เพิ่มบทบาท <@&${role.id}> ให้กับสมาชิกเรียบร้อยแล้ว **${successCount}/${selectedUserIds.length}** คน`;
 
-        if (!role) {
-          return interaction.reply({
-            content: `## ${EMOJIS.fail}︲ไม่พบบทบาทนี้ในเซิร์ฟเวอร์แล้ว`,
-            flags: FLAG_EPHEMERAL
-          });
-        }
-
-        await interaction.deferReply({ flags: FLAG_EPHEMERAL });
-
-        const selectedUserIds = interaction.values;
-        let successCount = 0;
-        const failedUsers = [];
-
-        for (const userId of selectedUserIds) {
-          try {
-            const member = await interaction.guild.members.fetch(userId);
-            if (member) {
-              await member.roles.remove(role);
-              successCount++;
-            }
-          } catch (err) {
-            console.error(`[checkRole] Error removing role ${roleId} from user ${userId}:`, err.message);
-            failedUsers.push(`<@${userId}>`);
-          }
-        }
-
-        let resultMsg = `## ${EMOJIS.pass}︲__\` ถอดบทบาทเรียบร้อย \`__\n` +
-          `ถอดบทบาท <@&${role.id}> ออกจากสมาชิกเรียบร้อยแล้ว **${successCount}/${selectedUserIds.length}** คน`;
-
-        if (failedUsers.length > 0) {
-          resultMsg += `\n-# ไม่สามารถถอดยศให้: ${failedUsers.join(", ")} (ยศบอทต่ำกว่า หรือเกิดข้อผิดพลาด)`;
-        }
-
-        return interaction.editReply({ content: resultMsg });
+      if (failedUsers.length > 0) {
+        resultMsg += `\n-# ไม่สามารถเพิ่มยศให้: ${failedUsers.join(", ")} (ยศบอทต่ำกว่า หรือเกิดข้อผิดพลาด)`;
       }
+
+      return interaction.editReply({ content: resultMsg });
+    }
+
+    // ลบคนใส่อยศ
+    if (interaction.customId.startsWith("checkrole_remove_select_")) {
+      const roleId = interaction.customId.replace("checkrole_remove_select_", "");
+      const role = interaction.guild?.roles.cache.get(roleId);
+
+      if (!role) {
+        return interaction.reply({
+          content: `## ${EMOJIS.fail}︲ไม่พบบทบาทนี้ในเซิร์ฟเวอร์แล้ว`,
+          flags: FLAG_EPHEMERAL
+        });
+      }
+
+      await interaction.deferReply({ flags: FLAG_EPHEMERAL });
+
+      const selectedUserIds = interaction.values;
+      let successCount = 0;
+      const failedUsers = [];
+
+      for (const userId of selectedUserIds) {
+        try {
+          const member = await interaction.guild.members.fetch(userId);
+          if (member) {
+            await member.roles.remove(role);
+            successCount++;
+          }
+        } catch (err) {
+          console.error(`[checkRole] Error removing role ${roleId} from user ${userId}:`, err.message);
+          failedUsers.push(`<@${userId}>`);
+        }
+      }
+
+      let resultMsg = `## ${EMOJIS.pass}︲__\` ถอดบทบาทเรียบร้อย \`__\n` +
+        `ถอดบทบาท <@&${role.id}> ออกจากสมาชิกเรียบร้อยแล้ว **${successCount}/${selectedUserIds.length}** คน`;
+
+      if (failedUsers.length > 0) {
+        resultMsg += `\n-# ไม่สามารถถอดยศให้: ${failedUsers.join(", ")} (ยศบอทต่ำกว่า หรือเกิดข้อผิดพลาด)`;
+      }
+
+      return interaction.editReply({ content: resultMsg });
     }
   });
 

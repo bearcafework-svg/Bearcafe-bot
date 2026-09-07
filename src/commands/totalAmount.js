@@ -117,101 +117,100 @@ function buildBillingMessage(userId, amount, channelId) {
   };
 }
 
+const { registerCommand, registerButton, registerModal } = require("../interactions/router");
+
 /**
  * ฟังก์ชันหลักของโมดูล
  * @param {Client} client 
  */
 function setupTotalAmount(client) {
-  // จัดการการทำงานของ Interactions (Slash command ลงทะเบียนรวมที่ slashCommandRegistry)
-  client.on(Events.InteractionCreate, async (interaction) => {
-    // ── จัดการ Slash Command ──────────────────────────────────────────
-    if (interaction.isChatInputCommand() && interaction.commandName === "ยอดรวม") {
-      // ตรวจสอบสิทธิ์ทีมงาน
-      if (!hasStaffPermission(interaction.member)) {
-        return interaction.reply({
-          content: "❌ ขออภัยค่ะ เฉพาะทีมงานที่ได้รับอนุญาตเท่านั้นที่สามารถใช้คำสั่งนี้ได้",
-          flags: FLAG_EPHEMERAL
-        });
-      }
-
-      const targetUser = interaction.options.getUser("user");
-      const amount = interaction.options.getInteger("amount");
-
-      const billingPayload = buildBillingMessage(targetUser.id, amount, interaction.channelId);
-      
-      try {
-        await interaction.reply(billingPayload);
-      } catch (err) {
-        console.error("[totalAmount] Failed to reply with billing payload:", err.message);
-      }
+  // ── จัดการ Slash Command ──────────────────────────────────────────
+  registerCommand("ยอดรวม", async (interaction) => {
+    // ตรวจสอบสิทธิ์ทีมงาน
+    if (!hasStaffPermission(interaction.member)) {
+      return interaction.reply({
+        content: "❌ ขออภัยค่ะ เฉพาะทีมงานที่ได้รับอนุญาตเท่านั้นที่สามารถใช้คำสั่งนี้ได้",
+        flags: FLAG_EPHEMERAL
+      });
     }
 
-    // ── จัดการการกดปุ่มแก้ไขยอด ─────────────────────────────────────────
-    if (interaction.isButton() && interaction.customId.startsWith(`${EDIT_BUTTON_PREFIX}:`)) {
-      // ตรวจสอบสิทธิ์ทีมงาน
-      if (!hasStaffPermission(interaction.member)) {
-        return interaction.reply({
-          content: "❌ ขออภัยค่ะ เฉพาะทีมงานที่มีส่วนเกี่ยวข้องเท่านั้นที่จะสามารถแก้ไขยอดได้",
-          flags: FLAG_EPHEMERAL
-        });
-      }
+    const targetUser = interaction.options.getUser("user");
+    const amount = interaction.options.getInteger("amount");
 
-      const parts = interaction.customId.split(":");
-      const targetUserId = parts[1];
+    const billingPayload = buildBillingMessage(targetUser.id, amount, interaction.channelId);
+    
+    try {
+      await interaction.reply(billingPayload);
+    } catch (err) {
+      console.error("[totalAmount] Failed to reply with billing payload:", err.message);
+    }
+  });
 
-      // สร้างฟอร์ม Modal สำหรับกรอกยอดเงินใหม่
-      const modal = new ModalBuilder()
-        .setCustomId(`${EDIT_MODAL_PREFIX}:${targetUserId}`)
-        .setTitle("แก้ไขยอดเงินชำระ");
-
-      const amountInput = new TextInputBuilder()
-        .setCustomId("new_amount")
-        .setLabel("ยอดเงินใหม่ (บาท)")
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder("ตัวอย่าง: 100")
-        .setRequired(true)
-        .setMinLength(1);
-
-      const actionRow = new ActionRowBuilder().addComponents(amountInput);
-      modal.addComponents(actionRow);
-
-      try {
-        await interaction.showModal(modal);
-      } catch (err) {
-        console.error("[totalAmount] Failed to show modal:", err.message);
-      }
+  // ── จัดการการกดปุ่มแก้ไขยอด ─────────────────────────────────────────
+  registerButton(EDIT_BUTTON_PREFIX, async (interaction) => {
+    // ตรวจสอบสิทธิ์ทีมงาน
+    if (!hasStaffPermission(interaction.member)) {
+      return interaction.reply({
+        content: "❌ ขออภัยค่ะ เฉพาะทีมงานที่มีส่วนเกี่ยวข้องเท่านั้นที่จะสามารถแก้ไขยอดได้",
+        flags: FLAG_EPHEMERAL
+      });
     }
 
-    // ── จัดการเมื่อยื่นข้อมูลจาก Modal ──────────────────────────────────────
-    if (interaction.isModalSubmit() && interaction.customId.startsWith(`${EDIT_MODAL_PREFIX}:`)) {
-      // ตรวจสอบสิทธิ์ทีมงาน
-      if (!hasStaffPermission(interaction.member)) {
-        return interaction.reply({
-          content: "❌ ขออภัยค่ะ เฉพาะทีมงานที่มีส่วนเกี่ยวข้องเท่านั้นที่จะสามารถแก้ไขยอดได้",
-          flags: FLAG_EPHEMERAL
-        });
-      }
+    const parts = interaction.customId.split(":");
+    const targetUserId = parts[1];
 
-      const parts = interaction.customId.split(":");
-      const targetUserId = parts[1];
+    // สร้างฟอร์ม Modal สำหรับกรอกยอดเงินใหม่
+    const modal = new ModalBuilder()
+      .setCustomId(`${EDIT_MODAL_PREFIX}:${targetUserId}`)
+      .setTitle("แก้ไขยอดเงินชำระ");
 
-      const newAmountStr = interaction.fields.getTextInputValue("new_amount");
-      const newAmount = parseInt(newAmountStr.trim(), 10);
+    const amountInput = new TextInputBuilder()
+      .setCustomId("new_amount")
+      .setLabel("ยอดเงินใหม่ (บาท)")
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder("ตัวอย่าง: 100")
+      .setRequired(true)
+      .setMinLength(1);
 
-      if (isNaN(newAmount) || newAmount < 1) {
-        return interaction.reply({
-          content: "❌ กรุณากรอกจำนวนเงินเป็นตัวเลขจำนวนเต็มที่มากกว่าหรือเท่ากับ 1 ค่ะ",
-          flags: FLAG_EPHEMERAL
-        });
-      }
+    const actionRow = new ActionRowBuilder().addComponents(amountInput);
+    modal.addComponents(actionRow);
 
-      const updatedPayload = buildBillingMessage(targetUserId, newAmount, interaction.channelId);
+    try {
+      await interaction.showModal(modal);
+    } catch (err) {
+      console.error("[totalAmount] Failed to show modal:", err.message);
+    }
+  });
 
-      try {
-        await interaction.update(updatedPayload);
-      } catch (err) {
-        console.error("[totalAmount] Failed to update billing components after modal submit:", err.message);
-      }
+  // ── จัดการเมื่อยื่นข้อมูลจาก Modal ──────────────────────────────────────
+  registerModal(EDIT_MODAL_PREFIX, async (interaction) => {
+    // ตรวจสอบสิทธิ์ทีมงาน
+    if (!hasStaffPermission(interaction.member)) {
+      return interaction.reply({
+        content: "❌ ขออภัยค่ะ เฉพาะทีมงานที่มีส่วนเกี่ยวข้องเท่านั้นที่จะสามารถแก้ไขยอดได้",
+        flags: FLAG_EPHEMERAL
+      });
+    }
+
+    const parts = interaction.customId.split(":");
+    const targetUserId = parts[1];
+
+    const newAmountStr = interaction.fields.getTextInputValue("new_amount");
+    const newAmount = parseInt(newAmountStr.trim(), 10);
+
+    if (isNaN(newAmount) || newAmount < 1) {
+      return interaction.reply({
+        content: "❌ กรุณากรอกจำนวนเงินเป็นตัวเลขจำนวนเต็มที่มากกว่าหรือเท่ากับ 1 ค่ะ",
+        flags: FLAG_EPHEMERAL
+      });
+    }
+
+    const updatedPayload = buildBillingMessage(targetUserId, newAmount, interaction.channelId);
+
+    try {
+      await interaction.update(updatedPayload);
+    } catch (err) {
+      console.error("[totalAmount] Failed to update billing components after modal submit:", err.message);
     }
   });
 

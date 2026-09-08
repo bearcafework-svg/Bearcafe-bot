@@ -1,7 +1,12 @@
 // src/bees/beePayloads.js
 // สร้าง Component v2 สำหรับผึ้งแต่ละสถานะ โดยฝังบทพูดไว้ใน Component v2 โดยตรง
 
-const sharedSettings = require('../sharedSettings.json');
+let sharedSettings;
+try {
+  sharedSettings = require('../../sharedSettings.json');
+} catch {
+  sharedSettings = require('../sharedSettings.json');
+}
 const settingBee = require('./settingBee.json');
 
 const FLAG_V2 = 32768; // MessageFlags.IsComponentsV2
@@ -759,7 +764,7 @@ function buildVampireDrainSelfPayload(beeConfig, userId, lossPoints, gardenUrl =
 function buildVampireAwakenPayload(beeConfig, userId, expireTimestamp, gardenUrl = null) {
   const iconStr = getPointIconStr();
   const bgUrl = getGardenUrl(gardenUrl || beeConfig.garden_background_url);
-  const beeImgUrl = beeConfig.win_image_url || beeConfig.image_url || bgUrl;
+  const beeImgUrl = beeConfig.awaken_image_url || beeConfig.lose_image_url || beeConfig.image_url || bgUrl;
 
   const dialogueText =
     beeConfig.dialogues?.awaken ||
@@ -781,7 +786,7 @@ function buildVampireAwakenPayload(beeConfig, userId, expireTimestamp, gardenUrl
                   `## <:bee20000:1256669436350562355>︲__\` 𝖡𝖾𝖾 ₊ ${beeConfig.name || 'เจ้าผึ้งแวมไพร์'} 𓂃 \`__\n` +
                   `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${dialogueText} <:cuteplant:1152834055528783872>\n` +
                   `### ❝ คุณสามารถแท็กใครก็ได้เพื่อทำการดูดแต้ม (${iconStr}) ของเขาภายใน <t:${expireTimestamp}:R> ❞\n` +
-                  `> <:strawbear:1280194407014076447>⠀**__\`𝗍𝗂𝗉𝗌\`__** : <@${userId}> พิมพ์แท็กเพื่อน เช่น \`@ชื่อเพื่อน\` ในห้องนี้ได้ทันทีเลยน้า (แนะนำให้รีบแท็ก ไม่งั้นผึ้งอาจโมโหได้นะ!)`
+                  `> (${iconStr})⠀**__\`𝗍𝗂𝗉𝗌\`__** : <@${userId}> พิมพ์แท็กเพื่อน เช่น \`@ชื่อเพื่อน\` ในห้องนี้ได้ทันทีเลยน้า (แนะนำให้รีบแท็ก ไม่งั้นผึ้งอาจโมโหได้นะ!)`
               }
             ],
             accessory: {
@@ -824,7 +829,22 @@ function buildVampireAwakenPayload(beeConfig, userId, expireTimestamp, gardenUrl
 function buildVampireTargetResultPayload(beeConfig, userId, targetId, resultData, gardenUrl = null) {
   const iconStr = getPointIconStr();
   const bgUrl = getGardenUrl(gardenUrl || beeConfig.garden_background_url);
-  const beeImgUrl = beeConfig.win_image_url || beeConfig.image_url || bgUrl;
+  
+  let beeImgUrl = beeConfig.image_url;
+  if (resultData.type === 'drain') {
+    beeImgUrl = beeConfig.win_image_url || beeConfig.image_url;
+  } else if (resultData.type === 'bot') {
+    beeImgUrl = beeConfig.bot_image_url || beeConfig.win_image_url || beeConfig.image_url;
+  } else if (resultData.type === 'poor') {
+    beeImgUrl = beeConfig.poor_image_url || beeConfig.awaken_image_url || beeConfig.lose_image_url || beeConfig.image_url;
+  } else if (resultData.type === 'owner') {
+    beeImgUrl = beeConfig.owner_image_url || beeConfig.awaken_image_url || beeConfig.lose_image_url || beeConfig.image_url;
+  } else if (resultData.type === 'self') {
+    beeImgUrl = beeConfig.lose_image_url || beeConfig.awaken_image_url || beeConfig.image_url;
+  } else {
+    beeImgUrl = beeConfig.win_image_url || beeConfig.image_url;
+  }
+  beeImgUrl = beeImgUrl || bgUrl;
 
   let dialogueText = '';
   let rewardText = '';
@@ -944,20 +964,17 @@ function buildSpyBeeSpawnPayload(beeConfig, customIdPrefix, starsState = [true, 
       }
     ];
   } else {
-    // 3 Star Buttons: Green (pee1), Blue (pee2), Red (pee3)
+    // 3 Star Buttons: All style 1, emoji only, no text label
     const starConfigs = [
       {
-        style: 3, // Success / Green
         emojiAvailable: { id: "1412644235479617536", name: "cutesystar3", animated: false },
         emojiClaimed: { id: "1144701793989840997", name: "line", animated: false }
       },
       {
-        style: 1, // Primary / Blue
         emojiAvailable: { id: "1412644239002570882", name: "cutesystar2", animated: false },
         emojiClaimed: { id: "1144701793989840997", name: "line", animated: false }
       },
       {
-        style: 4, // Danger / Red
         emojiAvailable: { id: "1412644241624006666", name: "cutesystar", animated: false },
         emojiClaimed: { id: "1144701793989840997", name: "line", animated: false }
       }
@@ -966,9 +983,8 @@ function buildSpyBeeSpawnPayload(beeConfig, customIdPrefix, starsState = [true, 
     buttons = starConfigs.map((sc, idx) => {
       const isAvailable = starsState[idx] === true;
       return {
-        style: sc.style,
+        style: 1,
         type: 2,
-        label: isAvailable ? "︲เก็บดาว" : "︲ถูกเก็บแล้ว",
         emoji: isAvailable ? sc.emojiAvailable : sc.emojiClaimed,
         custom_id: `${customIdPrefix}_${idx}`,
         disabled: !isAvailable
@@ -1030,8 +1046,8 @@ function buildSpyBeeRewardPayload(beeConfig, userId, rewardType, rewardData, gar
   if (rewardType === '+point') {
     const points = rewardData?.amount || 50;
     dialogueText = dialogues.plus_point || "(นอนอ้วน) ผมว่าคุณดูหิวนะครับ งั้นผมแบ่งสตรอเบอรี่ให้นะ! <:cuteplant:1152834055528783872>";
-    rewardText = `คุณได้รับสตรอเบอรี่ **+${points}** ${iconStr}`;
-    rewardImgUrl = beeConfig?.plus_point_image_url || "https://cdn.discordapp.com/attachments/1448266116307877990/1448280278983508099/13.png";
+    rewardText = `<@${userId}> ได้รับสตรอเบอรี่ **+${points}**`;
+    rewardImgUrl = beeConfig?.plus_point_image_url || "https://cdn.discordapp.com/attachments/1528780402544611348/1546790968391368814/spy_bee2.png?ex=6aa1b998&is=6aa06818&hm=bed3d1f4df24ad7dd567c749eb8c0ae59c0d939be8d2607d6bf9e4230eb8c132&";
     actionRowComponents.push({
       style: 5,
       type: 2,
@@ -1042,8 +1058,8 @@ function buildSpyBeeRewardPayload(beeConfig, userId, rewardType, rewardData, gar
   } else if (rewardType === '-point') {
     const points = rewardData?.amount || 50;
     dialogueText = dialogues.minus_point || "(น้ำลายไหล) ฮือ ผมขอโทษนะครับ.. แต่ผมหิวอะ ขอกินสตรอเบอรี่ของคุณเลยละกัน! <:cuteplant:1152834055528783872>";
-    rewardText = `เขากินสตรอเบอรี่ของคุณ **-${points}** ${iconStr}`;
-    rewardImgUrl = beeConfig?.minus_point_image_url || "https://cdn.discordapp.com/attachments/1448266116307877990/1448280278505361562/12.png";
+    rewardText = `<@${userId}> ได้รับสตรอเบอรี่ **-${points}**`;
+    rewardImgUrl = beeConfig?.minus_point_image_url || "https://cdn.discordapp.com/attachments/1528780402544611348/1546790968634904717/spy_bee3.png?ex=6aa1b998&is=6aa06818&hm=45d2537ddf1d439b06edda3bf79d9cf9f8bdca107248c58eef984dbb10ebba95&";
     actionRowComponents.push({
       style: 5,
       type: 2,
@@ -1054,12 +1070,18 @@ function buildSpyBeeRewardPayload(beeConfig, userId, rewardType, rewardData, gar
   } else if (rewardType === 'meme') {
     dialogueText = dialogues.meme || "(ทำหน้าหล่อ ๆ) ผมหล่อมั้ยครับ 🥺? <:cuteplant:1152834055528783872>";
     rewardText = "เอ่อ.. การได้เห็นหน้าหล่อ ๆ ก็อาจเป็นรางวัลหละมั้ง...";
-    rewardImgUrl = beeConfig?.meme_thumbnail_url || "https://cdn.discordapp.com/attachments/1448266116307877990/1448282227631722518/New_bee_1.png";
-    bottomBgUrl = rewardData?.memeUrl || bgUrl;
+    rewardImgUrl = beeConfig?.meme_thumbnail_url || "https://cdn.discordapp.com/attachments/1528780402544611348/1546790968995352677/spy_bee4.png?ex=6aa1b998&is=6aa06818&hm=44922dd2749b7c8741efdb05dc58a38bd0cb156e9ef95428d9f3759bdbe88256&";
+    const memeList = beeConfig?.meme_images || [
+      "https://cdn.discordapp.com/attachments/1524704267015819274/1546984124378775612/e43a4db17ac11dd160d1a974253804ac.png?ex=6aa1c4bc&is=6aa0733c&hm=c432f8ae4820e7994518968b9c1bc067857022bb91a388add42605604f2a6f75&",
+      "https://cdn.discordapp.com/attachments/1524704267015819274/1546984124768722954/80e20c6f19c62c914683b5a9c2885c8c.png?ex=6aa1c4bc&is=6aa0733c&hm=c136740748b66851a2eac558e8b86f1b1872d486d7e192cad34a2f3216f76f01&",
+      "https://cdn.discordapp.com/attachments/1524704267015819274/1546984125104259152/144a132fb3cc3d235be6070522199b8d.png?ex=6aa1c4bd&is=6aa0733d&hm=e3542333e2e66521f3cefaccd2b69d047e8fc5977ea7e393bb512ee84e384644&"
+    ];
+    const randomMeme = memeList[Math.floor(Math.random() * memeList.length)];
+    bottomBgUrl = (rewardData?.memeUrl && rewardData.memeUrl !== bgUrl) ? rewardData.memeUrl : randomMeme;
   } else if (rewardType === 'role') {
     dialogueText = dialogues.role || "(นอนอ้วน) คุณลองพิมพ์ตามที่ผมบอกสิฮะ!~ <:cuteplant:1152834055528783872>";
     rewardText = "จงพิมพ์คำว่า ||อู๊ดอู๊ด|| ₍ᐢ･⚇･ᐢ₎";
-    rewardImgUrl = beeConfig?.role_image_url || "https://cdn.discordapp.com/attachments/1448266116307877990/1448280279415263232/14.png";
+    rewardImgUrl = beeConfig?.role_image_url || "https://cdn.discordapp.com/attachments/1528780402544611348/1546982928146505821/spy_bee6.png?ex=6aa1c39f&is=6aa0721f&hm=6650e4c4d5ec26b4c6d5b1b022e583ce62a6613de1c20f0e4c98f114c979628d&";
   }
 
   const innerComponents = [
@@ -1107,16 +1129,15 @@ function buildSpyBeeRewardPayload(beeConfig, userId, rewardType, rewardData, gar
 }
 
 // ─── 11. Payload: Spy Bee Quest Result (เมื่อพิมพ์ "อู๊ด" / "อู๊ดอู๊ด") ──────────
-function buildSpyBeeQuestResultPayload(beeConfig, userId, questType, rewardPoints = 0) {
+function buildSpyBeeQuestResultPayload(beeConfig, userId, questType, rewardPoints = 0, gardenUrl = null) {
   const iconStr = getPointIconStr();
+  const bgUrl = getGardenUrl(gardenUrl || beeConfig?.garden_background_url);
   const dialogues = beeConfig?.dialogues || {};
 
   if (questType === 'role_grant') {
     // ผู้เล่นยังไม่มียศอีเวนต์ถาวร -> ได้รับยศ
     const dialogueText = dialogues.quest_role_grant || "อู๊ด ๆ คุณคือเพื่อนของผม รับยศพิเศษไปซะ <:cuteplant:1152834055528783872>";
-    const roleId = beeConfig?.permanent_event_role_id || "1413043801886560327";
-    const thumbUrl = beeConfig?.quest_role_thumbnail_url || "https://cdn.discordapp.com/attachments/1144675871798591569/1413044182607462420/9237-bunny-carrot.png";
-    const bannerUrl = beeConfig?.quest_banner_url || "https://cdn.discordapp.com/attachments/1144675871798591569/1369788093682548837/27.png";
+    const thumbUrl = beeConfig?.quest_role_thumbnail_url || "https://cdn.discordapp.com/attachments/1525750929775923210/1546983397983785111/75b74c18fb5ad611312fabcb81576ed0.png?ex=6aa1c40f&is=6aa0728f&hm=81913b3958da5a45a5413587c11b5968a85893ea3bb932958f9b24e4c66dc102&";
 
     return {
       flags: FLAG_V2,
@@ -1131,9 +1152,9 @@ function buildSpyBeeQuestResultPayload(beeConfig, userId, questType, rewardPoint
                 {
                   type: 10,
                   content:
-                    `## <:bear_star1:1152782839671169184>︲<@&${roleId}> *!*\n` +
+                    `## <:bearcafe_star:1212856675053346897>︲__\`คุณได้รับยศ ₊ ミ ③ Baby Carrot 𓂃 \`__\n` +
                     `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${dialogueText}\n` +
-                    ` > (<:cuteplant:1152834055528783872>)⠀**__\`𝗂𝗇𝖿𝗈\`__** : ยินดีด้วย <@${userId}> คุณได้รับยศอีเวนต์ถาวรเรียบร้อยแล้ว!`
+                    ` > (${iconStr})⠀**__\`𝗋𝖾𝗐𝖺𝗋𝖽\`__** : ยินดีด้วย <@${userId}> คุณได้รับยศอีเวนต์ถาวรเรียบร้อยแล้ว!`
                 }
               ],
               accessory: {
@@ -1144,7 +1165,7 @@ function buildSpyBeeQuestResultPayload(beeConfig, userId, questType, rewardPoint
             { type: 14, divider: false, spacing: 2 },
             {
               type: 12,
-              items: [{ media: { url: bannerUrl } }]
+              items: [{ media: { url: bgUrl } }]
             }
           ]
         }
@@ -1153,8 +1174,7 @@ function buildSpyBeeQuestResultPayload(beeConfig, userId, questType, rewardPoint
   } else {
     // ผู้เล่นมียศอยู่แล้ว -> ได้แต้มสตรอว์เบอร์รีปลอบใจ
     const dialogueText = dialogues.quest_points_grant || "(ยืนมอง) เหมือนคุณจะมียศของผมแล้วนะฮับ งั้นผมให้สตรอเบอรี่คุณแทนละกัน! <:cuteplant:1152834055528783872>";
-    const thumbUrl = beeConfig?.quest_points_thumbnail_url || "https://cdn.discordapp.com/attachments/1448266116307877990/1448280279755128872/15.png";
-    const bannerUrl = beeConfig?.quest_banner_url || "https://cdn.discordapp.com/attachments/1144675871798591569/1369788093682548837/27.png";
+    const thumbUrl = beeConfig?.quest_points_thumbnail_url || beeConfig?.plus_point_image_url || "https://cdn.discordapp.com/attachments/1528780402544611348/1546790968391368814/spy_bee2.png?ex=6aa1b998&is=6aa06818&hm=bed3d1f4df24ad7dd567c749eb8c0ae59c0d939be8d2607d6bf9e4230eb8c132&";
 
     return {
       flags: FLAG_V2,
@@ -1182,7 +1202,7 @@ function buildSpyBeeQuestResultPayload(beeConfig, userId, questType, rewardPoint
             { type: 14, divider: false, spacing: 2 },
             {
               type: 12,
-              items: [{ media: { url: bannerUrl } }]
+              items: [{ media: { url: bgUrl } }]
             },
             { type: 14, divider: true, spacing: 2 },
             {
@@ -1249,12 +1269,12 @@ function buildSpyBeeAllGonePayload(beeConfig, gardenUrl = null) {
 function buildMathBeeSpawnPayload(beeConfig, mathData, customIdPrefix, isReady = false, gardenUrl = null) {
   const iconStr = getPointIconStr();
   const bgUrl = getGardenUrl(gardenUrl || beeConfig?.garden_background_url);
-  const beeImgUrl = beeConfig?.image_url || beeConfig?.spawn_image_url || bgUrl;
+  const beeImgUrl = beeConfig?.spawn_image_url || beeConfig?.image_url || bgUrl;
 
   const dialogueText =
     beeConfig?.dialogue_spawn ||
     beeConfig?.dialogues?.spawn ||
-    "(บินถือไม้บรรทัด) ไหนใครว่าวิชาคณิตยาก? ลองหาคำตอบของโจทย์ข้อนี้ดูสิ ถ้าตอบถูกรับสตรอเบอรี่ไปเลย! <:cuteplant:1152834055528783872>";
+    "(ไม้ชี้กระดาน) เธอ เธอนั่นแหละ! เอาแต่เหม่ออยู่ได้ ไหนลองตอบหน่อยซิว่าโจทย์ข้อนี้ตอบอะไร?";
 
   let buttons = [];
   if (!isReady) {
@@ -1273,13 +1293,13 @@ function buildMathBeeSpawnPayload(beeConfig, mathData, customIdPrefix, isReady =
       }
     ];
   } else {
-    // 3 Choices Buttons
+    // 3 Choices Buttons: Styles 1, 3, 4, numbers only, no emoji
     const choices = mathData?.choices || [];
+    const choiceStyles = [1, 3, 4];
     buttons = choices.map((choice, idx) => ({
-      style: 2, // Secondary (Neutral Grey)
+      style: choiceStyles[idx] || 1,
       type: 2,
-      label: `︲${choice.label}`,
-      emoji: { id: "1412644239002570882", name: "cutesystar2", animated: false },
+      label: String(choice.label),
       custom_id: `${customIdPrefix}_${idx}`
     }));
   }
@@ -1344,7 +1364,7 @@ function buildMathBeeWinPayload(beeConfig, userId, mathData, gardenUrl = null) {
   const cleanQuestion = rawQuestion.replace(/\s*=\s*\?$/, '').trim();
   const answer = mathData?.correctAnswer !== undefined ? mathData.correctAnswer : '';
 
-  let rewardText = `<@${userId}> ตอบถูกเป็นคนแรก! ได้รับ **+${rewardPts}** ${iconStr}`;
+  let rewardText = `<@${userId}> ตอบถูกเป็นคนแรก! ได้รับ **+${rewardPts}**`;
   if (mathData?.capped && mathData?.maxPoints) {
     rewardText += ` *(แต้มชนเพดานเลเวลสูงสุดที่ ${mathData.maxPoints.toLocaleString()})*`;
   }

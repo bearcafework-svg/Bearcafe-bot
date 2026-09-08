@@ -104,6 +104,109 @@ function setupBees(client) {
     }
   });
 
+  // รายการสถานะสำหรับการ Autocomplete ของ /test_bee ตามแต่ละ bee_id
+  const TEST_BEE_STATES = {
+    fat_round_bee: [
+      { name: '👀 ดูทั้งหมดทุกสถานะ (All States)', value: 'all' },
+      { name: '🌟 1. เกิดใหม่ (Spawn - Waiting/Ready)', value: 'spawn' },
+      { name: '🍓 2. ขโมยสตรอว์เบอร์รีสำเร็จ (Win)', value: 'win' },
+      { name: '💢 3. โดนต่อยแต้มลด (Loss)', value: 'loss' },
+      { name: '☠️ 4. แต้มไม่พอ โดนพิษเต็มแรง (Poison)', value: 'poison' },
+      { name: '🚪 5. บินกลับรังเมื่อไม่มีคนสนใจ 15 นาที (Expired)', value: 'expired' }
+    ],
+    queen_bee: [
+      { name: '👀 ดูทั้งหมดทุกสถานะ (All States)', value: 'all' },
+      { name: '🌟 1. เกิดใหม่พร้อมกด (Spawn - Ready)', value: 'spawn' },
+      { name: '🍓 2. ขโมยสตรอว์เบอร์รีสำเร็จ (Win Normal)', value: 'win' },
+      { name: '👑 3. แจ็กพอตขโมยมงกุฎสำเร็จ! (Crown Jackpot)', value: 'crown' },
+      { name: '💢 4. โดนต่อยแต้มลด (Loss)', value: 'loss' },
+      { name: '☠️ 5. ล้มละลาย & โดนพิษนางพญา (Bankrupt & Poison)', value: 'poison' },
+      { name: '🚪 6. เสด็จกลับวังเมื่อไม่มีคนสนใจ 15 นาที (Expired)', value: 'expired' }
+    ],
+    vampire_bee: [
+      { name: '👀 ดูทั้งหมดทุกสถานะ (All States)', value: 'all' },
+      { name: '😴 1. เกิดใหม่ตอนหลับ (Spawn - Sleepy)', value: 'spawn' },
+      { name: '🩸 2. โดนกัดดูดพลังตัวเอง (Drain Self)', value: 'loss' },
+      { name: '🦇 3. ผึ้งตื่นขึ้นมา ให้เวลาแท็กเพื่อน 60 วิ (Awaken)', value: 'awaken' },
+      { name: '🎯 4. ดูดแต้มเพื่อน / บอท / คนจน / เจ้าของ (Drain Targets)', value: 'vampire_drain' },
+      { name: '🚪 5. บินกลับรังเมื่อไม่มีคนสนใจ 15 นาที (Expired)', value: 'expired' }
+    ],
+    spy_bee: [
+      { name: '👀 ดูทั้งหมดทุกสถานะ (All States)', value: 'all' },
+      { name: '🌟 1. เกิดใหม่ 3 ดาว (Spawn 3 Stars)', value: 'spawn' },
+      { name: '🕵️ 2. สุ่มได้แต้มบวก/ลบ/มีม/เควสต์/ดาวหมด (Spy Rewards)', value: 'spy_rewards' },
+      { name: '🐷 3. รับยศ Baby Carrot / รับแต้มแทน (Quest Result)', value: 'quest' },
+      { name: '🚪 4. บินกลับรังเมื่อไม่มีคนสนใจ 15 นาที (Expired)', value: 'expired' }
+    ],
+    math_bee: [
+      { name: '👀 ดูทั้งหมดทุกสถานะ (All States)', value: 'all' },
+      { name: '📐 1. เกิดใหม่พร้อมโจทย์คณิตและ 3 ช้อยส์ (Spawn)', value: 'spawn' },
+      { name: '🎉 2. ตอบถูกคนแรกรับแต้ม (Win)', value: 'win' },
+      { name: '🚪 3. บินกลับรังเมื่อไม่มีคนสนใจ 15 นาที (Expired)', value: 'expired' }
+    ]
+  };
+
+  const DEFAULT_TEST_BEE_STATES = [
+    { name: '⚠️ กรุณาเลือก bee_id ก่อน เพื่อดูสถานะของผึ้งตัวนั้น', value: 'all' },
+    { name: '👀 ดูทั้งหมดทุกสถานะ (All States)', value: 'all' },
+    { name: '🌟 เกิดใหม่ (Spawn)', value: 'spawn' },
+    { name: '🍓 ชนะ (Win)', value: 'win' },
+    { name: '💢 แพ้/ต่อย (Loss)', value: 'loss' },
+    { name: '☠️ พิษ/ล้มละลาย (Poison)', value: 'poison' },
+    { name: '🚪 บินกลับรัง (Expired)', value: 'expired' }
+  ];
+
+  // 1.2 Autocomplete สำหรับ /test_bee (โหลด state ตาม bee_id ที่เลือก)
+  registerAutocomplete('test_bee', async (interaction) => {
+    try {
+      const focused = interaction.options.getFocused(true);
+
+      if (focused.name === 'state') {
+        const beeId = interaction.options.getString('bee_id');
+        const focusedValue = (focused.value || '').toLowerCase();
+
+        const candidateChoices = (beeId && TEST_BEE_STATES[beeId])
+          ? TEST_BEE_STATES[beeId]
+          : DEFAULT_TEST_BEE_STATES;
+
+        const filtered = candidateChoices
+          .filter(
+            (c) =>
+              c.name.toLowerCase().includes(focusedValue) ||
+              c.value.toLowerCase().includes(focusedValue)
+          )
+          .slice(0, 25);
+
+        return interaction.respond(filtered);
+      }
+
+      if (focused.name === 'bee_id') {
+        const setting = getSettingBee();
+        const bees = setting.bees || [];
+        const focusedValue = (focused.value || '').toLowerCase();
+
+        const filtered = bees
+          .filter(
+            (b) =>
+              b.name.toLowerCase().includes(focusedValue) ||
+              b.id.toLowerCase().includes(focusedValue) ||
+              String(b.sequence_order).includes(focusedValue)
+          )
+          .slice(0, 25)
+          .map((b) => ({
+            name: `${b.sequence_order || '•'}. ${b.name} (${b.id})`,
+            value: b.id
+          }));
+
+        return interaction.respond(filtered);
+      }
+
+      return interaction.respond([]);
+    } catch (err) {
+      console.error('[bees] Autocomplete error for test_bee:', err.message);
+    }
+  });
+
   // 2.1 คำสั่ง /spawn_bee
   registerCommand('spawn_bee', async (interaction) => {
     try {
@@ -178,7 +281,8 @@ function setupBees(client) {
       const isStaff = checkIsStaff(interaction);
       const beeId = interaction.options.getString('bee_id');
       const mode = interaction.options.getString('mode') || 'spawn';
-      const targetState = interaction.options.getString('state') || null;
+      const rawState = interaction.options.getString('state');
+      const targetState = (!rawState || rawState === 'all') ? null : rawState;
 
       console.log(
         `🐝 [test_bee] Executed by ${interaction.user?.tag || interaction.user?.id} in #${
@@ -299,15 +403,17 @@ function setupBees(client) {
               await sendPreview('1. เกิดใหม่ 3 ดาว (Spawn 3 Stars)', buildSpyBeeSpawnPayload(beeConfig, 'preview_spy', [true, true, true], true, bgUrl));
             }
             if (!targetState || targetState === 'spy_rewards') {
+              const memeList = beeConfig?.meme_images || [];
+              const randomMeme = memeList.length > 0 ? memeList[Math.floor(Math.random() * memeList.length)] : bgUrl;
               await sendPreview('2.1 สุ่มได้แต้มบวก (+point)', buildSpyBeeRewardPayload(beeConfig, dummyUserId, '+point', { amount: 50 }, bgUrl));
               await sendPreview('2.2 สุ่มโดนกินแต้ม (-point)', buildSpyBeeRewardPayload(beeConfig, dummyUserId, '-point', { amount: 50 }, bgUrl));
-              await sendPreview('2.3 สุ่มได้รูปภาพมีม (meme)', buildSpyBeeRewardPayload(beeConfig, dummyUserId, 'meme', { memeUrl: bgUrl }, bgUrl));
+              await sendPreview('2.3 สุ่มได้รูปภาพมีม (meme)', buildSpyBeeRewardPayload(beeConfig, dummyUserId, 'meme', { memeUrl: randomMeme }, bgUrl));
               await sendPreview('2.4 สุ่มได้เควสต์พิมพ์ อู๊ดอู๊ด (role quest)', buildSpyBeeRewardPayload(beeConfig, dummyUserId, 'role', {}, bgUrl));
               await sendPreview('2.5 ดาวหมดทั้ง 3 ดวง (All Stars Gone)', buildSpyBeeAllGonePayload(beeConfig, bgUrl));
             }
             if (!targetState || targetState === 'quest') {
-              await sendPreview('3.1 ได้รับยศอีเวนต์ถาวร (Quest Role Grant)', buildSpyBeeQuestResultPayload(beeConfig, dummyUserId, 'role_grant'));
-              await sendPreview('3.2 มียศอยู่แล้ว รับแต้มสตรอว์เบอร์รีแทน (Quest Points Grant)', buildSpyBeeQuestResultPayload(beeConfig, dummyUserId, 'points_grant', 150));
+              await sendPreview('3.1 ได้รับยศอีเวนต์ถาวร (Quest Role Grant)', buildSpyBeeQuestResultPayload(beeConfig, dummyUserId, 'role_grant', 0, bgUrl));
+              await sendPreview('3.2 มียศอยู่แล้ว รับแต้มสตรอว์เบอร์รีแทน (Quest Points Grant)', buildSpyBeeQuestResultPayload(beeConfig, dummyUserId, 'points_grant', 150, bgUrl));
             }
             if (!targetState || targetState === 'expired') {
               await sendPreview('4. บินกลับรังเมื่อไม่มีคนสนใจ 15 นาที (Expired)', buildBeeExpiredPayload(beeConfig, bgUrl));

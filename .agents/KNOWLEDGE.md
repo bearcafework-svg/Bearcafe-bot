@@ -248,6 +248,8 @@ return {
 ```
 
 **Related Files:**  
+- [`src/bees/BEE_COMPONENTS_V2.md`](file:///d:/bearcafe-bot/src/bees/BEE_COMPONENTS_V2.md)
+- [`src/bees/BEE_DESIGN_GUIDE.md`](file:///d:/bearcafe-bot/src/bees/BEE_DESIGN_GUIDE.md)
 - [`src/bees/beePayloads.js`](file:///d:/bearcafe-bot/src/bees/beePayloads.js)
 - [`src/main/bees/beePayloads.js`](file:///d:/bearcafe-bot/src/main/bees/beePayloads.js)
 - [`src/bees/index.js`](file:///d:/bearcafe-bot/src/bees/index.js)

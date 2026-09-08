@@ -347,9 +347,28 @@ async function registerAllGuildCommands(guild) {
 
   try {
     const startTime = Date.now();
-    await guild.commands.set(GUILD_SLASH_COMMANDS);
+    const isDevMode = process.env.DEV_MODE === "true";
+    let targetCommands = GUILD_SLASH_COMMANDS;
+
+    if (isDevMode) {
+      const allowedDevCommands = (process.env.DEV_SLASH_COMMANDS || "test_bee")
+        .split(",")
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean);
+
+      targetCommands = GUILD_SLASH_COMMANDS.filter((cmd) =>
+        allowedDevCommands.includes(cmd.name.toLowerCase())
+      );
+      console.log(
+        `🛠️ [slash] DEV_MODE is active: Synchronizing only [${targetCommands.map((c) => c.name).join(", ")}] on "${guild.name}"`
+      );
+    }
+
+    await guild.commands.set(targetCommands);
     const duration = Date.now() - startTime;
-    console.log(`⚡ [slash] Synchronized ${GUILD_SLASH_COMMANDS.length} guild slash commands on "${guild.name}" (${duration}ms)`);
+    console.log(
+      `⚡ [slash] Synchronized ${targetCommands.length} guild slash commands on "${guild.name}" (${duration}ms)`
+    );
   } catch (err) {
     console.error(`❌ [slash] Failed to bulk set slash commands on "${guild.name}":`, err.message);
   }

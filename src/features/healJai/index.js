@@ -218,6 +218,9 @@ function setupHealJai(client) {
 
     // ── 2.1 คำสั่ง Slash Command: /send-component ────────────────────
     if (interaction.isChatInputCommand && interaction.isChatInputCommand() && interaction.commandName === "send-component") {
+      console.log(`[HealJai] 📥 [${client.user.tag}] Received /send-component from ${interaction.user.tag} in #${interaction.channel?.name || interaction.channelId}`);
+      await interaction.deferReply({ flags: FLAG_EPHEMERAL }).catch(() => {});
+
       const chosenType = interaction.options.getString("ตัวเลือก") || interaction.options.getString("type");
 
       if (chosenType === "agreement" || chosenType === "ข้อตกลง") {
@@ -226,19 +229,20 @@ function setupHealJai(client) {
           await interaction.channel.send(getMainAgreementPayload());
 
           // ตอบกลับแบบ Ephemeral สั้นๆ ให้ผู้สั่งการ
-          return interaction.reply({
+          return interaction.editReply({
             content: "✅ ส่ง Component V2 (ข้อตกลง) เรียบร้อยแล้วค่ะ",
-            flags: FLAG_EPHEMERAL,
           });
         } catch (sendErr) {
           console.error("[HealJai] Error sending agreement component:", sendErr);
-          return interaction.reply({
+          return interaction.editReply({
             content: `❌ เกิดข้อผิดพลาดในการส่งข้อความ: ${sendErr.message}`,
-            flags: FLAG_EPHEMERAL,
           });
         }
+      } else {
+        return interaction.editReply({
+          content: "⚠️ ไม่พบประเภท Component ที่เลือกค่ะ",
+        });
       }
-      return;
     }
 
     // ── 2.2 จัดการปุ่มกด (Buttons) ──────────────────────────────────

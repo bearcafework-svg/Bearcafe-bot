@@ -306,7 +306,7 @@ function buildBeeLossPayload(beeConfig, userId, pointsLost, gardenUrl = null) {
 function buildBeePoisonLossPayload(beeConfig, userId, pointsLost = 150, gardenUrl = null) {
   const iconStr = getPointIconStr();
   const bgUrl = getGardenUrl(gardenUrl || beeConfig.garden_background_url);
-  const beeImgUrl = beeConfig.poison_image_url || beeConfig.image_url || bgUrl;
+  const beeImgUrl = beeConfig.poison_image_url || beeConfig.lose_image_url || beeConfig.image_url || bgUrl;
 
   const dialogueText =
     beeConfig.dialogue_poison ||
@@ -503,11 +503,11 @@ function buildBeeExpiredPayload(beeConfig, gardenUrl = null) {
 function buildQueenBeeWinPayload(beeConfig, userId, winResult, gardenUrl = null) {
   const iconStr = getPointIconStr();
   const bgUrl = getGardenUrl(gardenUrl || beeConfig.garden_background_url);
-  const isRole = winResult.type === 'role';
+  const isRole = winResult.type === 'role' || winResult.isCrown;
   const beeImgUrl = (isRole ? (beeConfig.crown_image_url || beeConfig.win_image_url) : beeConfig.win_image_url) || beeConfig.image_url || bgUrl;
 
   const dialogueText = isRole
-    ? (beeConfig.dialogues?.crown || "(ตกใจ) หืม? เดี๋ยวสิ... มงกุฎฉันหายไปไหน? นั่นของสำคัญที่สุดเลย... ใครกันนะที่กล้าขโมยของฉันไปแบบนี้?")
+    ? (beeConfig.dialogues?.crown || "(ตกใจ) หืม? เดี๋ยวสิ... มงกุฎฉันหายไปไหน? นั่นของสำคัญที่สุดเลย... ใครกันนะที่กล้าขโมยของฉันไปแบบนี้ ?")
     : (beeConfig.dialogue_win || beeConfig.dialogues?.win || "(ตกใจ) มะ…ไม่จริง… สตรอเบอรี่ของฉัน… น้ำหวานของรังเรา… ถูกใครขโมยไป…?");
 
   let rewardText = '';
@@ -524,13 +524,13 @@ function buildQueenBeeWinPayload(beeConfig, userId, winResult, gardenUrl = null)
         url: "https://discord.com/channels/1144251788493602848/1524123727724417276"
       });
     } else {
-      rewardText = `👑 **คุณได้รับยศพิเศษ** <@&${winResult.roleId}> <a:yellowhearts:1352954734394478643>\n-# <:68492gift:1276130500410605609>⠀**__\`𝗂𝗇𝖿𝗈\`__** : ยศพิเศษดรอปมาจากมงกุฎของนางพญา ยินดีด้วยนะคะ!`;
+      rewardText = `คุณได้รับยศเปลี่ยนสีชื่อราคา 99 บาท`;
       actionButtons.push({
         type: 2,
         style: 5,
-        label: "︲ใช้ยศใหม่กดตรงนี้",
-        emoji: { id: "1276130500410605609", name: "68492gift", animated: false },
-        url: "https://discord.com/channels/1144251788493602848/1144586873323401216"
+        label: "︲คลิกเพื่อเริ่มใช้",
+        emoji: { id: "1202930121149775914", name: "lgbeet", animated: false },
+        url: "https://discord.com/channels/1144251788493602848/1524123572757467167"
       });
     }
   } else if (winResult.type === 'jackpot') {
@@ -608,7 +608,11 @@ function buildQueenBeeWinPayload(beeConfig, userId, winResult, gardenUrl = null)
 function buildQueenBeeLossPayload(beeConfig, userId, lossResult, gardenUrl = null) {
   const iconStr = getPointIconStr();
   const bgUrl = getGardenUrl(gardenUrl || beeConfig.garden_background_url);
-  const beeImgUrl = (lossResult.type === 'poison' ? beeConfig.poison_image_url : beeConfig.lose_image_url) || beeConfig.image_url || bgUrl;
+  const beeImgUrl = (lossResult.type === 'poison'
+    ? (beeConfig.poison_image_url || beeConfig.lose_image_url)
+    : (lossResult.type === 'bankrupt'
+      ? (beeConfig.bankrupt_image_url || beeConfig.lose_image_url)
+      : beeConfig.lose_image_url)) || beeConfig.image_url || bgUrl;
 
   let dialogueText = '';
   let penaltyText = '';
@@ -617,19 +621,19 @@ function buildQueenBeeLossPayload(beeConfig, userId, lossResult, gardenUrl = nul
     dialogueText =
       beeConfig.dialogues?.bankrupt ||
       "(ต่อย) แกขโมยผิดคนแล้วไอหมีจอมตะกละ! ฉันจะขโมยสตรอเบอรี่ทั้งหมดของแก วะฮ่า!";
-    penaltyText = `💥 **เจ้าผึ้งขโมยสตรอเบอรี่ของคุณ** **-${lossResult.previousPoints.toLocaleString()} (หมดตัวทันที)**`;
+    penaltyText = `เจ้าผึ้งขโมยสตรอเบอรี่ของ <@${userId}> **-${lossResult.previousPoints.toLocaleString()} (หมดตัวทันที)**`;
   } else if (lossResult.type === 'poison') {
     dialogueText =
       beeConfig.dialogue_poison ||
       beeConfig.dialogues?.poison ||
       "(ต่อย) น่าสงสาร~ ไม่มีสตรอเบอรี่ให้ฉันปล้นกลับ งั้นแกก็ติดพิษฉันไปซะ!";
-    penaltyText = `☠️ **คุณติดพิษนางพญาผึ้งอ้วนตัวกลม** **-${lossResult.points.toLocaleString()}**`;
+    penaltyText = `<@${userId}> ติดพิษนางพญาผึ้งอ้วนตัวกลม **-${lossResult.points.toLocaleString()}**`;
   } else {
     dialogueText =
       beeConfig.dialogue_loss ||
       beeConfig.dialogues?.lose ||
       "(ต่อย) คิดว่าฉันอ้วนกลมแล้วจะไม่เห็นเหรอ? นี่แน่ะ! อย่าให้เห็นอีกนะไอหมีจอมตะกละ?!";
-    penaltyText = `เจ้าผึ้งขโมยสตรอเบอรี่ของคุณ **-${lossResult.points.toLocaleString()}**`;
+    penaltyText = `เจ้าผึ้งขโมยสตรอเบอรี่ของ <@${userId}> **-${lossResult.points.toLocaleString()}**`;
   }
 
   return {

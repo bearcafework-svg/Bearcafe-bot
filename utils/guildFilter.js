@@ -225,10 +225,50 @@ function setupGuildFilter(client) {
         .filter(Boolean);
 
       if (devChannels.length > 0) {
-        const channelId = extractChannelIdFromArgs(args);
-        // If event is tied to a specific channel and that channel is not in whitelist, drop it!
-        if (channelId && !devChannels.includes(channelId)) {
-          return false;
+        const guildId = extractGuildIdFromArgs(args);
+        const cleanGuildId = guildId ? String(guildId).trim() : null;
+
+        // บังคับจำกัดช่องเฉพาะเมื่ออยู่ในเซิร์ฟเวอร์ Bear Cafe หลัก (เพื่อไม่ให้บอททดสอบไปกวนห้องสาธารณะ)
+        // หากเกิดในเซิร์ฟเวอร์ฮิลใจ (HEALJAI_GUILD_ID) จะปล่อยผ่านตามกฎของฮิลใจ
+        if (!cleanGuildId || cleanGuildId === BEARCAFE_GUILD_ID) {
+          const channelId = extractChannelIdFromArgs(args);
+          if (channelId && !devChannels.includes(channelId)) {
+            // ข้อยกเว้นสำหรับ Interaction ในโหมด DEV:
+            if (eventName === "interactionCreate") {
+              const interaction = args[0];
+
+              // 1. คำสั่งทดสอบ เช่น /test_bee อนุญาตให้ทำงานได้ในทุกห้อง
+              if (interaction && typeof interaction.isChatInputCommand === "function" && interaction.isChatInputCommand()) {
+                const allowedDevCommands = (process.env.DEV_SLASH_COMMANDS || "test_bee")
+                  .split(",")
+                  .map((s) => s.trim().toLowerCase())
+                  .filter(Boolean);
+                if (allowedDevCommands.includes((interaction.commandName || "").toLowerCase())) {
+                  return originalEmit.apply(this, [eventName, ...args]);
+                }
+              }
+
+              // 2. Autocomplete ของคำสั่งทดสอบ
+              if (interaction && typeof interaction.isAutocomplete === "function" && interaction.isAutocomplete()) {
+                return originalEmit.apply(this, [eventName, ...args]);
+              }
+
+              // 3. การกดปุ่ม/ส่งฟอร์มของระบบผึ้ง (เช่น bee_click_*, bee_spy_*, bee_math_*) อนุญาตให้ทำงานได้ในทุกห้อง
+              if (interaction && typeof interaction.customId === "string" && interaction.customId.startsWith("bee_")) {
+                return originalEmit.apply(this, [eventName, ...args]);
+              }
+
+              // 4. Interaction อื่นๆ นอกเหนือจากช่อง DEV: ตอบกลับแบบ Ephemeral ป้องกัน Discord ขึ้นว่าไม่ตอบสนอง
+              if (interaction && typeof interaction.isRepliable === "function" && interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
+                interaction.reply({
+                  content: `⚠️ [DEV MODE] บอททดสอบเปิดให้ใช้งานเฉพาะในช่องที่กำหนด: <#${devChannels.join(">, <#")}>`,
+                  ephemeral: true,
+                }).catch(() => {});
+              }
+            }
+
+            return false;
+          }
         }
       }
     }

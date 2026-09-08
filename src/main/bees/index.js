@@ -1,8 +1,14 @@
 // src/bees/index.js
 // จุดเชื่อมต่อหลักของระบบเจ้าผึ้ง (Bee System Feature Entry Point)
 
+const { PermissionFlagsBits } = require('discord.js');
 const { createClient } = require('@supabase/supabase-js');
 const sharedSettings = require('../sharedSettings.json');
+const {
+  registerCommand,
+  registerAutocomplete,
+  registerButton
+} = require('../interactions/router');
 const {
   getSettingBee,
   spawnBee,
@@ -31,6 +37,28 @@ const {
   buildMathBeeWinPayload
 } = require('./beePayloads');
 
+/**
+ * ตรวจสอบว่าผู้ใช้มีสิทธิ์ระดับ Staff หรือไม่
+ * @param {import('discord.js').Interaction} interaction 
+ * @returns {boolean}
+ */
+function checkIsStaff(interaction) {
+  const staffRoles = sharedSettings.staff_roles || [];
+  const memberRoles = interaction.member?.roles;
+  const hasStaffRole = staffRoles.some((id) =>
+    memberRoles?.cache ? memberRoles.cache.has(id) : (Array.isArray(memberRoles) ? memberRoles.includes(id) : false)
+  );
+  const isAdmin =
+    interaction.memberPermissions?.has?.(PermissionFlagsBits.Administrator) ||
+    interaction.memberPermissions?.has?.(PermissionFlagsBits.ManageGuild);
+  return (
+    hasStaffRole ||
+    Boolean(isAdmin) ||
+    interaction.guild?.ownerId === interaction.user?.id ||
+    interaction.user?.id === process.env.OWNER_ID
+  );
+}
+
 function setupBees(client) {
   // สร้าง Supabase Client
   const supabase = createClient(
@@ -49,148 +77,155 @@ function setupBees(client) {
     scheduleNextAutoSpawn(client);
   });
 
-  client.on('interactionCreate', async (interaction) => {
+  // 1. Autocomplete สำหรับ /spawn_bee
+  registerAutocomplete('spawn_bee', async (interaction) => {
     try {
-      // Autocomplete สำหรับ /spawn_bee
-      if (interaction.isAutocomplete() && interaction.commandName === 'spawn_bee') {
-        const setting = getSettingBee();
-        const bees = setting.bees || [];
-        const focusedValue = interaction.options.getFocused().toLowerCase();
+      const setting = getSettingBee();
+      const bees = setting.bees || [];
+      const focusedValue = interaction.options.getFocused().toLowerCase();
 
-        const filtered = bees
-          .filter(
-            (b) =>
-              b.name.toLowerCase().includes(focusedValue) ||
-              b.id.toLowerCase().includes(focusedValue) ||
-              String(b.sequence_order).includes(focusedValue) ||
-              `ผึ้ง${b.sequence_order}`.includes(focusedValue)
-          )
-          .slice(0, 25)
-          .map((b) => ({
-            name: `${b.sequence_order || '•'}. ${b.name} (${b.id})`,
-            value: b.id
-          }));
+      const filtered = bees
+        .filter(
+          (b) =>
+            b.name.toLowerCase().includes(focusedValue) ||
+            b.id.toLowerCase().includes(focusedValue) ||
+            String(b.sequence_order).includes(focusedValue) ||
+            `ผึ้ง${b.sequence_order}`.includes(focusedValue)
+        )
+        .slice(0, 25)
+        .map((b) => ({
+          name: `${b.sequence_order || '•'}. ${b.name} (${b.id})`,
+          value: b.id
+        }));
 
-        return interaction.respond(filtered);
+      return interaction.respond(filtered);
+    } catch (err) {
+      console.error('[bees] Autocomplete error:', err.message);
+    }
+  });
+
+  // 2.1 คำสั่ง /spawn_bee
+  registerCommand('spawn_bee', async (interaction) => {
+    try {
+      if (!checkIsStaff(interaction)) {
+        return interaction.reply({
+          content: '## ⚠️︲เฉพาะ Staff ของคาเฟ่หมีเท่านั้นที่สามารถใช้คำสั่งนี้ได้ค่ะ',
+          flags: 64
+        }).catch(() => {});
       }
 
-      if (interaction.isChatInputCommand()) {
-        const staffRoles = sharedSettings.staff_roles || [];
-        const memberRoles = interaction.member?.roles;
-        const hasStaffRole = staffRoles.some((id) =>
-          memberRoles?.cache ? memberRoles.cache.has(id) : (Array.isArray(memberRoles) ? memberRoles.includes(id) : false)
-        );
-        const isStaff =
-          hasStaffRole ||
-          interaction.guild?.ownerId === interaction.user.id ||
-          interaction.user.id === process.env.OWNER_ID;
+      const requestedBeeId = interaction.options.getString('bee_id');
+      const targetChannel = interaction.options.getChannel('channel');
+      const targetChannelId = targetChannel?.id || null;
 
-        // 1. คำสั่ง /spawn_bee
-        if (interaction.commandName === 'spawn_bee') {
-          if (!isStaff) {
-            return interaction.reply({
-              content: '## ⚠️︲เฉพาะ Staff ของคาเฟ่หมีเท่านั้นที่สามารถใช้คำสั่งนี้ได้ค่ะ',
-              flags: 64
-            }).catch(() => {});
-          }
+      await interaction.reply({
+        content: `## 🐝︲กำลังปล่อยเจ้าผึ้ง (${requestedBeeId || 'สุ่มอัตโนมัติ'})${targetChannel ? ` ลงในช่อง <#${targetChannel.id}>` : ' ลงในสวน'} เรียบร้อยแล้วค่ะ!`,
+        flags: 64
+      }).catch(() => {});
 
-          const requestedBeeId = interaction.options.getString('bee_id');
-          const targetChannel = interaction.options.getChannel('channel');
-          const targetChannelId = targetChannel?.id || null;
+      await spawnBee(client, requestedBeeId, targetChannelId);
+    } catch (err) {
+      console.error('[bees] /spawn_bee error:', err.message);
+    }
+  });
 
-          await interaction.reply({
-            content: `## 🐝︲กำลังปล่อยเจ้าผึ้ง (${requestedBeeId || 'สุ่มอัตโนมัติ'})${targetChannel ? ` ลงในช่อง <#${targetChannel.id}>` : ' ลงในสวน'} เรียบร้อยแล้วค่ะ!`,
-            flags: 64
-          }).catch(() => {});
+  // 2.2 คำสั่ง /bee_config
+  registerCommand('bee_config', async (interaction) => {
+    try {
+      if (!checkIsStaff(interaction)) {
+        return interaction.reply({
+          content: '## ⚠️︲เฉพาะ Staff ของคาเฟ่หมีเท่านั้นที่สามารถใช้คำสั่งนี้ได้ค่ะ',
+          flags: 64
+        }).catch(() => {});
+      }
 
-          await spawnBee(client, requestedBeeId, targetChannelId);
-          return;
-        }
+      const setting = getSettingBee();
+      const beesText = (setting.bees || [])
+        .map(
+          (b) =>
+            `- ${b.enabled ? '🟢' : '🔴'} **${b.name}** (\`${b.id}\`): ชนะ ${(b.win_rate * 100).toFixed(0)}% | แต้ม +${b.min_win_points}-${b.max_win_points} | เสีย -${b.min_loss_points}-${b.max_loss_points}`
+        )
+        .join('\n');
 
-        // 2. คำสั่ง /bee_config
-        if (interaction.commandName === 'bee_config') {
-          if (!isStaff) {
-            return interaction.reply({
-              content: '## ⚠️︲เฉพาะ Staff ของคาเฟ่หมีเท่านั้นที่สามารถใช้คำสั่งนี้ได้ค่ะ',
-              flags: 64
-            }).catch(() => {});
-          }
+      const statusContent =
+        `## 🐝︲__\` 𝖡𝖾𝖾 𝖲𝗒𝗌𝗍𝖾𝗆 ₊ สถานะระบบเจ้าผึ้ง 𓂃 \`__\n` +
+        `- **สถานะ Auto Spawn**: ${setting.auto_spawn_enabled ? '🟢 เปิดใช้งาน' : '🔴 ปิดใช้งาน'}\n` +
+        `- **ช่วงเวลาสุ่ม**: ทุกๆ ${setting.min_spawn_minutes} - ${setting.max_spawn_minutes} นาที\n` +
+        `- **โหมดการส่ง**: \`${setting.spawn_mode || 'weighted_random'}\`\n\n` +
+        `### 📋 รายชื่อผึ้งในระบบ:\n${beesText}`;
 
-          const setting = getSettingBee();
-          const beesText = (setting.bees || [])
-            .map(
-              (b) =>
-                `- ${b.enabled ? '🟢' : '🔴'} **${b.name}** (\`${b.id}\`): ชนะ ${(b.win_rate * 100).toFixed(0)}% | แต้ม +${b.min_win_points}-${b.max_win_points} | เสีย -${b.min_loss_points}-${b.max_loss_points}`
-            )
-            .join('\n');
-
-          const statusContent =
-            `## 🐝︲__\` 𝖡𝖾𝖾 𝖲𝗒𝗌𝗍𝖾𝗆 ₊ สถานะระบบเจ้าผึ้ง 𓂃 \`__\n` +
-            `- **สถานะ Auto Spawn**: ${setting.auto_spawn_enabled ? '🟢 เปิดใช้งาน' : '🔴 ปิดใช้งาน'}\n` +
-            `- **ช่วงเวลาสุ่ม**: ทุกๆ ${setting.min_spawn_minutes} - ${setting.max_spawn_minutes} นาที\n` +
-            `- **โหมดการส่ง**: \`${setting.spawn_mode || 'weighted_random'}\`\n\n` +
-            `### 📋 รายชื่อผึ้งในระบบ:\n${beesText}`;
-
-          return interaction.reply({
-            flags: 32768 | 64, // Ephemeral V2
+      return interaction.reply({
+        flags: 32768 | 64, // Ephemeral V2
+        components: [
+          {
+            type: 17,
             components: [
-              {
-                type: 17,
-                components: [
-                  { type: 14, spacing: 2, divider: false },
-                  { type: 10, content: statusContent },
-                  { type: 14, spacing: 2, divider: false }
-                ]
-              }
+              { type: 14, spacing: 2, divider: false },
+              { type: 10, content: statusContent },
+              { type: 14, spacing: 2, divider: false }
             ]
-          }).catch(() => {});
-        }
-
-        // 3. คำสั่ง /test_bee (สำหรับทดสอบพรีวิว UI หรือปล่อยผึ้งมาเล่นจริง)
-        if (interaction.commandName === 'test_bee') {
-          if (!isStaff) {
-            return interaction.reply({
-              content: '## ⚠️︲เฉพาะ Staff ของคาเฟ่หมีเท่านั้นที่สามารถใช้คำสั่งนี้ได้ค่ะ',
-              flags: 64
-            }).catch(() => {});
           }
+        ]
+      }).catch(() => {});
+    } catch (err) {
+      console.error('[bees] /bee_config error:', err.message);
+    }
+  });
 
-          const beeId = interaction.options.getString('bee_id');
-          const mode = interaction.options.getString('mode') || 'spawn';
-          const targetState = interaction.options.getString('state') || null;
+  // 2.3 คำสั่ง /test_bee (สำหรับทดสอบพรีวิว UI หรือปล่อยผึ้งมาเล่นจริง)
+  registerCommand('test_bee', async (interaction) => {
+    try {
+      const isStaff = checkIsStaff(interaction);
+      const beeId = interaction.options.getString('bee_id');
+      const mode = interaction.options.getString('mode') || 'spawn';
+      const targetState = interaction.options.getString('state') || null;
 
-          const setting = getSettingBee();
-          const beeConfig = (setting.bees || []).find((b) => b.id === beeId) || { id: beeId, name: beeId };
-          const bgUrl = setting.garden_background_url;
-          const dummyUserId = interaction.user.id;
+      console.log(
+        `🐝 [test_bee] Executed by ${interaction.user?.tag || interaction.user?.id} in #${
+          interaction.channel?.name || interaction.channelId
+        } (beeId=${beeId}, mode=${mode}, isStaff=${isStaff})`
+      );
 
-          // 3.1 โหมดปล่อยให้กดเล่นจริง (Interactive Spawn)
-          if (mode === 'spawn') {
-            await interaction.reply({
-              content: `## 🧪︲[โหมดทดสอบ] กำลังปล่อย **${beeConfig.name}** ออกมาให้กดทดสอบในห้องนี้ค่ะ!`,
-              flags: 64
-            }).catch(() => {});
-            await spawnBee(client, beeId, interaction.channelId);
-            return;
-          }
+      if (!isStaff) {
+        return interaction.reply({
+          content: '## ⚠️︲เฉพาะ Staff ของคาเฟ่หมีเท่านั้นที่สามารถใช้คำสั่งนี้ได้ค่ะ',
+          flags: 64
+        }).catch(() => {});
+      }
 
-          // 3.2 โหมดพรีวิว Component v2 (Preview States)
-          await interaction.reply({
-            content: `## 🎨︲[โหมดพรีวิว] กำลังแสดงผล UI สถานะต่างๆ ของ **${beeConfig.name}** ในห้องนี้ค่ะ!`,
-            flags: 64
-          }).catch(() => {});
+      const setting = getSettingBee();
+      const beeConfig = (setting.bees || []).find((b) => b.id === beeId) || { id: beeId, name: beeId };
+      const bgUrl = setting.garden_background_url;
+      const dummyUserId = interaction.user.id;
 
-          const channel = interaction.channel;
-          if (!channel) return;
+      // 3.1 โหมดปล่อยให้กดเล่นจริง (Interactive Spawn)
+      if (mode === 'spawn') {
+        await interaction.reply({
+          content: `## 🧪︲[โหมดทดสอบ] กำลังปล่อย **${beeConfig.name}** ออกมาให้กดทดสอบในห้องนี้ค่ะ!`,
+          flags: 64
+        }).catch((err) => console.error('[test_bee] Reply error:', err.message));
 
-          // ฟังก์ชันส่งพรีวิว
-          const sendPreview = async (title, payload) => {
-            await channel.send({ content: `### 📌 พรีวิวสถานะ: **${title}**` }).catch(() => {});
-            await channel.send(payload).catch((e) => console.error('[bees] Preview send error:', e.message));
-          };
+        await spawnBee(client, beeId, interaction.channelId);
+        return;
+      }
 
-          // ก) ผึ้งอ้วนตัวกลม (fat_round_bee)
-          if (beeId === 'fat_round_bee') {
+      // 3.2 โหมดพรีวิว Component v2 (Preview States)
+      await interaction.reply({
+        content: `## 🎨︲[โหมดพรีวิว] กำลังแสดงผล UI สถานะต่างๆ ของ **${beeConfig.name}** ในห้องนี้ค่ะ!`,
+        flags: 64
+      }).catch((err) => console.error('[test_bee] Reply error:', err.message));
+
+      const channel = interaction.channel;
+      if (!channel) return;
+
+      // ฟังก์ชันส่งพรีวิว
+      const sendPreview = async (title, payload) => {
+        await channel.send({ content: `### 📌 พรีวิวสถานะ: **${title}**` }).catch(() => {});
+        await channel.send(payload).catch((e) => console.error('[bees] Preview send error:', e.message));
+      };
+
+      // ก) ผึ้งอ้วนตัวกลม (fat_round_bee)
+      if (beeId === 'fat_round_bee') {
             if (!targetState || targetState === 'spawn') {
               await sendPreview('1. เกิดใหม่ (Spawn - Waiting)', buildBeeSpawnPayload(beeConfig, 'preview_wait', false, bgUrl));
               await sendPreview('2. เกิดใหม่พร้อมกด (Spawn - Ready)', buildBeeSpawnPayload(beeConfig, 'preview_ready', true, bgUrl));
@@ -294,13 +329,17 @@ function setupBees(client) {
             }
             return;
           }
+        } catch (err) {
+          console.error('[bees] /test_bee error:', err);
         }
-      }
+      });
 
-      // 3. จัดการ Button Interaction ของระบบผึ้ง
+  // 3. จัดการ Button Interaction ของระบบผึ้ง
+  registerButton(/^bee_/, async (interaction) => {
+    try {
       await handleBeeInteraction(interaction, client, supabase);
     } catch (err) {
-      console.error('[bees] interactionCreate error:', err.message);
+      console.error('[bees] handleBeeInteraction error:', err.message);
     }
   });
 
@@ -315,3 +354,4 @@ function setupBees(client) {
 }
 
 module.exports = { setupBees };
+

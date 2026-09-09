@@ -4,7 +4,13 @@
 const fs = require('fs');
 const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
-const sharedSettings = require('../sharedSettings.json');
+let sharedSettings;
+try {
+  sharedSettings = require('../sharedSettings.json');
+} catch (e) {
+  sharedSettings = require('../../sharedSettings.json');
+}
+
 const { blacklistPayload, beeInfoPayload } = require('../features/shared/tarotComponents');
 const {
   buildBeeSpawnPayload,
@@ -25,7 +31,27 @@ const {
   buildMathBeeWinPayload
 } = require('./beePayloads');
 
-const logger = require('../../utils/logger');
+let logger;
+try {
+  logger = require('../../utils/logger');
+} catch (e) {
+  logger = require('../../../utils/logger');
+}
+const chatActivityBridge = require('../shared/chatActivityBridge');
+
+/**
+ * Helper: ตั้งเวลาลบข้อความผลลัพธ์ในห้องแชทอัตโนมัติ (Clean Chat)
+ * @param {object} message Discord Message object
+ * @param {number} delayMs หน่วงเวลาก่อนลบ (default: 45,000 ms = 45 วินาที)
+ */
+function scheduleMessageDeletion(message, delayMs = 45000) {
+  if (!message) return;
+  setTimeout(async () => {
+    try {
+      await message.delete().catch(() => {});
+    } catch (_) {}
+  }, delayMs);
+}
 
 // ─── Level Role Cap Helper: คำนวณเพดานแต้มสูงสุดตาม 12 Level Roles ─────────────
 let checkInCfg = null;
@@ -98,6 +124,7 @@ async function getActiveBeeSession(channelId) {
 }
 
 async function clearActiveBeeSession(channelId) {
+  chatActivityBridge.clearActiveBee(channelId);
   const supabase = getSupabase();
   if (!supabase) return;
   try {
@@ -137,13 +164,12 @@ async function checkAndCleanExpiredBees(client) {
           if (channel) {
             const msg = await channel.messages.fetch(messageId).catch(() => null);
             if (msg) {
-              const expiredPayload = buildBeeExpiredPayload(qData.beeConfig, qData.gardenUrl);
-              await msg.edit(expiredPayload);
-              logger.bee(`Bee message ${messageId} expired after 15 mins and updated in channel ${channelId}`);
+              await msg.delete().catch(() => {});
+              logger.bee(`Bee message ${messageId} expired after 15 mins and deleted in channel ${channelId}`);
             }
           }
         } catch (err) {
-          console.warn('[bees] Failed to edit expired bee message:', err.message);
+          console.warn('[bees] Failed to delete expired bee message:', err.message);
         }
       }
     }
@@ -449,6 +475,12 @@ async function spawnBee(client, beeId = null, targetChannelId = null) {
     const config = await fetchBeeSystemConfig();
     const channelId = targetChannelId || config.channel_id || '1524124134387224828';
 
+    // Collision Guard: หากมีบรอดแคสต์ส่งไปไม่เกิน 10 นาที หรือมีผึ้งค้างอยู่ ให้เลื่อนการปล่อยผึ้ง (ยกเว้นคำสั่งเจาะจง beeId)
+    if (!beeId && !chatActivityBridge.canSpawnBee(channelId, 10 * 60 * 1000)) {
+      logger.bee(`Auto spawn in channel ${channelId} postponed due to recent broadcast or active bee.`);
+      return null;
+    }
+
     // ลองดึงจาก cache ก่อน หากไม่มีให้ fetch จาก Discord API
     const channel = client.channels.cache.get(channelId) ||
                     await client.channels.fetch(channelId).catch((fetchErr) => {
@@ -491,6 +523,9 @@ async function spawnBee(client, beeId = null, targetChannelId = null) {
       spawnPayload = buildBeeSpawnPayload(selectedBee, customId, false, config.garden_background_url);
     }
     const message = await channel.send(spawnPayload);
+
+    // บันทึกลง Chat Activity Bridge
+    chatActivityBridge.registerActiveBee(channelId, { messageId: message.id, customId });
 
     // บันทึกลง Supabase DB (minigame_active_sessions)
     await saveActiveBeeSession(channelId, message.id, customId, selectedBee, config.garden_background_url, expiresAt);
@@ -559,12 +594,20 @@ async function scheduleNextAutoSpawn(client) {
     return;
   }
 
+  const channelId = config.channel_id || '1524124134387224828';
   const minMin = config.min_spawn_minutes || 5;
   const maxMin = config.max_spawn_minutes || 10;
   const randomMinutes = Math.random() * (maxMin - minMin) + minMin;
-  const delayMs = Math.floor(randomMinutes * 60 * 1000);
+  let delayMs = Math.floor(randomMinutes * 60 * 1000);
 
-  logger.bee(`Next auto spawn scheduled in ${randomMinutes.toFixed(1)} minutes.`);
+  // ตรวจสอบว่าต้องเลื่อนเวลาออกไปเพราะเพิ่งมีบรอดแคสต์โฆษณาหรือไม่ (Cooldown 10 นาที)
+  const remainingBroadcastCooldown = chatActivityBridge.getRemainingBeeSpawnDelay(channelId, 10 * 60 * 1000);
+  if (remainingBroadcastCooldown > delayMs) {
+    delayMs = remainingBroadcastCooldown;
+    logger.bee(`Auto spawn adjusted to wait for broadcast cooldown: ${(delayMs / 60000).toFixed(1)} minutes.`);
+  } else {
+    logger.bee(`Next auto spawn scheduled in ${(delayMs / 60000).toFixed(1)} minutes.`);
+  }
 
   autoSpawnTimer = setTimeout(async () => {
     await spawnBee(client);
@@ -640,8 +683,7 @@ async function handleBeeInteraction(interaction, client, supabase) {
       activeSessions.delete(parentCustomId);
       await clearActiveBeeSession(interaction.channelId);
       try {
-        const expiredPayload = buildBeeExpiredPayload(session.beeConfig, session.gardenUrl);
-        await interaction.message.edit(expiredPayload);
+        await interaction.message.delete().catch(() => {});
       } catch (err) { }
       return interaction.reply({
         content: '## 🐝︲เจ้าผึ้งตัวนี้บินกลับรังไปแล้วค่ะ! เนื่องจากไม่มีการตอบสนองภายใน 15 นาที 𓂃',
@@ -773,8 +815,9 @@ async function handleBeeInteraction(interaction, client, supabase) {
       // รอ 3 วินาทีก่อนส่งข้อความดาวหมด (ตาม BDFD replyIn[3s])
       setTimeout(async () => {
         try {
-          const allGonePayload = buildSpyBeeAllGonePayload(session.beeConfig, session.gardenUrl);
-          await interaction.channel.send(allGonePayload);
+          const allGonePayload = buildSpyBeeAllGonePayload(session.beeConfig, userId, session.gardenUrl);
+          const allGoneMsg = await interaction.channel.send(allGonePayload);
+          scheduleMessageDeletion(allGoneMsg, 45000);
         } catch (err) {
           console.error('[bees] Failed to send spy bee all-gone message:', err.message);
         }
@@ -833,8 +876,7 @@ async function handleBeeInteraction(interaction, client, supabase) {
       activeSessions.delete(parentCustomId);
       await clearActiveBeeSession(interaction.channelId);
       try {
-        const expiredPayload = buildBeeExpiredPayload(session.beeConfig, session.gardenUrl);
-        await interaction.message.edit(expiredPayload);
+        await interaction.message.delete().catch(() => {});
       } catch (err) { }
       return interaction.reply({
         content: '## 🐝︲เจ้าผึ้งตัวนี้บินกลับรังไปแล้วค่ะ! เนื่องจากไม่มีการตอบสนองภายใน 15 นาที 𓂃',
@@ -926,7 +968,8 @@ async function handleBeeInteraction(interaction, client, supabase) {
 
     // ส่ง Win Payload Component v2 ฉลองชัยชนะ
     const winPayload = buildMathBeeWinPayload(session.beeConfig, userId, mathData, session.gardenUrl);
-    await interaction.channel.send(winPayload);
+    const winMsg = await interaction.channel.send(winPayload);
+    scheduleMessageDeletion(winMsg, 45000);
     return;
   }
 
@@ -968,8 +1011,7 @@ async function handleBeeInteraction(interaction, client, supabase) {
       activeSessions.delete(customId);
       await clearActiveBeeSession(interaction.channelId);
       try {
-        const expiredPayload = buildBeeExpiredPayload(session.beeConfig, session.gardenUrl);
-        await interaction.message.edit(expiredPayload);
+        await interaction.message.delete().catch(() => {});
       } catch (err) { }
       return interaction.reply({
         content: '## 🐝︲เจ้าผึ้งตัวนี้บินกลับรังไปแล้วค่ะ! เนื่องจากไม่มีการตอบสนองภายใน 15 นาที 𓂃',
@@ -1070,7 +1112,8 @@ async function handleBeeInteraction(interaction, client, supabase) {
         }
 
         const winPayload = buildQueenBeeWinPayload(beeConfig, userId, winResult, gardenUrl);
-        await interaction.channel.send(winPayload);
+        const winMsg = await interaction.channel.send(winPayload);
+        scheduleMessageDeletion(winMsg, 45000);
       } else {
         // ขโมยล้มเหลว (50%)
         const chance1 = Math.random();
@@ -1096,7 +1139,8 @@ async function handleBeeInteraction(interaction, client, supabase) {
         }
 
         const lossPayload = buildQueenBeeLossPayload(beeConfig, userId, lossResult, gardenUrl);
-        await interaction.channel.send(lossPayload);
+        const lossMsg = await interaction.channel.send(lossPayload);
+        scheduleMessageDeletion(lossMsg, 45000);
       }
       return;
     }
@@ -1114,7 +1158,8 @@ async function handleBeeInteraction(interaction, client, supabase) {
         await updateUserPoints(userId, -lossPoints);
 
         const lossPayload = buildVampireDrainSelfPayload(beeConfig, userId, lossPoints, gardenUrl);
-        await interaction.channel.send(lossPayload);
+        const lossMsg = await interaction.channel.send(lossPayload);
+        scheduleMessageDeletion(lossMsg, 45000);
         return;
       }
 
@@ -1177,7 +1222,8 @@ async function handleBeeInteraction(interaction, client, supabase) {
         if (targetUser.bot) {
           await m.react('❌').catch(() => {});
           const resultPayload = buildVampireTargetResultPayload(beeConfig, userId, targetId, { type: 'bot' }, gardenUrl);
-          await channel.send(resultPayload);
+          const resMsg = await channel.send(resultPayload);
+          scheduleMessageDeletion(resMsg, 45000);
           return;
         }
 
@@ -1185,7 +1231,8 @@ async function handleBeeInteraction(interaction, client, supabase) {
         if (targetId === userId) {
           await m.react('❌').catch(() => {});
           const resultPayload = buildVampireTargetResultPayload(beeConfig, userId, targetId, { type: 'self' }, gardenUrl);
-          await channel.send(resultPayload);
+          const resMsg = await channel.send(resultPayload);
+          scheduleMessageDeletion(resMsg, 45000);
           return;
         }
 
@@ -1201,7 +1248,8 @@ async function handleBeeInteraction(interaction, client, supabase) {
           }
 
           const resultPayload = buildVampireTargetResultPayload(beeConfig, userId, targetId, { type: 'owner' }, gardenUrl);
-          await channel.send(resultPayload);
+          const resMsg = await channel.send(resultPayload);
+          scheduleMessageDeletion(resMsg, 45000);
           return;
         }
 
@@ -1219,7 +1267,8 @@ async function handleBeeInteraction(interaction, client, supabase) {
             capped: capResult.capped,
             maxPoints: capResult.maxPoints
           }, gardenUrl);
-          await channel.send(resultPayload);
+          const resMsg = await channel.send(resultPayload);
+          scheduleMessageDeletion(resMsg, 45000);
         } else {
           // คนมีแต้ม (แต้ม >= 1): สุ่มดูด 20 ถึงแต้มทั้งหมดของเหยื่อ
           const minDrain = Math.min(20, victimPoints);
@@ -1236,16 +1285,18 @@ async function handleBeeInteraction(interaction, client, supabase) {
             capped: capResult.capped,
             maxPoints: capResult.maxPoints
           }, gardenUrl);
-          await channel.send(resultPayload);
+          const resMsg = await channel.send(resultPayload);
+          scheduleMessageDeletion(resMsg, 45000);
         }
       });
 
       collector.on('end', async (collected, reason) => {
         if (!handled && reason === 'time') {
           try { await awakenMsg.delete().catch(() => {}); } catch (e) {}
-          await channel.send({
+          const expMsg = await channel.send({
             content: `## <:bear1:1148269886766862337>︲<@${userId}> เล่นเป็นมั้ยเนี่ย บอกให้แท็ก งั้นก็โดนหมดเวลาไปซะ *!*`
           }).catch(() => {});
+          scheduleMessageDeletion(expMsg, 20000);
 
           if (member && member.timeout) {
             await member.timeout(60 * 1000, 'Vampire Bee - หมดเวลาแท็กคน').catch((err) => {
@@ -1265,7 +1316,8 @@ async function handleBeeInteraction(interaction, client, supabase) {
       await updateUserPoints(userId, winPoints);
 
       const winPayload = buildBeeWinPayload(beeConfig, userId, winPoints, gardenUrl);
-      await interaction.channel.send(winPayload);
+      const winMsg = await interaction.channel.send(winPayload);
+      scheduleMessageDeletion(winMsg, 45000);
     } else {
       // แพ้: เช็กแต้มปัจจุบันก่อน
       const currentPoints = await getUserPoints(userId);
@@ -1276,14 +1328,16 @@ async function handleBeeInteraction(interaction, client, supabase) {
         await updateUserPoints(userId, -poisonLoss);
 
         const poisonPayload = buildBeePoisonLossPayload(beeConfig, userId, poisonLoss, gardenUrl);
-        await interaction.channel.send(poisonPayload);
+        const poisonMsg = await interaction.channel.send(poisonPayload);
+        scheduleMessageDeletion(poisonMsg, 45000);
       } else {
         // แต้ม > 0 -> สุ่มลบแต้ม
         const lossPoints = randInt(beeConfig.min_loss_points || 15, beeConfig.max_loss_points || 50);
         await updateUserPoints(userId, -lossPoints);
 
         const lossPayload = buildBeeLossPayload(beeConfig, userId, lossPoints, gardenUrl);
-        await interaction.channel.send(lossPayload);
+        const lossMsg = await interaction.channel.send(lossPayload);
+        scheduleMessageDeletion(lossMsg, 45000);
       }
     }
   }

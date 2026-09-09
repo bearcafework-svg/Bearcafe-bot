@@ -1069,7 +1069,7 @@ function buildSpyBeeRewardPayload(beeConfig, userId, rewardType, rewardData, gar
     });
   } else if (rewardType === 'meme') {
     dialogueText = dialogues.meme || "(ทำหน้าหล่อ ๆ) ผมหล่อมั้ยครับ 🥺? <:cuteplant:1152834055528783872>";
-    rewardText = "เอ่อ.. การได้เห็นหน้าหล่อ ๆ ก็อาจเป็นรางวัลหละมั้ง...";
+    rewardText = `<@${userId}> เอ่อ.. การได้เห็นหน้าหล่อ ๆ ก็อาจเป็นรางวัลหละมั้ง...`;
     rewardImgUrl = beeConfig?.meme_thumbnail_url || "https://cdn.discordapp.com/attachments/1528780402544611348/1546790968995352677/spy_bee4.png?ex=6aa1b998&is=6aa06818&hm=44922dd2749b7c8741efdb05dc58a38bd0cb156e9ef95428d9f3759bdbe88256&";
     const memeList = beeConfig?.meme_images || [
       "https://cdn.discordapp.com/attachments/1524704267015819274/1546984124378775612/e43a4db17ac11dd160d1a974253804ac.png?ex=6aa1c4bc&is=6aa0733c&hm=c432f8ae4820e7994518968b9c1bc067857022bb91a388add42605604f2a6f75&",
@@ -1080,7 +1080,7 @@ function buildSpyBeeRewardPayload(beeConfig, userId, rewardType, rewardData, gar
     bottomBgUrl = (rewardData?.memeUrl && rewardData.memeUrl !== bgUrl) ? rewardData.memeUrl : randomMeme;
   } else if (rewardType === 'role') {
     dialogueText = dialogues.role || "(นอนอ้วน) คุณลองพิมพ์ตามที่ผมบอกสิฮะ!~ <:cuteplant:1152834055528783872>";
-    rewardText = "จงพิมพ์คำว่า ||อู๊ดอู๊ด|| ₍ᐢ･⚇･ᐢ₎";
+    rewardText = `<@${userId}> จงพิมพ์คำว่า ||อู๊ดอู๊ด|| ₍ᐢ･⚇･ᐢ₎`;
     rewardImgUrl = beeConfig?.role_image_url || "https://cdn.discordapp.com/attachments/1528780402544611348/1546982928146505821/spy_bee6.png?ex=6aa1c39f&is=6aa0721f&hm=6650e4c4d5ec26b4c6d5b1b022e583ce62a6613de1c20f0e4c98f114c979628d&";
   }
 
@@ -1225,11 +1225,17 @@ function buildSpyBeeQuestResultPayload(beeConfig, userId, questType, rewardPoint
 }
 
 // ─── 12. Payload: Spy Bee All Stars Gone (เมื่อดาวหมดทั้ง 3 ดวง) ─────────────
-function buildSpyBeeAllGonePayload(beeConfig, gardenUrl = null) {
+function buildSpyBeeAllGonePayload(beeConfig, userId = null, gardenUrl = null) {
+  // รองรับกรณีเรียกแบบเดิมที่ส่ง (beeConfig, gardenUrl)
+  if (typeof userId === 'string' && (userId.startsWith('http://') || userId.startsWith('https://'))) {
+    gardenUrl = userId;
+    userId = null;
+  }
   const iconStr = getPointIconStr();
   const bgUrl = getGardenUrl(gardenUrl || beeConfig?.garden_background_url);
   const dialogueText = beeConfig?.dialogues?.all_gone || "(ตกใจ) โหคุณครับ หิวกระหายอะไรขนาดนั้น ดาวผมหายหมดเลยอะ T-T <:cuteplant:1152834055528783872>";
   const imgUrl = beeConfig?.all_gone_image_url || "https://cdn.discordapp.com/attachments/1448266116307877990/1448280278056439878/11.png";
+  const userTag = userId ? `<@${userId}> ` : "";
 
   return {
     flags: FLAG_V2,
@@ -1246,7 +1252,7 @@ function buildSpyBeeAllGonePayload(beeConfig, gardenUrl = null) {
                 content:
                   `## <:bee20000:1256669436350562355>︲__\` 𝖡𝖾𝖾 ₊ ${beeConfig?.name || 'เจ้าผึ้งสายลับ'} 𓂃 \`__\n` +
                   `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${dialogueText}\n` +
-                  ` > (${iconStr})⠀**__\`𝗆𝗌𝗀\`__** : ดาวทั้งหมดในรอบนี้ถูกผู้เล่นในคาเฟ่เก็บไปจนหมดแล้ว!`
+                  ` > (${iconStr})⠀**__\`𝗆𝗌𝗀\`__** : ${userTag}ดาวทั้งหมดในรอบนี้ถูกผู้เล่นในคาเฟ่เก็บไปจนหมดแล้ว!`
               }
             ],
             accessory: {

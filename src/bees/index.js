@@ -409,7 +409,7 @@ function setupBees(client) {
               await sendPreview('2.2 สุ่มโดนกินแต้ม (-point)', buildSpyBeeRewardPayload(beeConfig, dummyUserId, '-point', { amount: 50 }, bgUrl));
               await sendPreview('2.3 สุ่มได้รูปภาพมีม (meme)', buildSpyBeeRewardPayload(beeConfig, dummyUserId, 'meme', { memeUrl: randomMeme }, bgUrl));
               await sendPreview('2.4 สุ่มได้เควสต์พิมพ์ อู๊ดอู๊ด (role quest)', buildSpyBeeRewardPayload(beeConfig, dummyUserId, 'role', {}, bgUrl));
-              await sendPreview('2.5 ดาวหมดทั้ง 3 ดวง (All Stars Gone)', buildSpyBeeAllGonePayload(beeConfig, bgUrl));
+              await sendPreview('2.5 ดาวหมดทั้ง 3 ดวง (All Stars Gone)', buildSpyBeeAllGonePayload(beeConfig, dummyUserId, bgUrl));
             }
             if (!targetState || targetState === 'quest') {
               await sendPreview('3.1 ได้รับยศอีเวนต์ถาวร (Quest Role Grant)', buildSpyBeeQuestResultPayload(beeConfig, dummyUserId, 'role_grant', 0, bgUrl));

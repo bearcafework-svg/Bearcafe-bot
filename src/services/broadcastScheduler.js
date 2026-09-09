@@ -1,6 +1,7 @@
 // src/services/broadcastScheduler.js
 const { createClient } = require("@supabase/supabase-js");
 const { isSupabaseQuotaError, shouldLogThrottledError } = require("../../utils/errorThrottler");
+const chatActivityBridge = require("../shared/chatActivityBridge");
 if (!global.WebSocket) global.WebSocket = require("ws");
 
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -150,15 +151,38 @@ async function checkAndSendBroadcasts(client) {
       console.warn(`[broadcastScheduler] Campaign "${campaign.internal_name}" (${campaign.id}) has no target channels or valid payload.`);
     } else {
       let sentCount = 0;
+      let skippedDueToBee = 0;
       for (const channelId of targetChannels) {
         try {
+          // Collision Guard: Don't send if a bee minigame is actively running in this channel
+          if (!chatActivityBridge.canSendBroadcast(channelId)) {
+            console.log(`[broadcastScheduler] ⏸️ Channel ${channelId} has an active bee minigame. Postponing broadcast to prevent chat collision.`);
+            skippedDueToBee++;
+            continue;
+          }
+
           const ch = await client.channels.fetch(channelId).catch((err) => {
             console.warn(`[broadcastScheduler] Failed to fetch channel ${channelId}:`, err.message);
             return null;
           });
 
           if (ch) {
-            await ch.send(cleanPayload);
+            // Delete & Replace: Delete previous broadcast in this channel if exists
+            const prevMsgId = chatActivityBridge.getLastBroadcastMessageId(channelId);
+            if (prevMsgId) {
+              try {
+                const prevMsg = await ch.messages.fetch(prevMsgId).catch(() => null);
+                if (prevMsg) {
+                  await prevMsg.delete().catch(() => {});
+                  console.log(`[broadcastScheduler] 🧹 Cleaned up previous campaign message ${prevMsgId} in channel ${channelId}`);
+                }
+              } catch (cleanupErr) {
+                console.warn(`[broadcastScheduler] Could not delete previous campaign message:`, cleanupErr.message);
+              }
+            }
+
+            const sentMsg = await ch.send(cleanPayload);
+            chatActivityBridge.recordBroadcast(channelId, sentMsg.id);
             sentCount++;
           } else {
             console.warn(`[broadcastScheduler] Channel ${channelId} not found or bot lacks permissions.`);
@@ -167,7 +191,13 @@ async function checkAndSendBroadcasts(client) {
           console.error(`[broadcastScheduler] Failed to send campaign "${campaign.internal_name}" (${campaign.id}) to channel ${channelId}:`, sendErr.message);
         }
       }
-      console.log(`[broadcastScheduler] 🚀 Sent campaign "${campaign.internal_name}" (${campaign.id}) to ${sentCount}/${targetChannels.length} channel(s).`);
+
+      if (sentCount > 0) {
+        console.log(`[broadcastScheduler] 🚀 Sent campaign "${campaign.internal_name}" (${campaign.id}) to ${sentCount}/${targetChannels.length} channel(s).`);
+      } else if (skippedDueToBee > 0) {
+        console.log(`[broadcastScheduler] ⏳ Broadcast postponed because all target channel(s) are currently running bee minigames. Will retry next tick.`);
+        return;
+      }
     }
 
     // 6. Calculate next send time and update DB for this single campaign

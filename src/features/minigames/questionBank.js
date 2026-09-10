@@ -283,14 +283,34 @@ function scrambleWord(word, isThai = /[\u0E00-\u0E7F]/.test(word)) {
   return scrambled;
 }
 
+// ─── IN-MEMORY QUESTION CACHE (TTL: 1 Hour) ──────────────────────────────────
+// ป้องกันการยิง SELECT * ซ้ำๆ ทุกรอบเกม ช่วยลด Supabase Egress (5 GB Free Tier)
+const QUESTION_CACHE = new Map();
+const QUESTION_CACHE_TTL_MS = 60 * 60 * 1000; // 1 ชั่วโมง
+
+function invalidateQuestionCache(tableName = null) {
+  if (!tableName) {
+    QUESTION_CACHE.clear();
+    console.log('[questionBank] 🧹 In-Memory Question Cache: เคลียร์แคชทั้งหมดเรียบร้อยแล้ว');
+  } else {
+    for (const key of QUESTION_CACHE.keys()) {
+      if (key.startsWith(`${tableName}:`)) {
+        QUESTION_CACHE.delete(key);
+      }
+    }
+    console.log(`[questionBank] 🧹 In-Memory Question Cache: เคลียร์แคชตาราง ${tableName} เรียบร้อยแล้ว`);
+  }
+}
+
 /**
  * Fetch Next Question for any game (1-10) with Shared Vocabulary Pool & Dynamic 3-Choice Generation
  */
-async function getNextQuestion(supabase, gameId, gameSettings = null) {
+async function getNextQuestion(supabase, gameId, gameSettings = null, queryOptions = {}) {
   if (gameId === 3) {
     return generateMathProblem();
   }
 
+  const tableName = queryOptions.tableName || gameSettings?.tableName || 'minigame_questions';
   let questionsPool = [];
   let allTranslations = [];
 
@@ -303,14 +323,51 @@ async function getNextQuestion(supabase, gameId, gameSettings = null) {
     if (gameId === 11) targetGameIds = [11]; // Standalone Game 11 (Audio Thai)
     if (gameId === 8 || gameId === 9) targetGameIds = [8, 9];
 
-    const { data, error } = await supabase
-      .from("minigame_questions")
-      .select("*")
-      .in("game_id", targetGameIds)
-      .eq("is_active", true);
+    const sortedIds = [...targetGameIds].sort((a, b) => a - b).join('_');
+    const cacheKey = `${tableName}:${sortedIds}`;
+    const cached = QUESTION_CACHE.get(cacheKey);
+    const now = Date.now();
 
-    if (!error && data && data.length > 0) {
-      questionsPool = data;
+    if (cached && now < cached.expiresAt && Array.isArray(cached.data) && cached.data.length > 0) {
+      questionsPool = cached.data;
+    } else {
+      try {
+        const { data, error } = await supabase
+          .from(tableName)
+          .select("*")
+          .in("game_id", targetGameIds)
+          .eq("is_active", true);
+
+        if (!error && data && data.length > 0) {
+          questionsPool = data;
+          QUESTION_CACHE.set(cacheKey, {
+            data,
+            expiresAt: now + QUESTION_CACHE_TTL_MS
+          });
+        } else if (tableName !== 'minigame_questions') {
+          // Fallback: if custom table (e.g. akari_minigame_questions) not found or empty, try minigame_questions
+          const fallbackCacheKey = `minigame_questions:${sortedIds}`;
+          const fallbackCached = QUESTION_CACHE.get(fallbackCacheKey);
+          if (fallbackCached && now < fallbackCached.expiresAt && Array.isArray(fallbackCached.data) && fallbackCached.data.length > 0) {
+            questionsPool = fallbackCached.data;
+          } else {
+            const fallbackRes = await supabase
+              .from("minigame_questions")
+              .select("*")
+              .in("game_id", targetGameIds)
+              .eq("is_active", true);
+            if (!fallbackRes.error && fallbackRes.data && fallbackRes.data.length > 0) {
+              questionsPool = fallbackRes.data;
+              QUESTION_CACHE.set(fallbackCacheKey, {
+                data: fallbackRes.data,
+                expiresAt: now + QUESTION_CACHE_TTL_MS
+              });
+            }
+          }
+        }
+      } catch (e) {
+        console.warn(`[questionBank] Failed to fetch questions from ${tableName}:`, e.message);
+      }
     }
   }
 
@@ -602,6 +659,8 @@ module.exports = {
   maskWord,
   scrambleWord,
   getGraphemeClusters,
-  generateHint
+  generateHint,
+  invalidateQuestionCache,
+  QUESTION_CACHE
 };
 

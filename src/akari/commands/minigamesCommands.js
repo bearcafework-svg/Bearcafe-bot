@@ -10,14 +10,19 @@ const {
   MessageFlags,
 } = require("discord.js");
 const { spawnQuestion, invalidateSettingsCache } = require("../minigames/minigamesEngine");
+const { isExcludedGuild } = require("../filters/guildIgnoreFilter");
 
 const FLAG_V2 = MessageFlags.IsComponentsV2 || 32768;
 
 const DEFAULT_ACCESSORY = {
   type: 2,
   style: 5,
-  label: "Akari Bot",
-  emoji: { name: "🏮" },
+  label: "Bear Cafe",
+  emoji: {
+    id: "1520439075100688614",
+    name: "strawberryv2",
+    animated: false,
+  },
   url: "https://discord.com",
 };
 
@@ -51,66 +56,92 @@ const GAME_DESCRIPTIONS = {
   12: "ทายข้อความโจทย์ว่าจริงหรือเท็จ",
 };
 
+const AKARI_SLASH_COMMANDS = [
+  {
+    name: "setup-games",
+    description: "ติดตั้งระบบมินิเกมอัตโนมัติ สร้างช่องและเริ่มสปอว์นโจทย์ข้อแรกทันที (เฉพาะผู้ดูแลระบบ)",
+    default_member_permissions: PermissionFlagsBits.ManageChannels.toString(),
+    options: [
+      {
+        name: "preset",
+        description: "เลือกกลุ่มมินิเกมที่ต้องการเปิดใช้งาน",
+        type: 3, // STRING
+        required: true,
+        choices: [
+          { name: "🏆 ทุกมินิเกม (เปิดครบทั้ง 12 เกม)", value: "all" },
+          { name: "🔥 มินิเกมยอดฮิต (Top 5 Games)", value: "popular" },
+          { name: "🔤 เกมเน้นภาษาและความรู้ (Language & Quiz)", value: "language" },
+        ],
+      },
+      {
+        name: "category",
+        description: "เลือก Category ที่ต้องการให้สร้างช่องมินิเกมไว้ข้างใน (หากไม่เลือกจะสร้างใหม่ให้อัตโนมัติ)",
+        type: 7, // CHANNEL
+        channel_types: [ChannelType.GuildCategory],
+        required: false,
+      },
+    ],
+  },
+  {
+    name: "setting-games",
+    description: "เปิด/ปิด การใช้งานมินิเกมแต่ละเกมย่อยในเซิร์ฟเวอร์ (เฉพาะผู้ดูแลระบบ)",
+    default_member_permissions: PermissionFlagsBits.ManageChannels.toString(),
+  },
+  {
+    name: "clear",
+    description: "ลบช่องทุกประเภทภายในหมวดหมู่ที่กำหนด (เฉพาะเจ้าของเซิร์ฟเวอร์เท่านั้น)",
+    default_member_permissions: PermissionFlagsBits.Administrator.toString(),
+    options: [
+      {
+        name: "category",
+        description: "เลือกหมวดหมู่ (Category) ที่ต้องการลบช่องข้างใน",
+        type: 7, // CHANNEL
+        channel_types: [ChannelType.GuildCategory],
+        required: true,
+      },
+    ],
+  },
+];
+
 /**
- * ลงทะเบียน Slash Commands สำหรับ Akari Bot เมื่อบอทพร้อม
+ * ลงทะเบียน Slash Commands สำหรับ Akari Bot (เฉพาะ Public Guilds และห้ามโหลดใน Excluded Guilds)
  * @param {import('discord.js').Client} client 
  */
 async function registerAkariCommands(client) {
+  const syncGuildCommands = async (guild) => {
+    if (!guild) return;
+    if (isExcludedGuild(guild.id)) {
+      // 🛑 เซิร์ฟเวอร์ที่ถูก Exclude (เช่น Bear Cafe 1144251788493602848): ห้ามโหลดคำสั่ง /slash โดยเด็ดขาด
+      await guild.commands.set([]).catch(() => {});
+      console.log(`🛡️ [AkariCommands] ห้ามโหลดและเคลียร์คำสั่ง /slash ใน Excluded Guild "${guild.name}" (${guild.id}) เรียบร้อย`);
+    } else {
+      await guild.commands.set(AKARI_SLASH_COMMANDS).catch((err) => {
+        console.warn(`[AkariCommands] Failed to set commands on guild ${guild.name}:`, err.message);
+      });
+      console.log(`⚡ [AkariCommands] ลงทะเบียน Slash Commands บน Guild "${guild.name}" (${guild.id}) สำเร็จ`);
+    }
+  };
+
   client.once("clientReady", async () => {
     try {
       if (!client.application) return;
 
-      await client.application.commands.set([
-        {
-          name: "setup-games",
-          description: "ติดตั้งระบบมินิเกมอัตโนมัติ สร้างช่องและเริ่มสปอว์นโจทย์ข้อแรกทันที (เฉพาะผู้ดูแลระบบ)",
-          default_member_permissions: PermissionFlagsBits.ManageChannels.toString(),
-          options: [
-            {
-              name: "preset",
-              description: "เลือกกลุ่มมินิเกมที่ต้องการเปิดใช้งาน",
-              type: 3, // STRING
-              required: true,
-              choices: [
-                { name: "🏆 ทุกมินิเกม (เปิดครบทั้ง 12 เกม)", value: "all" },
-                { name: "🔥 มินิเกมยอดฮิต (Top 5 Games)", value: "popular" },
-                { name: "🔤 เกมเน้นภาษาและความรู้ (Language & Quiz)", value: "language" },
-              ],
-            },
-            {
-              name: "category",
-              description: "เลือก Category ที่ต้องการให้สร้างช่องมินิเกมไว้ข้างใน (หากไม่เลือกจะสร้างใหม่ให้อัตโนมัติ)",
-              type: 7, // CHANNEL
-              channel_types: [ChannelType.GuildCategory],
-              required: false,
-            },
-          ],
-        },
-        {
-          name: "setting-games",
-          description: "เปิด/ปิด การใช้งานมินิเกมแต่ละเกมย่อยในเซิร์ฟเวอร์ (เฉพาะผู้ดูแลระบบ)",
-          default_member_permissions: PermissionFlagsBits.ManageChannels.toString(),
-        },
-        {
-          name: "clear",
-          description: "ลบช่องทุกประเภทภายในหมวดหมู่ที่กำหนด (เฉพาะเจ้าของเซิร์ฟเวอร์เท่านั้น)",
-          default_member_permissions: PermissionFlagsBits.Administrator.toString(),
-          options: [
-            {
-              name: "category",
-              description: "เลือกหมวดหมู่ (Category) ที่ต้องการลบช่องข้างใน",
-              type: 7, // CHANNEL
-              channel_types: [ChannelType.GuildCategory],
-              required: true,
-            },
-          ],
-        },
-      ]);
+      // 1. ล้าง Global Commands ของ Akari ทิ้งทั้งหมด เพื่อไม่ให้ Discord ส่งคำสั่งไปโผล่ใน Bear Cafe หรือ Excluded Guilds
+      await client.application.commands.set([]);
+      console.log("🧹 [AkariCommands] เคลียร์ Global Slash Commands เรียบร้อย (ป้องกันการรั่วไหลไปยังเซิร์ฟเวอร์หลัก)");
 
-      console.log("🏮 [AkariCommands] ลงทะเบียน Slash Commands (/setup-games, /setting-games, /clear) สำเร็จแล้ว!");
+      // 2. ลงทะเบียนคำสั่งเฉพาะใน Guilds ที่ได้รับอนุญาตเท่านั้น (และสั่งล้างใน Excluded Guilds)
+      for (const [guildId, guild] of client.guilds.cache) {
+        await syncGuildCommands(guild);
+      }
     } catch (e) {
       console.error("❌ [AkariCommands] Register Slash Commands Error:", e.message);
     }
+  });
+
+  // 3. เมื่อ Akari ถูกเชิญเข้ากิลด์ใหม่ ตรวจสอบและลงทะเบียนเฉพาะกิลด์ที่ผ่านเกณฑ์
+  client.on("guildCreate", async (guild) => {
+    await syncGuildCommands(guild);
   });
 }
 

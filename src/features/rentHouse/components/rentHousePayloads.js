@@ -179,8 +179,6 @@ function createRentHousePanelPayload(ownerMember, customImageUrl = null, ad = nu
     });
   }
 
-  containerComponents.push({ type: 14, spacing: 2 });
-
   return {
     flags: 32768, // Component v2 Container
     components: [

@@ -9,6 +9,9 @@ const excludedGuildIds = new Set();
 function initExcludedGuilds() {
   excludedGuildIds.clear();
   
+  // 0. ค่าเริ่มต้น: เซิร์ฟเวอร์หลัก Bear Cafe (1144251788493602848)
+  excludedGuildIds.add("1144251788493602848");
+
   // 1. ดึงจาก AKARI_EXCLUDED_GUILD_IDS
   if (process.env.AKARI_EXCLUDED_GUILD_IDS) {
     for (const id of process.env.AKARI_EXCLUDED_GUILD_IDS.split(",")) {

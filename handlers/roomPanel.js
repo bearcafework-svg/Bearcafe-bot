@@ -885,8 +885,6 @@ function createComponentV2PanelPayload(ownerMember, room, customImageUrl = null,
     });
   }
 
-  containerComponents.push({ type: 14, spacing: 2 });
-
   return {
     flags: 32768,
     components: [

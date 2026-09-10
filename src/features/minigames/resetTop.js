@@ -743,7 +743,6 @@ async function buildSeasonFinalAnnouncementPayload(guild, supabase) {
     : `🎉 ขอแสดงความยินดีกับผู้ชนะ Season 1 ทุกท่านด้วยนะคะ!`;
 
   const payload = {
-    content: mentionContent,
     flags: 32768,
     components: [
       {
@@ -781,7 +780,7 @@ async function buildSeasonFinalAnnouncementPayload(guild, supabase) {
     ]
   };
 
-  return { payload, attachment };
+  return { payload, attachment, mentionContent };
 }
 
 // ตัวแปรล็อกในหน่วยความจำเพื่อป้องกันการรันซ้ำ
@@ -830,7 +829,10 @@ async function executeSeasonTransition(client, supabase, options = {}) {
                        await guild.channels.fetch(EVENT_ANNOUNCE_CHANNEL_ID).catch(() => null);
 
     if (announceCh && announceCh.isTextBased()) {
-      const { payload: announcePayload, attachment: announceAttachment } = await buildSeasonFinalAnnouncementPayload(guild, supabase);
+      const { payload: announcePayload, attachment: announceAttachment, mentionContent } = await buildSeasonFinalAnnouncementPayload(guild, supabase);
+      if (mentionContent) {
+        await announceCh.send({ content: mentionContent });
+      }
       await announceCh.send({ ...announcePayload, files: [announceAttachment] });
       console.log(`[resetTop] ✅ Season 1 final announcement card sent to #${announceCh.name} (${EVENT_ANNOUNCE_CHANNEL_ID})!`);
     } else {

@@ -37,6 +37,106 @@ const processingChannels = new Set();
 // Memory cache for TTS audio MP3 buffers per word (Instant 0ms retrieval & rate-limit prevention)
 const audioBufferCache = new Map();
 
+// ── Hybrid Anti-Multiplatform Concurrency Guard ───────────────────
+const GAME_TYPES = {
+  BUTTON: 'BUTTON',
+  TEXT: 'TEXT',
+  AUDIO: 'AUDIO',
+};
+
+const GAME_TYPE_MAP = {
+  1: GAME_TYPES.TEXT,
+  2: GAME_TYPES.TEXT,
+  3: GAME_TYPES.TEXT,
+  4: GAME_TYPES.TEXT,
+  5: GAME_TYPES.AUDIO,
+  6: GAME_TYPES.TEXT,
+  7: GAME_TYPES.TEXT,
+  8: GAME_TYPES.BUTTON,
+  9: GAME_TYPES.BUTTON,
+  10: GAME_TYPES.BUTTON,
+  11: GAME_TYPES.AUDIO,
+  12: GAME_TYPES.BUTTON,
+};
+
+const TRANSITION_MIN_MS = {
+  [GAME_TYPES.BUTTON]: 1200, // ขั้นต่ำ 1.2 วินาทีสำหรับสลับเข้าเล่นเกมปุ่ม
+  [GAME_TYPES.TEXT]: 2000,   // ขั้นต่ำ 2.0 วินาทีสำหรับสลับเข้าเล่นเกมพิมพ์
+  [GAME_TYPES.AUDIO]: 3000,  // ขั้นต่ำ 3.0 วินาทีสำหรับสลับเข้าเล่นเกมเสียง
+};
+
+// เก็บประวัติการเล่นล่าสุดของผู้ใช้ (userId -> { channelId, gameId, timestamp })
+const userLastMinigameAction = new Map();
+// ล็อกกันการยิงคำตอบซ้อนกันในระดับ millisecond เดียวกัน (In-Flight Concurrency Mutex)
+const userInFlightProcessing = new Set();
+
+// ล้างข้อมูลผู้เล่นที่ไม่มีกิจกรรมเกิน 1 นาที เพื่อไม่ให้กินหน่วยความจำ
+setInterval(() => {
+  const now = Date.now();
+  for (const [uid, record] of userLastMinigameAction.entries()) {
+    if (now - record.timestamp > 60000) {
+      userLastMinigameAction.delete(uid);
+    }
+  }
+}, 5 * 60 * 1000);
+
+/**
+ * ตรวจสอบความสมเหตุสมผลของการสลับห้องเล่นมินิเกม (Cross-Channel Feasibility Guard)
+ * @param {string} userId Discord User ID
+ * @param {string} targetChannelId Channel ID ที่กำลังตอบ
+ * @param {number} targetGameId Game ID ที่กำลังตอบ
+ * @returns {{ allowed: boolean, reason?: string, elapsed?: number, requiredMs?: number, fromGameId?: number, toGameId?: number }}
+ */
+function checkCrossChannelFeasibility(userId, targetChannelId, targetGameId) {
+  // 1. In-Flight Mutex: ถ้าผู้เล่นคนนี้กำลังมี request ชนะ/ประมวลผลแต้มค้างอยู่ในระบบ ห้ามยิงคำตอบซ้อน
+  if (userInFlightProcessing.has(userId)) {
+    return {
+      allowed: false,
+      reason: 'IN_FLIGHT_CONFLICT',
+    };
+  }
+
+  const lastAction = userLastMinigameAction.get(userId);
+  if (!lastAction) {
+    return { allowed: true };
+  }
+
+  // 2. ถ้าเล่นในห้องเดิม (Same Channel) อนุญาตให้เล่นต่อได้อิสระ ไม่จำกัดเวลาสลับห้อง
+  if (lastAction.channelId === targetChannelId) {
+    return { allowed: true };
+  }
+
+  // 3. ถ้าสลับข้ามห้อง (Cross Channel) ตรวจสอบเวลาขั้นต่ำตามประเภทเกมปลายทาง
+  const now = Date.now();
+  const elapsed = now - lastAction.timestamp;
+  const targetGameType = GAME_TYPE_MAP[targetGameId] || GAME_TYPES.TEXT;
+  const requiredMs = TRANSITION_MIN_MS[targetGameType] || 2000;
+
+  if (elapsed < requiredMs) {
+    return {
+      allowed: false,
+      reason: 'CROSS_CHANNEL_TOO_FAST',
+      elapsed,
+      requiredMs,
+      fromGameId: lastAction.gameId,
+      toGameId: targetGameId,
+    };
+  }
+
+  return { allowed: true };
+}
+
+/**
+ * บันทึกการกระทำล่าสุดของผู้เล่น
+ */
+function recordUserAction(userId, channelId, gameId) {
+  userLastMinigameAction.set(userId, {
+    channelId,
+    gameId,
+    timestamp: Date.now(),
+  });
+}
+
 /**
  * Helper: Fetches or returns cached TTS audio buffer for a given word
  */
@@ -610,9 +710,28 @@ function setupMinigames(client) {
       const questionData = session.questionData;
       const selectedChoice = questionData.options[choiceIndex];
       const isCorrect = String(selectedChoice).trim().toLowerCase() === String(questionData.answer).trim().toLowerCase();
+      const userId = interaction.user.id;
+
+      // ── Cross-Channel Feasibility Guard ─────────────────────────────
+      const feasibility = checkCrossChannelFeasibility(userId, interaction.channelId, gameId);
+      if (!feasibility.allowed) {
+        if (feasibility.reason === 'IN_FLIGHT_CONFLICT') {
+          return interaction.reply({
+            content: '⚠️ กำลังประมวลผลคำตอบจากเกมอื่นอยู่ กรุณารอสักครู่นะคะ 🐻',
+            flags: FLAG_EPHEMERAL
+          });
+        }
+        console.log(`[minigames] 🛡️ Blocked concurrent attempt by User: ${interaction.user.tag || interaction.user.username} (${userId}) (from Game ${feasibility.fromGameId} to Game ${feasibility.toGameId} in ${feasibility.elapsed}ms, required >= ${feasibility.requiredMs}ms)`);
+        return interaction.reply({
+          content: '⚠️ ตรวจพบการเล่นหลายเกมพร้อมกัน กรุณารอสักครู่แล้วลองใหม่อีกครั้งนะคะ (เล่นทีละเกมนะคะ 🐻)',
+          flags: FLAG_EPHEMERAL
+        });
+      }
+
+      // Record this user action
+      recordUserAction(userId, interaction.channelId, gameId);
 
       if (!isCorrect) {
-        const userId = interaction.user.id;
         const penalty = Math.floor(Math.random() * 11) + 5; // 5-15
         if (supabase) {
           deductPoints(supabase, userId, penalty).catch(err => {
@@ -626,7 +745,8 @@ function setupMinigames(client) {
         });
       }
 
-      // Correct Answer! Lock channel & clear session immediately
+      // Correct Answer! Lock user in-flight, lock channel & clear session immediately
+      userInFlightProcessing.add(userId);
       processingChannels.add(interaction.channelId);
       activeSessions.delete(interaction.channelId);
       if (supabase) {
@@ -635,6 +755,7 @@ function setupMinigames(client) {
 
       // Fallback safety timeout: Auto-release lock after 10s if process stalls
       const safetyLockTimeout = setTimeout(() => {
+        userInFlightProcessing.delete(userId);
         if (processingChannels.has(interaction.channelId)) {
           console.warn(`[minigames] Auto-releasing stuck lock for channel ${interaction.channelId}`);
           processingChannels.delete(interaction.channelId);
@@ -648,7 +769,6 @@ function setupMinigames(client) {
         await interaction.update(winnerPayload);
 
         // 2. Process points and DB recording asynchronously in background
-        const userId = interaction.user.id;
         const member = interaction.member;
         const pointsEarned = questionData.rewardPoints || 3;
 
@@ -675,16 +795,21 @@ function setupMinigames(client) {
         // 3. Post next question with minimal delay
         setTimeout(() => {
           sendNextGameQuestion(client, supabase, interaction.channelId, gameId)
-            .finally(() => clearTimeout(safetyLockTimeout))
+            .finally(() => {
+              clearTimeout(safetyLockTimeout);
+              userInFlightProcessing.delete(userId);
+            })
             .catch((err) => {
               console.error(`[minigames] Error in sendNextGameQuestion for Game ${gameId}:`, err);
               clearTimeout(safetyLockTimeout);
+              userInFlightProcessing.delete(userId);
               processingChannels.delete(interaction.channelId);
             });
         }, 400);
       } catch (err) {
         console.error('[minigames] Error processing correct answer interaction:', err.message);
         clearTimeout(safetyLockTimeout);
+        userInFlightProcessing.delete(userId);
         processingChannels.delete(interaction.channelId);
       }
     }
@@ -864,6 +989,21 @@ function setupMinigames(client) {
 
     const userText = message.content.trim();
     const correctAnswer = String(session.questionData.answer).trim();
+    const userId = message.author.id;
+
+    // ── Cross-Channel Feasibility Guard ─────────────────────────────
+    const feasibility = checkCrossChannelFeasibility(userId, message.channelId, matchedGameId);
+    if (!feasibility.allowed) {
+      // ลบข้อความที่ตอบมาทิ้งเงียบๆ โดยไม่หักแต้ม ไม่นับเควส และไม่แจกแต้ม
+      message.delete().catch(() => { });
+      if (feasibility.reason === 'CROSS_CHANNEL_TOO_FAST') {
+        console.log(`[minigames] 🛡️ Blocked concurrent attempt by User: ${message.author.tag || message.author.username} (${userId}) (from Game ${feasibility.fromGameId} to Game ${feasibility.toGameId} in ${feasibility.elapsed}ms, required >= ${feasibility.requiredMs}ms)`);
+      }
+      return;
+    }
+
+    // บันทึก action สำหรับผู้เล่นคนนี้
+    recordUserAction(userId, message.channelId, matchedGameId);
 
     // Check correctness: exact comparison for Thai, case-insensitive for English
     const isThaiGame = matchedGameId === 1 || matchedGameId === 4 || matchedGameId === 6 || matchedGameId === 11;
@@ -876,7 +1016,6 @@ function setupMinigames(client) {
       // Delete wrong text message asynchronously
       message.delete().catch(() => { });
 
-      const userId = message.author.id;
       const penalty = Math.floor(Math.random() * 11) + 5; // 5-15
       if (supabase) {
         deductPoints(supabase, userId, penalty).catch(err => {
@@ -892,7 +1031,8 @@ function setupMinigames(client) {
       return;
     }
 
-    // Right Answer! Lock channel & clear session immediately
+    // Right Answer! Lock user in-flight, lock channel & clear session immediately
+    userInFlightProcessing.add(userId);
     processingChannels.add(message.channelId);
     activeSessions.delete(message.channelId);
     trackUserDailyQuestProgress(message.author.id, "MINIGAME_PLAY", 1);
@@ -902,6 +1042,7 @@ function setupMinigames(client) {
     }
 
     const safetyLockTimeout = setTimeout(() => {
+      userInFlightProcessing.delete(userId);
       if (processingChannels.has(message.channelId)) {
         console.warn(`[minigames] Auto-releasing stuck lock for channel ${message.channelId}`);
         processingChannels.delete(message.channelId);
@@ -967,16 +1108,21 @@ function setupMinigames(client) {
       // 4. Post next question Component V2 with minimal delay
       setTimeout(() => {
         sendNextGameQuestion(client, supabase, message.channelId, matchedGameId)
-          .finally(() => clearTimeout(safetyLockTimeout))
+          .finally(() => {
+            clearTimeout(safetyLockTimeout);
+            userInFlightProcessing.delete(userId);
+          })
           .catch((err) => {
             console.error(`[minigames] Error in sendNextGameQuestion for Game ${matchedGameId}:`, err);
             clearTimeout(safetyLockTimeout);
+            userInFlightProcessing.delete(userId);
             processingChannels.delete(message.channelId);
           });
       }, 350);
     } catch (err) {
       console.error('[minigames] Error processing correct answer message:', err.message);
       clearTimeout(safetyLockTimeout);
+      userInFlightProcessing.delete(userId);
       processingChannels.delete(message.channelId);
     }
   });

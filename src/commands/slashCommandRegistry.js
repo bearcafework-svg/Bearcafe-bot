@@ -322,6 +322,34 @@ const GUILD_SLASH_COMMANDS = [
       },
     ],
   },
+
+  // 18. /send-component (Heal Jai / Component V2 System)
+  {
+    name: "send-component",
+    description: "[Staff Only] ส่งบอร์ดและ Component V2 ของระบบไปยังห้องที่กำหนด",
+    default_member_permissions: PermissionFlagsBits.ManageGuild.toString(),
+    options: [
+      {
+        name: "component",
+        description: "เลือกบอร์ดระบบที่ต้องการส่ง",
+        type: ApplicationCommandOptionType.String,
+        required: true,
+        choices: [
+          { name: "1. บอร์ดอ่านข้อตกลงและนโยบาย (Terms)", value: "terms" },
+          { name: "2. บอร์ดเมนูเครื่องดื่มและสั่งบริการ (Menu)", value: "menu" },
+          { name: "3. แผงตอกบัตรเข้ากะของทีมงาน (Shift)", value: "shift" },
+          { name: "7. กล่องความประทับใจ (Public Showcase Preview)", value: "feedback" },
+        ],
+      },
+      {
+        name: "channel",
+        description: "เลือกห้องที่ต้องการให้ส่งการ์ดไป (เว้นว่างเพื่อส่งในห้องปัจจุบัน)",
+        type: ApplicationCommandOptionType.Channel,
+        channel_types: [ChannelType.GuildText],
+        required: false,
+      },
+    ],
+  },
 ];
 
 /**

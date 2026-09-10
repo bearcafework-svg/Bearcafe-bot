@@ -62,7 +62,7 @@ const client = new Client({
 });
 client.setMaxListeners(50);
 
-const { setupGuildFilter, getValidGuild } = require("./utils/guildFilter");
+const { setupGuildFilter, getValidGuild, getAllowedGuildIds } = require("./utils/guildFilter");
 setupGuildFilter(client);
 
 const { initInteractionRouter } = require("./src/interactions/router");
@@ -197,11 +197,15 @@ client.once("clientReady", async () => {
   // 2. ซิงค์ Voice Status สำหรับห้องเสียงในหมวดหมู่ Point x2 ทันที
   syncPointX2VoiceStatus(client);
 
-  // 3. ลงทะเบียน Slash Commands รวมแบบ Bulk Set (เร็วขึ้น 15x)
-  if (guild) {
-    registerAllGuildCommands(guild).catch((err) =>
-      console.error("[slash] Bulk command registration error:", err.message)
-    );
+  // 3. ลงทะเบียน Slash Commands รวมแบบ Bulk Set (เร็วขึ้น 15x) สำหรับทุกกิลด์ที่อนุญาต
+  const allowedGuildIds = getAllowedGuildIds ? getAllowedGuildIds() : [guild?.id].filter(Boolean);
+  for (const gId of allowedGuildIds) {
+    const targetGuild = client.guilds.cache.get(gId);
+    if (targetGuild) {
+      registerAllGuildCommands(targetGuild).catch((err) =>
+        console.error(`[slash] Bulk command registration error on "${targetGuild.name}":`, err.message)
+      );
+    }
   }
 
   // 4. โหลด separator IDs จาก Redis

@@ -7,7 +7,7 @@ require("dotenv").config();
 const { Client, GatewayIntentBits, ActivityType, MessageFlags } = require("discord.js");
 const { createClient } = require("@supabase/supabase-js");
 const { setupAkariGuildFilter } = require("./src/akari/filters/guildIgnoreFilter");
-const { setupAkariMinigames } = require("./src/akari/minigames/minigamesEngine");
+const { setupAkariMinigames, flushAllTenantPoints } = require("./src/akari/minigames/minigamesEngine");
 const {
   registerAkariCommands,
   handleSetupGames,
@@ -39,17 +39,20 @@ if (process.env.AKARI_SUPABASE_URL && process.env.AKARI_SUPABASE_SERVICE_ROLE_KE
   console.warn("⚠️ [AkariBot] AKARI_SUPABASE_URL หรือ AKARI_SUPABASE_SERVICE_ROLE_KEY ยังไม่ได้กรอก (ทำงานแบบ RAM Fallback Mode)");
 }
 
-// 2. สร้าง Discord Client สำหรับ Akari Bot
+// 2. สร้าง Discord Client สำหรับ Akari Bot (ปรับลด Intents เพื่อประหยัด CPU/Network และเปิด Message Cache Sweeper)
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildVoiceStates,
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildPresences,
-    GatewayIntentBits.DirectMessages,
   ],
+  sweepers: {
+    messages: {
+      interval: 1800, // กวาดแคชทุก 30 นาที
+      lifetime: 900,  // ลบข้อความที่เก่ากว่า 15 นาทีออกจาก RAM
+    },
+  },
 });
 client.setMaxListeners(50);
 
@@ -116,3 +119,29 @@ client.once("clientReady", () => {
 client.login(botToken).catch((err) => {
   console.error("❌ [AkariBot] Login failed:", err.message);
 });
+
+// 9. Graceful Shutdown (บันทึกคะแนนค้างท่อลง DB และตัด Gateway สวยงามเมื่อรีสตาร์ต)
+let isShuttingDown = false;
+async function gracefulShutdown(signal) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  console.log(`\n🛑 [AkariBot] ได้รับสัญญาณ ${signal} กำลังบันทึกข้อมูลและปิดระบบอย่างปลอดภัย...`);
+
+  try {
+    if (akariSupabase) {
+      console.log("💾 [AkariBot] กำลัง Flush คะแนนที่ค้างใน RAM ทั้งหมดลง Supabase...");
+      await flushAllTenantPoints(akariSupabase);
+      console.log("✅ [AkariBot] Flush คะแนนสำเร็จเรียบร้อย");
+    }
+    console.log("🔌 [AkariBot] กำลังตัดการเชื่อมต่อ Discord Client...");
+    await client.destroy();
+    console.log("👋 [AkariBot] ปิดโปรเซสอย่างสมบูรณ์ ข้อมูลไม่สูญหาย");
+  } catch (err) {
+    console.error("❌ [AkariBot] Shutdown error:", err.message);
+  } finally {
+    process.exit(0);
+  }
+}
+
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));

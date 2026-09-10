@@ -104,6 +104,21 @@ const AKARI_SLASH_COMMANDS = [
 ];
 
 /**
+ * เปรียบเทียบชุดคำสั่งที่มีอยู่ใน Discord กับคำสั่งเป้าหมายว่าตรงกันหรือไม่
+ */
+function areCommandsEqual(existingCollection, targetCommands) {
+  if (!existingCollection || existingCollection.size !== targetCommands.length) return false;
+  for (const cmd of targetCommands) {
+    const existingCmd = existingCollection.find((c) => c.name === cmd.name);
+    if (!existingCmd) return false;
+    const existingOpts = existingCmd.options || [];
+    const targetOpts = cmd.options || [];
+    if (existingOpts.length !== targetOpts.length) return false;
+  }
+  return true;
+}
+
+/**
  * ลงทะเบียน Slash Commands สำหรับ Akari Bot (เฉพาะ Public Guilds และห้ามโหลดใน Excluded Guilds)
  * @param {import('discord.js').Client} client 
  */
@@ -112,9 +127,17 @@ async function registerAkariCommands(client) {
     if (!guild) return;
     if (isExcludedGuild(guild.id)) {
       // 🛑 เซิร์ฟเวอร์ที่ถูก Exclude (เช่น Bear Cafe 1144251788493602848): ห้ามโหลดคำสั่ง /slash โดยเด็ดขาด
-      await guild.commands.set([]).catch(() => {});
-      console.log(`🛡️ [AkariCommands] ห้ามโหลดและเคลียร์คำสั่ง /slash ใน Excluded Guild "${guild.name}" (${guild.id}) เรียบร้อย`);
+      const existing = await guild.commands.fetch().catch(() => null);
+      if (existing && existing.size > 0) {
+        await guild.commands.set([]).catch(() => {});
+        console.log(`🛡️ [AkariCommands] เคลียร์คำสั่ง /slash ใน Excluded Guild "${guild.name}" (${guild.id}) เรียบร้อย`);
+      }
     } else {
+      const existing = await guild.commands.fetch().catch(() => null);
+      if (existing && areCommandsEqual(existing, AKARI_SLASH_COMMANDS)) {
+        console.log(`⚡ [AkariCommands] คำสั่งบน Guild "${guild.name}" (${guild.id}) เป็นปัจจุบันแล้ว (ข้ามการ sync เพื่อป้องกัน 429 Rate Limit)`);
+        return;
+      }
       await guild.commands.set(AKARI_SLASH_COMMANDS).catch((err) => {
         console.warn(`[AkariCommands] Failed to set commands on guild ${guild.name}:`, err.message);
       });
@@ -126,9 +149,12 @@ async function registerAkariCommands(client) {
     try {
       if (!client.application) return;
 
-      // 1. ล้าง Global Commands ของ Akari ทิ้งทั้งหมด เพื่อไม่ให้ Discord ส่งคำสั่งไปโผล่ใน Bear Cafe หรือ Excluded Guilds
-      await client.application.commands.set([]);
-      console.log("🧹 [AkariCommands] เคลียร์ Global Slash Commands เรียบร้อย (ป้องกันการรั่วไหลไปยังเซิร์ฟเวอร์หลัก)");
+      // 1. ตรวจสอบ Global Commands ของ Akari ก่อน ถ้ามีค้างอยู่ค่อยล้างทิ้ง
+      const existingGlobal = await client.application.commands.fetch().catch(() => null);
+      if (existingGlobal && existingGlobal.size > 0) {
+        await client.application.commands.set([]);
+        console.log("🧹 [AkariCommands] เคลียร์ Global Slash Commands เรียบร้อย (ป้องกันการรั่วไหลไปยังเซิร์ฟเวอร์หลัก)");
+      }
 
       // 2. ลงทะเบียนคำสั่งเฉพาะใน Guilds ที่ได้รับอนุญาตเท่านั้น (และสั่งล้างใน Excluded Guilds)
       for (const [guildId, guild] of client.guilds.cache) {

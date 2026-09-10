@@ -59,6 +59,16 @@ const client = new Client({
     GatewayIntentBits.GuildPresences,
     GatewayIntentBits.DirectMessages,
   ],
+  sweepers: {
+    messages: {
+      interval: 1800, // กวาดแคชทุก 30 นาที
+      lifetime: 900,  // ลบข้อความที่เก่ากว่า 15 นาทีออกจาก RAM
+    },
+    threads: {
+      interval: 3600, // กวาดกระทู้ทุก 1 ชั่วโมง
+      lifetime: 1800, // ปล่อยกระทู้ที่ไม่ได้ใช้งานเกิน 30 นาที
+    },
+  },
 });
 client.setMaxListeners(50);
 
@@ -427,3 +437,30 @@ process.on("unhandledRejection", (e) => console.error("Unhandled rejection:", e)
 
 // ── Login ──────────────────────────────────────────────────────────
 client.login(activeBotToken);
+
+// ── Graceful Shutdown (คืน Port 3000 และตัด Gateway สวยงามเมื่อรีสตาร์ต) ──
+let isShuttingDown = false;
+async function gracefulShutdown(signal) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  console.log(`\n🛑 [MainBot] ได้รับสัญญาณ ${signal} กำลังปิดระบบอย่างปลอดภัย...`);
+
+  try {
+    if (healthServer && healthServer.listening) {
+      console.log(`🔌 [MainBot] กำลังปิด Health Server (คืน Port ${port})...`);
+      await new Promise((resolve) => healthServer.close(resolve));
+      console.log(`✅ [MainBot] ปิด Health Server คืน Port สำเร็จ`);
+    }
+
+    console.log("🔌 [MainBot] กำลังตัดการเชื่อมต่อ Discord Client...");
+    await client.destroy();
+    console.log("👋 [MainBot] ปิดโปรเซสบอทหลักอย่างสมบูรณ์");
+  } catch (err) {
+    console.error("❌ [MainBot] Shutdown error:", err.message);
+  } finally {
+    process.exit(0);
+  }
+}
+
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));

@@ -353,6 +353,21 @@ const GUILD_SLASH_COMMANDS = [
 ];
 
 /**
+ * เปรียบเทียบชุดคำสั่งที่มีอยู่ใน Discord กับคำสั่งเป้าหมายว่าตรงกันหรือไม่
+ */
+function areCommandsEqual(existingCollection, targetCommands) {
+  if (!existingCollection || existingCollection.size !== targetCommands.length) return false;
+  for (const cmd of targetCommands) {
+    const existingCmd = existingCollection.find((c) => c.name === cmd.name);
+    if (!existingCmd) return false;
+    const existingOpts = existingCmd.options || [];
+    const targetOpts = cmd.options || [];
+    if (existingOpts.length !== targetOpts.length) return false;
+  }
+  return true;
+}
+
+/**
  * ลงทะเบียน Guild Slash Commands ทั้งหมดในครั้งเดียว (Bulk Set)
  * @param {import("discord.js").Guild} guild
  */
@@ -387,6 +402,16 @@ async function registerAllGuildCommands(guild) {
       );
     }
 
+    // ⚡ Smart Command Check: ตรวจสอบคำสั่งเดิมก่อน ถ้าตรงกันอยู่แล้วให้ข้ามทันทีเพื่อไม่ให้ติด 429
+    const existing = await guild.commands.fetch().catch(() => null);
+    if (existing && areCommandsEqual(existing, targetCommands)) {
+      const duration = Date.now() - startTime;
+      console.log(
+        `⚡ [slash] Commands on "${guild.name}" are already up to date (${targetCommands.length} commands, ${duration}ms, skipped API call to avoid 429)`
+      );
+      return;
+    }
+
     await guild.commands.set(targetCommands);
     const duration = Date.now() - startTime;
     console.log(
@@ -400,4 +425,5 @@ async function registerAllGuildCommands(guild) {
 module.exports = {
   GUILD_SLASH_COMMANDS,
   registerAllGuildCommands,
+  areCommandsEqual,
 };

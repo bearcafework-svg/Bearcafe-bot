@@ -3,12 +3,25 @@
 const { createCanvas } = require('@napi-rs/canvas');
 require('../../utils/fontLoader');
 
+// In-memory LRU Cache สำหรับเก็บผลลัพธ์ PNG Buffer (สูงสุด 300 คำ)
+const CANVAS_IMAGE_CACHE = new Map();
+const MAX_CANVAS_CACHE_SIZE = 300;
+
 /**
  * Creates an image buffer containing text in red font with transparent background
  * @param {string} text - The text to render
  * @returns {Buffer} - PNG buffer
  */
 function createTextImageBuffer(text) {
+  const cacheKey = String(text || '').trim();
+  if (CANVAS_IMAGE_CACHE.has(cacheKey)) {
+    const cached = CANVAS_IMAGE_CACHE.get(cacheKey);
+    // Refresh LRU position
+    CANVAS_IMAGE_CACHE.delete(cacheKey);
+    CANVAS_IMAGE_CACHE.set(cacheKey, cached);
+    return cached;
+  }
+
   const fontSize = 42;
   const paddingX = 40;
   const paddingY = 30;
@@ -46,9 +59,19 @@ function createTextImageBuffer(text) {
   // Draw text in center
   ctx.fillText(text, width / 2, height / 2);
 
-  return canvas.toBuffer('image/png');
+  const buffer = canvas.toBuffer('image/png');
+
+  // เก็บลง LRU Cache
+  if (CANVAS_IMAGE_CACHE.size >= MAX_CANVAS_CACHE_SIZE) {
+    const oldestKey = CANVAS_IMAGE_CACHE.keys().next().value;
+    CANVAS_IMAGE_CACHE.delete(oldestKey);
+  }
+  CANVAS_IMAGE_CACHE.set(cacheKey, buffer);
+
+  return buffer;
 }
 
 module.exports = {
-  createTextImageBuffer
+  createTextImageBuffer,
+  CANVAS_IMAGE_CACHE,
 };

@@ -26,6 +26,7 @@ const { safeDeferReply, safeRespond } = require('../../../utils/discordSafety');
 const FLAG_V2 = MessageFlags.IsComponentsV2 || 32768;
 
 const BEE_EMOJI_STR = '<:bee20000:1256669436350562355>';
+const CHECKMARK_EMOJI_ID = '1358584609087946867';
 const POINT_EMOJI = {
   id: '1520439075100688614',
   name: 'strawberryv2',
@@ -260,6 +261,8 @@ function bufferTenantPoints(guildId, userId, pointsToAdd = 10, winsToAdd = 1) {
 
 /**
  * Flush คะแนนที่สะสมใน memory ลง Akari DB
+ * ใช้ Supabase RPC 'increment_tenant_score' แบบ Atomic (1 query, ประหยัด Egress 50%)
+ * พร้อม Fallback สู่ SELECT+UPSERT หากยังไม่ได้ติดตั้ง RPC
  */
 async function flushTenantPoints(supabase, guildId, userId, pointsToAdd = 10, winsToAdd = 1) {
   if (!supabase) return;
@@ -269,7 +272,26 @@ async function flushTenantPoints(supabase, guildId, userId, pointsToAdd = 10, wi
   const totalPoints = pointsToAdd + buffered.points_accumulated;
   const totalWins = winsToAdd + buffered.wins_accumulated;
 
+  if (totalPoints === 0 && totalWins === 0) {
+    guildScoreBuffer.delete(bufferKey);
+    return;
+  }
+
   try {
+    // 1. ลองใช้ Atomic RPC เพื่อประหยัด Supabase Egress
+    const { error: rpcError } = await supabase.rpc('increment_tenant_score', {
+      p_guild_id: String(guildId),
+      p_user_id: String(userId),
+      p_points: Number(totalPoints),
+      p_wins: Number(totalWins),
+    });
+
+    if (!rpcError) {
+      guildScoreBuffer.delete(bufferKey);
+      return;
+    }
+
+    // 2. Fallback สู่ 2-step SELECT + UPSERT กรณี RPC ยังไม่ได้รันบน Database
     const { data } = await supabase
       .from('tenant_minigame_scores')
       .select('points, wins')
@@ -297,9 +319,12 @@ async function flushTenantPoints(supabase, guildId, userId, pointsToAdd = 10, wi
   }
 }
 
-async function flushAllTenantPoints(supabase, guildId) {
+async function flushAllTenantPoints(supabase, guildId = null) {
   if (!supabase) return;
-  const entries = [...guildScoreBuffer.entries()].filter(([key]) => key.startsWith(`${guildId}:`));
+  const entries = guildId
+    ? [...guildScoreBuffer.entries()].filter(([key]) => key.startsWith(`${guildId}:`))
+    : [...guildScoreBuffer.entries()];
+
   for (const [key, value] of entries) {
     const [gid, uid] = key.split(':');
     await flushTenantPoints(supabase, gid, uid, value.points_accumulated, value.wins_accumulated);
@@ -345,13 +370,13 @@ async function getTTSAudioBuffer(word, lang = 'th') {
 /**
  * สร้าง Component V2 Payload สำหรับโจทย์มินิเกม ถอดแบบจาก src/features/minigames/minigames.js
  */
-function buildAkariGamePayload(gameId, questionData, rewardPoints = 10) {
+function buildAkariGamePayload(gameId, questionData, rewardPoints = 3) {
   const accessoryButton = {
     type: 2,
     style: 5,
     label: `รางวัล +${rewardPoints} แต้ม`,
     emoji: POINT_EMOJI,
-    url: 'https://discord.com',
+    url: 'https://discord.gg/bearcafe',
   };
 
   let contentText = '';
@@ -520,13 +545,13 @@ function buildAkariGamePayload(gameId, questionData, rewardPoints = 10) {
 /**
  * สร้าง Component V2 Payload เมื่อมีผู้ชนะ ถอดแบบจากบอทหลัก 100%
  */
-function buildAkariWinnerPayload(gameId, questionData, winnerDisplayName, rewardPoints = 10) {
+function buildAkariWinnerPayload(gameId, questionData, winnerDisplayName, rewardPoints = 3) {
   const accessoryButton = {
     type: 2,
     style: 5,
     label: `รางวัล +${rewardPoints} แต้ม`,
     emoji: POINT_EMOJI,
-    url: 'https://discord.com',
+    url: 'https://discord.gg/bearcafe',
   };
 
   const titleMap = {
@@ -614,7 +639,7 @@ async function spawnQuestion(client, channel, gameId, guildId, supabase) {
     ttsBuffer = await getTTSAudioBuffer(rawAnswer, 'th');
   }
 
-  const pointsPerWin = gameSettings.points_per_win || 10;
+  const pointsPerWin = gameSettings.points_per_win || 3;
 
   const questionData = {
     wordOrQuestion,
@@ -842,6 +867,21 @@ function setupAkariMinigames(client, supabase) {
 
     recordUserAction(userId, message.channel.id, session.gameId);
 
+    if (!isCorrect) {
+      // ❌ ตอบผิด: ลบข้อความผิดทิ้ง สุ่มหักแต้ม 5-15 แต้ม และส่งข้อความเตือน 5 วิ แบบเดียวกับบอทหลัก
+      message.delete().catch(() => {});
+      const penalty = Math.floor(Math.random() * 11) + 5; // 5-15
+      bufferTenantPoints(guildId, userId, -penalty, 0);
+      flushTenantPoints(supabase, guildId, userId, 0, 0).catch(() => {});
+
+      message.channel.send({
+        content: `${message.author} ❌ ตอบผิดค่ะ! ถูกหักแต้ม **${penalty} แต้ม** 🔻`
+      }).then((penaltyMsg) => {
+        setTimeout(() => penaltyMsg.delete().catch(() => {}), 5000);
+      }).catch(() => {});
+      return;
+    }
+
     if (isCorrect) {
       if (processingChannels.has(sessionKey)) return;
       processingChannels.add(sessionKey);
@@ -853,24 +893,19 @@ function setupAkariMinigames(client, supabase) {
       }, 10000);
 
       try {
-        await message.react('✅').catch(() => {});
+        // 1. แอด Reaction ด้วยอิโมจิ Custom ของ Bear Cafe (1358584609087946867) แบบเดียวกับบอทหลัก
+        await message.react(CHECKMARK_EMOJI_ID).catch(() => {
+          return message.react('✅').catch(() => {});
+        });
 
-        const pointsPerWin = session.questionData?.rewardPoints || 10;
+        const pointsPerWin = session.questionData?.rewardPoints || 3;
         bufferTenantPoints(guildId, message.author.id, pointsPerWin, 1);
 
-        const winnerPayload = buildAkariWinnerPayload(
-          session.gameId,
-          session.questionData,
-          message.author.displayName || message.author.username,
-          pointsPerWin
-        );
-
-        if (session.messageId) {
-          const sentMsg = await message.channel.messages.fetch(session.messageId).catch(() => null);
-          if (sentMsg && typeof sentMsg.edit === 'function') {
-            await sentMsg.edit(winnerPayload).catch(() => {});
-          }
+        // 2. สำหรับเกมฟังเสียง (เกม 5 และ 11): ลบการ์ด Component V2 ทิ้ง (เหลือข้อความไฟล์เสียง MP3 ไว้) แบบเดียวกับบอทหลัก
+        if ((session.gameId === 5 || session.gameId === 11) && session.messageId) {
+          message.channel.messages.delete(session.messageId).catch(() => {});
         }
+        // 3. สำหรับเกมพิมพ์ตอบอื่นๆ (เช่น เกม 1, 2, 3, 4, 6, 7): ไม่ต้องแก้ไขการ์ดเดิม ปล่อยให้คงอยู่ตามปกติแบบเดียวกับบอทหลัก!
 
         activeTenantSessions.delete(sessionKey);
         if (supabase) {
@@ -983,8 +1018,11 @@ function setupAkariMinigames(client, supabase) {
       recordUserAction(userId, channel.id, session.gameId);
 
       if (!isCorrect) {
+        const penalty = Math.floor(Math.random() * 11) + 5; // 5-15
+        bufferTenantPoints(guildId, user.id, -penalty, 0);
+        flushTenantPoints(supabase, guildId, user.id, 0, 0).catch(() => {});
         return safeRespond(interaction, {
-          content: '❌ คำตอบยังไม่ถูกต้อง ลองคิดดูใหม่อีกครั้งนะ!',
+          content: `❌ คำตอบไม่ถูกต้องค่ะ! ถูกหักแต้ม **${penalty} แต้ม** 🔻`,
           flags: MessageFlags.Ephemeral,
         });
       }
@@ -1005,7 +1043,7 @@ function setupAkariMinigames(client, supabase) {
       }, 10000);
 
       try {
-        const pointsPerWin = session.questionData?.rewardPoints || 10;
+        const pointsPerWin = session.questionData?.rewardPoints || 3;
         bufferTenantPoints(guildId, user.id, pointsPerWin, 1);
 
         const winnerDisplayName = interaction.member?.displayName || user.username;

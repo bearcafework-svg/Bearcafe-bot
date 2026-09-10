@@ -368,7 +368,7 @@ async function registerAllGuildCommands(guild) {
     let targetCommands = GUILD_SLASH_COMMANDS;
 
     if (isDevMode) {
-      const allowedDevCommands = (process.env.DEV_SLASH_COMMANDS || "test_bee")
+      const allowedDevCommands = (process.env.DEV_SLASH_COMMANDS || "test_bee,send-component")
         .split(",")
         .map((s) => s.trim().toLowerCase())
         .filter(Boolean);
@@ -378,6 +378,12 @@ async function registerAllGuildCommands(guild) {
       );
       console.log(
         `🛠️ [slash] DEV_MODE is active: Synchronizing only [${targetCommands.map((c) => c.name).join(", ")}] on "${guild.name}"`
+      );
+    } else {
+      // บอทหลัก (Production Mode) — ไม่รวมคำสั่งสำหรับ Dev เช่น /send-component
+      const DEV_ONLY_COMMANDS = ["send-component"];
+      targetCommands = GUILD_SLASH_COMMANDS.filter(
+        (cmd) => !DEV_ONLY_COMMANDS.includes(cmd.name.toLowerCase())
       );
     }
 

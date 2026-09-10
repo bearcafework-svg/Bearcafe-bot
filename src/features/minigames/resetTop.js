@@ -2,34 +2,74 @@
 const { createClient } = require("@supabase/supabase-js");
 const { AttachmentBuilder } = require("discord.js");
 const { createCanvas, loadImage } = require("@napi-rs/canvas");
-const axios = require("axios");
-const sharedConfig = require("../../sharedSettings.json");
-const { safeDeferUpdate, safeRespond } = require("../../../utils/discordSafety");
-require("../../utils/fontLoader");
+const path = require("path");
+const rootDir = path.resolve(__dirname, __dirname.includes("src" + path.sep + "main") ? "../../../.." : "../../..");
+const sharedConfig = require(path.join(rootDir, "src/sharedSettings.json"));
+const { safeDeferUpdate, safeRespond } = require(path.join(rootDir, "utils/discordSafety"));
+require(path.join(rootDir, "src/utils/fontLoader"));
 
 // Cooldown 5 นาที สำหรับปุ่ม 🔄 refresh (ms)
 const REFRESH_COOLDOWN_MS = 5 * 60 * 1000;
 let lastResetAt = 0; // timestamp ที่กด reset หรือ refresh
 
-// ── ตั้งค่าช่วงเวลาการแข่งขัน Season 1 (ขยายเวลาชดเชยระบบขัดข้อง) ───
-const SEASON_START_ISO = "2026-08-01T00:00:00+07:00";
-const SEASON_END_ISO = "2026-09-10T23:59:59+07:00";
-const SEASON_PERIOD_TEXT = "1 ส.ค. 2026 – 10 ก.ย. 2026 (23:59 น.)";
+// ── ตั้งค่าช่วงเวลาการแข่งขัน Season 1 ───
+const SEASON_1_START_ISO = "2026-08-01T00:00:00+07:00";
+const SEASON_1_END_ISO = "2026-09-10T23:59:59+07:00";
+const SEASON_1_PERIOD_TEXT = "1 ส.ค. 2026 – 10 ก.ย. 2026 (23:59 น.)";
+const SEASON_PERIOD_TEXT = SEASON_1_PERIOD_TEXT;
+
+// ── ตั้งค่าช่วงเวลากระดานประจำเดือน (Monthly Leaderboard) ───
+const MONTHLY_START_ISO = "2026-09-01T00:00:00+07:00";
+const MONTHLY_END_ISO = "2026-09-30T23:59:59+07:00";
+const MONTHLY_PERIOD_TEXT = "1 ก.ย. 2026 – 30 ก.ย. 2026 (23:59 น.)";
+
+// ── Channel & Message Constants ───
+const EVENT_ANNOUNCE_CHANNEL_ID = "1524123305471115287"; // 🎀︰ประกาศอีเว้นท์
+const LEADERBOARD_CHANNEL_ID = "1535546990711283743";    // 🏆︰จัดอันดับหมีติดเกม
+const LEADERBOARD_MESSAGE_ID = "1536940318761558057";    // ข้อความบอร์ดเดิมที่จะ Edit
+
+/**
+ * ดึงสถานะช่วงเวลาที่กำลัง Active อยู่ในปัจจุบัน
+ */
+function getCurrentActivePeriod() {
+  const isPastSeason1 = Date.now() >= new Date(SEASON_1_END_ISO).getTime();
+  if (isPastSeason1) {
+    return {
+      isMonthly: true,
+      startTime: MONTHLY_START_ISO,
+      endTime: MONTHLY_END_ISO,
+      periodText: MONTHLY_PERIOD_TEXT,
+      title: "## <:bee20000:1256669436350562355>︲__` 𝖬𝗈𝗇𝗍𝗁𝗅𝗒 𝖫𝖾𝖺𝖽𝖾𝗋𝖻𝗈𝖺𝗋𝖽 ₊ จัดอันดับประจำเดือนกันยายน 𓂃 `__",
+      periodLabel: `📅 **ระยะเวลากระดานประจำเดือน:** \` ${MONTHLY_PERIOD_TEXT} \`\n`
+    };
+  }
+  return {
+    isMonthly: false,
+    startTime: SEASON_1_START_ISO,
+    endTime: SEASON_1_END_ISO,
+    periodText: SEASON_1_PERIOD_TEXT,
+    title: "## <:bee20000:1256669436350562355>︲__` 𝖫𝖾𝖺𝖽𝖾𝗋𝖻𝗈𝖺𝗋𝖽 ₊ จัดอันดับหมีติดเกม! 𓂃 `__",
+    periodLabel: `🎁 **ระยะเวลาแข่งขัน (ขยายเวลาชดเชย):** \` ${SEASON_1_PERIOD_TEXT} \`\n`
+  };
+}
 
 // ── ดึงข้อมูล Top Winners จาก minigame_wins (ผ่าน RPC / View / Aggregation) ───
-async function fetchTopMinigameWins(supabase, limit = 10, gameId = null) {
+async function fetchTopMinigameWins(supabase, limit = 10, gameId = null, startTime = null, endTime = null) {
   if (!supabase) return [];
 
+  const activePeriod = getCurrentActivePeriod();
+  const effectiveStart = startTime || activePeriod.startTime;
+  const effectiveEnd = endTime || activePeriod.endTime;
   const parsedGameId = gameId && gameId !== 'all' ? parseInt(gameId, 10) : null;
 
   try {
-    // 1. ลองเรียก RPC get_minigame_leaderboard พร้อมช่วงเวลา Season 1 ชดเชย
+    // 1. ลองเรียก RPC get_minigame_leaderboard พร้อมช่วงเวลา
     const { data: rpcData, error: rpcError } = await supabase
       .rpc("get_minigame_leaderboard", {
         days_limit: null,
         filter_game_id: parsedGameId,
-        start_time: SEASON_START_ISO,
-        end_time: SEASON_END_ISO
+        start_time: effectiveStart,
+        end_time: effectiveEnd
       });
 
     if (!rpcError && rpcData && rpcData.length > 0) {
@@ -40,12 +80,12 @@ async function fetchTopMinigameWins(supabase, limit = 10, gameId = null) {
       }));
     }
 
-    // 2. ถ้า RPC ไม่พร้อม ให้ Fallback ดึงจาก minigame_wins พร้อมกรองช่วงเวลา Season 1
+    // 2. ถ้า RPC ไม่พร้อม ให้ Fallback ดึงจาก minigame_wins พร้อมกรองช่วงเวลา
     let query = supabase
       .from("minigame_wins")
       .select("discord_id, points_earned")
-      .gte("created_at", SEASON_START_ISO)
-      .lte("created_at", SEASON_END_ISO);
+      .gte("created_at", effectiveStart)
+      .lte("created_at", effectiveEnd);
 
     if (parsedGameId) {
       query = query.eq("game_id", parsedGameId);
@@ -81,21 +121,24 @@ async function fetchTopMinigameWins(supabase, limit = 10, gameId = null) {
 }
 
 // ── ดึงข้อมูลอันดับเฉพาะบุคคลสำหรับปุ่ม 🏆 อันดับของฉัน ─────────
-async function getUserMinigameRank(supabase, userId, gameId = null) {
+async function getUserMinigameRank(supabase, userId, gameId = null, startTime = null, endTime = null) {
   if (!supabase || !userId) return null;
 
+  const activePeriod = getCurrentActivePeriod();
+  const effectiveStart = startTime || activePeriod.startTime;
+  const effectiveEnd = endTime || activePeriod.endTime;
   const parsedGameId = gameId && gameId !== 'all' ? parseInt(gameId, 10) : null;
 
   try {
     let sortedList = [];
 
-    // 1. เรียก RPC get_minigame_leaderboard พร้อมช่วงเวลา Season 1 ชดเชย
+    // 1. เรียก RPC get_minigame_leaderboard พร้อมช่วงเวลา
     const { data: rpcData, error: rpcError } = await supabase
       .rpc("get_minigame_leaderboard", {
         days_limit: null,
         filter_game_id: parsedGameId,
-        start_time: SEASON_START_ISO,
-        end_time: SEASON_END_ISO
+        start_time: effectiveStart,
+        end_time: effectiveEnd
       });
 
     if (!rpcError && rpcData) {
@@ -105,12 +148,12 @@ async function getUserMinigameRank(supabase, userId, gameId = null) {
         points: parseInt(row.points || 0, 10)
       }));
     } else {
-      // 2. Fallback ดึงจาก minigame_wins พร้อมกรองช่วงเวลา Season 1
+      // 2. Fallback ดึงจาก minigame_wins พร้อมกรองช่วงเวลา
       let query = supabase
         .from("minigame_wins")
         .select("discord_id, points_earned")
-        .gte("created_at", SEASON_START_ISO)
-        .lte("created_at", SEASON_END_ISO);
+        .gte("created_at", effectiveStart)
+        .lte("created_at", effectiveEnd);
 
       if (parsedGameId) {
         query = query.eq("game_id", parsedGameId);
@@ -245,7 +288,7 @@ function drawMedalVector(ctx, cx, cy, color) {
 }
 
 // ── สร้างรูปภาพ Top 1-3 Leaderboard Canvas ตามรูปตัวอย่าง ─────
-async function generateTop3Canvas(top3Details) {
+async function generateTop3Canvas(top3Details, periodText = null) {
   const width = 960;
   const height = 420;
   const canvas = createCanvas(width, height);
@@ -255,8 +298,12 @@ async function generateTop3Canvas(top3Details) {
   ctx.fillStyle = "#0A0A0C";
   ctx.fillRect(0, 0, width, height);
 
-  // วาด Header Pill Badge แจ้งเตือนระยะเวลาแข่งขันชดเชยที่ด้านบนสุด Canvas
-  const seasonHeaderLabel = `🎁 SEASON 1 [ขยายเวลาชดเชย]: ${SEASON_PERIOD_TEXT}`;
+  // วาด Header Pill Badge แจ้งเตือนระยะเวลาแข่งขันที่ด้านบนสุด Canvas
+  const activePeriod = getCurrentActivePeriod();
+  const effectivePeriod = periodText || activePeriod.periodText;
+  const seasonHeaderLabel = periodText
+    ? `🏆 SEASON 1 [FINAL]: ${effectivePeriod}`
+    : (activePeriod.isMonthly ? `📅 MONTHLY LEADERBOARD: ${effectivePeriod}` : `🎁 SEASON 1: ${effectivePeriod}`);
   ctx.font = 'bold 12px "Noto Sans Thai", "Leelawadee UI", "Segoe UI", sans-serif';
   const headerMetrics = ctx.measureText(seasonHeaderLabel);
   const headerPillW = headerMetrics.width + 36;
@@ -473,9 +520,23 @@ const GAME_LIST = [
   { label: "12. จริงหรือเท็จ", value: "12", emoji: "❓" }
 ];
 
-// ── สร้าง Component V2 Payload + รูปภาพแบนเนอร์ ───────────────
-async function buildTopLeaderboardPayload(guild, supabase) {
-  const top10 = await fetchTopMinigameWins(supabase, 10);
+// ── สร้าง Component V2 Payload + รูปภาพแบนเนอร์ สำหรับกระดานจัดอันดับ ───────────────
+async function buildTopLeaderboardPayload(guild, supabase, options = {}) {
+  const activePeriod = options.isMonthly
+    ? {
+        isMonthly: true,
+        startTime: MONTHLY_START_ISO,
+        endTime: MONTHLY_END_ISO,
+        periodText: MONTHLY_PERIOD_TEXT,
+        title: "## <:bee20000:1256669436350562355>︲__` 𝖬𝗈𝗇𝗍𝗁𝗅𝗒 𝖫𝖾𝖺𝖽𝖾𝗋𝖻𝗈𝖺𝗋𝖽 ₊ จัดอันดับประจำเดือนกันยายน 𓂃 `__",
+        periodLabel: `📅 **ระยะเวลากระดานประจำเดือน:** \` ${MONTHLY_PERIOD_TEXT} \`\n`
+      }
+    : getCurrentActivePeriod();
+
+  const effectiveStart = options.startTime || activePeriod.startTime;
+  const effectiveEnd = options.endTime || activePeriod.endTime;
+
+  const top10 = await fetchTopMinigameWins(supabase, 10, options.gameId || null, effectiveStart, effectiveEnd);
 
   // ดึงรายละเอียด Top 3 สำหรับสร้างภาพ Canvas
   const top3Details = [];
@@ -509,8 +570,8 @@ async function buildTopLeaderboardPayload(guild, supabase) {
   ];
 
   const lines = [
-    "## <:bee20000:1256669436350562355>︲__` 𝖫𝖾𝖺𝖽𝖾𝗋𝖻𝗈𝖺𝗋𝖽 ₊ จัดอันดับหมีติดเกม! 𓂃 `__",
-    `🎁 **ระยะเวลาแข่งขัน (ขยายเวลาชดเชย):** \` ${SEASON_PERIOD_TEXT} \`\n`
+    activePeriod.title,
+    activePeriod.periodLabel
   ];
 
   for (let i = 0; i < 10; i++) {
@@ -617,6 +678,218 @@ async function buildTopLeaderboardPayload(guild, supabase) {
   return { payload: body, attachment };
 }
 
+// ── สร้างการ์ดประกาศผลผู้ชนะ Season 1 (Final Announcement Card) ───────
+async function buildSeasonFinalAnnouncementPayload(guild, supabase) {
+  // ดึง Top 10 ของ Season 1 (1 ส.ค. - 10 ก.ย. 23:59:59)
+  const top10 = await fetchTopMinigameWins(supabase, 10, null, SEASON_1_START_ISO, SEASON_1_END_ISO);
+
+  // ดึงรายละเอียด Top 3 สำหรับสร้างภาพ Canvas
+  const top3Details = [];
+  for (let i = 0; i < Math.min(3, top10.length); i++) {
+    const item = top10[i];
+    const detail = await getMemberDetail(guild, item.discord_id);
+    top3Details.push({
+      displayName: detail.displayName,
+      usernameHandle: detail.usernameHandle,
+      idText: detail.idText,
+      avatarUrl: detail.avatarUrl,
+      wins: item.wins,
+      points: item.points
+    });
+  }
+
+  const imageBuffer = await generateTop3Canvas(top3Details);
+  const attachment = new AttachmentBuilder(imageBuffer, { name: "season1_final_top3.png" });
+
+  const pi = sharedConfig.point_icon;
+  const pointEmojiStr = pi && pi.id ? `<:${pi.name}:${pi.id}>` : `🍓`;
+
+  const rankEmojis = [
+    "<a:top_one:1150848398774247564>",
+    "<a:top_two:1150848396190568448>",
+    "<a:top_three:1150849072299769896>",
+    "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"
+  ];
+
+  const lines = [
+    "# 🏆︲__` 𝖲𝖾𝖺𝗌𝗈𝗇 𝟣 𝖥𝗂𝗇𝖺𝗅 ₊ สรุปผลการแข่งขันหมีติดเกม! 𓂃 `__",
+    `- -# การแข่งขันมินิเกม Season 1 สิ้นสุดลงแล้วอย่างเป็นทางการ (\` ${SEASON_1_PERIOD_TEXT} \`)\n`,
+    "### 🎁 สรุปรางวัลประจำ Season 1:",
+    "💸 **อันดับ 1-3 :** เงินรางวัล 100 บาท",
+    "<:bee20000:1256669436350562355> **อันดับ 4-6 :** ส่วนลดซื้อสินค้า 50% (เลือกได้สินค้าเดียว)",
+    `<:strawberryv2:1520439075100688614> **อันดับ 7-10 :** แต้มกิจกรรม 5,000 แต้ม\n`,
+    "### 👑 สรุปผลคะแนน 10 อันดับแรกประจำ Season 1:"
+  ];
+
+  const mentionsList = [];
+  for (let i = 0; i < 10; i++) {
+    const emoji = rankEmojis[i];
+    if (i < top10.length) {
+      const item = top10[i];
+      lines.push(`${emoji} — <@${item.discord_id}> ชนะ ${item.wins} ครั้ง (${pointEmojiStr} ${item.points})`);
+      mentionsList.push(`<@${item.discord_id}>`);
+    } else {
+      lines.push(`${emoji} — <@0> ชนะ 0 ครั้ง (${pointEmojiStr} 0)`);
+    }
+  }
+
+  lines.push("\n> 💖 **ขอแสดงความยินดีกับผู้ชนะทุกท่าน!**");
+  lines.push("> 📌 **คำแนะนำ:** ขอให้ผู้ชนะอันดับ 1 - 10 ทุกท่าน **รอการติดต่อจากทีมงานเพื่อรับรางวัล** นะคะ *(ทีมงานจะติดต่อในเวลาทำการเท่านั้น รบกวนไม่เร่งหรือทักข้อความส่วนตัวเข้ามานะคะ 🐻💖)*");
+
+  const contentText = lines.join("\n");
+
+  const mentionContent = mentionsList.length > 0
+    ? `🎉 ขอแสดงความยินดีกับผู้ชนะ Season 1 ทุกท่านด้วยนะคะ! ${mentionsList.join(' ')}`
+    : `🎉 ขอแสดงความยินดีกับผู้ชนะ Season 1 ทุกท่านด้วยนะคะ!`;
+
+  const payload = {
+    content: mentionContent,
+    flags: 32768,
+    components: [
+      {
+        type: 17,
+        components: [
+          {
+            type: 12,
+            items: [
+              {
+                media: {
+                  url: "attachment://season1_final_top3.png"
+                }
+              }
+            ]
+          },
+          {
+            type: 14,
+            spacing: 2
+          },
+          {
+            type: 10,
+            content: contentText
+          },
+          {
+            type: 14,
+            spacing: 2,
+            divider: true
+          },
+          {
+            type: 10,
+            content: `-# 🎮 แข่งขันต่อใน **กระดานจัดอันดับประจำเดือนกันยายน** ได้ที่ห้อง <#${LEADERBOARD_CHANNEL_ID}> ทันทีค่ะ!`
+          }
+        ]
+      }
+    ]
+  };
+
+  return { payload, attachment };
+}
+
+// ตัวแปรล็อกในหน่วยความจำเพื่อป้องกันการรันซ้ำ
+let hasExecutedTransition = false;
+
+// ── ดำเนินการ Transition สรุปผล Season 1 และสลับสู่ Monthly Leaderboard ─
+async function executeSeasonTransition(client, supabase, options = {}) {
+  const { force = false } = options;
+  if (hasExecutedTransition && !force) {
+    console.log("[resetTop] Season transition already executed in this process. Skipping.");
+    return { success: false, message: "Already executed" };
+  }
+
+  const { getRedis } = require(path.join(rootDir, "state/redisClient"));
+  let redis = null;
+  try {
+    redis = getRedis();
+  } catch (e) {
+    console.warn("[resetTop] Redis not available:", e.message);
+  }
+
+  if (!force && redis) {
+    try {
+      const alreadyDone = await redis.get("minigame:season_1_announced");
+      if (alreadyDone) {
+        console.log("[resetTop] Season 1 transition already marked done in Redis.");
+        hasExecutedTransition = true;
+        return { success: false, message: "Already done in Redis" };
+      }
+    } catch (e) {
+      console.warn("[resetTop] Redis check error:", e.message);
+    }
+  }
+
+  try {
+    const guild = client.guilds.cache.get("1144251788493602848") ||
+                  await client.guilds.fetch("1144251788493602848").catch(() => null);
+    if (!guild) {
+      console.error("[resetTop] Guild 1144251788493602848 not found for season transition!");
+      return { success: false, message: "Guild not found" };
+    }
+
+    // 1. ส่งการ์ดประกาศผล Season 1 ในห้อง 🎀︰ประกาศอีเว้นท์ (1524123305471115287)
+    console.log("[resetTop] 📢 Building Season 1 final announcement card...");
+    const announceCh = guild.channels.cache.get(EVENT_ANNOUNCE_CHANNEL_ID) ||
+                       await guild.channels.fetch(EVENT_ANNOUNCE_CHANNEL_ID).catch(() => null);
+
+    if (announceCh && announceCh.isTextBased()) {
+      const { payload: announcePayload, attachment: announceAttachment } = await buildSeasonFinalAnnouncementPayload(guild, supabase);
+      await announceCh.send({ ...announcePayload, files: [announceAttachment] });
+      console.log(`[resetTop] ✅ Season 1 final announcement card sent to #${announceCh.name} (${EVENT_ANNOUNCE_CHANNEL_ID})!`);
+    } else {
+      console.warn(`[resetTop] ⚠️ Could not find event announcement channel ${EVENT_ANNOUNCE_CHANNEL_ID}`);
+    }
+
+    // 2. อัปเดตกระดานคะแนนในห้อง 🏆︰จัดอันดับหมีติดเกม (1535546990711283743) ให้กลายเป็น Monthly
+    console.log("[resetTop] 🔄 Updating leaderboard message to Monthly mode...");
+    const leaderboardCh = guild.channels.cache.get(LEADERBOARD_CHANNEL_ID) ||
+                          await guild.channels.fetch(LEADERBOARD_CHANNEL_ID).catch(() => null);
+
+    if (leaderboardCh && leaderboardCh.isTextBased()) {
+      const { payload: monthlyPayload, attachment: monthlyAttachment } = await buildTopLeaderboardPayload(guild, supabase, { isMonthly: true });
+      const targetMsg = await leaderboardCh.messages.fetch(LEADERBOARD_MESSAGE_ID).catch(() => null);
+
+      if (targetMsg) {
+        await targetMsg.edit({ ...monthlyPayload, files: [monthlyAttachment] });
+        console.log(`[resetTop] ✅ Existing leaderboard message ${LEADERBOARD_MESSAGE_ID} updated to Monthly!`);
+      } else {
+        const newMsg = await leaderboardCh.send({ ...monthlyPayload, files: [monthlyAttachment] });
+        console.log(`[resetTop] ⚠️ Existing message not found. Posted new monthly leaderboard message ${newMsg.id}!`);
+      }
+    } else {
+      console.warn(`[resetTop] ⚠️ Could not find leaderboard channel ${LEADERBOARD_CHANNEL_ID}`);
+    }
+
+    hasExecutedTransition = true;
+    if (redis) {
+      await redis.set("minigame:season_1_announced", "true").catch(() => {});
+    }
+
+    return { success: true };
+  } catch (err) {
+    console.error("[resetTop] ❌ Error executing season transition:", err);
+    return { success: false, error: err.message };
+  }
+}
+
+// ── ตั้งเวลาอัตโนมัติ 23:59:59 คืนนี้เพื่อเปลี่ยนผ่านซีซั่น ──────────
+function scheduleSeasonTransition(client, supabase) {
+  const endTime = new Date(SEASON_1_END_ISO).getTime();
+  const msUntilEnd = endTime - Date.now();
+
+  if (msUntilEnd > 0) {
+    const minutesLeft = Math.round(msUntilEnd / 1000 / 60);
+    console.log(`[resetTop] ⏰ Season 1 transition scheduled in ${minutesLeft} minutes (at 23:59:59 tonight)`);
+
+    setTimeout(async () => {
+      console.log(`[resetTop] 🔔 It is 23:59:59! Starting automated Season 1 -> Monthly transition...`);
+      await executeSeasonTransition(client, supabase);
+    }, msUntilEnd);
+  } else {
+    // หากบอทเริ่มทำงานหลัง 23:59:59 ให้ตรวจเช็กเพื่อรันย้อนหลังครั้งเดียว
+    setTimeout(async () => {
+      await executeSeasonTransition(client, supabase);
+    }, 5000);
+  }
+}
+
 // ══════════════════════════════════════════════════════════════
 //  setupResetTop — เชื่อมกับ client
 // ══════════════════════════════════════════════════════════════
@@ -627,28 +900,51 @@ function setupResetTop(client, supabaseClient) {
     { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
   );
 
-  // 1. คำสั่ง b!reset-top (Owner เท่านั้น)
+  // ตั้งเวลา Transition สู่ Monthly อัตโนมัติ ณ 23:59:59
+  scheduleSeasonTransition(client, supabase);
+
+  // 1. คำสั่งสำหรับ Owner (b!reset-top และ b!force-season-transition)
   client.on("messageCreate", async (message) => {
     if (message.author.bot) return;
-    if (message.content.trim().toLowerCase() !== "b!reset-top") return;
     if (!message.guild) return;
 
-    const OWNER_ID = process.env.OWNER_ID;
-    const isOwner = message.author.id === OWNER_ID || message.author.id === message.guild.ownerId;
+    const content = message.content.trim().toLowerCase();
 
-    if (!isOwner) {
-      return message.reply({ content: "❌ คำสั่งนี้ใช้ได้เฉพาะ Owner เท่านั้นค่ะ", flags: 64 });
+    // 1.1 บังคับคำนวณและสลับซีซั่นทันที (สำหรับทดสอบ / แมนนวล)
+    if (content === "b!force-season-transition") {
+      const OWNER_ID = process.env.OWNER_ID;
+      const isOwner = message.author.id === OWNER_ID || message.author.id === message.guild.ownerId;
+      if (!isOwner) return;
+
+      await message.reply("⏳ กำลังดำเนินการ Season Transition...");
+      const res = await executeSeasonTransition(client, supabase, { force: true });
+      if (res.success) {
+        await message.channel.send("✅ ดำเนินการ Season Transition และสลับสู่ Monthly เรียบร้อยแล้วค่ะ!");
+      } else {
+        await message.channel.send(`❌ ผลการทำงาน: ${res.error || res.message}`);
+      }
+      return;
     }
 
-    try {
-      await message.delete().catch(() => { });
-      lastResetAt = Date.now();
+    // 1.2 คำสั่งสร้างบอร์ด b!reset-top
+    if (content === "b!reset-top") {
+      const OWNER_ID = process.env.OWNER_ID;
+      const isOwner = message.author.id === OWNER_ID || message.author.id === message.guild.ownerId;
 
-      const { payload, attachment } = await buildTopLeaderboardPayload(message.guild, supabase);
-      await message.channel.send({ ...payload, files: [attachment] });
-    } catch (err) {
-      console.error("[resetTop] b!reset-top error:", err);
-      message.channel.send("❌ เกิดข้อผิดพลาดในการโหลดข้อมูลตารางอันดับค่ะ").catch(() => { });
+      if (!isOwner) {
+        return message.reply({ content: "❌ คำสั่งนี้ใช้ได้เฉพาะ Owner เท่านั้นค่ะ", flags: 64 });
+      }
+
+      try {
+        await message.delete().catch(() => { });
+        lastResetAt = Date.now();
+
+        const { payload, attachment } = await buildTopLeaderboardPayload(message.guild, supabase);
+        await message.channel.send({ ...payload, files: [attachment] });
+      } catch (err) {
+        console.error("[resetTop] b!reset-top error:", err);
+        message.channel.send("❌ เกิดข้อผิดพลาดในการโหลดข้อมูลตารางอันดับค่ะ").catch(() => { });
+      }
     }
   });
 
@@ -685,16 +981,18 @@ function setupResetTop(client, supabaseClient) {
     if (interaction.customId !== "minigame_my_rank") return;
 
     try {
+      const activePeriod = getCurrentActivePeriod();
+      const periodName = activePeriod.isMonthly ? "ประจำเดือนกันยายน" : "Season 1";
       const userRank = await getUserMinigameRank(supabase, interaction.user.id);
       const pi = sharedConfig.point_icon;
       const pointEmojiStr = pi && pi.id ? `<:${pi.name}:${pi.id}>` : `🍓`;
 
       let userRankText = '';
       if (!userRank || !userRank.rank) {
-        userRankText = `### <:bee20000:1256669436350562355>︲__\` สถิติจัดอันดับมินิเกมของคุณ 𓂃 \`__\n\n<@${interaction.user.id}> คุณยังไม่มีประวัติการชนะมินิเกมเลยค่ะ 🎮\nมาลองร่วมสนุกเล่นมินิเกมเพื่อสะสมชัยชนะกันนะคะ!`;
+        userRankText = `### <:bee20000:1256669436350562355>︲__\` สถิติจัดอันดับมินิเกม${periodName}ของคุณ 𓂃 \`__\n\n<@${interaction.user.id}> คุณยังไม่มีประวัติการชนะมินิเกมในรอบนี้เลยค่ะ 🎮\nมาลองร่วมสนุกเล่นมินิเกมเพื่อสะสมชัยชนะกันนะคะ!`;
       } else {
         const rankBadge = userRank.rank === 1 ? "🥇" : userRank.rank === 2 ? "🥈" : userRank.rank === 3 ? "🥉" : "📊";
-        userRankText = `### <:bee20000:1256669436350562355>︲__\` สถิติจัดอันดับมินิเกมของคุณ 𓂃 \`__\n\n<@${interaction.user.id}>\n${rankBadge} **อันดับของคุณ:** **อันดับที่ ${userRank.rank}** (จากผู้เล่นทั้งหมด ${userRank.totalPlayers} คน)\n⚔️ **ชนะทั้งหมด:** **${userRank.wins}** ครั้ง\n${pointEmojiStr} **คะแนนรวมที่ได้:** **${userRank.points}** แต้ม`;
+        userRankText = `### <:bee20000:1256669436350562355>︲__\` สถิติจัดอันดับมินิเกม${periodName}ของคุณ 𓂃 \`__\n\n<@${interaction.user.id}>\n${rankBadge} **อันดับของคุณ:** **อันดับที่ ${userRank.rank}** (จากผู้เล่นทั้งหมด ${userRank.totalPlayers} คน)\n⚔️ **ชนะทั้งหมด:** **${userRank.wins}** ครั้ง\n${pointEmojiStr} **คะแนนรวมที่ได้:** **${userRank.points}** แต้ม`;
       }
 
       return interaction.reply({
@@ -729,7 +1027,7 @@ function setupResetTop(client, supabaseClient) {
     const gameInfo = GAME_LIST.find(g => g.value === selectedValue) || GAME_LIST[0];
 
     try {
-      // 1. ดึง Top 10 ของเกมที่เลือก
+      // 1. ดึง Top 10 ของเกมที่เลือกตาม Active Period
       const top10 = await fetchTopMinigameWins(supabase, 10, selectedValue);
       // 2. ดึงอันดับของผู้ใช้งานที่กดเลือก
       const userRank = await getUserMinigameRank(supabase, interaction.user.id, selectedValue);
@@ -820,4 +1118,11 @@ function setupResetTop(client, supabaseClient) {
   });
 }
 
-module.exports = { setupResetTop };
+module.exports = {
+  setupResetTop,
+  executeSeasonTransition,
+  buildSeasonFinalAnnouncementPayload,
+  buildTopLeaderboardPayload,
+  fetchTopMinigameWins,
+  getUserMinigameRank
+};

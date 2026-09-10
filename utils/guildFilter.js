@@ -239,7 +239,7 @@ function setupGuildFilter(client) {
 
               // 1. คำสั่งทดสอบ เช่น /test_bee อนุญาตให้ทำงานได้ในทุกห้อง
               if (interaction && typeof interaction.isChatInputCommand === "function" && interaction.isChatInputCommand()) {
-                const allowedDevCommands = (process.env.DEV_SLASH_COMMANDS || "test_bee")
+                const allowedDevCommands = (process.env.DEV_SLASH_COMMANDS || "test_bee,send-component")
                   .split(",")
                   .map((s) => s.trim().toLowerCase())
                   .filter(Boolean);

@@ -3,6 +3,7 @@
 ## Core Constraint
 - **NEVER use prefix commands (e.g. `b!reset-terms`, `b!reset-menu`, `b!reset-shift`, or any `b!...`)** to setup, reset, or send boards and Component V2 cards in Discord.
 - **ALWAYS use the slash command `/send-component`** for sending and setting up all system boards, agreements, menus, shift panels, and component cards.
+- **DEV-ONLY SCOPE**: `/send-component` is strictly a development command. It must ONLY be registered and accessible on the Dev Bot (`cafe dev` / `SECONDARY_BOT_TOKEN`) during development (`DEV_MODE=true`). It must NEVER be registered on or exposed to the Production Main Bot (`Bear Café`).
 
 ## Command Specification: `/send-component`
 - **Command Name**: `send-component`

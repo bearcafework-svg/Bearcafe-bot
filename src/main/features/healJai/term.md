@@ -112,8 +112,4 @@ graph TD
 
 ```
 
----
-
-<FollowUp label="ต้องการให้นำโครงสร้างนี้ไปแปลงเป็น SQL Script สำหรับรันบน Supabase ต่อเลยไหม?" query="ช่วยเขียนโค้ด SQL Table และ RLS Policies สำหรับฐานข้อมูล Supabase ตามโครงสร้างในเอกสารนี้ให้หน่อยค่ะ"/>
-
 ```

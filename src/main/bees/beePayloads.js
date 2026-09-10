@@ -19,6 +19,15 @@ function getPointIconStr() {
 }
 
 // ─── Helper: ดึง Garden Background URL Fallback ──────────────────────────────
+
+const CUTEPLANT_EMOJI = "<:cuteplant:1152834055528783872>";
+
+// ─── Helper: จัดรูปแบบบทพูดเจ้าผึ้งให้ลงท้ายด้วย cuteplant 1 อันเสมอ ──────────────
+function formatBeeDialogue(rawText) {
+  if (!rawText || typeof rawText !== "string") return CUTEPLANT_EMOJI;
+  const clean = rawText.replace(/<:cuteplant:1152834055528783872>/g, "").trim();
+  return clean + " " + CUTEPLANT_EMOJI;
+}
 function getGardenUrl(gardenUrl) {
   return gardenUrl || "https://cdn.discordapp.com/attachments/1528780402544611348/1528780439836430487/Garden.png";
 }
@@ -83,7 +92,7 @@ function buildBeeSpawnPayload(beeConfig, customId, isReady = false, gardenUrl = 
                 type: 10,
                 content:
                   `## <:bee20000:1256669436350562355>︲__\` 𝖡𝖾𝖾 ₊ ${beeConfig.name || 'เจ้าผึ้งอ้วนตัวกลม'} 𓂃 \`__\n` +
-                  `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${dialogueText} <:cuteplant:1152834055528783872>\n` +
+                  `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${formatBeeDialogue(dialogueText)}\n` +
                   ` > (${iconStr})⠀**__\`𝗍𝗂𝗉𝗌\`__** : ${tipText}`
               }
             ],
@@ -152,7 +161,7 @@ function buildBeeWinPayload(beeConfig, userId, pointsGained, gardenUrl = null) {
                 type: 10,
                 content:
                   `## <:bee20000:1256669436350562355>︲__\` 𝖡𝖾𝖾 ₊ ${beeConfig.name || 'เจ้าผึ้งอ้วนตัวกลม'} 𓂃 \`__\n` +
-                  `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${dialogueText} <:cuteplant:1152834055528783872>\n` +
+                  `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${formatBeeDialogue(dialogueText)}\n` +
                   ` > (${iconStr})⠀**__\`𝗋𝖾𝗐𝖺𝗋𝖽\`__** : <@${userId}> ได้รับ **+${pointsGained}**`
               }
             ],
@@ -244,7 +253,7 @@ function buildBeeLossPayload(beeConfig, userId, pointsLost, gardenUrl = null) {
                 type: 10,
                 content:
                   `## <:bee20000:1256669436350562355>︲__\` 𝖡𝖾𝖾 ₊ ${beeConfig.name || 'เจ้าผึ้งอ้วนตัวกลม'} 𓂃 \`__\n` +
-                  `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${dialogueText} <:cuteplant:1152834055528783872>\n` +
+                  `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${formatBeeDialogue(dialogueText)}\n` +
                   ` > (${iconStr})⠀**__\`𝗋𝖾𝗐𝖺𝗋𝖽\`__** : เจ้าผึ้งขโมยสตรอว์เบอร์รีของ <@${userId}> **-${pointsLost}**`
               }
             ],
@@ -335,7 +344,7 @@ function buildBeePoisonLossPayload(beeConfig, userId, pointsLost = 150, gardenUr
                 type: 10,
                 content:
                   `## <:bee20000:1256669436350562355>︲__\` 𝖡𝖾𝖾 ₊ ${beeConfig.name || 'เจ้าผึ้งอ้วนตัวกลม'} 𓂃 \`__\n` +
-                  `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${dialogueText} <:cuteplant:1152834055528783872>\n` +
+                  `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${formatBeeDialogue(dialogueText)}\n` +
                   ` > (${iconStr})⠀**__\`𝗋𝖾𝗐𝖺𝗋𝖽\`__** : <@${userId}> ติดพิษเจ้าผึ้ง เสียสตรอว์เบอร์รีไป **-${pointsLost}**`
               }
             ],
@@ -437,7 +446,7 @@ function buildBeeExpiredPayload(beeConfig, gardenUrl = null) {
                 type: 10,
                 content:
                   `## <:bee20000:1256669436350562355>︲__\` 𝖡𝖾𝖾 ₊ ${beeName} 𓂃 \`__\n` +
-                  `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${dialogueText} <:cuteplant:1152834055528783872>\n` +
+                  `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${formatBeeDialogue(dialogueText)}\n` +
                   ` > (<:strawberryv2:1520439075100688614>)⠀**__\`𝗆𝗌𝗀\`__** : ${noticeText}`
               }
             ],
@@ -584,7 +593,7 @@ function buildQueenBeeWinPayload(beeConfig, userId, winResult, gardenUrl = null)
                 type: 10,
                 content:
                   `## <:bee20000:1256669436350562355>︲__\` 𝖡𝖾𝖾 ₊ ${beeConfig.name || 'นางพญาผึ้งอ้วนตัวกลม'} 𓂃 \`__\n` +
-                  `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${dialogueText} <:cuteplant:1152834055528783872>\n` +
+                  `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${formatBeeDialogue(dialogueText)}\n` +
                   ` > (${iconStr})⠀**__\`𝗋𝖾𝗐𝖺𝗋𝖽\`__** : ${rewardText}`
               }
             ],
@@ -655,7 +664,7 @@ function buildQueenBeeLossPayload(beeConfig, userId, lossResult, gardenUrl = nul
                 type: 10,
                 content:
                   `## <:bee20000:1256669436350562355>︲__\` 𝖡𝖾𝖾 ₊ ${beeConfig.name || 'นางพญาผึ้งอ้วนตัวกลม'} 𓂃 \`__\n` +
-                  `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${dialogueText} <:cuteplant:1152834055528783872>\n` +
+                  `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${formatBeeDialogue(dialogueText)}\n` +
                   ` > (${iconStr})⠀**__\`𝗋𝖾𝗐𝖺𝗋𝖽\`__** : ${penaltyText}`
               }
             ],
@@ -720,7 +729,7 @@ function buildVampireDrainSelfPayload(beeConfig, userId, lossPoints, gardenUrl =
                 type: 10,
                 content:
                   `## <:bee20000:1256669436350562355>︲__\` 𝖡𝖾𝖾 ₊ ${beeConfig.name || 'เจ้าผึ้งแวมไพร์'} 𓂃 \`__\n` +
-                  `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${dialogueText} <:cuteplant:1152834055528783872>\n` +
+                  `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${formatBeeDialogue(dialogueText)}\n` +
                   ` > (${iconStr})⠀**__\`𝗋𝖾𝗐𝖺𝗋𝖽\`__** : เจ้าผึ้งแวมไพร์ดูดสตรอเบอรี่ของ <@${userId}> **-${lossPoints.toLocaleString()}**`
               }
             ],
@@ -784,7 +793,7 @@ function buildVampireAwakenPayload(beeConfig, userId, expireTimestamp, gardenUrl
                 type: 10,
                 content:
                   `## <:bee20000:1256669436350562355>︲__\` 𝖡𝖾𝖾 ₊ ${beeConfig.name || 'เจ้าผึ้งแวมไพร์'} 𓂃 \`__\n` +
-                  `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${dialogueText} <:cuteplant:1152834055528783872>\n` +
+                  `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${formatBeeDialogue(dialogueText)}\n` +
                   `### ❝ คุณสามารถแท็กใครก็ได้เพื่อทำการดูดแต้ม (${iconStr}) ของเขาภายใน <t:${expireTimestamp}:R> ❞\n` +
                   `> (${iconStr})⠀**__\`𝗍𝗂𝗉𝗌\`__** : <@${userId}> พิมพ์แท็กเพื่อน เช่น \`@ชื่อเพื่อน\` ในห้องนี้ได้ทันทีเลยน้า (แนะนำให้รีบแท็ก ไม่งั้นผึ้งอาจโมโหได้นะ!)`
               }
@@ -890,7 +899,7 @@ function buildVampireTargetResultPayload(beeConfig, userId, targetId, resultData
                 type: 10,
                 content:
                   `## <:bee20000:1256669436350562355>︲__\` 𝖡𝖾𝖾 ₊ ${beeConfig.name || 'เจ้าผึ้งแวมไพร์'} 𓂃 \`__\n` +
-                  `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${dialogueText} <:cuteplant:1152834055528783872>\n` +
+                  `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${formatBeeDialogue(dialogueText)}\n` +
                   ` > (${iconStr})⠀**__\`𝗋𝖾𝗐𝖺𝗋𝖽\`__** : ${rewardText}`
               }
             ],
@@ -1006,7 +1015,7 @@ function buildSpyBeeSpawnPayload(beeConfig, customIdPrefix, starsState = [true, 
                 type: 10,
                 content:
                   `## <:bee20000:1256669436350562355>︲__\` 𝖡𝖾𝖾 ₊ ${beeConfig?.name || 'เจ้าผึ้งสายลับ'} 𓂃 \`__\n` +
-                  `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${dialogueText} <:cuteplant:1152834055528783872>\n` +
+                  `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${formatBeeDialogue(dialogueText)}\n` +
                   ` > (${iconStr})⠀**__\`𝗍𝗂𝗉𝗌\`__** : ${tipText}`
               }
             ],
@@ -1093,7 +1102,7 @@ function buildSpyBeeRewardPayload(beeConfig, userId, rewardType, rewardData, gar
           type: 10,
           content:
             `## <:bee20000:1256669436350562355>︲__\` 𝖡𝖾𝖾 ₊ ${beeConfig?.name || 'เจ้าผึ้งสายลับ'} 𓂃 \`__\n` +
-            `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${dialogueText}\n` +
+            `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${formatBeeDialogue(dialogueText)}\n` +
             ` > (${iconStr})⠀**__\`${rewardType === 'role' ? '𝗊𝗎𝖾𝗌𝗍' : '𝗋𝖾𝗐𝖺𝗋𝖽'}\`__** : ${rewardText}`
         }
       ],
@@ -1153,7 +1162,7 @@ function buildSpyBeeQuestResultPayload(beeConfig, userId, questType, rewardPoint
                   type: 10,
                   content:
                     `## <:bearcafe_star:1212856675053346897>︲__\`คุณได้รับยศ ₊ ミ ③ Baby Carrot 𓂃 \`__\n` +
-                    `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${dialogueText}\n` +
+                    `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${formatBeeDialogue(dialogueText)}\n` +
                     ` > (${iconStr})⠀**__\`𝗋𝖾𝗐𝖺𝗋𝖽\`__** : ยินดีด้วย <@${userId}> คุณได้รับยศอีเวนต์ถาวรเรียบร้อยแล้ว!`
                 }
               ],
@@ -1190,7 +1199,7 @@ function buildSpyBeeQuestResultPayload(beeConfig, userId, questType, rewardPoint
                   type: 10,
                   content:
                     `## <:bee20000:1256669436350562355>︲__\` 𝖡𝖾𝖾 ₊ ${beeConfig?.name || 'เจ้าผึ้งสายลับ'} 𓂃 \`__\n` +
-                    `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${dialogueText}\n` +
+                    `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${formatBeeDialogue(dialogueText)}\n` +
                     ` > (${iconStr})⠀**__\`𝗋𝖾𝗐𝖺𝗋𝖽\`__** : เจ้าผึ้งสายลับคายสตรอเบอรี่ให้ <@${userId}> **+${rewardPoints}** ${iconStr}`
                 }
               ],
@@ -1251,7 +1260,7 @@ function buildSpyBeeAllGonePayload(beeConfig, userId = null, gardenUrl = null) {
                 type: 10,
                 content:
                   `## <:bee20000:1256669436350562355>︲__\` 𝖡𝖾𝖾 ₊ ${beeConfig?.name || 'เจ้าผึ้งสายลับ'} 𓂃 \`__\n` +
-                  `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${dialogueText}\n` +
+                  `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${formatBeeDialogue(dialogueText)}\n` +
                   ` > (${iconStr})⠀**__\`𝗆𝗌𝗀\`__** : ${userTag}ดาวทั้งหมดในรอบนี้ถูกผู้เล่นในคาเฟ่เก็บไปจนหมดแล้ว!`
               }
             ],
@@ -1328,7 +1337,7 @@ function buildMathBeeSpawnPayload(beeConfig, mathData, customIdPrefix, isReady =
                 type: 10,
                 content:
                   `## <:bee20000:1256669436350562355>︲__\` 𝖡𝖾𝖾 ₊ ${beeConfig?.name || 'อาจารย์บีเรขา'} 𓂃 \`__\n` +
-                  `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${dialogueText}\n` +
+                  `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${formatBeeDialogue(dialogueText)}\n` +
                   `### 📐︲โจทย์คณิตศาสตร์ (${tierName}): **\` ${question} \`**\n` +
                   `> (${iconStr})⠀**__\`reward\`__** : ตอบถูกคนแรกรับทันที **+${rewardPts}** แต้ม *(ตอบผิดโดนหัก -10~50!)*`
               }
@@ -1389,7 +1398,7 @@ function buildMathBeeWinPayload(beeConfig, userId, mathData, gardenUrl = null) {
                 type: 10,
                 content:
                   `## <:bee20000:1256669436350562355>︲__\` 𝖡𝖾𝖾 ₊ ${beeConfig?.name || 'อาจารย์บีเรขา'} 𓂃 \`__\n` +
-                  `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${dialogueText}\n` +
+                  `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${formatBeeDialogue(dialogueText)}\n` +
                   `### 🎯︲เฉลย: **\` ${cleanQuestion} = ${answer} \`**\n` +
                   `> (${iconStr})⠀**__\`reward\`__** : ${rewardText}`
               }

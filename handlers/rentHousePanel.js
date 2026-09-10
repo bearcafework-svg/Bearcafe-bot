@@ -24,23 +24,36 @@ const {
 
 const { safeShowModal } = require("../utils/discordSafety");
 const { safeSetChannelName } = require("../utils/channelRenameGuard");
+const { getRandomSessionAd, getGlobalCtaButton } = require("../src/services/sessionAdsService");
 
 const SPECIAL_IMAGE_ROLE_ID = "1383998275711012956";
 
-async function sendRentHousePanel(channel, ownerMember) {
-  if (!channel || typeof channel.send !== "function") return null;
-
-  try {
-    let customImageUrl = null;
-    const isSpecialRole = ownerMember?.roles?.cache?.has(SPECIAL_IMAGE_ROLE_ID);
+async function buildRentPanelPayloadWithAds(member, channel, forcedImageUrl = null) {
+  let customImageUrl = forcedImageUrl;
+  if (!customImageUrl && channel) {
+    const isSpecialRole = member?.roles?.cache?.has(SPECIAL_IMAGE_ROLE_ID);
     if (isSpecialRole) {
       const setting = await getRentHousePermissionsInfo(channel);
       if (setting?.image_url) {
         customImageUrl = setting.image_url;
       }
     }
+  }
 
-    const payload = createRentHousePanelPayload(ownerMember || "เจ้าของบ้านเช่า", customImageUrl);
+  let randomAd = null;
+  if (!customImageUrl) {
+    randomAd = await getRandomSessionAd();
+  }
+  const ctaBtn = await getGlobalCtaButton();
+
+  return createRentHousePanelPayload(member || "เจ้าของบ้านเช่า", customImageUrl, randomAd, ctaBtn);
+}
+
+async function sendRentHousePanel(channel, ownerMember) {
+  if (!channel || typeof channel.send !== "function") return null;
+
+  try {
+    const payload = await buildRentPanelPayloadWithAds(ownerMember || "เจ้าของบ้านเช่า", channel);
     const msg = await channel.send(payload);
     return msg;
   } catch (err) {
@@ -84,7 +97,8 @@ async function handleRentHousePanelInteraction(interaction) {
     }
 
     if (interaction.isStringSelectMenu() && customId === RENT_CUSTOM_IDS.panelSelect) {
-      await interaction.update(createRentHousePanelPayload(interaction.member)).catch(() => {});
+      const resetPayload = await buildRentPanelPayloadWithAds(interaction.member, channel);
+      await interaction.update(resetPayload).catch(() => {});
     } else {
       await interaction.deferUpdate().catch(() => {});
     }
@@ -107,7 +121,8 @@ async function handleRentHousePanelInteraction(interaction) {
       if (!interaction.replied && !interaction.deferred) {
         const modal = buildRentNameModal(channel.name);
         await safeShowModal(interaction, modal);
-        await interaction.message?.edit(createRentHousePanelPayload(interaction.member, activeCustomImg)).catch(() => {});
+        const updatedPayload = await buildRentPanelPayloadWithAds(interaction.member, channel, activeCustomImg);
+        await interaction.message?.edit(updatedPayload).catch(() => {});
         return true;
       }
       return false;
@@ -117,7 +132,8 @@ async function handleRentHousePanelInteraction(interaction) {
       if (!interaction.replied && !interaction.deferred) {
         const modal = buildRentLimitModal(channel.userLimit ?? 0);
         await safeShowModal(interaction, modal);
-        await interaction.message?.edit(createRentHousePanelPayload(interaction.member, activeCustomImg)).catch(() => {});
+        const updatedPayload = await buildRentPanelPayloadWithAds(interaction.member, channel, activeCustomImg);
+        await interaction.message?.edit(updatedPayload).catch(() => {});
         return true;
       }
       return false;
@@ -139,13 +155,15 @@ async function handleRentHousePanelInteraction(interaction) {
       if (!interaction.replied && !interaction.deferred) {
         const modal = buildRentImageModal(memberSetting?.image_url || "");
         await safeShowModal(interaction, modal);
-        await interaction.message?.edit(createRentHousePanelPayload(interaction.member, activeCustomImg)).catch(() => {});
+        const updatedPayload = await buildRentPanelPayloadWithAds(interaction.member, channel, activeCustomImg);
+        await interaction.message?.edit(updatedPayload).catch(() => {});
         return true;
       }
       return false;
     }
 
-    await interaction.update(createRentHousePanelPayload(interaction.member, activeCustomImg)).catch(() => {});
+    const updatedPayload = await buildRentPanelPayloadWithAds(interaction.member, channel, activeCustomImg);
+    await interaction.update(updatedPayload).catch(() => {});
 
     switch (selected) {
       case "rh_opt_info":
@@ -293,7 +311,8 @@ async function handleRentHousePanelInteraction(interaction) {
         const messages = await channel.messages.fetch({ limit: 10 });
         const botMsg = messages.find((m) => m.author.id === interaction.client.user.id && (m.flags?.has(32768) || m.flags?.bitfield === 32768));
         if (botMsg) {
-          await botMsg.edit(createRentHousePanelPayload(member, newImageUrl));
+          const updatedPayload = await buildRentPanelPayloadWithAds(member, channel, newImageUrl);
+          await botMsg.edit(updatedPayload);
         }
       } catch (err) {
         console.warn("[rentHousePanel] Failed to edit existing panel message:", err.message);

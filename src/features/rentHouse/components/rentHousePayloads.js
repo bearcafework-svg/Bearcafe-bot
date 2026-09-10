@@ -45,7 +45,7 @@ function createV2CardResponse(title, textContent, icon = "ℹ️") {
 /**
  * สร้าง Payload แผงควบคุมบ้านเช่า รูปแบบ Component v2 + Select Menu
  */
-function createRentHousePanelPayload(ownerMember, customImageUrl = null) {
+function createRentHousePanelPayload(ownerMember, customImageUrl = null, ad = null, ctaBtn = null) {
   const options = [
     {
       label: "ดูข้อมูลสัญญาเช่า",
@@ -109,46 +109,84 @@ function createRentHousePanelPayload(ownerMember, customImageUrl = null) {
     },
   ];
 
-  const imageUrl = customImageUrl || RENT_HOUSE_IMAGE_URL;
+  const isCustomImageActive = Boolean(customImageUrl);
+  const imageUrl = isCustomImageActive ? customImageUrl : (ad?.image_url || RENT_HOUSE_IMAGE_URL);
+
+  const containerComponents = [
+    {
+      type: 12, // Media
+      items: [
+        {
+          media: {
+            url: imageUrl,
+          },
+          spoiler: false,
+          description: null,
+        },
+      ],
+    },
+    { type: 14, spacing: 2 },
+    {
+      type: 10, // Text Section
+      content:
+        `## 🏠︲__\` 𝖱𝖾𝗇𝗍 𝖧𝗈𝗎𝗌𝖾 𝖢𝗈𝗇𝗍𝗋𝗈𝗅 𝖯𝖺𝗇𝖾𝗅 ₊ บ้านเช่าหมี 𓂃 \`__\n` +
+        `> ยินดีต้อนรับสู่บ้านเช่าหมีค่ะ ${ownerMember}\n` +
+        `> คุณสามารถตั้งค่าห้อง จัดการสิทธิ์ และดูข้อมูลสัญญาผ่านเมนูด้านล่างนี้ได้เลยนะคะ`,
+    },
+    { type: 14, spacing: 2 },
+    {
+      type: 1, // ActionRow
+      components: [
+        {
+          type: 3, // StringSelectMenu
+          custom_id: RENT_CUSTOM_IDS.panelSelect,
+          placeholder: "⚙️ เลือกรายการที่ต้องการจัดการห้อง...",
+          options: options,
+        },
+      ],
+    },
+  ];
+
+  const bottomButtons = [];
+  if (!isCustomImageActive && ad && ad.has_button !== false && ad.link_url) {
+    const adBtn = {
+      type: 2,
+      style: 5,
+      url: ad.link_url,
+      label: ad.button_label || "ดูรายละเอียด",
+    };
+    if (ad.button_emoji_id) {
+      adBtn.emoji = {
+        id: ad.button_emoji_id,
+        name: ad.button_emoji_name || "emoji",
+        animated: Boolean(ad.button_emoji_animated),
+      };
+    } else if (ad.button_emoji) {
+      adBtn.emoji = { name: ad.button_emoji };
+    }
+    bottomButtons.push(adBtn);
+  }
+
+  if (ctaBtn) {
+    bottomButtons.push(ctaBtn);
+  }
+
+  if (bottomButtons.length > 0) {
+    containerComponents.push({ type: 14, spacing: 1, divider: false });
+    containerComponents.push({
+      type: 1,
+      components: bottomButtons,
+    });
+  }
+
+  containerComponents.push({ type: 14, spacing: 2 });
 
   return {
     flags: 32768, // Component v2 Container
     components: [
       {
         type: 17, // Container
-        components: [
-          {
-            type: 12, // Media
-            items: [
-              {
-                media: {
-                  url: imageUrl,
-                },
-              },
-            ],
-          },
-          { type: 14, spacing: 2 },
-          {
-            type: 10, // Text Section
-            content:
-              `## 🏠︲__\` 𝖱𝖾𝗇𝗍 𝖧𝗈𝗎𝗌𝖾 𝖢𝗈𝗇𝗍𝗋𝗈𝗅 𝖯𝖺𝗇𝖾𝗅 ₊ บ้านเช่าหมี 𓂃 \`__\n` +
-              `> ยินดีต้อนรับสู่บ้านเช่าหมีค่ะ ${ownerMember}\n` +
-              `> คุณสามารถตั้งค่าห้อง จัดการสิทธิ์ และดูข้อมูลสัญญาผ่านเมนูด้านล่างนี้ได้เลยนะคะ`,
-          },
-          { type: 14, spacing: 2 },
-          {
-            type: 1, // ActionRow
-            components: [
-              {
-                type: 3, // StringSelectMenu
-                custom_id: RENT_CUSTOM_IDS.panelSelect,
-                placeholder: "⚙️ เลือกรายการที่ต้องการจัดการห้อง...",
-                options: options,
-              },
-            ],
-          },
-          { type: 14, spacing: 2 },
-        ],
+        components: containerComponents,
       },
     ],
   };

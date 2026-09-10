@@ -55,9 +55,6 @@ const logger = {
   sticky: (message, ...args) => {
     console.log(`${formatTag('STICKY', colors.cyan, '📌')} ${message}`, ...args);
   },
-  secretChat: (message, ...args) => {
-    console.log(`${formatTag('SECRET-CHAT', colors.purple, '🔒')} ${message}`, ...args);
-  },
   core: (message, ...args) => {
     console.log(`${formatTag('CORE', colors.cyan, '🚀')} ${message}`, ...args);
   },

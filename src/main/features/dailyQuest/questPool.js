@@ -272,18 +272,7 @@ module.exports = [
     trackerType: "USE_MULTI_FEATURES"
   },
 
-  // 🤝 หมวด 5 — Social / Activity Quest (6 ภารกิจ)
-  {
-    id: "SOCIAL-01",
-    category: "SOCIAL",
-    title: "หาเพื่อนคุย",
-    description: "ใช้คำสั่งระบบสุ่มหาเพื่อนคุยหรือแชทลับ",
-    targetCount: 1,
-    unit: "ครั้ง",
-    rewardPoints: 15,
-    difficulty: "EASY",
-    trackerType: "USE_MATCHMAKING"
-  },
+  // 🤝 หมวด 5 — Social / Activity Quest (5 ภารกิจ)
   {
     id: "SOCIAL-02",
     category: "SOCIAL",

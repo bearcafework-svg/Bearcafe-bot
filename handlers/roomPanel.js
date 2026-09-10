@@ -8,6 +8,7 @@ const {
   TextInputBuilder,
   TextInputStyle,
   UserSelectMenuBuilder,
+  StringSelectMenuBuilder,
   OverwriteType,
 } = require("discord.js");
 const config = require("../config");
@@ -21,8 +22,10 @@ const {
   safeDisconnectMember,
   safeRespond,
 } = require("../utils/discordSafety");
+const { getSupabaseClient } = require("../src/services/supabaseClient");
 
 const CUSTOM_IDS = {
+  panelSelect: "vip_panel_select_action",
   name: "p_314732019948982291",
   limit: "p_314732597651443713",
   lock: "p_314732736411602947",
@@ -44,6 +47,83 @@ const CUSTOM_IDS = {
   modalLimit: "room_panel_modal_limit",
   modalImage: "room_panel_modal_image",
 };
+
+const VIP_SELECT_OPTIONS = [
+  {
+    label: "เปลี่ยนชื่อห้อง",
+    description: "ตั้งชื่อห้อง VIP ของคุณใหม่",
+    value: "vip_opt_name",
+    emoji: { name: "✏️" },
+  },
+  {
+    label: "เปลี่ยนจำนวนคน",
+    description: "ปรับเปลี่ยนจำนวนสมาชิกสูงสุดที่เข้าห้องได้ (0-99)",
+    value: "vip_opt_limit",
+    emoji: { name: "👥" },
+  },
+  {
+    label: "ล็อค / ปลดล็อคห้อง",
+    description: "สลับสถานะล็อคห้อง (เปิด/ปิด ให้สมาชิกทั่วไปเข้า)",
+    value: "vip_opt_lock",
+    emoji: { name: "🔓" },
+  },
+  {
+    label: "ซ่อน / เปิดมองเห็นห้อง",
+    description: "สลับสถานะการซ่อนห้องจากรายชื่อห้อง",
+    value: "vip_opt_hide",
+    emoji: { name: "👀" },
+  },
+  {
+    label: "อนุญาตสมาชิก (Trust)",
+    description: "เพิ่มสมาชิกที่อนุญาตให้เข้าห้องได้เป็นพิเศษ",
+    value: "vip_opt_trust",
+    emoji: { name: "➕" },
+  },
+  {
+    label: "ยกเลิกอนุญาตสมาชิก",
+    description: "ถอดสิทธิ์พิเศษของสมาชิกที่เคยอนุญาตไว้",
+    value: "vip_opt_untrust",
+    emoji: { name: "➖" },
+  },
+  {
+    label: "ซ่อนห้องจากสมาชิก (Block)",
+    description: "ซ่อนห้องไม่ให้สมาชิกที่เลือกมองเห็น",
+    value: "vip_opt_block",
+    emoji: { name: "🙈" },
+  },
+  {
+    label: "เลิกซ่อนห้องจากสมาชิก",
+    description: "ยกเลิกการซ่อนห้อง ให้สมาชิกกลับมาเห็นห้องได้",
+    value: "vip_opt_unblock",
+    emoji: { name: "👁️" },
+  },
+  {
+    label: "เตะสมาชิกออกจากห้อง",
+    description: "เตะสมาชิกที่ไม่ต้องการออกจากห้องเสียงทันที",
+    value: "vip_opt_kick",
+    emoji: { name: "📤" },
+  },
+  {
+    label: "ตรวจสอบสิทธิ์สมาชิก",
+    description: "ดูรายชื่อสมาชิกที่ได้รับสิทธิ์หรือถูกบล็อคในห้อง",
+    value: "vip_opt_permissions",
+    emoji: { name: "📋" },
+  },
+  {
+    label: "ตั้งค่ารูปภาพแผง",
+    description: "กำหนดรูปภาพแบนเนอร์ของแผงควบคุมห้อง VIP",
+    value: "vip_opt_image",
+    emoji: { name: "🖼️" },
+  },
+  {
+    label: "ลบห้อง VIP",
+    description: "ลบห้องและตัดการเชื่อมต่อทุกคนออกจากห้องทันที",
+    value: "vip_opt_delete",
+    emoji: { name: "🗑️" },
+  },
+];
+
+const { getRandomSessionAd, getGlobalCtaButton } = require("../src/services/sessionAdsService");
 
 const PANEL_BUTTON_IDS = new Set(Object.values(CUSTOM_IDS).filter((id) => id.startsWith("p_")));
 const SET_VOICE_CHANNEL_STATUS = PermissionFlagsBits.SetVoiceChannelStatus || (1n << 48n);
@@ -87,6 +167,10 @@ async function handleRoomPanelInteraction(interaction) {
     return await respondEphemeral(interaction, { content: "ปุ่มเปลี่ยนเจ้าของห้องถูกปิดใช้งานแล้วค่ะ" });
   }
 
+  if (interaction.isStringSelectMenu() && interaction.customId === CUSTOM_IDS.panelSelect) {
+    return await handleVipPanelSelect(interaction);
+  }
+
   if (interaction.isButton() && PANEL_BUTTON_IDS.has(interaction.customId)) {
     return await handlePanelButton(interaction);
   }
@@ -121,17 +205,179 @@ async function sendRoomPanel(channel, ownerMember, room) {
     }
   }
 
-  const payload = createComponentV2PanelPayload(ownerMember, room, customImageUrl);
+  let randomAd = null;
+  if (!customImageUrl) {
+    randomAd = await getRandomSessionAd();
+  }
+  const ctaBtn = await getGlobalCtaButton();
+
+  const payload = createComponentV2PanelPayload(ownerMember, room, customImageUrl, randomAd, ctaBtn);
 
   try {
     await channel.send(payload);
   } catch (e) {
     console.error("Component v2 panel send failed, using fallback:", e.message);
-    await channel.send(createFallbackPanelPayload(ownerMember, room, customImageUrl)).catch((fallbackError) => {
+    await channel.send(createFallbackPanelPayload(ownerMember, room, customImageUrl, randomAd, ctaBtn)).catch((fallbackError) => {
       console.error("Fallback room panel send failed:", fallbackError.message);
       throw fallbackError;
     });
   }
+}
+
+async function buildUpdatedVipPanelPayload(member, room, channel, forcedImageUrl = null) {
+  if (!room && channel) {
+    room = await getRoom(channel.id);
+  }
+  if (!room) return null;
+
+  let customImageUrl = forcedImageUrl;
+  const isSpecialRole = member?.roles?.cache?.has(SPECIAL_IMAGE_ROLE_ID);
+  if (isSpecialRole && !customImageUrl) {
+    if (room.settings?.imageUrl) {
+      customImageUrl = room.settings.imageUrl;
+    } else {
+      const preset = await getSmartRoomPreset(room.ownerId, room.zoneId);
+      if (preset?.imageUrl) {
+        customImageUrl = preset.imageUrl;
+      }
+    }
+  }
+
+  let randomAd = null;
+  if (!customImageUrl) {
+    randomAd = await getRandomSessionAd();
+  }
+  const ctaBtn = await getGlobalCtaButton();
+
+  return createComponentV2PanelPayload(member, room, customImageUrl, randomAd, ctaBtn);
+}
+
+async function handleVipPanelSelect(interaction) {
+  const context = await getOwnedRoomContextFromInteraction(interaction);
+  if (!context) {
+    const resetPayload = await buildUpdatedVipPanelPayload(interaction.member, null, interaction.channel);
+    if (resetPayload) await interaction.update(resetPayload).catch(() => {});
+    return await replyOwnerOnly(interaction);
+  }
+
+  const selected = interaction.values[0];
+  const member = interaction.member;
+  const room = context.room;
+  const channel = context.channel;
+
+  if (selected === "vip_opt_name") {
+    await showNameModal(interaction);
+    const updatedPayload = await buildUpdatedVipPanelPayload(member, room, channel);
+    if (updatedPayload) await interaction.message?.edit(updatedPayload).catch(() => {});
+    return true;
+  }
+
+  if (selected === "vip_opt_limit") {
+    await showLimitModal(interaction);
+    const updatedPayload = await buildUpdatedVipPanelPayload(member, room, channel);
+    if (updatedPayload) await interaction.message?.edit(updatedPayload).catch(() => {});
+    return true;
+  }
+
+  if (selected === "vip_opt_image") {
+    const hasImageRole = member?.roles?.cache?.has(SPECIAL_IMAGE_ROLE_ID);
+    if (!hasImageRole) {
+      const updatedPayload = await buildUpdatedVipPanelPayload(member, room, channel);
+      if (updatedPayload) await interaction.update(updatedPayload).catch(() => {});
+      return await respondEphemeral(interaction, {
+        content: `❌ ขออภัยค่ะ ฟังก์ชันตั้งค่ารูปภาพแผงสงวนสิทธิ์เฉพาะสมาชิกที่มีบทบาท <@&${SPECIAL_IMAGE_ROLE_ID}> เท่านั้นนะคะ`,
+      });
+    }
+
+    await showImageModal(interaction);
+    const updatedPayload = await buildUpdatedVipPanelPayload(member, room, channel);
+    if (updatedPayload) await interaction.message?.edit(updatedPayload).catch(() => {});
+    return true;
+  }
+
+  const updatedPayload = await buildUpdatedVipPanelPayload(member, room, channel);
+  if (updatedPayload) {
+    await interaction.update(updatedPayload).catch(() => {});
+  } else {
+    await interaction.deferUpdate().catch(() => {});
+  }
+
+  if (selected === "vip_opt_lock") {
+    const settings = getSettings(room);
+    const updatedRoom = await updateRoom(channel.id, {
+      settings: { ...settings, locked: !settings.locked },
+    });
+    await persistRoomPreset(channel, updatedRoom);
+    await applyRoomPermissions(channel, updatedRoom);
+    const refreshed = await buildUpdatedVipPanelPayload(member, updatedRoom, channel);
+    if (refreshed) await interaction.message?.edit(refreshed).catch(() => {});
+    return await respondEphemeral(interaction, {
+      content: `อัปเดตแล้วค่ะ\n${getPanelSummary(updatedRoom)}`,
+    });
+  }
+
+  if (selected === "vip_opt_hide") {
+    const settings = getSettings(room);
+    const updatedRoom = await updateRoom(channel.id, {
+      settings: { ...settings, hidden: !settings.hidden },
+    });
+    await persistRoomPreset(channel, updatedRoom);
+    await applyRoomPermissions(channel, updatedRoom);
+    const refreshed = await buildUpdatedVipPanelPayload(member, updatedRoom, channel);
+    if (refreshed) await interaction.message?.edit(refreshed).catch(() => {});
+    return await respondEphemeral(interaction, {
+      content: `อัปเดตแล้วค่ะ\n${getPanelSummary(updatedRoom)}`,
+    });
+  }
+
+  if (selected === "vip_opt_trust") {
+    return await replyWithUserSelect(interaction, CUSTOM_IDS.selectTrust, "เลือกสมาชิกที่จะอนุญาตให้เข้าห้อง");
+  }
+
+  if (selected === "vip_opt_untrust") {
+    return await replyWithUserSelect(interaction, CUSTOM_IDS.selectUntrust, "เลือกสมาชิกที่จะยกเลิกสิทธิ์เข้าห้อง");
+  }
+
+  if (selected === "vip_opt_block") {
+    return await replyWithUserSelect(interaction, CUSTOM_IDS.selectBlock, "เลือกสมาชิกที่จะซ่อนห้องจากเขา");
+  }
+
+  if (selected === "vip_opt_unblock") {
+    return await replyWithUserSelect(interaction, CUSTOM_IDS.selectUnblock, "เลือกสมาชิกที่จะเลิกซ่อนห้อง");
+  }
+
+  if (selected === "vip_opt_kick") {
+    return await replyWithUserSelect(interaction, CUSTOM_IDS.selectKick, "เลือกสมาชิกที่จะเตะออกจากห้อง", 1);
+  }
+
+  if (selected === "vip_opt_permissions") {
+    const settings = getSettings(room);
+    const ownerId = room.ownerId;
+
+    const trustedList = settings.trustedUserIds.length > 0
+      ? settings.trustedUserIds.map((id) => `<@${id}>`).join(", ")
+      : "ไม่มี";
+
+    const blockedList = settings.blockedUserIds.length > 0
+      ? settings.blockedUserIds.map((id) => `<@${id}>`).join(", ")
+      : "ไม่มี";
+
+    const content = [
+      `📋 **รายละเอียดสิทธิ์สมาชิกภายในห้อง VIP**`,
+      `👑 **เจ้าของห้อง**: <@${ownerId}>`,
+      `🟢 **อนุญาตให้เข้า (มองเห็น)**: ${trustedList}`,
+      `🔴 **ถูกซ่อน/บล็อค (ถูกบล็อค)**: ${blockedList}`,
+    ].join("\n");
+
+    return await respondEphemeral(interaction, { content });
+  }
+
+  if (selected === "vip_opt_delete") {
+    await respondEphemeral(interaction, { content: "กำลังลบห้องค่ะ" });
+    return await deleteOwnedRoom(interaction, context);
+  }
+
+  return false;
 }
 
 async function handlePanelButton(interaction) {
@@ -559,69 +805,154 @@ async function deleteOwnedRoom(interaction, context) {
   return true;
 }
 
-function createComponentV2PanelPayload(ownerMember, room, customImageUrl = null) {
-  const summary = getPanelSummary(room);
-  const imageUrl = customImageUrl || DEFAULT_VIP_IMAGE_URL;
+function createComponentV2PanelPayload(ownerMember, room, customImageUrl = null, ad = null, ctaBtn = null) {
+  const settings = getSettings(room);
+  const limit = Number.isInteger(settings.limit) ? settings.limit : "ค่าเริ่มต้น";
+  const statusText = getStatusText(room);
+
+  // ถ้ามียศลิมิเต็ดและตั้งภาพเฉพาะของตัวเองไว้ จะใช้ภาพนั้น และไม่แสดงโฆษณา
+  const isCustomImageActive = Boolean(customImageUrl);
+  const imageUrl = isCustomImageActive ? customImageUrl : (ad?.image_url || DEFAULT_VIP_IMAGE_URL);
+
+  const containerComponents = [
+    {
+      type: 12,
+      items: [
+        {
+          media: {
+            url: imageUrl,
+          },
+          spoiler: false,
+          description: null,
+        },
+      ],
+    },
+    { type: 14, spacing: 2 },
+    {
+      type: 10,
+      content:
+        `## <:618492diamond:1521245223311769673>︲__\` 𝖵𝖨𝖯 𝖱𝗈𝗈𝗆 𝖢𝗈𝗇𝗍𝗋𝗈𝗅 𝖯𝖺𝗇𝖾𝗅 ₊ ห้องวีไอพี 𓂃 \`__\n` +
+        `-# ยินดีต้อนรับสู่ห้อง VIP นะคะ ${ownerMember} หากต้องการเรียก **พาเนลตั้งค่า** อีกครั้ง สามารถแท็กบอทภายในห้องนี้ได้เลยนะคะ <:cuteplant:1152834055528783872>\n\n` +
+        `> (🔊)⠀สถานะห้อง: **${statusText}**\n` +
+        `> (👥)⠀จำนวนคน: **${limit}**\n` +
+        `> (📥)⠀อนุญาตให้เข้า: **${settings.trustedUserIds?.length || 0} คน**\n` +
+        `> (🙈)⠀ซ่อนจาก: **${settings.blockedUserIds?.length || 0} คน**`,
+    },
+    { type: 14, spacing: 2 },
+    {
+      type: 1,
+      components: [
+        {
+          type: 3,
+          custom_id: CUSTOM_IDS.panelSelect,
+          placeholder: "⚙️︲เลือกรายการที่ต้องการจัดการห้อง VIP...",
+          options: VIP_SELECT_OPTIONS,
+        },
+      ],
+    },
+  ];
+
+  // ปุ่มแถวล่าง: ลิงก์โฆษณา (ถ้าไม่ได้ใช้รูปคัสตอม) + ปุ่ม CTA สนใจลงโฆษณา
+  const bottomButtons = [];
+  if (!isCustomImageActive && ad && ad.has_button !== false && ad.link_url) {
+    const adBtn = {
+      type: 2,
+      style: 5,
+      url: ad.link_url,
+      label: ad.button_label || "ดูรายละเอียด",
+    };
+    if (ad.button_emoji_id) {
+      adBtn.emoji = {
+        id: ad.button_emoji_id,
+        name: ad.button_emoji_name || "emoji",
+        animated: Boolean(ad.button_emoji_animated),
+      };
+    } else if (ad.button_emoji) {
+      adBtn.emoji = { name: ad.button_emoji };
+    }
+    bottomButtons.push(adBtn);
+  }
+
+  if (ctaBtn) {
+    bottomButtons.push(ctaBtn);
+  }
+
+  if (bottomButtons.length > 0) {
+    containerComponents.push({ type: 14, spacing: 1, divider: false });
+    containerComponents.push({
+      type: 1,
+      components: bottomButtons,
+    });
+  }
+
+  containerComponents.push({ type: 14, spacing: 2 });
+
   return {
     flags: 32768,
     components: [
       {
         type: 17,
-        components: [
-          {
-            type: 12,
-            items: [
-              {
-                media: {
-                  url: imageUrl,
-                },
-              },
-            ],
-          },
-          { type: 14, spacing: 2 },
-          {
-            type: 10,
-            content: `${ownerMember} ห้อง VIP ของคุณพร้อมแล้วค่ะ\n${summary}`,
-          },
-          { type: 14, spacing: 1, divider: false },
-          {
-            type: 1,
-            components: [
-              button(ButtonStyle.Secondary, CUSTOM_IDS.name, "เปลี่ยนชื่อห้อง", "✏️"),
-              button(ButtonStyle.Secondary, CUSTOM_IDS.limit, "เปลี่ยนจำนวนคน", "👥"),
-              button(ButtonStyle.Secondary, CUSTOM_IDS.lock, "ล็อค/ปลดล็อค", "🔓"),
-              button(ButtonStyle.Secondary, CUSTOM_IDS.hide, "ซ่อน/เปิดมองเห็น", "👀"),
-              button(ButtonStyle.Danger, CUSTOM_IDS.delete, "ลบห้อง", "🗑️"),
-            ],
-          },
-          {
-            type: 1,
-            components: [
-              button(ButtonStyle.Secondary, CUSTOM_IDS.trust, "อนุญาตสมาชิก", "➕"),
-              button(ButtonStyle.Secondary, CUSTOM_IDS.untrust, "ยกเลิกอนุญาต", "➖"),
-              button(ButtonStyle.Secondary, CUSTOM_IDS.block, "ซ่อนสมาชิก", "🙈"),
-              button(ButtonStyle.Secondary, CUSTOM_IDS.unblock, "เลิกซ่อนสมาชิก", "👁️"),
-              button(ButtonStyle.Secondary, CUSTOM_IDS.kick, "เตะสมาชิกออกจากห้อง", "📤"),
-            ],
-          },
-          {
-            type: 1,
-            components: [
-              button(ButtonStyle.Primary, CUSTOM_IDS.permissionsList, "ตรวจสอบสิทธิ์สมาชิก", "📋"),
-              button(ButtonStyle.Secondary, CUSTOM_IDS.image, "ตั้งค่ารูปภาพแผง", "🖼️"),
-            ],
-          },
-          { type: 14, spacing: 2 },
-        ],
+        components: containerComponents,
       },
     ],
   };
 }
 
-function createFallbackPanelPayload(ownerMember, room, customImageUrl = null) {
-  const imageUrl = customImageUrl || DEFAULT_VIP_IMAGE_URL;
+function createFallbackPanelPayload(ownerMember, room, customImageUrl = null, ad = null, ctaBtn = null) {
+  const isCustomImageActive = Boolean(customImageUrl);
+  const imageUrl = isCustomImageActive ? customImageUrl : (ad?.image_url || DEFAULT_VIP_IMAGE_URL);
+  const settings = getSettings(room);
+  const limit = Number.isInteger(settings.limit) ? settings.limit : "ค่าเริ่มต้น";
+  const statusText = getStatusText(room);
+
+  const selectRow = new ActionRowBuilder().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId(CUSTOM_IDS.panelSelect)
+      .setPlaceholder("⚙️︲เลือกรายการที่ต้องการจัดการห้อง VIP...")
+      .addOptions(VIP_SELECT_OPTIONS)
+  );
+
+  const components = [selectRow];
+
+  const bottomButtons = [];
+  if (!isCustomImageActive && ad && ad.has_button !== false && ad.link_url) {
+    const btn = new ButtonBuilder()
+      .setStyle(ButtonStyle.Link)
+      .setURL(ad.link_url)
+      .setLabel(ad.button_label || "ดูรายละเอียด");
+    if (ad.button_emoji_id) {
+      btn.setEmoji({
+        id: ad.button_emoji_id,
+        name: ad.button_emoji_name || "emoji",
+        animated: Boolean(ad.button_emoji_animated),
+      });
+    } else if (ad.button_emoji) {
+      btn.setEmoji(ad.button_emoji);
+    }
+    bottomButtons.push(btn);
+  }
+
+  if (ctaBtn) {
+    const btn = new ButtonBuilder()
+      .setStyle(ButtonStyle.Link)
+      .setURL(ctaBtn.url)
+      .setLabel(ctaBtn.label);
+    if (ctaBtn.emoji) btn.setEmoji(ctaBtn.emoji);
+    bottomButtons.push(btn);
+  }
+
+  if (bottomButtons.length > 0) {
+    components.push(new ActionRowBuilder().addComponents(bottomButtons));
+  }
+
   return {
-    content: `${ownerMember} ห้อง VIP ของคุณพร้อมแล้วค่ะ\n${getPanelSummary(room)}`,
+    content:
+      `## <:618492diamond:1521245223311769673>︲__\` 𝖵𝖨𝖯 𝖱𝗈𝗈𝗆 𝖢𝗈𝗇𝗍𝗋𝗈𝗅 𝖯𝖺𝗇𝖾𝗅 ₊ ห้องวีไอพี 𓂃 \`__\n` +
+      `-# ยินดีต้อนรับสู่ห้อง VIP นะคะ ${ownerMember} หากต้องการเรียก **พาเนลตั้งค่า** อีกครั้ง สามารถแท็กบอทภายในห้องนี้ได้เลยนะคะ <:cuteplant:1152834055528783872>\n\n` +
+      `> (🔊)⠀สถานะห้อง: **${statusText}**\n` +
+      `> (👥)⠀จำนวนคน: **${limit}**\n` +
+      `> (📥)⠀อนุญาตให้เข้า: **${settings.trustedUserIds?.length || 0} คน**\n` +
+      `> (🙈)⠀ซ่อนจาก: **${settings.blockedUserIds?.length || 0} คน**`,
     embeds: [
       {
         image: {
@@ -629,25 +960,7 @@ function createFallbackPanelPayload(ownerMember, room, customImageUrl = null) {
         },
       },
     ],
-    components: [
-      new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId(CUSTOM_IDS.name).setLabel("เปลี่ยนชื่อห้อง").setEmoji("✏️").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId(CUSTOM_IDS.limit).setLabel("เปลี่ยนจำนวนคน").setEmoji("👥").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId(CUSTOM_IDS.lock).setLabel("ล็อค/ปลดล็อค").setEmoji("🔓").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId(CUSTOM_IDS.hide).setLabel("ซ่อน/เปิดมองเห็น").setEmoji("👀").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId(CUSTOM_IDS.delete).setLabel("ลบห้อง").setEmoji("🗑️").setStyle(ButtonStyle.Danger)
-      ),
-      new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId(CUSTOM_IDS.trust).setLabel("อนุญาตสมาชิก").setEmoji("➕").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId(CUSTOM_IDS.untrust).setLabel("ยกเลิกอนุญาต").setEmoji("➖").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId(CUSTOM_IDS.block).setLabel("ซ่อนสมาชิก").setEmoji("🙈").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId(CUSTOM_IDS.unblock).setLabel("เลิกซ่อนสมาชิก").setEmoji("👁️").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId(CUSTOM_IDS.kick).setLabel("เตะสมาชิกออกจากห้อง").setEmoji("📤").setStyle(ButtonStyle.Secondary)
-      ),
-      new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId(CUSTOM_IDS.permissionsList).setLabel("ตรวจสอบสิทธิ์สมาชิก").setEmoji("📋").setStyle(ButtonStyle.Primary)
-      ),
-    ],
+    components,
   };
 }
 

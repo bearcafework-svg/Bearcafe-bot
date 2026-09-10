@@ -68,7 +68,6 @@ setupGuildFilter(client);
 const { initInteractionRouter } = require("./src/interactions/router");
 initInteractionRouter(client);
 
-setupFeature("secretChat", "./src/features/secretChat", "setupSecretChat", supabaseEnvKeys);
 setupFeature("donate", "./src/features/donate", "setupDonate", supabaseEnvKeys);
 setupFeature("tarot1", "./src/features/horoscope/tarot1", "setupTarot1", supabaseEnvKeys);
 setupFeature("tarot2", "./src/features/horoscope/tarot2", "setupTarot2", supabaseEnvKeys);

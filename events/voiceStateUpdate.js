@@ -35,12 +35,14 @@ module.exports = {
       if (zone) {
         console.log(`👤 ${member.user.tag} เข้า Lobby โซน "${zone.name}"`);
 
-        // ตรวจลบห้องเดิมก่อน แม้จะกำลังเข้า Lobby
+        // ตรวจลบห้องเดิมก่อน แม้จะกำลังเข้า Lobby (รันแบบ Background ไม่บล็อกการสร้างห้องใหม่)
         if (leftChannel && rooms[leftChannel]) {
           const leftCh = guild.channels.cache.get(leftChannel);
           if (leftCh && leftCh.members.size === 0) {
-            console.log(`🔕 "${leftCh.name}" ว่างแล้ว (ออกไปเข้า Lobby) — ลบ`);
-            await destroyRoom(guild, leftChannel);
+            console.log(`🔕 "${leftCh.name}" ว่างแล้ว (ออกไปเข้า Lobby) — เริ่มลบในพื้นหลัง`);
+            destroyRoom(guild, leftChannel).catch((err) => {
+              console.error(`[voiceStateUpdate] destroyRoom error for ${leftChannel}:`, err.message);
+            });
           }
         }
 

@@ -11,7 +11,7 @@ const { trackUserDailyQuestProgress } = require("../src/features/dailyQuest");
 
 let isCreating = false;
 const queue = [];
-const pendingOwners = new Set();
+const pendingOwners = new Map(); // ownerKey -> timestamp (auto-expire 5s)
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -41,7 +41,8 @@ async function moveToExistingOwnerRoom(guild, member, zone) {
   if (!existingRoomEntry) return null;
 
   const [existingChannelId, existingRoom] = existingRoomEntry;
-  const existingChannel = guild.channels.cache.get(existingChannelId);
+  const existingChannel = guild.channels.cache.get(existingChannelId)
+    || await guild.channels.fetch(existingChannelId).catch(() => null);
   if (!existingChannel) {
     await deleteRoom(existingChannelId);
     return null;
@@ -49,7 +50,8 @@ async function moveToExistingOwnerRoom(guild, member, zone) {
 
   if (existingRoom.zoneId !== zone.id) return existingChannel;
 
-  if (member.voice.channelId && member.voice.channelId !== existingChannel.id) {
+  const currentVoiceChannelId = guild.voiceStates.cache.get(member.id)?.channelId || member.voice?.channelId;
+  if (currentVoiceChannelId && currentVoiceChannelId !== existingChannel.id) {
     await safeMoveMember(member, existingChannel, "Move owner to existing smart room");
   }
 
@@ -57,7 +59,7 @@ async function moveToExistingOwnerRoom(guild, member, zone) {
 }
 
 async function waitForExistingOwnerRoom(guild, member, zone) {
-  for (let attempt = 0; attempt < 12; attempt += 1) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
     const existingChannel = await moveToExistingOwnerRoom(guild, member, zone);
     if (existingChannel) return existingChannel;
     await delay(500);
@@ -89,20 +91,25 @@ async function processQueue() {
 function createRoom(guild, member, zone) {
   return new Promise((resolve) => {
     const ownerKey = `${guild.id}:${member.id}`;
-    if (pendingOwners.has(ownerKey)) {
+    const now = Date.now();
+    const lastPending = pendingOwners.get(ownerKey);
+
+    // ป้องกันการสแปม แต่ถ้าค้างเกิน 5 วินาทีให้ปลดล็อครับคำขอใหม่ได้
+    if (lastPending && now - lastPending < 5000) {
+      console.log(`⏳ ${member.user.tag} มีคำขอสร้างห้องค้างอยู่ในคิว (รอไม่เกิน 5 วินาที)`);
       resolve(null);
       return;
     }
 
-    pendingOwners.add(ownerKey);
-    queue.push({ guild, member, zone, resolve });
+    pendingOwners.set(ownerKey, now);
+    queue.push({ guild, member, zone, resolve, enqueuedAt: now });
     processQueue();
   });
 }
 
 async function _createRoom(guild, member, zone) {
   const lockKey = `smart-room:create:${guild.id}:${member.id}`;
-  const lock = await acquireLock(lockKey, 30000);
+  const lock = await acquireLock(lockKey, 8000); // ลด TTL จาก 30 วินาที เหลือ 8 วินาที
 
   if (!lock) {
     console.log(`Skip create room for ${member.user.tag}: another bot/process is handling it`);
@@ -119,44 +126,62 @@ async function _createRoom(guild, member, zone) {
 }
 
 async function createRoomWithLock(guild, member, zone) {
-  const lobbyChannel = guild.channels.cache.get(zone.lobbyChannelId);
+  // ดึงห้อง Lobby พร้อม Fetch Fallback ป้องกัน Cache Miss
+  const lobbyChannel = guild.channels.cache.get(zone.lobbyChannelId)
+    || await guild.channels.fetch(zone.lobbyChannelId).catch(() => null);
   const categoryId = getRoomsCategoryId(guild, zone);
 
   if (!lobbyChannel) {
-    console.error(`Cannot create room for zone "${zone.name}": lobby not found`);
+    console.error(`Cannot create room for zone "${zone.name}": lobby channel (${zone.lobbyChannelId}) not found in guild`);
     return null;
   }
 
-  if (member.voice.channelId !== zone.lobbyChannelId) {
-    console.log(`Skip create room for ${member.user.tag}: no longer in lobby "${zone.name}"`);
+  // ตรวจสอบห้องเสียงล่าสุดแบบ Real-time จาก guild.voiceStates.cache
+  const currentVoiceChannelId = guild.voiceStates.cache.get(member.id)?.channelId || member.voice?.channelId;
+  if (currentVoiceChannelId !== zone.lobbyChannelId) {
+    console.log(`Skip create room for ${member.user.tag}: no longer in lobby "${zone.name}" (current: ${currentVoiceChannelId || "none"})`);
     return null;
   }
 
+  // ── ตรวจสอบห้องเดิมที่เป็นเจ้าของ ──────────────────────────────────
   const activeRooms = await getAllRooms();
   const existingRoomEntry = Object.entries(activeRooms).find(([, room]) => room.ownerId === member.id);
   if (existingRoomEntry) {
-    const [existingChannelId] = existingRoomEntry;
-    const [, existingRoom] = existingRoomEntry;
-    const existingChannel = guild.channels.cache.get(existingChannelId);
-    if (existingChannel && existingRoom.zoneId === zone.id) {
-      if (member.voice.channelId) {
-        await safeMoveMember(member, existingChannel, "Move owner to existing smart room");
-      }
-      console.log(`Skip duplicate room for ${member.user.tag}: moved to existing room "${existingChannel.name}"`);
-      return existingChannel;
-    }
+    const [existingChannelId, existingRoom] = existingRoomEntry;
+    const existingChannel = guild.channels.cache.get(existingChannelId)
+      || await guild.channels.fetch(existingChannelId).catch(() => null);
 
-    if (existingChannel && existingChannel.members.size === 0) {
-      await safeDeleteChannel(existingChannel, "Owner created a new smart room in another zone");
-      await deleteRoom(existingChannelId);
-    } else if (!existingChannel) {
+    if (existingChannel) {
+      if (existingChannel.members.size === 0) {
+        // ห้องเดิมว่างแล้ว ลบทิ้งและสร้างห้องใหม่ทันที
+        console.log(`🧹 ห้องเดิมของ ${member.user.tag} ว่างแล้ว (${existingChannel.name}) — ลบทิ้งเพื่อสร้างห้องใหม่`);
+        safeDeleteChannel(existingChannel, "Owner created a new smart room").catch(() => {});
+        await deleteRoom(existingChannelId);
+      } else {
+        // หากห้องเดิมยังมีเพื่อนอยู่ โอนสิทธิ์ความเป็นเจ้าของให้เพื่อนในห้อง เพื่อให้เจ้าของสร้างห้องใหม่ได้อิสระ!
+        const remainingMember = existingChannel.members.find((m) => m.id !== member.id && !m.user.bot)
+          || existingChannel.members.first();
+        if (remainingMember && remainingMember.id !== member.id) {
+          console.log(`👑 ${member.user.tag} ออกมาสร้างห้องใหม่ — โอนสิทธิ์ห้องเดิม "${existingChannel.name}" ให้ ${remainingMember.user.tag}`);
+          existingRoom.ownerId = remainingMember.id;
+          await saveRoom(existingChannelId, existingRoom.zoneId, remainingMember.id, existingRoom.settings || {});
+        } else {
+          safeDeleteChannel(existingChannel, "Owner left empty room").catch(() => {});
+          await deleteRoom(existingChannelId);
+        }
+      }
+    } else {
       await deleteRoom(existingChannelId);
     }
   }
 
-  const category = categoryId ? guild.channels.cache.get(categoryId) : null;
+  // ดึง Category พร้อม Fetch Fallback
+  const category = categoryId
+    ? (guild.channels.cache.get(categoryId) || await guild.channels.fetch(categoryId).catch(() => null))
+    : null;
+
   if (!category || category.type !== ChannelType.GuildCategory) {
-    console.error(`Cannot create room for zone "${zone.name}": rooms category not found`);
+    console.error(`Cannot create room for zone "${zone.name}": rooms category (${categoryId}) not found in guild`);
     return null;
   }
 
@@ -217,8 +242,12 @@ async function createRoomWithLock(guild, member, zone) {
     console.log(`Skip room panel for non-VIP room "${roomName}" zone=${zone.id}`);
   }
 
-  const rooms = await getAllRooms();
-  await syncAllSeparators(guild, rooms);
+  // ⚡ รัน syncAllSeparators ใน Background แบบ Non-blocking เพื่อให้ปล่อยคิวสร้างห้องคนถัดไปได้ทันที!
+  getAllRooms().then((rooms) => {
+    syncAllSeparators(guild, rooms).catch((e) => {
+      console.error(`[roomCreator] Background syncAllSeparators error:`, e.message);
+    });
+  }).catch(() => {});
 
   return newChannel;
 }

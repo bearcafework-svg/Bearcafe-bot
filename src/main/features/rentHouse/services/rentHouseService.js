@@ -1,7 +1,7 @@
 // src/features/rentHouse/services/rentHouseService.js
 // Database Access & Discord Permission Overwrite Services for Rent House System
 
-const { PermissionFlagsBits } = require("discord.js");
+const { PermissionFlagsBits, OverwriteType } = require("discord.js");
 const { createClient } = require("@supabase/supabase-js");
 
 const MEMBER_ROLE_ID = "1144700895020462200";
@@ -34,10 +34,10 @@ const MEMBER_ALLOW_PERMISSIONS = [
 ];
 
 /**
- * ตรวจสอบสิทธิ์เจ้าของห้องบ้านเช่า
+ * ค้นหา User ID ของเจ้าของบ้านเช่า
  */
-async function isRentHouseOwner(channel, userId) {
-  if (!channel || channel.parentId !== RENT_HOUSE_CATEGORY_ID) return false;
+async function getRentHouseOwnerId(channel) {
+  if (!channel || channel.parentId !== RENT_HOUSE_CATEGORY_ID) return null;
 
   const supabase = getSupabase();
   if (supabase) {
@@ -48,8 +48,8 @@ async function isRentHouseOwner(channel, userId) {
         .eq("channel_id", channel.id)
         .maybeSingle();
 
-      if (setting) {
-        return setting.owner_id === userId;
+      if (setting?.owner_id) {
+        return setting.owner_id;
       }
 
       const { data: contracts } = await supabase
@@ -60,17 +60,33 @@ async function isRentHouseOwner(channel, userId) {
         .limit(1);
 
       if (contracts && contracts.length > 0) {
-        return contracts[0].member_id === userId;
+        return contracts[0].member_id;
       }
     } catch (e) {
-      console.error("[rentHouseService] Error checking rent house owner:", e.message);
+      console.error("[rentHouseService] Error getting rent house owner id:", e.message);
     }
   }
 
-  const ow = channel.permissionOverwrites.cache.get(userId);
-  if (ow && (ow.allow.has(PermissionFlagsBits.MuteMembers) || ow.allow.has(PermissionFlagsBits.MoveMembers))) return true;
+  if (channel.permissionOverwrites?.cache) {
+    for (const [id, ow] of channel.permissionOverwrites.cache) {
+      if (ow.type === OverwriteType.Member || ow.type === 1) {
+        if (ow.allow.has(PermissionFlagsBits.MuteMembers) || ow.allow.has(PermissionFlagsBits.MoveMembers)) {
+          return id;
+        }
+      }
+    }
+  }
 
-  return false;
+  return null;
+}
+
+/**
+ * ตรวจสอบสิทธิ์เจ้าของห้องบ้านเช่า
+ */
+async function isRentHouseOwner(channel, userId) {
+  if (!channel || !userId) return false;
+  const ownerId = await getRentHouseOwnerId(channel);
+  return ownerId === userId;
 }
 
 /**
@@ -350,6 +366,7 @@ module.exports = {
   RENT_HOUSE_CATEGORY_ID,
   getSupabase,
   isRentHouseOwner,
+  getRentHouseOwnerId,
   getRentHouseContract,
   syncRentHousePermissions,
   toggleRentHouseLock,

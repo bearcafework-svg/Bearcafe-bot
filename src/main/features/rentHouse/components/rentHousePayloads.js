@@ -167,7 +167,7 @@ function createRentHousePanelPayload(ownerMember, customImageUrl = null, ad = nu
     bottomButtons.push(adBtn);
   }
 
-  if (ctaBtn) {
+  if (!isCustomImageActive && ctaBtn) {
     bottomButtons.push(ctaBtn);
   }
 

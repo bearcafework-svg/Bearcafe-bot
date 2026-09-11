@@ -14,6 +14,7 @@ const {
 const {
   RENT_HOUSE_CATEGORY_ID,
   isRentHouseOwner,
+  getRentHouseOwnerId,
   getRentHouseContract,
   toggleRentHouseLock,
   toggleRentHouseHide,
@@ -29,9 +30,23 @@ const { getRandomSessionAd, getGlobalCtaButton } = require("../src/services/sess
 const SPECIAL_IMAGE_ROLE_ID = "1383998275711012956";
 
 async function buildRentPanelPayloadWithAds(member, channel, forcedImageUrl = null) {
+  let ownerMember = member;
+  if (channel) {
+    const ownerId = await getRentHouseOwnerId(channel);
+    if (ownerId && (!ownerMember || ownerMember.id !== ownerId)) {
+      const g = channel.guild;
+      const fetched = g ? (g.members.cache.get(ownerId) || (await g.members.fetch(ownerId).catch(() => null))) : null;
+      if (fetched) {
+        ownerMember = fetched;
+      } else if (!ownerMember) {
+        ownerMember = `<@${ownerId}>`;
+      }
+    }
+  }
+
   let customImageUrl = forcedImageUrl;
   if (!customImageUrl && channel) {
-    const isSpecialRole = member?.roles?.cache?.has(SPECIAL_IMAGE_ROLE_ID);
+    const isSpecialRole = ownerMember?.roles?.cache?.has(SPECIAL_IMAGE_ROLE_ID);
     if (isSpecialRole) {
       const setting = await getRentHousePermissionsInfo(channel);
       if (setting?.image_url) {
@@ -41,12 +56,13 @@ async function buildRentPanelPayloadWithAds(member, channel, forcedImageUrl = nu
   }
 
   let randomAd = null;
+  let ctaBtn = null;
   if (!customImageUrl) {
     randomAd = await getRandomSessionAd();
+    ctaBtn = await getGlobalCtaButton();
   }
-  const ctaBtn = await getGlobalCtaButton();
 
-  return createRentHousePanelPayload(member || "เจ้าของบ้านเช่า", customImageUrl, randomAd, ctaBtn);
+  return createRentHousePanelPayload(ownerMember || "เจ้าของบ้านเช่า", customImageUrl, randomAd, ctaBtn);
 }
 
 async function sendRentHousePanel(channel, ownerMember) {
@@ -97,7 +113,7 @@ async function handleRentHousePanelInteraction(interaction) {
     }
 
     if (interaction.isStringSelectMenu() && customId === RENT_CUSTOM_IDS.panelSelect) {
-      const resetPayload = await buildRentPanelPayloadWithAds(interaction.member, channel);
+      const resetPayload = await buildRentPanelPayloadWithAds(null, channel);
       await interaction.update(resetPayload).catch(() => {});
     } else {
       await interaction.deferUpdate().catch(() => {});

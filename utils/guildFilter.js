@@ -183,7 +183,7 @@ function isHealJaiEvent(eventName, args) {
     // 2. ตรวจสอบ Slash Commands ของ HealJai
     if (typeof interaction.isChatInputCommand === "function" && interaction.isChatInputCommand()) {
       const name = interaction.commandName ? interaction.commandName.toLowerCase() : "";
-      if (name.startsWith("heal") || name.startsWith("ฮิลใจ") || name === "send-component") {
+      if (name.startsWith("heal") || name.startsWith("ฮิลใจ")) {
         return true;
       }
     }
@@ -215,6 +215,13 @@ function setupGuildFilter(client) {
     if (process.env.DEV_MODE === "true") {
       // 1. Mute all voice state updates to prevent voice points collision with prod
       if (eventName === "voiceStateUpdate") {
+        if (process.env.ENABLE_VOICE_BOARD === "true") {
+          try {
+            const { triggerVoiceBoardUpdate } = require("../src/features/voiceBoard");
+            const newState = args[1] || args[0];
+            if (newState?.guild) triggerVoiceBoardUpdate(newState.guild);
+          } catch (e) {}
+        }
         return false;
       }
 
@@ -237,7 +244,7 @@ function setupGuildFilter(client) {
             if (eventName === "interactionCreate") {
               const interaction = args[0];
 
-              // 1. คำสั่งทดสอบ เช่น /test_bee อนุญาตให้ทำงานได้ในทุกห้อง
+              // 1. คำสั่งทดสอบ เช่น /test_bee, /send-component อนุญาตให้ทำงานได้ในทุกห้อง
               if (interaction && typeof interaction.isChatInputCommand === "function" && interaction.isChatInputCommand()) {
                 const allowedDevCommands = (process.env.DEV_SLASH_COMMANDS || "test_bee,send-component")
                   .split(",")
@@ -253,8 +260,8 @@ function setupGuildFilter(client) {
                 return originalEmit.apply(this, [eventName, ...args]);
               }
 
-              // 3. การกดปุ่ม/ส่งฟอร์มของระบบผึ้ง (เช่น bee_click_*, bee_spy_*, bee_math_*) อนุญาตให้ทำงานได้ในทุกห้อง
-              if (interaction && typeof interaction.customId === "string" && interaction.customId.startsWith("bee_")) {
+              // 3. การกดปุ่ม/ส่งฟอร์มของระบบผึ้ง (bee_*) หรือระบบ Voice Board (vb_*) อนุญาตให้ทำงานได้ในทุกห้อง
+              if (interaction && typeof interaction.customId === "string" && (interaction.customId.startsWith("bee_") || interaction.customId.startsWith("vb_"))) {
                 return originalEmit.apply(this, [eventName, ...args]);
               }
 
@@ -278,18 +285,28 @@ function setupGuildFilter(client) {
       const cleanGuildId = String(guildId).trim();
 
       // ── 1. กรณีเกิดในกิลด์ HealJai (1536199707922141254) ───────────
-      // อนุญาตเฉพาะ Event ของฮิลใจเท่านั้น!
-      // คำสั่งของ Bear Cafe ทั้งหมด (b!cafe, b!box, b!reset-verify, slash commands, voice ฯลฯ) จะถูกบล็อกทันที
+      // อนุญาตเฉพาะ Event ของฮิลใจ หรือคำสั่งส่งบอร์ด /send-component
       if (cleanGuildId === HEALJAI_GUILD_ID) {
-        if (!isHealJaiEvent(eventName, args)) {
+        const interaction = eventName === "interactionCreate" ? args[0] : null;
+        const isSendComp = interaction?.isChatInputCommand?.() && interaction.commandName?.toLowerCase() === "send-component";
+        if (!isHealJaiEvent(eventName, args) && !isSendComp) {
           return false;
         }
         return originalEmit.apply(this, [eventName, ...args]);
       }
 
       // ── 2. กรณีเกิดในกิลด์ Bear Cafe หลัก (1144251788493602848) ────
-      // ห้าม Event ของ HealJai (b!reset-menu, ปุ่มกด heal_jai_*) เข้ามาทำงานในเซิร์ฟเวอร์ Bear Cafe เด็ดขาด
+      // อนุญาตคำสั่ง /send-component และปุ่ม Voice Board (vb_*) เสมอ
       if (cleanGuildId === BEARCAFE_GUILD_ID) {
+        if (eventName === "interactionCreate") {
+          const interaction = args[0];
+          if (interaction?.isChatInputCommand?.() && interaction.commandName?.toLowerCase() === "send-component") {
+            return originalEmit.apply(this, [eventName, ...args]);
+          }
+          if (typeof interaction?.customId === "string" && interaction.customId.startsWith("vb_")) {
+            return originalEmit.apply(this, [eventName, ...args]);
+          }
+        }
         if (isHealJaiEvent(eventName, args)) {
           return false;
         }

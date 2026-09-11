@@ -143,9 +143,16 @@ async function updateOnlineCounselorsCount(guild) {
 function setupHealJai(client) {
   // ── 1. Slash Command: /send-component สำหรับส่งการ์ดแผงควบคุม ─────────────
   registerCommand("send-component", async (interaction) => {
-    const isStaff = interaction.member?.roles?.cache?.has(STAFF_ROLE_ID) ||
-                    interaction.member?.permissions?.has(PermissionFlagsBits.ManageGuild) ||
-                    interaction.member?.permissions?.has(PermissionFlagsBits.Administrator);
+    const isOwner = (process.env.OWNER_ID && interaction.user.id === process.env.OWNER_ID) ||
+                    (interaction.guild && interaction.guild.ownerId === interaction.user.id);
+    const hasStaffRole = interaction.member?.roles?.cache?.some((r) =>
+      [STAFF_ROLE_ID, "1144701361448038512", "1144697989986791576", "1144698080239829092"].includes(r.id)
+    );
+    const hasPermission = interaction.member?.permissions?.has(PermissionFlagsBits.ManageGuild) ||
+                          interaction.member?.permissions?.has(PermissionFlagsBits.Administrator);
+    const isDevTester = process.env.DEV_MODE === "true";
+
+    const isStaff = isOwner || hasStaffRole || hasPermission || isDevTester;
 
     if (!isStaff) {
       return interaction.reply({
@@ -192,6 +199,20 @@ function setupHealJai(client) {
         });
         componentName = "7️⃣︰กล่องความประทับใจ (พรีวิว)";
         break;
+      case "voice_board": {
+        const { createAndSendVoiceBoard } = require("../voiceBoard");
+        const msg = await createAndSendVoiceBoard(targetChannel);
+        if (!msg) {
+          return interaction.reply({
+            content: `❌ ไม่สามารถส่งบอร์ดห้องเสียงไปยังห้อง <#${targetChannel.id}> ได้ค่ะ`,
+            flags: FLAG_EPHEMERAL,
+          });
+        }
+        return interaction.reply({
+          content: `✅ ส่ง **8️⃣︰บอร์ดห้องเสียงหาเพื่อน (Voice Board)** ไปยังห้อง <#${targetChannel.id}> สำเร็จเรียบร้อยแล้วค่ะ!\n> 💡 *ระบบเริ่มทำงานและเชื่อมต่อการอัปเดตเรียลไทม์ 24 ชม. ทันที*`,
+          flags: FLAG_EPHEMERAL,
+        });
+      }
       default:
         return interaction.reply({
           content: "❌ ไม่พบบอร์ดที่เลือกค่ะ",

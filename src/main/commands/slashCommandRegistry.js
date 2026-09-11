@@ -327,7 +327,6 @@ const GUILD_SLASH_COMMANDS = [
   {
     name: "send-component",
     description: "[Staff Only] ส่งบอร์ดและ Component V2 ของระบบไปยังห้องที่กำหนด",
-    default_member_permissions: PermissionFlagsBits.ManageGuild.toString(),
     options: [
       {
         name: "component",
@@ -339,6 +338,7 @@ const GUILD_SLASH_COMMANDS = [
           { name: "2. บอร์ดเมนูเครื่องดื่มและสั่งบริการ (Menu)", value: "menu" },
           { name: "3. แผงตอกบัตรเข้ากะของทีมงาน (Shift)", value: "shift" },
           { name: "7. กล่องความประทับใจ (Public Showcase Preview)", value: "feedback" },
+          { name: "8. บอร์ดห้องเสียงหาเพื่อน (Voice Board)", value: "voice_board" },
         ],
       },
       {
@@ -380,8 +380,8 @@ async function registerAllGuildCommands(guild) {
         `🛠️ [slash] DEV_MODE is active: Synchronizing only [${targetCommands.map((c) => c.name).join(", ")}] on "${guild.name}"`
       );
     } else {
-      // บอทหลัก (Production Mode) — ไม่รวมคำสั่งสำหรับ Dev เช่น /send-component
-      const DEV_ONLY_COMMANDS = ["send-component"];
+      // บอทหลัก (Production Mode) — รวมคำสั่ง /send-component ให้ Staff ใช้งานได้
+      const DEV_ONLY_COMMANDS = [];
       targetCommands = GUILD_SLASH_COMMANDS.filter(
         (cmd) => !DEV_ONLY_COMMANDS.includes(cmd.name.toLowerCase())
       );

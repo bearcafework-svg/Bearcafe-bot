@@ -206,10 +206,11 @@ async function sendRoomPanel(channel, ownerMember, room) {
   }
 
   let randomAd = null;
+  let ctaBtn = null;
   if (!customImageUrl) {
     randomAd = await getRandomSessionAd();
+    ctaBtn = await getGlobalCtaButton();
   }
-  const ctaBtn = await getGlobalCtaButton();
 
   const payload = createComponentV2PanelPayload(ownerMember, room, customImageUrl, randomAd, ctaBtn);
 
@@ -230,8 +231,19 @@ async function buildUpdatedVipPanelPayload(member, room, channel, forcedImageUrl
   }
   if (!room) return null;
 
+  let ownerMember = member;
+  const targetGuild = channel?.guild || member?.guild;
+  if (room.ownerId && targetGuild && (!ownerMember || ownerMember.id !== room.ownerId)) {
+    const fetched = targetGuild.members.cache.get(room.ownerId) || (await targetGuild.members.fetch(room.ownerId).catch(() => null));
+    if (fetched) {
+      ownerMember = fetched;
+    } else if (!ownerMember) {
+      ownerMember = `<@${room.ownerId}>`;
+    }
+  }
+
   let customImageUrl = forcedImageUrl;
-  const isSpecialRole = member?.roles?.cache?.has(SPECIAL_IMAGE_ROLE_ID);
+  const isSpecialRole = ownerMember?.roles?.cache?.has(SPECIAL_IMAGE_ROLE_ID);
   if (isSpecialRole && !customImageUrl) {
     if (room.settings?.imageUrl) {
       customImageUrl = room.settings.imageUrl;
@@ -244,18 +256,19 @@ async function buildUpdatedVipPanelPayload(member, room, channel, forcedImageUrl
   }
 
   let randomAd = null;
+  let ctaBtn = null;
   if (!customImageUrl) {
     randomAd = await getRandomSessionAd();
+    ctaBtn = await getGlobalCtaButton();
   }
-  const ctaBtn = await getGlobalCtaButton();
 
-  return createComponentV2PanelPayload(member, room, customImageUrl, randomAd, ctaBtn);
+  return createComponentV2PanelPayload(ownerMember, room, customImageUrl, randomAd, ctaBtn);
 }
 
 async function handleVipPanelSelect(interaction) {
   const context = await getOwnedRoomContextFromInteraction(interaction);
   if (!context) {
-    const resetPayload = await buildUpdatedVipPanelPayload(interaction.member, null, interaction.channel);
+    const resetPayload = await buildUpdatedVipPanelPayload(null, null, interaction.channel);
     if (resetPayload) await interaction.update(resetPayload).catch(() => {});
     return await replyOwnerOnly(interaction);
   }
@@ -873,7 +886,7 @@ function createComponentV2PanelPayload(ownerMember, room, customImageUrl = null,
     bottomButtons.push(adBtn);
   }
 
-  if (ctaBtn) {
+  if (!isCustomImageActive && ctaBtn) {
     bottomButtons.push(ctaBtn);
   }
 
@@ -930,7 +943,7 @@ function createFallbackPanelPayload(ownerMember, room, customImageUrl = null, ad
     bottomButtons.push(btn);
   }
 
-  if (ctaBtn) {
+  if (!isCustomImageActive && ctaBtn) {
     const btn = new ButtonBuilder()
       .setStyle(ButtonStyle.Link)
       .setURL(ctaBtn.url)

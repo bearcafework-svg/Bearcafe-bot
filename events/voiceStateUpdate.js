@@ -29,6 +29,14 @@ module.exports = {
     const guild = newState.guild || oldState.guild;
     const rooms = await getAllRooms();
 
+    // ทริกเกอร์อัปเดตบอร์ดห้องเสียงหาเพื่อน (Voice Board 24 ชม.)
+    if (process.env.ENABLE_VOICE_BOARD === "true") {
+      try {
+        const { triggerVoiceBoardUpdate } = require("../src/features/voiceBoard");
+        triggerVoiceBoardUpdate(guild);
+      } catch (e) {}
+    }
+
     // ── 1. คนเข้า Lobby → สร้างห้องใหม่ ──────────────────────────
     if (joinedChannel && joinedChannel !== leftChannel) {
       const zone = resolveZoneFromLobby(joinedChannel);

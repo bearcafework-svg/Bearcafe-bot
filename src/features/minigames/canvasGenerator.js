@@ -174,7 +174,130 @@ function createSentenceBuilderImageBuffer(thaiPrompt, englishTemplate) {
       ctx.strokeStyle = '#CBD5E1';
       ctx.stroke();
 
-      startX += boxWidth;
+      startX += token.width;
+    } else {
+      ctx.fillStyle = '#0F172A';
+      ctx.textAlign = 'left';
+      ctx.fillText(token.text, startX, lineY);
+      startX += token.width;
+    }
+  }
+
+  const buffer = canvas.toBuffer('image/png');
+
+  if (CANVAS_IMAGE_CACHE.size >= MAX_CANVAS_CACHE_SIZE) {
+    const oldestKey = CANVAS_IMAGE_CACHE.keys().next().value;
+    CANVAS_IMAGE_CACHE.delete(oldestKey);
+  }
+  CANVAS_IMAGE_CACHE.set(cacheKey, buffer);
+
+  return buffer;
+}
+
+/**
+ * Creates an image buffer for Game 14 Thai Sentence Builder (White minimal card)
+ * @param {string} englishPrompt - English sentence/proverb on top
+ * @param {string} thaiTemplate - Thai template with {1}, {2}, etc. in the middle
+ * @returns {Buffer} - PNG buffer
+ */
+function createThaiSentenceBuilderImageBuffer(englishPrompt, thaiTemplate) {
+  const cacheKey = `tsb:${englishPrompt}:${thaiTemplate}`.trim();
+  if (CANVAS_IMAGE_CACHE.has(cacheKey)) {
+    const cached = CANVAS_IMAGE_CACHE.get(cacheKey);
+    CANVAS_IMAGE_CACHE.delete(cacheKey);
+    CANVAS_IMAGE_CACHE.set(cacheKey, cached);
+    return cached;
+  }
+
+  const width = 960;
+  const height = 340;
+  const canvas = createCanvas(width, height);
+  const ctx = canvas.getContext('2d');
+
+  // Background: Clean white card with subtle rounded border
+  ctx.fillStyle = '#FFFFFF';
+  ctx.beginPath();
+  const radius = 16;
+  ctx.roundRect(4, 4, width - 8, height - 8, radius);
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = '#E2E8F0';
+  ctx.stroke();
+
+  // Top: English prompt
+  ctx.font = 'bold 34px "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#1E293B';
+  ctx.fillText(englishPrompt, width / 2, 95);
+
+  // Middle: Thai sentence with empty blank boxes
+  const thFontSize = 38;
+  ctx.font = `bold ${thFontSize}px "Noto Sans Thai", "Thai", "TLWG", "Garuda", "Leelawadee UI", "Segoe UI", Tahoma, sans-serif`;
+  ctx.textBaseline = 'middle';
+
+  const parts = String(thaiTemplate || '').split(/(\{\d+\})/g).filter(Boolean);
+
+  const boxWidth = 90;
+  const boxHeight = 44;
+  const boxRadius = 8;
+
+  let totalWidth = 0;
+  const measuredTokens = [];
+
+  for (const part of parts) {
+    if (/^\{\d+\}$/.test(part)) {
+      measuredTokens.push({ type: 'blank', width: boxWidth, raw: part });
+      totalWidth += boxWidth;
+    } else {
+      const w = ctx.measureText(part).width;
+      measuredTokens.push({ type: 'text', width: w, text: part });
+      totalWidth += w;
+    }
+  }
+
+  // Auto-scale font and boxes if text is longer than card width
+  const maxWidth = width - 60;
+  let finalBoxWidth = boxWidth;
+  if (totalWidth > maxWidth) {
+    const scale = maxWidth / totalWidth;
+    const scaledThFontSize = Math.max(22, Math.floor(thFontSize * scale));
+    ctx.font = `bold ${scaledThFontSize}px "Noto Sans Thai", "Thai", "TLWG", "Garuda", "Leelawadee UI", "Segoe UI", Tahoma, sans-serif`;
+    finalBoxWidth = Math.max(50, Math.floor(boxWidth * scale));
+
+    totalWidth = 0;
+    measuredTokens.length = 0;
+    for (const part of parts) {
+      if (/^\{\d+\}$/.test(part)) {
+        measuredTokens.push({ type: 'blank', width: finalBoxWidth, raw: part });
+        totalWidth += finalBoxWidth;
+      } else {
+        const w = ctx.measureText(part).width;
+        measuredTokens.push({ type: 'text', width: w, text: part });
+        totalWidth += w;
+      }
+    }
+  }
+
+  // Centering X
+  let startX = (width - totalWidth) / 2;
+  const lineY = 220;
+
+  for (const token of measuredTokens) {
+    if (token.type === 'blank') {
+      const bX = startX;
+      const bY = lineY - boxHeight / 2;
+
+      ctx.fillStyle = '#F1F5F9';
+      ctx.beginPath();
+      ctx.roundRect(bX, bY, token.width, boxHeight, boxRadius);
+      ctx.fill();
+
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#CBD5E1';
+      ctx.stroke();
+
+      startX += token.width;
     } else {
       ctx.fillStyle = '#0F172A';
       ctx.textAlign = 'left';
@@ -197,5 +320,6 @@ function createSentenceBuilderImageBuffer(thaiPrompt, englishTemplate) {
 module.exports = {
   createTextImageBuffer,
   createSentenceBuilderImageBuffer,
+  createThaiSentenceBuilderImageBuffer,
   CANVAS_IMAGE_CACHE,
 };

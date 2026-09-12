@@ -1,4 +1,4 @@
-// src/main/commands/slashCommandRegistry.js
+// src/commands/slashCommandRegistry.js
 // ศูนย์กลางลงทะเบียน Guild Slash Commands ทั้งหมดในคำขอเดียว (Batch Registration)
 // เพิ่มความเร็วในการเริ่มต้นระบบบอท (ลดเวลารอจาก 15+ คำขอเป็น 1 คำขอเดียว)
 
@@ -225,7 +225,7 @@ const GUILD_SLASH_COMMANDS = [
     options: [
       {
         name: "เกม",
-        description: "เลือกชื่อมินิเกม 1-13",
+        description: "เลือกชื่อมินิเกม 1-14",
         type: ApplicationCommandOptionType.Integer,
         required: true,
         choices: [
@@ -242,6 +242,7 @@ const GUILD_SLASH_COMMANDS = [
           { name: "11. ฟังเสียงแล้วพิมพ์ตอบ (ไทย)", value: 11 },
           { name: "12. จริงหรือเท็จ", value: 12 },
           { name: "13. เรียงประโยคภาษาอังกฤษ", value: 13 },
+          { name: "14. เรียงประโยคภาษาไทย", value: 14 },
         ],
       },
     ],
@@ -354,6 +355,37 @@ const GUILD_SLASH_COMMANDS = [
 ];
 
 /**
+ * เปรียบเทียบชุดคำสั่งที่มีอยู่ใน Discord กับคำสั่งเป้าหมายว่าตรงกันหรือไม่
+ */
+function areCommandsEqual(existingCollection, targetCommands) {
+  if (!existingCollection || existingCollection.size !== targetCommands.length) return false;
+  for (const cmd of targetCommands) {
+    const existingCmd = existingCollection.find((c) => c.name === cmd.name);
+    if (!existingCmd) return false;
+    const existingOpts = existingCmd.options || [];
+    const targetOpts = cmd.options || [];
+    if (existingOpts.length !== targetOpts.length) return false;
+
+    for (let i = 0; i < targetOpts.length; i++) {
+      const tOpt = targetOpts[i];
+      const eOpt = existingOpts[i];
+      if (!eOpt || tOpt.name !== eOpt.name || tOpt.type !== eOpt.type || Boolean(tOpt.required) !== Boolean(eOpt.required)) {
+        return false;
+      }
+      const tChoices = tOpt.choices || [];
+      const eChoices = eOpt.choices || [];
+      if (tChoices.length !== eChoices.length) return false;
+      for (let c = 0; c < tChoices.length; c++) {
+        if (tChoices[c].name !== eChoices[c].name || tChoices[c].value !== eChoices[c].value) {
+          return false;
+        }
+      }
+    }
+  }
+  return true;
+}
+
+/**
  * ลงทะเบียน Guild Slash Commands ทั้งหมดในครั้งเดียว (Bulk Set)
  * @param {import("discord.js").Guild} guild
  */
@@ -388,6 +420,16 @@ async function registerAllGuildCommands(guild) {
       );
     }
 
+    // ⚡ Smart Command Check: ตรวจสอบคำสั่งเดิมก่อน ถ้าตรงกันอยู่แล้วให้ข้ามทันทีเพื่อไม่ให้ติด 429
+    const existing = await guild.commands.fetch().catch(() => null);
+    if (existing && areCommandsEqual(existing, targetCommands)) {
+      const duration = Date.now() - startTime;
+      console.log(
+        `⚡ [slash] Commands on "${guild.name}" are already up to date (${targetCommands.length} commands, ${duration}ms, skipped API call to avoid 429)`
+      );
+      return;
+    }
+
     await guild.commands.set(targetCommands);
     const duration = Date.now() - startTime;
     console.log(
@@ -401,4 +443,5 @@ async function registerAllGuildCommands(guild) {
 module.exports = {
   GUILD_SLASH_COMMANDS,
   registerAllGuildCommands,
+  areCommandsEqual,
 };

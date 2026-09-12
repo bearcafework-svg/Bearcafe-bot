@@ -182,6 +182,64 @@ const DEFAULT_QUESTIONS = {
       answer: "need,indeed",
       options: ["need", "trouble", "indeed", "always", "true"]
     }
+  ],
+  14: [ // เรียงประโยคภาษาไทย (Thai Sentence Builder)
+    {
+      id: 1401,
+      word_or_question: "Kill two birds with one stone.",
+      hints: ["ยิงปืน{1}เดียวได้{2}สอง{3}"],
+      answer: "นัด,นก,ตัว",
+      options: ["นัด", "นก", "ตัว", "กระสุน", "ปลา"]
+    },
+    {
+      id: 1402,
+      word_or_question: "Strike while the iron is hot.",
+      hints: ["น้ำขึ้นให้{1}{2}"],
+      answer: "รีบ,ตัก",
+      options: ["รีบ", "ตัก", "รอ", "ดื่ม", "เร่ง"]
+    },
+    {
+      id: 1403,
+      word_or_question: "Actions speak louder than words.",
+      hints: ["การกระทำ{1}กว่า{2}"],
+      answer: "สำคัญ,คำพูด",
+      options: ["สำคัญ", "คำพูด", "ดี", "เสียง", "เงียบ"]
+    },
+    {
+      id: 1404,
+      word_or_question: "Don't judge a book by its cover.",
+      hints: ["อย่าตัดสินคนจาก{1}"],
+      answer: "ภายนอก",
+      options: ["ภายนอก", "หน้าตา", "ภายใน", "คำพูด", "เงินทอง"]
+    },
+    {
+      id: 1405,
+      word_or_question: "Where there is a will, there is a way.",
+      hints: ["ความพยายามอยู่ที่ไหน {1}อยู่ที่นั่น"],
+      answer: "ความสำเร็จ",
+      options: ["ความสำเร็จ", "ความหวัง", "ความสุข", "เงินทอง"]
+    },
+    {
+      id: 1406,
+      word_or_question: "Time and tide wait for no man.",
+      hints: ["เวลาและวารี{1}ใคร"],
+      answer: "ไม่คอย",
+      options: ["ไม่คอย", "รอคอย", "ไม่ทิ้ง", "เมตตา"]
+    },
+    {
+      id: 1407,
+      word_or_question: "A friend in need is a friend indeed.",
+      hints: ["เพื่อนแท้ใน{1} คือมิตรแท้"],
+      answer: "ยามยาก",
+      options: ["ยามยาก", "ยามสุข", "ยามเช้า", "ทุกเวลา"]
+    },
+    {
+      id: 1408,
+      word_or_question: "Slow and steady wins the race.",
+      hints: ["ช้าๆ ได้{1}งาม"],
+      answer: "พร้าเล่ม",
+      options: ["พร้าเล่ม", "มีดเล่ม", "เงินทอง", "ของดี"]
+    }
   ]
 };
 
@@ -695,6 +753,42 @@ async function getNextQuestion(supabase, gameId, gameSettings = null, queryOptio
       allOptions = [...correctWords, ...pickedDistractors];
     }
     options = shuffleArray(allOptions);
+  } else if (gameId === 14) {
+    // Game 14: เรียงประโยคภาษาไทย (Thai Sentence Builder)
+    wordOrQuestion = selected.word_or_question; // English proverb / sentence prompt
+    const correctWords = String(selected.answer || "")
+      .split(/[,|]/)
+      .map(s => s.trim())
+      .filter(Boolean);
+    answer = correctWords.join(",");
+
+    let allOptions = [];
+    if (Array.isArray(selected.options) && selected.options.length >= correctWords.length + 2) {
+      allOptions = Array.from(new Set([...correctWords, ...selected.options]));
+    } else {
+      // Auto-generate Thai Distractors
+      const poolDistractors = (candidates || [])
+        .flatMap(q => String(q.answer || '').split(/[,|]/).map(s => s.trim()))
+        .filter(w => w && !correctWords.some(cw => cw.trim() === w.trim()));
+
+      const COMMON_THAI_DISTRACTORS = [
+        'น้ำ', 'คน', 'ใจ', 'เงิน', 'วัน', 'ทาง', 'งาน', 'คำ', 'นก', 'เสือ',
+        'มือ', 'ปาก', 'ตา', 'เพื่อน', 'นัด', 'รัก', 'เรือ', 'ไม้', 'ม้า', 'ช้าง',
+        'ทอง', 'ฟ้า', 'ดิน', 'ลม', 'ไฟ', 'หิน', 'เวลา', 'บ้าน', 'ดี', 'มาก',
+        'หน้า', 'หลัง', 'รู้', 'คิด', 'ทำ', 'พูด', 'เดิน', 'เร็ว', 'ช้า', 'ใหม่'
+      ];
+
+      const uniqueWrongPool = Array.from(new Set([...poolDistractors, ...COMMON_THAI_DISTRACTORS]))
+        .filter(w => !correctWords.some(cw => cw.trim() === w.trim()));
+
+      const shuffledWrong = shuffleArray(uniqueWrongPool);
+      const targetButtonCount = Math.min(10, Math.max(5, correctWords.length + 2));
+      const neededDistractors = Math.max(0, targetButtonCount - correctWords.length);
+      const pickedDistractors = shuffledWrong.slice(0, neededDistractors);
+
+      allOptions = [...correctWords, ...pickedDistractors];
+    }
+    options = shuffleArray(allOptions);
   }
 
   return {
@@ -703,12 +797,13 @@ async function getNextQuestion(supabase, gameId, gameSettings = null, queryOptio
     wordOrQuestion,
     answer,
     englishTemplate: (gameId === 13) ? (Array.isArray(selected.hints) ? selected.hints[0] : selected.hints) : undefined,
-    correctWords: (gameId === 13) ? String(selected.answer || '').split(/[,|]/).map(s => s.trim()).filter(Boolean) : undefined,
+    thaiTemplate: (gameId === 14) ? (Array.isArray(selected.hints) ? selected.hints[0] : selected.hints) : undefined,
+    correctWords: ([13, 14].includes(gameId)) ? String(selected.answer || '').split(/[,|]/).map(s => s.trim()).filter(Boolean) : undefined,
     initialRevealedIndices,
     hints: selected.hints || [],
     options,
     difficulty,
-    category: selected.category || (gameId === 13 ? 'สำนวนและประโยค' : 'คำทั่วไป'),
+    category: selected.category || ([13, 14].includes(gameId) ? 'สำนวนและประโยค' : 'คำทั่วไป'),
     rewardPoints
   };
 }

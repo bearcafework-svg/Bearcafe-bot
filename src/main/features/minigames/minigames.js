@@ -6,7 +6,7 @@ const googleTTS = require('google-tts-api');
 const sharedConfig = require('../../sharedSettings.json');
 const { addPointsWithCap, deductPoints } = require('../../utils/pointManager');
 const { getNextQuestion, maskWord, scrambleWord, generateHint } = require('./questionBank');
-const { createTextImageBuffer } = require('./canvasGenerator');
+const { createTextImageBuffer, createSentenceBuilderImageBuffer } = require('./canvasGenerator');
 const { setupResetTop } = require('./resetTop');
 const { trackUserDailyQuestProgress } = require('../dailyQuest');
 
@@ -27,11 +27,14 @@ const GAME_CHANNELS = {
   9: { id: '1534647589121818795', name: 'ทายคำแปลภาษาไทย' },
   10: { id: '1536934025187295232', name: 'เกมต่อคำ' },
   11: { id: '1544201245974073405', name: 'ฟังเสียงแล้วพิมพ์ตอบ (ไทย)' },
-  12: { id: '1536934867256868885', name: 'จริงหรือเท็จ' }
+  12: { id: '1536934867256868885', name: 'จริงหรือเท็จ' },
+  13: { id: process.env.GAME_13_CHANNEL_ID || '1524123413122125964', name: 'เรียงประโยคภาษาอังกฤษ' }
 };
 
 // Memory cache for active game session per channel ID
 const activeSessions = new Map();
+// Memory cache for tracking per-user sentence builder progress in Game 13
+const userSentenceProgress = new Map();
 // Lock per channel ID during win processing & question generation to prevent race conditions
 const processingChannels = new Set();
 // Memory cache for TTS audio MP3 buffers per word (Instant 0ms retrieval & rate-limit prevention)
@@ -57,6 +60,7 @@ const GAME_TYPE_MAP = {
   10: GAME_TYPES.BUTTON,
   11: GAME_TYPES.AUDIO,
   12: GAME_TYPES.BUTTON,
+  13: GAME_TYPES.BUTTON,
 };
 
 const TRANSITION_MIN_MS = {
@@ -320,11 +324,17 @@ function buildGamePayload(gameId, questionData) {
         `# ${questionData.wordOrQuestion}`;
       break;
     }
+    case 13: { // เรียงประโยคภาษาอังกฤษ (Sentence Builder)
+      contentText = `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ เรียงประโยคภาษาอังกฤษ 𓂃 \`__\n` +
+        `- กดปุ่มคำศัพท์ด้านล่างตามลำดับให้ครบประโยค ใครต่อเสร็จคนแรกชนะ!`;
+      mediaItem = { media: { url: 'attachment://sentence_card.png' } };
+      break;
+    }
   }
 
   const containerComponents = [];
 
-  // For Games 6 & 7: Media Component (12)
+  // For Games 6, 7, 13: Media Component (12)
   if (mediaItem) {
     if (mediaItem.type === 13) {
       containerComponents.push(mediaItem);
@@ -346,8 +356,8 @@ function buildGamePayload(gameId, questionData) {
     });
   }
 
-  // 3. Choice Buttons (for Games 8, 9, 10, 12)
-  if ([8, 9, 10, 12].includes(gameId) && Array.isArray(questionData.options) && questionData.options.length > 0) {
+  // 3. Choice Buttons (for Games 8, 9, 10, 12, 13)
+  if ([8, 9, 10, 12, 13].includes(gameId) && Array.isArray(questionData.options) && questionData.options.length > 0) {
     containerComponents.push({ type: 14, spacing: 2 });
     let buttonComponents = [];
 
@@ -362,6 +372,26 @@ function buildGamePayload(gameId, questionData) {
           custom_id: `mg_opt_${gameId}_${idx}_${Date.now()}`
         };
       });
+      containerComponents.push({
+        type: 1,
+        components: buttonComponents
+      });
+    } else if (gameId === 13) {
+      // เกม 13: เรียงประโยคภาษาอังกฤษ -> ปุ่มคำศัพท์สลับสีให้อ่านง่าย
+      const choiceStyles = [2, 1, 2, 1, 2, 1];
+      const allButtons = questionData.options.map((optionLabel, idx) => ({
+        style: choiceStyles[idx % choiceStyles.length],
+        type: 2,
+        label: optionLabel,
+        custom_id: `mg_sb_13_${idx}_${Date.now()}`
+      }));
+      // Split into ActionRows of max 5 buttons
+      for (let i = 0; i < allButtons.length; i += 5) {
+        containerComponents.push({
+          type: 1,
+          components: allButtons.slice(i, i + 5)
+        });
+      }
     } else {
       const choiceStyles = [1, 4, 3, 2];
       buttonComponents = questionData.options.map((optionLabel, idx) => ({
@@ -370,12 +400,11 @@ function buildGamePayload(gameId, questionData) {
         label: optionLabel,
         custom_id: `mg_opt_${gameId}_${idx}_${Date.now()}`
       }));
+      containerComponents.push({
+        type: 1,
+        components: buttonComponents
+      });
     }
-
-    containerComponents.push({
-      type: 1,
-      components: buttonComponents
-    });
   }
 
   // 4. SelectMenu for Hints (for Game 5 only)
@@ -419,7 +448,7 @@ function buildGamePayload(gameId, questionData) {
 }
 
 /**
- * Build winner disabled payload for Games 8-12
+ * Build winner disabled payload for Games 8-13
  */
 function buildWinnerPayload(gameId, questionData, winnerDisplayName) {
   const pi = sharedConfig.point_icon;
@@ -440,6 +469,7 @@ function buildWinnerPayload(gameId, questionData, winnerDisplayName) {
   else if (gameId === 10) titleText = 'เกมต่อคำ';
   else if (gameId === 11) titleText = 'ฟังเสียงแล้วพิมพ์ตอบ (ไทย)';
   else if (gameId === 12) titleText = 'จริงหรือเท็จ';
+  else if (gameId === 13) titleText = 'เรียงประโยคภาษาอังกฤษ';
 
   let contentText = '';
   if (gameId === 10) {
@@ -450,6 +480,16 @@ function buildWinnerPayload(gameId, questionData, winnerDisplayName) {
     contentText = `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ ${titleText} 𓂃 \`__\n` +
       `# ${questionData.wordOrQuestion}\n` +
       `-# เฉลย: ${questionData.answer}`;
+  } else if (gameId === 13) {
+    const template = questionData.englishTemplate || (Array.isArray(questionData.hints) ? questionData.hints[0] : "") || "";
+    const correctWords = questionData.correctWords || String(questionData.answer || "").split(/[,|]/).map(s => s.trim());
+    let fullSentence = template;
+    correctWords.forEach((word, idx) => {
+      fullSentence = fullSentence.replace(new RegExp(`\\{${idx + 1}\\}`, 'g'), `**${word}**`);
+    });
+    contentText = `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ ${titleText} 𓂃 \`__\n` +
+      `# ${questionData.wordOrQuestion}\n` +
+      `> 🔤 ${fullSentence}`;
   } else {
     contentText = `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ ${titleText} 𓂃 \`__\n` +
       `# ${questionData.wordOrQuestion} = ${questionData.answer}`;
@@ -528,6 +568,11 @@ async function sendNextGameQuestion(client, supabase, channelOrId, gameId, retri
     if (gameId === 6 || gameId === 7) {
       const buffer = createTextImageBuffer(questionData.wordOrQuestion);
       const file = new AttachmentBuilder(buffer, { name: 'text_image.png' });
+      sentMsg = await channel.send({ ...payload, files: [file] });
+    } else if (gameId === 13) {
+      const template = questionData.englishTemplate || (Array.isArray(questionData.hints) ? questionData.hints[0] : questionData.hints) || '';
+      const buffer = createSentenceBuilderImageBuffer(questionData.wordOrQuestion, template);
+      const file = new AttachmentBuilder(buffer, { name: 'sentence_card.png' });
       sentMsg = await channel.send({ ...payload, files: [file] });
     } else if (gameId === 5 || gameId === 11) {
       let audioMsgId = null;
@@ -812,6 +857,295 @@ function setupMinigames(client) {
         userInFlightProcessing.delete(userId);
         processingChannels.delete(interaction.channelId);
       }
+    }
+
+    // 2.5 Button Interactions: Game 13 (Sentence Builder) — Per-User Ephemeral Flow
+    if (interaction.isButton() && (interaction.customId.startsWith('mg_sb_13_') || interaction.customId.startsWith('mg_sb_reset_13_'))) {
+      const channelId = interaction.channelId;
+      const userId = interaction.user.id;
+
+      try {
+        const session = activeSessions.get(channelId);
+
+        if (!session || session.gameId !== 13) {
+          sendNextGameQuestion(client, supabase, channelId, 13).catch(() => { });
+          return interaction.reply({ content: 'โจทย์ข้อนี้จบไปแล้วค่ะ! กำลังส่งโจทย์ข้อใหม่ให้ในช่องเรียบร้อยแล้วนะคะ 🎮', flags: FLAG_EPHEMERAL }).catch(() => { });
+        }
+
+        if (processingChannels.has(channelId)) {
+          return interaction.reply({ content: 'กำลังเปลี่ยนโจทย์ข้อใหม่ค่ะ กรุณารอแปปนึงนะคะ', flags: FLAG_EPHEMERAL }).catch(() => { });
+        }
+
+        const feasibility = checkCrossChannelFeasibility(userId, channelId, 13);
+        if (!feasibility.allowed) {
+          return interaction.reply({
+            content: '⚠️ ตรวจพบการเล่นหลายเกมพร้อมกัน กรุณารอสักครู่แล้วลองใหม่อีกครั้งนะคะ (เล่นทีละเกมนะคะ 🐻)',
+            flags: FLAG_EPHEMERAL
+          }).catch(() => { });
+        }
+        recordUserAction(userId, channelId, 13);
+
+        const questionData = session.questionData;
+        const correctWords = questionData.correctWords || String(questionData.answer || '').split(/[,|]/).map(s => s.trim()).filter(Boolean);
+        const allOptions = questionData.options || [];
+        const userKey = `${channelId}:${userId}:${session.messageId}`;
+
+        // ── Handle Reset Button ──
+        if (interaction.customId.startsWith('mg_sb_reset_13_')) {
+          userSentenceProgress.delete(userKey);
+
+          const btnRows = [];
+          const btnStyles = [2, 1, 2, 1, 2, 1];
+          const buttons = allOptions.map((optLabel, idx) => ({
+            style: btnStyles[idx % btnStyles.length],
+            type: 2,
+            label: optLabel,
+            custom_id: `mg_sb_13_${idx}_${Date.now()}`
+          }));
+          for (let i = 0; i < buttons.length; i += 5) {
+            btnRows.push({ type: 1, components: buttons.slice(i, i + 5) });
+          }
+
+          const templateStr = questionData.englishTemplate || (Array.isArray(questionData.hints) ? questionData.hints[0] : '') || '';
+          let maskedPreview = templateStr;
+          for (let i = 1; i <= correctWords.length; i++) {
+            maskedPreview = maskedPreview.replace(new RegExp(`\\{${i}\\}`, 'g'), '`[ ___ ]`');
+          }
+
+          const resetPayload = {
+            content: `🔄 **รีเซ็ตประโยคเรียบร้อยแล้วค่ะ!**\n> 📝 โจทย์: **${questionData.wordOrQuestion}**\n> 🔤 กำลังต่อ: ${maskedPreview}\n\n👉 เลือกคำแรกด้านล่างได้เลยค่ะ:`,
+            components: btnRows,
+            flags: FLAG_EPHEMERAL
+          };
+
+          const isEphemeralInteraction = interaction.message && (interaction.message.flags?.has(MessageFlags.Ephemeral) || Boolean(interaction.message.flags?.bitfield & 64));
+          if (isEphemeralInteraction) {
+            return interaction.update(resetPayload).catch(() => { });
+          } else {
+            return interaction.reply(resetPayload).catch(() => { });
+          }
+        }
+
+        // ── Handle Word Choice Click ──
+        const parts = interaction.customId.split('_'); // mg_sb_13_{choiceIndex}_{timestamp}
+        const choiceIndex = parseInt(parts[3], 10);
+        const clickedWord = allOptions[choiceIndex];
+
+        let progress = userSentenceProgress.get(userKey) || { pickedIndices: [], pickedWords: [] };
+
+        if (progress.pickedIndices.includes(choiceIndex)) {
+          return interaction.reply({
+            content: `คุณได้เลือกคำว่า **"${clickedWord}"** ไปแล้วค่ะ กรุณาเลือกคำถัดไปนะคะ!`,
+            flags: FLAG_EPHEMERAL
+          }).catch(() => { });
+        }
+
+        const nextExpectedWord = correctWords[progress.pickedWords.length];
+        const isCorrectWord = String(clickedWord || '').trim().toLowerCase() === String(nextExpectedWord || '').trim().toLowerCase();
+
+        // Case 1: Wrong word / Wrong order -> Immediate reset
+        if (!isCorrectWord) {
+          userSentenceProgress.delete(userKey);
+
+          const btnRows = [];
+          const btnStyles = [2, 1, 2, 1, 2, 1];
+          const buttons = allOptions.map((optLabel, idx) => ({
+            style: btnStyles[idx % btnStyles.length],
+            type: 2,
+            label: optLabel,
+            custom_id: `mg_sb_13_${idx}_${Date.now()}`
+          }));
+          for (let i = 0; i < buttons.length; i += 5) {
+            btnRows.push({ type: 1, components: buttons.slice(i, i + 5) });
+          }
+
+          const templateStr = questionData.englishTemplate || (Array.isArray(questionData.hints) ? questionData.hints[0] : '') || '';
+          let maskedPreview = templateStr;
+          for (let i = 1; i <= correctWords.length; i++) {
+            maskedPreview = maskedPreview.replace(new RegExp(`\\{${i}\\}`, 'g'), '`[ ___ ]`');
+          }
+
+          const wrongPayload = {
+            content: `❌ คำว่า **"${clickedWord}"** ยังไม่ถูกต้องสำหรับช่องนี้ค่ะ!\n🔄 ระบบรีเซ็ตให้ใหม่แล้ว ลองกดเริ่มใหม่อีกครั้งนะคะ ✨\n> 📝 โจทย์: **${questionData.wordOrQuestion}**\n> 🔤 ประโยค: ${maskedPreview}`,
+            components: btnRows,
+            flags: FLAG_EPHEMERAL
+          };
+
+          const isEphemeralInteraction = interaction.message && (interaction.message.flags?.has(MessageFlags.Ephemeral) || Boolean(interaction.message.flags?.bitfield & 64));
+          if (isEphemeralInteraction) {
+            return interaction.update(wrongPayload).catch(() => { });
+          } else {
+            return interaction.reply(wrongPayload).catch(() => { });
+          }
+        }
+
+        // Case 2: Correct word!
+        progress.pickedIndices.push(choiceIndex);
+        progress.pickedWords.push(clickedWord);
+
+        const isCompleted = progress.pickedWords.length >= correctWords.length;
+
+        if (!isCompleted) {
+          // Cap userSentenceProgress size to avoid memory leak
+          if (userSentenceProgress.size > 300) {
+            const oldestKey = userSentenceProgress.keys().next().value;
+            userSentenceProgress.delete(oldestKey);
+          }
+          userSentenceProgress.set(userKey, progress);
+
+          const remainingButtons = [];
+          allOptions.forEach((optLabel, idx) => {
+            if (!progress.pickedIndices.includes(idx)) {
+              remainingButtons.push({
+                style: 1,
+                type: 2,
+                label: optLabel,
+                custom_id: `mg_sb_13_${idx}_${Date.now()}`
+              });
+            }
+          });
+
+          // Add Reset button
+          remainingButtons.push({
+            style: 4,
+            type: 2,
+            label: '︲เริ่มใหม่',
+            emoji: { name: '🔄' },
+            custom_id: `mg_sb_reset_13_${Date.now()}`
+          });
+
+          const btnRows = [];
+          for (let i = 0; i < remainingButtons.length; i += 5) {
+            btnRows.push({ type: 1, components: remainingButtons.slice(i, i + 5) });
+          }
+
+          const templateStr = questionData.englishTemplate || (Array.isArray(questionData.hints) ? questionData.hints[0] : '') || '';
+          let previewStr = templateStr;
+          for (let i = 1; i <= correctWords.length; i++) {
+            if (i <= progress.pickedWords.length) {
+              previewStr = previewStr.replace(new RegExp(`\\{${i}\\}`, 'g'), `**${progress.pickedWords[i - 1]}**`);
+            } else {
+              previewStr = previewStr.replace(new RegExp(`\\{${i}\\}`, 'g'), '`[ ___ ]`');
+            }
+          }
+
+          const stepPayload = {
+            content: `✅ ถูกต้อง! ต่อคำถัดไปได้เลยค่ะ (เหลืออีก **${correctWords.length - progress.pickedWords.length}** คำ)\n> 📝 โจทย์: **${questionData.wordOrQuestion}**\n> 🔤 กำลังต่อ: ${previewStr}`,
+            components: btnRows,
+            flags: FLAG_EPHEMERAL
+          };
+
+          const isEphemeralInteraction = interaction.message && (interaction.message.flags?.has(MessageFlags.Ephemeral) || Boolean(interaction.message.flags?.bitfield & 64));
+          if (isEphemeralInteraction) {
+            return interaction.update(stepPayload).catch(() => { });
+          } else {
+            return interaction.reply(stepPayload).catch(() => { });
+          }
+        }
+
+        // Case 3: Completed & WINNER!
+        // Clear all participants' partial progress in this channel for this question to free memory
+        for (const key of userSentenceProgress.keys()) {
+          if (key.startsWith(`${channelId}:`)) {
+            userSentenceProgress.delete(key);
+          }
+        }
+
+        if (processingChannels.has(channelId) || userInFlightProcessing.has(userId)) {
+          const lateMsg = {
+            content: 'คุณต่อคำได้ถูกต้องแล้วค่ะ แต่มีผู้เล่นคนอื่นตอบเสร็จก่อนหน้าไปเสี้ยววินาที! 🎮',
+            components: [],
+            flags: FLAG_EPHEMERAL
+          };
+          const isEphemeralInteraction = interaction.message && (interaction.message.flags?.has(MessageFlags.Ephemeral) || Boolean(interaction.message.flags?.bitfield & 64));
+          if (isEphemeralInteraction) {
+            return interaction.update(lateMsg).catch(() => { });
+          } else {
+            return interaction.reply(lateMsg).catch(() => { });
+          }
+        }
+
+        userInFlightProcessing.add(userId);
+        processingChannels.add(channelId);
+        activeSessions.delete(channelId);
+        if (supabase) {
+          Promise.resolve(supabase.from('minigame_active_sessions').delete().eq('channel_id', channelId)).catch(() => { });
+        }
+
+        const safetyLockTimeout = setTimeout(() => {
+          userInFlightProcessing.delete(userId);
+          if (processingChannels.has(channelId)) {
+            processingChannels.delete(channelId);
+          }
+        }, 10000);
+
+        try {
+          const winnerName = interaction.user.displayName || interaction.user.username;
+          const winnerPayload = buildWinnerPayload(13, questionData, winnerName);
+
+          const isEphemeralInteraction = interaction.message && (interaction.message.flags?.has(MessageFlags.Ephemeral) || Boolean(interaction.message.flags?.bitfield & 64));
+          if (isEphemeralInteraction) {
+            await interaction.update({
+              content: `🎉 **ยอดเยี่ยมมากค่ะ! คุณต่อประโยคถูกต้องครบถ้วนเป็นคนแรก!**\n> 🌟 รางวัล: **+${questionData.rewardPoints || 4} แต้ม**`,
+              components: []
+            }).catch(() => { });
+          } else {
+            await interaction.reply({
+              content: `🎉 **ยอดเยี่ยมมากค่ะ! คุณต่อประโยคถูกต้องครบถ้วนเป็นคนแรก!**\n> 🌟 รางวัล: **+${questionData.rewardPoints || 4} แต้ม**`,
+              flags: FLAG_EPHEMERAL
+            }).catch(() => { });
+          }
+
+          if (session.messageId) {
+            const publicMsg = await interaction.channel.messages.fetch(session.messageId).catch(() => null);
+            if (publicMsg) {
+              await publicMsg.edit(winnerPayload).catch(() => { });
+            }
+          }
+
+          const member = interaction.member;
+          const pointsEarned = questionData.rewardPoints || 4;
+
+          trackUserDailyQuestProgress(userId, 'MINIGAME_PLAY', 1);
+          trackUserDailyQuestProgress(userId, 'MINIGAME_WIN', 1);
+
+          if (supabase) {
+            addPointsWithCap(supabase, member, userId, pointsEarned)
+              .then((pointResult) => {
+                const awarded = pointResult && typeof pointResult.awarded === 'number' ? pointResult.awarded : 0;
+                return supabase.from('minigame_wins').insert({
+                  discord_id: userId,
+                  game_id: 13,
+                  points_earned: awarded
+                });
+              })
+              .catch(err => console.error('[minigames] Error awarding points for Game 13:', err.message));
+          }
+
+          setTimeout(() => {
+            sendNextGameQuestion(client, supabase, channelId, 13)
+              .finally(() => {
+                clearTimeout(safetyLockTimeout);
+                userInFlightProcessing.delete(userId);
+              })
+              .catch(err => {
+                console.error('[minigames] Error in sendNextGameQuestion for Game 13:', err);
+                clearTimeout(safetyLockTimeout);
+                userInFlightProcessing.delete(userId);
+                processingChannels.delete(channelId);
+              });
+          }, 1500);
+
+        } catch (err) {
+          console.error('[minigames] Error in Game 13 win handler:', err);
+          clearTimeout(safetyLockTimeout);
+          userInFlightProcessing.delete(userId);
+          processingChannels.delete(channelId);
+        }
+      } catch (err) {
+        console.error('[minigames] Top-level error in Game 13 interaction handler:', err);
+      }
+      return;
     }
 
     // 3. StringSelectMenu Hint Interactions (Games 1, 2, 5, 6)

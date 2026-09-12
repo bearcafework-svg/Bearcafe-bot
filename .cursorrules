@@ -1,0 +1,49 @@
+# Cursor Rules — Bear Café Bot Ecosystem
+# Full documentation: PROJECT_AGENT_RULES.md
+
+You are an expert full-stack AI engineer maintaining the Bear Café Discord Bot & Web ecosystem.
+
+## 🚨 MANDATORY INVARIANTS (Never Break)
+1. **DUAL-DIRECTORY MIRRORING:**
+   - Any code created or modified in `src/features/...` MUST be immediately and identically mirrored to `src/main/features/...` (and vice-versa).
+2. **SLASH COMMAND /send-component (DEV-ONLY):**
+   - NEVER use prefix commands (e.g. `b!reset-terms`, `b!reset-menu`, `b!...`) for Discord boards.
+   - ALWAYS use `/send-component`.
+   - `/send-component` must ONLY be registered in Dev mode (`DEV_MODE=true` using `SECONDARY_BOT_TOKEN`). Never expose on Production.
+3. **DISCORD 3-SECOND TIMEOUT:**
+   - Always call `safeDeferReply(interaction, { flags: MessageFlags.Ephemeral })` at the start of any async interaction handler.
+   - Always use `client.once("clientReady")`, never `ready`.
+4. **COMPONENT V2 RULES (`flags: 32768`):**
+   - NEVER provide top-level `content`. Place text in Text Components (`type: 10`) inside Containers (`type: 17`).
+   - NEVER end a Container with a Separator (`type: 14`).
+   - Maximum 5 buttons per ActionRow (`type: 1`).
+5. **ZERO-EGRESS FALLBACK:**
+   - Database service functions must support Local JSON Fallback (`mockStorage.js`, `mockDailyQuestStore.js`) if Supabase is offline or quota-restricted.
+
+## 🛠️ CORE SKILLS WORKFLOW (`.agents/skills/`)
+- **Planning / Refactoring:** Use `@skill-plan` before touching code.
+- **Feature Development:** Use `@skill-feature` (enforces 3-tier layering + blast radius check to `bear-cafe-web`).
+- **Debugging & Bug Fixing:** Use `@skill-debug` (log analysis, root cause, minimal safe patch).
+- **Quality & Safety Audit:** Use `@skill-review` (Discord 3s check, Supabase RLS/Egress, declares "Good Enough").
+- **Release & Commit:** Use `@skill-ship` (removes debug leaks, outputs Discord markdown summary, Conventional Commit).
+- **Knowledge Capture:** Use `@skill-learn` (writes to `.agents/KNOWLEDGE.md`).
+
+## 🎨 BRAND & UI DESIGN
+- **Aesthetic:** Cozy illustrated café, honey & dessert tones, soft shadows, warm night atmosphere.
+- **Colors:** Background `#12100E`, Cards `#1D1815`, Honey `#ECA850`, Soft Cream `#F5EBE6`. Avoid neon/cyberpunk.
+- **Custom Emojis (`EMOJIS.md`):**
+  - Header: `<:bee20000:1256669436350562355>`
+  - Points: `<:strawberryv2:1520439075100688614>`
+  - Success: `<:50121checkmark:1358584609087946867>`
+  - Error: `<:68440x:1358584606911369226>`
+  - Mascot: `<:bear7:1148271118709436416>`
+- **Canvas Generation:** Always load `src/utils/fontLoader.js` (`Noto Sans Thai`) and use LRU Buffer Caching.
+
+## 💾 DATABASE (SUPABASE)
+- Use MCP server `supabase` tools (`execute_sql`, `apply_migration`) for database interaction.
+- Minigame questions table: `minigame_questions`.
+  - Game 13 (Sentence Builder) does NOT require `options` column (`[]` by default). The system auto-generates random distractors.
+- Check and update `minigame_settings` when adding or reconfiguring games.
+
+## 🔍 PRE-FLIGHT VERIFICATION
+- Always run `node -c <files>` on all edited JavaScript files before completing a task.

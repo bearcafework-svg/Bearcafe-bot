@@ -225,7 +225,7 @@ const GUILD_SLASH_COMMANDS = [
     options: [
       {
         name: "เกม",
-        description: "เลือกชื่อมินิเกม 1-12",
+        description: "เลือกชื่อมินิเกม 1-13",
         type: ApplicationCommandOptionType.Integer,
         required: true,
         choices: [
@@ -241,6 +241,7 @@ const GUILD_SLASH_COMMANDS = [
           { name: "10. เกมต่อคำ", value: 10 },
           { name: "11. ฟังเสียงแล้วพิมพ์ตอบ (ไทย)", value: 11 },
           { name: "12. จริงหรือเท็จ", value: 12 },
+          { name: "13. เรียงประโยคภาษาอังกฤษ", value: 13 },
         ],
       },
     ],

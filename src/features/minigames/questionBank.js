@@ -96,6 +96,92 @@ const DEFAULT_QUESTIONS = {
     { id: 1201, word_or_question: "แมวเป็นสัตว์เลี้ยงลูกด้วยนม", answer: "จริง", options: ["จริง", "เท็จ"] },
     { id: 1202, word_or_question: "ดวงอาทิตย์ขึ้นทางทิศตะวันตก", answer: "เท็จ", options: ["จริง", "เท็จ"] },
     { id: 1203, word_or_question: "ประเทศไทยมี 77 จังหวัด", answer: "จริง", options: ["จริง", "เท็จ"] }
+  ],
+  13: [ // เรียงประโยคภาษาอังกฤษ (Sentence Builder)
+    {
+      id: 1301,
+      word_or_question: "ยิงปืนนัดเดียวได้นกสองตัว",
+      hints: ["Kill two {1} with {2} {3}."],
+      answer: "birds,one,stone",
+      options: ["stone", "frogs", "one", "bugs", "birds"]
+    },
+    {
+      id: 1302,
+      word_or_question: "ฉันชอบดื่มกาแฟในตอนเช้า",
+      hints: ["I like {1} {2} in the {3}."],
+      answer: "drinking,coffee,morning",
+      options: ["tea", "drinking", "evening", "coffee", "morning"]
+    },
+    {
+      id: 1303,
+      word_or_question: "เวลาเป็นเงินเป็นทอง",
+      hints: ["Time is {1}."],
+      answer: "money",
+      options: ["gold", "money", "power", "water"]
+    },
+    {
+      id: 1304,
+      word_or_question: "อย่าตัดสินหนังสือจากหน้าปก",
+      hints: ["Don't {1} a book by its {2}."],
+      answer: "judge,cover",
+      options: ["read", "judge", "page", "cover", "color"]
+    },
+    {
+      id: 1305,
+      word_or_question: "น้ำขึ้นให้รีบตัก",
+      hints: ["Strike while the {1} is {2}."],
+      answer: "iron,hot",
+      options: ["water", "iron", "cold", "hot", "fire"]
+    },
+    {
+      id: 1306,
+      word_or_question: "การกระทำสำคัญกว่าคำพูด",
+      hints: ["Actions speak {1} than {2}."],
+      answer: "louder,words",
+      options: ["louder", "better", "words", "sounds", "voices"]
+    },
+    {
+      id: 1307,
+      word_or_question: "ความพยายามอยู่ที่ไหน ความสำเร็จอยู่ที่นั่น",
+      hints: ["Where there is a {1}, there is a {2}."],
+      answer: "will,way",
+      options: ["hope", "will", "way", "dream", "success"]
+    },
+    {
+      id: 1308,
+      word_or_question: "ไม่มีอะไรได้มาง่ายๆ",
+      hints: ["No {1}, no {2}."],
+      answer: "pain,gain",
+      options: ["rain", "pain", "gain", "win", "game"]
+    },
+    {
+      id: 1309,
+      word_or_question: "ฝนตกไม่ทั่วฟ้า",
+      hints: ["Into each life some {1} must {2}."],
+      answer: "rain,fall",
+      options: ["rain", "water", "drop", "fall", "cloud"]
+    },
+    {
+      id: 1310,
+      word_or_question: "แมวไม่อยู่หนูร่าเริง",
+      hints: ["When the cat's {1}, the mice will {2}."],
+      answer: "away,play",
+      options: ["asleep", "away", "run", "play", "dance"]
+    },
+    {
+      id: 1311,
+      word_or_question: "ช้าๆ ได้พร้าเล่มงาม",
+      hints: ["Slow and {1} wins the {2}."],
+      answer: "steady,race",
+      options: ["steady", "sure", "fast", "race", "game"]
+    },
+    {
+      id: 1312,
+      word_or_question: "เพื่อนแท้ในยามยาก",
+      hints: ["A friend in {1} is a friend {2}."],
+      answer: "need,indeed",
+      options: ["need", "trouble", "indeed", "always", "true"]
+    }
   ]
 };
 
@@ -565,6 +651,50 @@ async function getNextQuestion(supabase, gameId, gameSettings = null, queryOptio
     wordOrQuestion = selected.word_or_question;
     answer = selected.answer;
     options = ["จริง", "เท็จ"];
+  } else if (gameId === 13) {
+    // Game 13: เรียงประโยคภาษาอังกฤษ (Sentence Builder)
+    wordOrQuestion = selected.word_or_question;
+    const correctWords = String(selected.answer || "")
+      .split(/[,|]/)
+      .map(s => s.trim())
+      .filter(Boolean);
+    answer = correctWords.join(",");
+
+    let allOptions = [];
+    // กรณีที่ 1: ผู้ใช้ระบุตัวเลือกหลอกใน DB ไว้ครบถ้วน (มากกว่าหรือเท่ากับจำนวนคำตอบ + 2) ให้ใช้ตามที่ระบุ
+    if (Array.isArray(selected.options) && selected.options.length >= correctWords.length + 2) {
+      allOptions = Array.from(new Set([...correctWords, ...selected.options]));
+    } else {
+      // กรณีที่ 2: ระบบสร้างตัวหลอกอัตโนมัติ (Auto-generate Distractors) เพื่อประหยัดเวลา ไม่ต้องกรอก options ใน DB
+      // 2.1 ดึงคำศัพท์จากคำตอบของข้ออื่นๆ ใน Pool
+      const poolDistractors = (candidates || [])
+        .flatMap(q => String(q.answer || '').split(/[,|]/).map(s => s.trim()))
+        .filter(w => w && !correctWords.some(cw => cw.toLowerCase() === w.toLowerCase()));
+
+      // 2.2 คลังคำศัพท์ภาษาอังกฤษทั่วไปหลากหลายประเภท (คำนาม กริยา คุณศัพท์) สำหรับสุ่มเป็นตัวหลอก
+      const COMMON_DISTRACTORS = [
+        'make', 'time', 'take', 'good', 'life', 'day', 'work', 'world', 'hand', 'part',
+        'place', 'week', 'room', 'money', 'story', 'night', 'mind', 'road', 'family',
+        'come', 'think', 'look', 'want', 'give', 'tell', 'feel', 'leave', 'stay', 'find',
+        'great', 'little', 'own', 'other', 'old', 'right', 'big', 'high', 'small', 'early',
+        'happy', 'always', 'never', 'often', 'away', 'back', 'well', 'here', 'true', 'best',
+        'water', 'house', 'friend', 'hope', 'change', 'light', 'sound', 'heart', 'voice', 'dream'
+      ];
+
+      // รวมคำหลอกทั้งหมด และตัดคำที่ตรงกับคำตอบจริงออก
+      const uniqueWrongPool = Array.from(new Set([...poolDistractors, ...COMMON_DISTRACTORS]))
+        .filter(w => !correctWords.some(cw => cw.toLowerCase() === w.toLowerCase()));
+
+      const shuffledWrong = shuffleArray(uniqueWrongPool);
+
+      // เป้าหมายจำนวนปุ่มทั้งหมด: 5 - 6 ปุ่ม (หรืออย่างน้อย correctWords.length + 2) สูงสุดไม่เกิน 10 ปุ่ม
+      const targetButtonCount = Math.min(10, Math.max(5, correctWords.length + 2));
+      const neededDistractors = Math.max(0, targetButtonCount - correctWords.length);
+      const pickedDistractors = shuffledWrong.slice(0, neededDistractors);
+
+      allOptions = [...correctWords, ...pickedDistractors];
+    }
+    options = shuffleArray(allOptions);
   }
 
   return {
@@ -572,11 +702,13 @@ async function getNextQuestion(supabase, gameId, gameSettings = null, queryOptio
     id: selected.id,
     wordOrQuestion,
     answer,
+    englishTemplate: (gameId === 13) ? (Array.isArray(selected.hints) ? selected.hints[0] : selected.hints) : undefined,
+    correctWords: (gameId === 13) ? String(selected.answer || '').split(/[,|]/).map(s => s.trim()).filter(Boolean) : undefined,
     initialRevealedIndices,
     hints: selected.hints || [],
     options,
     difficulty,
-    category: selected.category || 'คำทั่วไป',
+    category: selected.category || (gameId === 13 ? 'สำนวนและประโยค' : 'คำทั่วไป'),
     rewardPoints
   };
 }

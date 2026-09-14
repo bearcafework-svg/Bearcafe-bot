@@ -418,25 +418,99 @@ async function getTenantLeaderboard(supabase, guildId, limit = 10, force = false
 
 /**
  * เก็บคะแนนลง buffer ใน memory เพื่อประหยัด Supabase Egress
- * (ยกเลิกการเก็บ tenant_minigame_scores ชั่วคราว)
+ * (เฉพาะเซิร์ฟเวอร์ที่เป็น Premium เท่านั้น)
  */
 function bufferTenantPoints(guildId, userId, pointsToAdd = 10, winsToAdd = 1) {
-  // ยกเลิกการเก็บ tenant_minigame_scores ชั่วคราว
-  return;
+  if (!guildId || !userId) return;
+  const key = `${guildId}:${userId}`;
+  const existing = guildScoreBuffer.get(key) || { points_accumulated: 0, wins_accumulated: 0 };
+  existing.points_accumulated += pointsToAdd;
+  existing.wins_accumulated += winsToAdd;
+  guildScoreBuffer.set(key, existing);
 }
 
 /**
  * Flush คะแนนที่สะสมใน memory ลง Akari DB
- * (ยกเลิกการเก็บ tenant_minigame_scores ชั่วคราว)
+ * (บังคับตรวจสอบสิทธิ์ Premium: เฉพาะเซิร์ฟเวอร์ที่เป็น Premium เท่านั้น)
  */
-async function flushTenantPoints(supabase, guildId, userId, pointsToAdd = 10, winsToAdd = 1) {
-  // ยกเลิกการเก็บ tenant_minigame_scores ชั่วคราว
-  return;
+async function flushTenantPoints(supabase, guildId, userId, pointsToAdd = 0, winsToAdd = 0) {
+  if (!supabase || !guildId || !userId) return;
+
+  // ตรวจสอบสิทธิ์ Premium ให้แน่ใจว่าเซิร์ฟเวอร์มีสถานะ Premium และยังไม่หมดอายุ
+  const planInfo = await getTenantPlan(guildId, supabase);
+  if (!planInfo.isPremium) {
+    const bufferKey = `${guildId}:${userId}`;
+    guildScoreBuffer.delete(bufferKey);
+    return;
+  }
+
+  const bufferKey = `${guildId}:${userId}`;
+  const buffered = guildScoreBuffer.get(bufferKey) || { points_accumulated: 0, wins_accumulated: 0 };
+  const totalPoints = pointsToAdd + buffered.points_accumulated;
+  const totalWins = winsToAdd + buffered.wins_accumulated;
+
+  if (totalPoints === 0 && totalWins === 0) {
+    guildScoreBuffer.delete(bufferKey);
+    return;
+  }
+
+  try {
+    // 1. ลองใช้ Atomic RPC เพื่อประหยัด Supabase Egress และป้องกัน Race Conditions
+    const { error: rpcError } = await supabase.rpc('increment_tenant_score', {
+      p_guild_id: String(guildId),
+      p_user_id: String(userId),
+      p_points: Number(totalPoints),
+      p_wins: Number(totalWins),
+    });
+
+    if (!rpcError) {
+      guildScoreBuffer.delete(bufferKey);
+      invalidateLeaderboardCache(guildId);
+      return;
+    }
+
+    // 2. Fallback สู่ 2-step SELECT + UPSERT กรณี RPC เกิดข้อผิดพลาด
+    const { data } = await supabase
+      .from('tenant_minigame_scores')
+      .select('points, wins')
+      .eq('guild_id', guildId)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    const currentPoints = data?.points || 0;
+    const currentWins = data?.wins || 0;
+
+    await supabase.from('tenant_minigame_scores').upsert(
+      {
+        guild_id: guildId,
+        user_id: userId,
+        points: Math.max(0, currentPoints + totalPoints),
+        wins: Math.max(0, currentWins + totalWins),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'guild_id,user_id' }
+    );
+
+    guildScoreBuffer.delete(bufferKey);
+    invalidateLeaderboardCache(guildId);
+  } catch (e) {
+    console.error('[akari-minigames] Score upsert error:', e.message);
+  }
 }
 
+/**
+ * Flush คะแนนทั้งหมดของ Guild หรือทุก Guild (ตอน Shutdown)
+ */
 async function flushAllTenantPoints(supabase, guildId = null) {
-  // ยกเลิกการเก็บ tenant_minigame_scores ชั่วคราว
-  return;
+  if (!supabase) return;
+  const entries = guildId
+    ? [...guildScoreBuffer.entries()].filter(([key]) => key.startsWith(`${guildId}:`))
+    : [...guildScoreBuffer.entries()];
+
+  for (const [key, value] of entries) {
+    const [gid, uid] = key.split(':');
+    await flushTenantPoints(supabase, gid, uid, value.points_accumulated, value.wins_accumulated);
+  }
 }
 
 // ─── TTS Audio Buffer Helper ──────────────────────────────────────────
@@ -1212,7 +1286,7 @@ function setupAkariMinigames(client, supabase) {
 
       const desc = leaderboard
         .map((row, idx) =>
-          `**#${idx + 1}** <@${row.user_id}> — **${row.points}** คะแนน (${row.wins} ชนะ)`
+          `**#${idx + 1}** <@${row.user_id}> — **${(Number(row.points) || 0).toLocaleString()}** คะแนน (${(Number(row.wins) || 0).toLocaleString()} ชนะ)`
         )
         .join('\n');
 

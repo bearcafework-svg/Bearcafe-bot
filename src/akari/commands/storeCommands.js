@@ -40,14 +40,27 @@ const STORE_SLASH_COMMANDS = [
   {
     name: "setting-store",
     description: "ตั้งค่าร้านค้าแลกของรางวัลมินิเกม สูงสุด 3 รายการ (เฉพาะผู้ดูแลระบบ Premium)",
-    default_member_permissions: PermissionFlagsBits.Administrator.toString(),
+    default_member_permissions: PermissionFlagsBits.ManageChannels.toString(),
   },
   {
     name: "open-store",
     description: "เปิดหน้าร้านค้าแลกของรางวัลมินิเกมในห้องนี้ (เฉพาะผู้ดูแลระบบ Premium)",
-    default_member_permissions: PermissionFlagsBits.Administrator.toString(),
+    default_member_permissions: PermissionFlagsBits.ManageChannels.toString(),
   },
 ];
+
+/**
+ * ตรวจสอบสิทธิ์ผู้ดูแลระบบ (ManageChannels หรือ Administrator)
+ */
+function hasAdminPermission(interaction) {
+  const member = interaction.member;
+  return Boolean(
+    member?.permissions?.has(PermissionFlagsBits.ManageChannels) ||
+    member?.permissions?.has(PermissionFlagsBits.Administrator) ||
+    interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels) ||
+    interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)
+  );
+}
 
 /**
  * ตรวจสอบสิทธิ์ Admin และสถานะ Premium ของเซิร์ฟเวอร์
@@ -55,7 +68,7 @@ const STORE_SLASH_COMMANDS = [
 async function checkAdminAndPremium(interaction, supabase) {
   if (isExcludedGuild(interaction.guildId)) return { allowed: false, reason: "excluded" };
 
-  if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
+  if (!hasAdminPermission(interaction)) {
     return {
       allowed: false,
       reason: "permission",
@@ -68,7 +81,7 @@ async function checkAdminAndPremium(interaction, supabase) {
               {
                 type: 10,
                 content: `## <:lowwarning:1548772721679278180>︲__\` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ คุณไม่มีสิทธิ์ใช้คำสั่งนี้ 𓂃 \`__\n` +
-                  `> คุณต้องมีสิทธิ์ **ผู้ดูแลระบบ (Administrator)** เพื่อใช้คำสั่งนี้นะคะ!\n\n` +
+                  `> คุณต้องมีสิทธิ์ **จัดการช่อง (Manage Channels)** หรือ **ผู้ดูแลระบบ (Administrator)** เพื่อใช้คำสั่งนี้นะคะ!\n\n` +
                   `-# เฉพาะผู้ดูแลระบบที่ได้รับอนุญาตเท่านั้นที่สามารถจัดการร้านค้าได้ <:cuteplant:1152834055528783872>`,
               },
             ],
@@ -94,17 +107,40 @@ async function checkAdminAndPremium(interaction, supabase) {
  * จัดการคำสั่ง /setting-store (แสดงผลแบบ Public ตามที่แอดมินต้องการ)
  */
 async function handleSettingStore(interaction, supabase) {
-  const check = await checkAdminAndPremium(interaction, supabase);
-  if (!check.allowed) {
-    if (check.reason === "excluded") return;
-    return interaction.reply({ ...check.payload, flags: MessageFlags.Ephemeral | FLAG_V2 });
+  if (isExcludedGuild(interaction.guildId)) return;
+
+  if (!hasAdminPermission(interaction)) {
+    return interaction.reply({
+      flags: FLAG_V2,
+      components: [
+        {
+          type: 17,
+          components: [
+            {
+              type: 10,
+              content: `## <:lowwarning:1548772721679278180>︲__\` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ คุณไม่มีสิทธิ์ใช้คำสั่งนี้ 𓂃 \`__\n` +
+                `> คุณต้องมีสิทธิ์ **จัดการช่อง (Manage Channels)** หรือ **ผู้ดูแลระบบ (Administrator)** เพื่อใช้คำสั่งนี้นะคะ!\n\n` +
+                `-# เฉพาะผู้ดูแลระบบที่ได้รับอนุญาตเท่านั้นที่สามารถจัดการร้านค้าได้ <:cuteplant:1152834055528783872>`,
+            },
+          ],
+        },
+      ],
+    });
+  }
+
+  // Defer ทันทีแบบ Public เพื่อป้องกันปัญหา Discord 3-second timeout ระหว่างติดต่อ Supabase
+  await interaction.deferReply();
+
+  const planInfo = await getTenantPlan(interaction.guildId, supabase);
+  if (!planInfo.isPremium) {
+    return interaction.editReply(buildPremiumStoreWarningPayload());
   }
 
   const storeConfig = await getTenantStoreConfig(supabase, interaction.guildId);
   const items = await getTenantStoreItems(supabase, interaction.guildId);
 
   const payload = buildStoreSettingsDashboard(interaction.guild, storeConfig, items);
-  return interaction.reply({ ...payload, flags: FLAG_V2 });
+  return interaction.editReply(payload);
 }
 
 /**

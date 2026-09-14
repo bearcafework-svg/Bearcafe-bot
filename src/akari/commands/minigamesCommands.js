@@ -270,6 +270,9 @@ function areCommandsEqual(existingCollection, targetCommands) {
     const existingOpts = existingCmd.options || [];
     const targetOpts = cmd.options || [];
     if (existingOpts.length !== targetOpts.length) return false;
+    const existingPerm = existingCmd.defaultMemberPermissions?.bitfield?.toString() || null;
+    const targetPerm = cmd.default_member_permissions ? BigInt(cmd.default_member_permissions).toString() : null;
+    if (existingPerm !== targetPerm) return false;
   }
   return true;
 }
@@ -279,7 +282,7 @@ function areCommandsEqual(existingCollection, targetCommands) {
  * @param {import('discord.js').Client} client 
  */
 async function registerAkariCommands(client) {
-  client.once("clientReady", async () => {
+  const syncCommands = async () => {
     try {
       if (!client.application) return;
 
@@ -295,7 +298,13 @@ async function registerAkariCommands(client) {
     } catch (e) {
       console.error("❌ [AkariCommands] Register Global Slash Commands Error:", e.message);
     }
-  });
+  };
+
+  if (client.isReady()) {
+    await syncCommands();
+  } else {
+    client.once("clientReady", syncCommands);
+  }
 }
 
 /**

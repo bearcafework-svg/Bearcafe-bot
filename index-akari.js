@@ -101,7 +101,7 @@ client.on("interactionCreate", async (interaction) => {
         return await handleSettingStore(interaction, akariSupabase);
       }
       if (interaction.commandName === "open-store") {
-        return await handleOpenStore(interaction, akariSupabase);
+        return await handleOpenStore(interaction, akariSupabase, client);
       }
     }
 

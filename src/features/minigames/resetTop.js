@@ -229,15 +229,27 @@ function drawRoundedRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-// ── Helper ตัดข้อความยาวเกินไปใน Canvas ───────────────────────
+// ── Font Fallback รวมฟอนต์ภาษาไทยและ Emoji สำหรับ Canvas ────
+const FONT_FALLBACK = '"Noto Sans Thai", "Segoe UI Emoji", "Noto Color Emoji", "Segoe UI Symbol", "Apple Color Emoji", "Leelawadee UI", "Segoe UI", sans-serif';
+
+// ── Helper ตัดข้อความยาวเกินไปใน Canvas (รองรับ Emoji & Unicode) ─
 function truncateText(ctx, text, maxWidth, font) {
   ctx.font = font;
-  if (ctx.measureText(text).width <= maxWidth) return text;
-  let str = text;
-  while (str.length > 0 && ctx.measureText(str + "...").width > maxWidth) {
-    str = str.slice(0, -1);
+  if (!text) return "";
+  // กรอง Discord custom emoji syntax <:name:id> หรือ <a:name:id> ออกเพื่อไม่ให้แสดง ID ดิบ
+  const cleanText = String(text).replace(/<a?:(\w+):\d+>/g, "$1").trim();
+  if (ctx.measureText(cleanText).width <= maxWidth) return cleanText;
+
+  // ตัดตัวอักษรแบบ Unicode code points เพื่อป้องกัน Surrogate pair แตก
+  const chars = Array.from(cleanText);
+  while (chars.length > 0) {
+    chars.pop();
+    const candidate = chars.join("") + "...";
+    if (ctx.measureText(candidate).width <= maxWidth) {
+      return candidate;
+    }
   }
-  return str + "...";
+  return "...";
 }
 
 // ── วาด Vector Icon Crown (อันดับ 1) ──────────────────────────
@@ -304,7 +316,7 @@ async function generateTop3Canvas(top3Details, periodText = null) {
   const seasonHeaderLabel = periodText
     ? `🏆 SEASON 1 [FINAL]: ${effectivePeriod}`
     : (activePeriod.isMonthly ? `📅 MONTHLY LEADERBOARD: ${effectivePeriod}` : `🎁 SEASON 1: ${effectivePeriod}`);
-  ctx.font = 'bold 12px "Noto Sans Thai", "Leelawadee UI", "Segoe UI", sans-serif';
+  ctx.font = `bold 12px ${FONT_FALLBACK}`;
   const headerMetrics = ctx.measureText(seasonHeaderLabel);
   const headerPillW = headerMetrics.width + 36;
   const headerPillH = 26;
@@ -397,7 +409,7 @@ async function generateTop3Canvas(top3Details, periodText = null) {
     ctx.restore();
 
     // Pill Badge หัวข้ออันดับ
-    const nameFontPill = `bold ${s.isCenter ? 13 : 12}px "Noto Sans Thai", "Leelawadee UI", "Segoe UI", sans-serif`;
+    const nameFontPill = `bold ${s.isCenter ? 13 : 12}px ${FONT_FALLBACK}`;
     ctx.font = nameFontPill;
     const textMetrics = ctx.measureText(s.label);
     const pillW = textMetrics.width + 30;
@@ -469,7 +481,7 @@ async function generateTop3Canvas(top3Details, periodText = null) {
     ctx.restore();
 
     // แสดงชื่อ Display Name
-    const fontName = `bold ${s.isCenter ? 16 : 14}px "Noto Sans Thai", "Leelawadee UI", "Segoe UI", sans-serif`;
+    const fontName = `bold ${s.isCenter ? 16 : 14}px ${FONT_FALLBACK}`;
     const displayTitle = truncateText(ctx, s.detail.displayName, s.boxW - 24, fontName);
     ctx.fillStyle = "#FFFFFF";
     ctx.font = fontName;
@@ -482,20 +494,22 @@ async function generateTop3Canvas(top3Details, periodText = null) {
     let currentY = nameY + (s.isCenter ? 20 : 18);
     if (s.detail.usernameHandle) {
       ctx.fillStyle = s.isCenter ? "#9E9793" : "#64748B";
-      ctx.font = '12px "Noto Sans Thai", "Segoe UI", sans-serif';
+      ctx.font = `12px ${FONT_FALLBACK}`;
       ctx.fillText(s.detail.usernameHandle, s.cx, currentY);
       currentY += 16;
     }
     if (s.detail.idText) {
       ctx.fillStyle = s.isCenter ? "#756E6A" : "#475569";
-      ctx.font = '11px "Noto Sans Thai", "Segoe UI", sans-serif';
+      ctx.font = `11px ${FONT_FALLBACK}`;
       ctx.fillText(s.detail.idText, s.cx, currentY);
     }
 
-    // แสดงผล ชนะ X ครั้ง [Y แต้ม] ด้านล่างสุด
-    const statsText = `ชนะ ${s.detail.wins} ครั้ง [${s.detail.points} แต้ม]`;
+    // แสดงผล ชนะ X ครั้ง [Y แต้ม] ด้านล่างสุด (ใส่ลูกน้ำตัวเลข)
+    const winsFormatted = (Number(s.detail.wins) || 0).toLocaleString();
+    const pointsFormatted = (Number(s.detail.points) || 0).toLocaleString();
+    const statsText = `ชนะ ${winsFormatted} ครั้ง [${pointsFormatted} แต้ม]`;
     ctx.fillStyle = s.statColor;
-    ctx.font = `bold ${s.isCenter ? 16 : 14}px "Noto Sans Thai", "Leelawadee UI", "Segoe UI", sans-serif`;
+    ctx.font = `bold ${s.isCenter ? 16 : 14}px ${FONT_FALLBACK}`;
     ctx.textAlign = "center";
     ctx.textBaseline = "bottom";
     ctx.fillText(statsText, s.cx, s.boxY + s.boxH - 16);
@@ -506,18 +520,19 @@ async function generateTop3Canvas(top3Details, periodText = null) {
 
 const GAME_LIST = [
   { label: "รวมทุกเกม (Overall)", value: "all", emoji: "🏆" },
-  { label: "1. เติมคำศัพท์ (ไทย)", value: "1", emoji: "🇹🇭" },
-  { label: "2. เติมคำศัพท์ (อังกฤษ)", value: "2", emoji: "🇬🇧" },
-  { label: "3. สุ่มโจทย์คณิตฯ", value: "3", emoji: "🔢" },
-  { label: "4. ทายคำจากคำใบ้", value: "4", emoji: "💡" },
-  { label: "5. ฟังเสียงแล้วพิมพ์ตอบ (อังกฤษ)", value: "5", emoji: "🎧" },
-  { label: "6. พิมพ์คำต่อไปนี้ (ไทย)", value: "6", emoji: "⌨️" },
-  { label: "7. พิมพ์คำต่อไปนี้ (อังกฤษ)", value: "7", emoji: "💻" },
-  { label: "8. ทายคำแปลภาษาอังกฤษ", value: "8", emoji: "🌐" },
-  { label: "9. ทายคำแปลภาษาไทย", value: "9", emoji: "🇹🇭" },
-  { label: "10. เกมต่อคำ", value: "10", emoji: "🔗" },
-  { label: "11. ฟังเสียงแล้วพิมพ์ตอบ (ไทย)", value: "11", emoji: "🔊" },
-  { label: "12. จริงหรือเท็จ", value: "12", emoji: "❓" }
+  { label: "เติมคำศัพท์ (ไทย)", value: "1", emoji: "🇹🇭" },
+  { label: "เติมคำศัพท์ (อังกฤษ)", value: "2", emoji: "🇬🇧" },
+  { label: "สุ่มโจทย์คณิตฯ", value: "3", emoji: "🔢" },
+  { label: "ทายคำจากคำใบ้", value: "4", emoji: "💡" },
+  { label: "ฟังเสียงแล้วพิมพ์ตอบ (อังกฤษ)", value: "5", emoji: "🎧" },
+  { label: "พิมพ์คำต่อไปนี้ (ไทย)", value: "6", emoji: "⌨️" },
+  { label: "พิมพ์คำต่อไปนี้ (อังกฤษ)", value: "7", emoji: "💻" },
+  { label: "ทายคำแปลภาษาอังกฤษ", value: "8", emoji: "🌐" },
+  { label: "ทายคำแปลภาษาไทย", value: "9", emoji: "🇹🇭" },
+  { label: "เกมต่อคำ", value: "10", emoji: "🔗" },
+  { label: "ฟังเสียงแล้วพิมพ์ตอบ (ไทย)", value: "11", emoji: "🔊" },
+  { label: "จริงหรือเท็จ", value: "12", emoji: "❓" },
+  { label: "เรียงประโยคภาษาอังกฤษ", value: "13", emoji: "🔤" }
 ];
 
 // ── สร้าง Component V2 Payload + รูปภาพแบนเนอร์ สำหรับกระดานจัดอันดับ ───────────────
@@ -578,7 +593,9 @@ async function buildTopLeaderboardPayload(guild, supabase, options = {}) {
     const emoji = rankEmojis[i];
     if (i < top10.length) {
       const item = top10[i];
-      lines.push(`${emoji} — <@${item.discord_id}> ชนะ ${item.wins} ครั้ง (${pointEmojiStr} ${item.points})`);
+      const winsStr = (Number(item.wins) || 0).toLocaleString();
+      const pointsStr = (Number(item.points) || 0).toLocaleString();
+      lines.push(`${emoji} — <@${item.discord_id}> ชนะ ${winsStr} ครั้ง (${pointEmojiStr} ${pointsStr})`);
     } else {
       lines.push(`${emoji} — <@0> ชนะ 0 ครั้ง (${pointEmojiStr} 0)`);
     }
@@ -726,7 +743,9 @@ async function buildSeasonFinalAnnouncementPayload(guild, supabase) {
     const emoji = rankEmojis[i];
     if (i < top10.length) {
       const item = top10[i];
-      lines.push(`${emoji} — <@${item.discord_id}> ชนะ ${item.wins} ครั้ง (${pointEmojiStr} ${item.points})`);
+      const winsStr = (Number(item.wins) || 0).toLocaleString();
+      const pointsStr = (Number(item.points) || 0).toLocaleString();
+      lines.push(`${emoji} — <@${item.discord_id}> ชนะ ${winsStr} ครั้ง (${pointEmojiStr} ${pointsStr})`);
       mentionsList.push(`<@${item.discord_id}>`);
     } else {
       lines.push(`${emoji} — <@0> ชนะ 0 ครั้ง (${pointEmojiStr} 0)`);
@@ -905,50 +924,7 @@ function setupResetTop(client, supabaseClient) {
   // ตั้งเวลา Transition สู่ Monthly อัตโนมัติ ณ 23:59:59
   scheduleSeasonTransition(client, supabase);
 
-  // 1. คำสั่งสำหรับ Owner (b!reset-top และ b!force-season-transition)
-  client.on("messageCreate", async (message) => {
-    if (message.author.bot) return;
-    if (!message.guild) return;
-
-    const content = message.content.trim().toLowerCase();
-
-    // 1.1 บังคับคำนวณและสลับซีซั่นทันที (สำหรับทดสอบ / แมนนวล)
-    if (content === "b!force-season-transition") {
-      const OWNER_ID = process.env.OWNER_ID;
-      const isOwner = message.author.id === OWNER_ID || message.author.id === message.guild.ownerId;
-      if (!isOwner) return;
-
-      await message.reply("⏳ กำลังดำเนินการ Season Transition...");
-      const res = await executeSeasonTransition(client, supabase, { force: true });
-      if (res.success) {
-        await message.channel.send("✅ ดำเนินการ Season Transition และสลับสู่ Monthly เรียบร้อยแล้วค่ะ!");
-      } else {
-        await message.channel.send(`❌ ผลการทำงาน: ${res.error || res.message}`);
-      }
-      return;
-    }
-
-    // 1.2 คำสั่งสร้างบอร์ด b!reset-top
-    if (content === "b!reset-top") {
-      const OWNER_ID = process.env.OWNER_ID;
-      const isOwner = message.author.id === OWNER_ID || message.author.id === message.guild.ownerId;
-
-      if (!isOwner) {
-        return message.reply({ content: "❌ คำสั่งนี้ใช้ได้เฉพาะ Owner เท่านั้นค่ะ", flags: 64 });
-      }
-
-      try {
-        await message.delete().catch(() => { });
-        lastResetAt = Date.now();
-
-        const { payload, attachment } = await buildTopLeaderboardPayload(message.guild, supabase);
-        await message.channel.send({ ...payload, files: [attachment] });
-      } catch (err) {
-        console.error("[resetTop] b!reset-top error:", err);
-        message.channel.send("❌ เกิดข้อผิดพลาดในการโหลดข้อมูลตารางอันดับค่ะ").catch(() => { });
-      }
-    }
-  });
+  // (คำสั่งสร้างกระดานจัดอันดับ b!reset-top ถูกย้ายไปเป็น Slash Command /send-component [Owner Only])
 
   // 2. Interaction: ปุ่ม 🔄 refresh
   client.on("interactionCreate", async (interaction) => {
@@ -994,7 +970,10 @@ function setupResetTop(client, supabaseClient) {
         userRankText = `### <:bee20000:1256669436350562355>︲__\` สถิติจัดอันดับมินิเกม${periodName}ของคุณ 𓂃 \`__\n\n<@${interaction.user.id}> คุณยังไม่มีประวัติการชนะมินิเกมในรอบนี้เลยค่ะ 🎮\nมาลองร่วมสนุกเล่นมินิเกมเพื่อสะสมชัยชนะกันนะคะ!`;
       } else {
         const rankBadge = userRank.rank === 1 ? "🥇" : userRank.rank === 2 ? "🥈" : userRank.rank === 3 ? "🥉" : "📊";
-        userRankText = `### <:bee20000:1256669436350562355>︲__\` สถิติจัดอันดับมินิเกม${periodName}ของคุณ 𓂃 \`__\n\n<@${interaction.user.id}>\n${rankBadge} **อันดับของคุณ:** **อันดับที่ ${userRank.rank}** (จากผู้เล่นทั้งหมด ${userRank.totalPlayers} คน)\n⚔️ **ชนะทั้งหมด:** **${userRank.wins}** ครั้ง\n${pointEmojiStr} **คะแนนรวมที่ได้:** **${userRank.points}** แต้ม`;
+        const winsStr = (Number(userRank.wins) || 0).toLocaleString();
+        const pointsStr = (Number(userRank.points) || 0).toLocaleString();
+        const totalPStr = (Number(userRank.totalPlayers) || 0).toLocaleString();
+        userRankText = `### <:bee20000:1256669436350562355>︲__\` สถิติจัดอันดับมินิเกม${periodName}ของคุณ 𓂃 \`__\n\n<@${interaction.user.id}>\n${rankBadge} **อันดับของคุณ:** **อันดับที่ ${userRank.rank}** (จากผู้เล่นทั้งหมด ${totalPStr} คน)\n⚔️ **ชนะทั้งหมด:** **${winsStr}** ครั้ง\n${pointEmojiStr} **คะแนนรวมที่ได้:** **${pointsStr}** แต้ม`;
       }
 
       return interaction.reply({
@@ -1049,7 +1028,9 @@ function setupResetTop(client, supabaseClient) {
         const emoji = rankEmojis[i];
         if (i < top10.length) {
           const item = top10[i];
-          lines.push(`${emoji} — <@${item.discord_id}> ชนะ ${item.wins} ครั้ง (${pointEmojiStr} ${item.points})`);
+          const winsStr = (Number(item.wins) || 0).toLocaleString();
+          const pointsStr = (Number(item.points) || 0).toLocaleString();
+          lines.push(`${emoji} — <@${item.discord_id}> ชนะ ${winsStr} ครั้ง (${pointEmojiStr} ${pointsStr})`);
         } else {
           lines.push(`${emoji} — <@0> ชนะ 0 ครั้ง (${pointEmojiStr} 0)`);
         }
@@ -1059,7 +1040,10 @@ function setupResetTop(client, supabaseClient) {
       let userRankText = '';
       if (userRank && userRank.rank) {
         const rankBadge = userRank.rank === 1 ? "🥇" : userRank.rank === 2 ? "🥈" : userRank.rank === 3 ? "🥉" : "📊";
-        userRankText = `👤 **อันดับของคุณ (<@${interaction.user.id}>) ในเกมนี้:**\n${rankBadge} **อันดับที่ ${userRank.rank}** (จาก ${userRank.totalPlayers} คน) | ⚔️ **ชนะ ${userRank.wins} ครั้ง** (${pointEmojiStr} **${userRank.points} แต้ม**)`;
+        const winsStr = (Number(userRank.wins) || 0).toLocaleString();
+        const pointsStr = (Number(userRank.points) || 0).toLocaleString();
+        const totalPStr = (Number(userRank.totalPlayers) || 0).toLocaleString();
+        userRankText = `👤 **อันดับของคุณ (<@${interaction.user.id}>) ในเกมนี้:**\n${rankBadge} **อันดับที่ ${userRank.rank}** (จาก ${totalPStr} คน) | ⚔️ **ชนะ ${winsStr} ครั้ง** (${pointEmojiStr} **${pointsStr} แต้ม**)`;
       } else {
         userRankText = `👤 **อันดับของคุณ (<@${interaction.user.id}>):** ยังไม่มีประวัติการชนะในเกมนี้ค่ะ 🎮`;
       }

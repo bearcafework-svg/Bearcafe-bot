@@ -199,6 +199,39 @@ function setupHealJai(client) {
         });
         componentName = "7️⃣︰กล่องความประทับใจ (พรีวิว)";
         break;
+      case "minigame_top": {
+        if (!isOwner) {
+          return interaction.reply({
+            content: "❌ ขออภัยค่ะ ตัวเลือก **กระดานจัดอันดับหมีติดเกม** สงวนสิทธิ์การใช้งานเฉพาะ Owner เท่านั้นนะคะ 👑",
+            flags: FLAG_EPHEMERAL
+          });
+        }
+
+        await interaction.deferReply({ flags: FLAG_EPHEMERAL }).catch(() => {});
+        try {
+          const { buildTopLeaderboardPayload } = require("../minigames/resetTop");
+          const { createClient } = require("@supabase/supabase-js");
+          const supabase = createClient(
+            process.env.SUPABASE_URL,
+            process.env.SUPABASE_SERVICE_ROLE_KEY,
+            { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
+          );
+
+          const { payload: topPayload, attachment } = await buildTopLeaderboardPayload(targetChannel.guild, supabase);
+          await targetChannel.send({ ...topPayload, files: [attachment] });
+
+          return interaction.editReply({
+            content: `✅ ส่ง **กระดานจัดอันดับหมีติดเกม (Minigame Leaderboard)** ไปยังห้อง <#${targetChannel.id}> สำเร็จเรียบร้อยแล้วค่ะ! 🏆`,
+            flags: FLAG_EPHEMERAL
+          });
+        } catch (err) {
+          console.error("[HealJai] Error sending minigame_top component:", err);
+          return interaction.editReply({
+            content: `❌ เกิดข้อผิดพลาดในการส่งกระดานจัดอันดับ: ${err.message}`,
+            flags: FLAG_EPHEMERAL
+          });
+        }
+      }
       case "voice_board": {
         const { createAndSendVoiceBoard } = require("../voiceBoard");
         const msg = await createAndSendVoiceBoard(targetChannel);
@@ -209,7 +242,7 @@ function setupHealJai(client) {
           });
         }
         return interaction.reply({
-          content: `✅ ส่ง **8️⃣︰บอร์ดห้องเสียงหาเพื่อน (Voice Board)** ไปยังห้อง <#${targetChannel.id}> สำเร็จเรียบร้อยแล้วค่ะ!\n> 💡 *ระบบเริ่มทำงานและเชื่อมต่อการอัปเดตเรียลไทม์ 24 ชม. ทันที*`,
+          content: `✅ ส่ง **บอร์ดห้องเสียงหาเพื่อน (Voice Board)** ไปยังห้อง <#${targetChannel.id}> สำเร็จเรียบร้อยแล้วค่ะ!\n> 💡 *ระบบเริ่มทำงานและเชื่อมต่อการอัปเดตเรียลไทม์ 24 ชม. ทันที*`,
           flags: FLAG_EPHEMERAL,
         });
       }

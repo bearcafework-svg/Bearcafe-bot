@@ -184,11 +184,20 @@ async function handleStoreButtonInteraction(interaction, supabase, client) {
       .setValue(String(item?.wins_required ?? 0))
       .setRequired(false);
 
+    const stockInput = new TextInputBuilder()
+      .setCustomId("item_stock")
+      .setLabel("จำนวนสต็อกคงเหลือ (0 = ไม่จำกัด)")
+      .setStyle(TextInputStyle.Short)
+      .setValue(item?.stock === -1 || item?.stock === undefined ? "0" : String(item.stock))
+      .setPlaceholder("ใส่ 0 หากไม่จำกัด หรือใส่จำนวนชิ้น เช่น 10")
+      .setRequired(false);
+
     modal.addComponents(
       new ActionRowBuilder().addComponents(nameInput),
       new ActionRowBuilder().addComponents(descInput),
       new ActionRowBuilder().addComponents(pointsInput),
       new ActionRowBuilder().addComponents(winsInput),
+      new ActionRowBuilder().addComponents(stockInput),
     );
 
     return interaction.showModal(modal);
@@ -323,6 +332,81 @@ async function handleStoreButtonInteraction(interaction, supabase, client) {
     });
   }
 
+  // 4.5 ปุ่มเลือกสลับการจำกัด 1 ครั้ง/คน: akari_store_limit_select_btn
+  if (customId === "akari_store_limit_select_btn") {
+    const items = await getTenantStoreItems(supabase, interaction.guildId);
+
+    if (!items.some((i) => i.is_configured)) {
+      return interaction.reply({
+        flags: MessageFlags.Ephemeral | FLAG_V2,
+        components: [
+          {
+            type: 17,
+            components: [
+              {
+                type: 10,
+                content: `## <:lowwarning:1548772721679278180>︲__\` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ ยังไม่มีของรางวัลที่ตั้งค่า 𓂃 \`__\n` +
+                  `> ยังไม่มีของรางวัลใดถูกตั้งค่าในระบบ กรุณากรอกข้อมูลรางวัลผ่านปุ่มแก้ไข (📝) ก่อนนะคะ! ✨`,
+              },
+            ],
+          },
+        ],
+      });
+    }
+
+    const msgId = interaction.message?.id || "";
+    const slotSelect = new StringSelectMenuBuilder()
+      .setCustomId(`akari_store_limit_slot_target:${msgId}`)
+      .setPlaceholder("🔒︲เลือกช่องของรางวัลที่ต้องการสลับการจำกัดสิทธิ์...")
+      .addOptions(
+        items.map((it, idx) => {
+          const s = idx + 1;
+          const isRole = it.reward_type === "role";
+          const currentLimit = isRole
+            ? "ตรวจยศซ้ำอัตโนมัติ"
+            : (it.limit_type === "once_per_user" ? "จำกัด 1 ครั้ง/คน" : "แลกได้ไม่จำกัด");
+
+          const emojiMap = {
+            1: { id: "1548948434982141993", name: "minecraft1yellow" },
+            2: { id: "1548948476182798416", name: "minecraft2yellow" },
+            3: { id: "1548948499846926346", name: "minecraft3yellow" },
+          };
+
+          return {
+            label: `รางวัล ${s}: ${it.name || "(ว่าง — ยังไม่ตั้งชื่อ)"}`,
+            value: String(s),
+            description: `สถานะ: ${currentLimit}${isRole ? " (ประเภทยศ)" : ""}`,
+            emoji: emojiMap[s],
+          };
+        })
+      );
+
+    return interaction.reply({
+      flags: MessageFlags.Ephemeral | FLAG_V2,
+      components: [
+        {
+          type: 17,
+          components: [
+            {
+              type: 10,
+              content: `## 🔒︲__\` 𝖲𝗍𝗈𝗋𝖾 𝗅𝗂𝗆𝗂𝗍 ₊ เลือกช่องที่ต้องการสลับการจำกัดสิทธิ์ 𓂃 \`__\n` +
+                `> กรุณาเลือกช่องของรางวัลเพื่อสลับระหว่าง **จำกัด 1 ครั้ง/คน** กับ **แลกได้ไม่จำกัด**:\n` +
+                `-# *หมายเหตุ: สำหรับของรางวัลประเภทยศ ระบบจะตรวจยศซ้ำอัตโนมัติอยู่แล้วค่ะ*`,
+            },
+            {
+              type: 14,
+              spacing: 2,
+            },
+            {
+              type: 1,
+              components: [slotSelect],
+            },
+          ],
+        },
+      ],
+    });
+  }
+
   // 5. ปุ่มกดแลกของรางวัลจากหน้าร้าน: akari_store_redeem_btn_1/2/3
   if (customId.startsWith("akari_store_redeem_btn_")) {
     const slot = parseInt(customId.replace("akari_store_redeem_btn_", ""), 10);
@@ -346,7 +430,7 @@ async function handleStoreButtonInteraction(interaction, supabase, client) {
       });
     }
 
-    const eligibility = await checkUserRedemptionEligibility(supabase, interaction.guildId, interaction.user.id, slot, item);
+    const eligibility = await checkUserRedemptionEligibility(supabase, interaction.guildId, interaction.user.id, slot, item, interaction.member);
     if (!eligibility.eligible) {
       return interaction.reply({
         flags: MessageFlags.Ephemeral | FLAG_V2,
@@ -575,6 +659,44 @@ async function handleStoreModalSubmit(interaction, supabase) {
     });
   }
 
+  const stockStr = interaction.fields.getTextInputValue("item_stock")?.trim() || "0";
+  if (!/^\d+$/.test(stockStr)) {
+    return interaction.reply({
+      flags: MessageFlags.Ephemeral | FLAG_V2,
+      components: [
+        {
+          type: 17,
+          components: [
+            {
+              type: 10,
+              content: `## <:lowwarning:1548772721679278180>︲__\` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ สต็อกต้องเป็นตัวเลข 𓂃 \`__\n` +
+                `> จำนวนสต็อกต้องเป็น **ตัวเลขจำนวนเต็ม 0 ขึ้นไป** (เช่น 0 หากไม่จำกัด หรือใส่จำนวนชิ้น เช่น 10) ค่ะ!`,
+            },
+          ],
+        },
+      ],
+    });
+  }
+  const parsedStock = parseInt(stockStr, 10);
+  if (parsedStock < 0 || parsedStock > 1000000) {
+    return interaction.reply({
+      flags: MessageFlags.Ephemeral | FLAG_V2,
+      components: [
+        {
+          type: 17,
+          components: [
+            {
+              type: 10,
+              content: `## <:lowwarning:1548772721679278180>︲__\` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ สต็อกไม่อยู่ในเกณฑ์ 𓂃 \`__\n` +
+                `> จำนวนสต็อกต้องอยู่ระหว่าง **0 ถึง 1,000,000** ชิ้นค่ะ!`,
+            },
+          ],
+        },
+      ],
+    });
+  }
+  const stock = parsedStock === 0 ? -1 : parsedStock;
+
   // 1. รับทราบ interaction ทันทีเพื่อป้องกัน Timeout 3 วินาทีของ Discord
   await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => {});
 
@@ -588,7 +710,8 @@ async function handleStoreModalSubmit(interaction, supabase) {
     existingItem.name === name &&
     (existingItem.description || "") === desc &&
     existingItem.points_cost === pointsCost &&
-    existingItem.wins_required === winsRequired
+    existingItem.wins_required === winsRequired &&
+    (existingItem.stock ?? -1) === stock
   ) {
     return interaction.editReply({
       flags: FLAG_V2,
@@ -614,6 +737,7 @@ async function handleStoreModalSubmit(interaction, supabase) {
     description: desc,
     points_cost: pointsCost,
     wins_required: winsRequired,
+    stock,
     emoji,
     is_configured: true,
   });
@@ -810,6 +934,93 @@ async function handleStoreSelectMenus(interaction, supabase) {
         },
       ],
     });
+  }
+
+  // เมนูเลือกช่องของรางวัลเพื่อสลับการจำกัดสิทธิ์ (1 ครั้ง/คน vs ไม่จำกัด): akari_store_limit_slot_target
+  if (customId.startsWith("akari_store_limit_slot_target")) {
+    const raw = customId.replace("akari_store_limit_slot_target:", "");
+    const msgId = raw;
+    const slot = parseInt(interaction.values[0], 10);
+
+    const items = await getTenantStoreItems(supabase, interaction.guildId);
+    const item = items.find((i) => i.slot === slot);
+
+    if (!item || !item.is_configured) {
+      return interaction.reply({
+        flags: MessageFlags.Ephemeral | FLAG_V2,
+        components: [
+          {
+            type: 17,
+            components: [
+              {
+                type: 10,
+                content: `## <:lowwarning:1548772721679278180>︲__\` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ ช่องนี้ยังไม่ได้ตั้งค่า 𓂃 \`__\n` +
+                  `> ช่องที่ ${slot} ยังไม่ได้ตั้งค่า กรุณากรอกข้อมูลรางวัลผ่านปุ่มแก้ไข (📝) ก่อนนะคะ! ✨`,
+              },
+            ],
+          },
+        ],
+      });
+    }
+
+    if (item.reward_type === "role") {
+      return interaction.reply({
+        flags: MessageFlags.Ephemeral | FLAG_V2,
+        components: [
+          {
+            type: 17,
+            components: [
+              {
+                type: 10,
+                content: `## ℹ️︲__\` 𝖲𝗍𝗈𝗋𝖾 𝗅𝗂𝗆𝗂𝗍 ₊ รางวัลประเภทยศ 𓂃 \`__\n` +
+                  `> ของรางวัลช่องที่ ${slot} (${item.name}) เป็น **ประเภทยศ Discord**\n` +
+                  `> ระบบได้รับการตั้งค่าให้ **ตรวจยศซ้ำอัตโนมัติ** อยู่แล้วค่ะ ผู้เล่นที่มีบทบาทนี้อยู่แล้วจะไม่สามารถแลกรับซ้ำได้`,
+              },
+            ],
+          },
+        ],
+      });
+    }
+
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => {});
+
+    const newLimit = item.limit_type === "once_per_user" ? "unlimited" : "once_per_user";
+    await saveTenantStoreItem(supabase, interaction.guildId, slot, {
+      limit_type: newLimit,
+    });
+
+    const editReplyPromise = interaction.editReply({
+      flags: FLAG_V2,
+      components: [
+        {
+          type: 17,
+          components: [
+            {
+              type: 10,
+              content: "## <:50121checkmark:1358584609087946867>︲__` Successfully fixed ₊ แก้ไขสำเร็จ 𓂃 `__",
+            },
+          ],
+        },
+      ],
+    }).catch(() => {});
+
+    // อัปเดต Component V2 ของแดชบอร์ดหลักในห้องแชท
+    if (msgId && interaction.channel) {
+      (async () => {
+        try {
+          const [originalMsg, storeConfig, updatedItems] = await Promise.all([
+            interaction.channel.messages.fetch(msgId).catch(() => null),
+            getTenantStoreConfig(supabase, interaction.guildId),
+            getTenantStoreItems(supabase, interaction.guildId),
+          ]);
+          if (originalMsg) {
+            await originalMsg.edit(buildStoreSettingsDashboard(interaction.guild, storeConfig, updatedItems)).catch(() => {});
+          }
+        } catch (err) {}
+      })();
+    }
+
+    return await editReplyPromise;
   }
 
   // เมนูเลือกยศ Discord สำหรับช่องที่ระบุ: akari_store_role_selected_slot_1/2/3

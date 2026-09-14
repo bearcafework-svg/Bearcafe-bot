@@ -22,6 +22,7 @@ function createDefaultItem(slot) {
     reward_type: "custom",
     role_id: null,
     limit_type: "unlimited",
+    stock: -1, // -1 = ไม่จำกัด, 0 = สินค้าหมด, >0 = จำนวนชิ้นคงเหลือ
     emoji: defaultEmojis[slot] || "🎁",
     is_active: false,
     is_configured: false,
@@ -149,6 +150,7 @@ async function getTenantStoreItems(supabase, guildId) {
               reward_type: item.reward_type || "custom",
               role_id: item.role_id || null,
               limit_type: item.limit_type || "unlimited",
+              stock: typeof item.stock === "number" ? item.stock : -1,
               emoji: item.emoji || "🎁",
               is_active: Boolean(item.is_active),
               is_configured: hasConfig,
@@ -202,9 +204,10 @@ async function saveTenantStoreItem(supabase, guildId, slot, itemData) {
         reward_type: updatedItem.reward_type,
         role_id: updatedItem.role_id,
         limit_type: updatedItem.limit_type,
+        stock: typeof updatedItem.stock === "number" ? updatedItem.stock : -1,
         emoji: updatedItem.emoji,
         is_active: updatedItem.is_active,
-      });
+      }, { onConflict: "guild_id,slot" });
     } catch (err) {
       console.warn(`[akari-store] saveTenantStoreItem DB error for ${guildId}:`, err.message);
     }
@@ -219,73 +222,61 @@ async function saveTenantStoreItem(supabase, guildId, slot, itemData) {
 async function getUserTenantScore(supabase, guildId, userId) {
   if (!guildId || !userId) return { points: 0, wins: 0 };
 
-  if (!supabase) return { points: 0, wins: 0 };
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from("tenant_minigame_scores")
+        .select("points, wins")
+        .eq("guild_id", guildId)
+        .eq("user_id", userId)
+        .maybeSingle();
 
-  try {
-    const { data, error } = await supabase
-      .from("tenant_minigame_scores")
-      .select("points, wins")
-      .eq("guild_id", guildId)
-      .eq("user_id", userId)
-      .maybeSingle();
-
-    if (error || !data) {
-      return { points: 0, wins: 0 };
+      if (!error && data) {
+        return {
+          points: Number(data.points) || 0,
+          wins: Number(data.wins) || 0,
+        };
+      }
+    } catch (err) {
+      console.warn(`[akari-store] getUserTenantScore error:`, err.message);
     }
-
-    return {
-      points: Number(data.points) || 0,
-      wins: Number(data.wins) || 0,
-    };
-  } catch (err) {
-    console.warn(`[akari-store] getUserTenantScore error:`, err.message);
-    return { points: 0, wins: 0 };
   }
+
+  return { points: 0, wins: 0 };
 }
 
 /**
- * ตรวจสอบสิทธิ์การแลกของรางวัลของผู้เล่น
+ * ตรวจสอบความถูกต้องและสิทธิ์การแลกของรางวัลของผู้เล่น
  */
-async function checkUserRedemptionEligibility(supabase, guildId, userId, slotOrItem, optionalItem) {
-  let slot = 1;
-  let item = null;
-  if (typeof slotOrItem === "object" && slotOrItem !== null) {
-    item = slotOrItem;
-    slot = item.slot || 1;
-  } else {
-    slot = Number(slotOrItem);
-    item = optionalItem;
-  }
-
-  if (!item) {
-    const items = await getTenantStoreItems(supabase, guildId);
-    item = items.find((i) => i.slot === slot) || createDefaultItem(slot);
-  }
-
-  const userScore = await getUserTenantScore(supabase, guildId, userId);
-
-  // 1. ตรวจสอบว่าไอเทมเปิดใช้งานอยู่หรือไม่
-  if (!item.is_active) {
+async function checkUserRedemptionEligibility(supabase, guildId, userId, slot, item, member = null) {
+  if (!item || !item.is_active || !item.is_configured) {
     return {
       eligible: false,
-      reason: "ของรางวัลชิ้นนี้ยังไม่เปิดให้แลกในขณะนี้ค่ะ",
-      currentPoints: userScore.points,
-      currentWins: userScore.wins,
+      reason: "ขออภัยด้วยนะคะ ของรางวัลชิ้นนี้ยังไม่เปิดให้แลกในขณะนี้ค่ะ",
+    };
+  }
+
+  // 1. ตรวจสอบสต็อกคงเหลือ (Stock Check)
+  if (typeof item.stock === "number" && item.stock === 0) {
+    return {
+      eligible: false,
+      reason: "ขออภัยด้วยนะคะ ของรางวัลชิ้นนี้สินค้าหมดสต็อกแล้วค่ะ (Out of Stock)",
     };
   }
 
   // 2. ตรวจสอบแต้มสะสม
+  const userScore = await getUserTenantScore(supabase, guildId, userId);
   if (userScore.points < item.points_cost) {
     const diff = item.points_cost - userScore.points;
     return {
       eligible: false,
-      reason: `แต้มสะสมของคุณไม่เพียงพอค่ะ (ต้องการอีก **${diff.toLocaleString()} แต้ม**)`,
+      reason: `แต้มของคุณไม่เพียงพอสำหรับการแลกของรางวัลนี้ค่ะ (ขาดอีก **${diff.toLocaleString()} แต้ม**)`,
       currentPoints: userScore.points,
       currentWins: userScore.wins,
     };
   }
 
-  // 3. ตรวจสอบจำนวนการชนะ (ถ้ามีกำหนด)
+  // 3. ตรวจสอบจำนวนครั้งที่ชนะขั้นต่ำ
   if (item.wins_required > 0 && userScore.wins < item.wins_required) {
     const diffWins = item.wins_required - userScore.wins;
     return {
@@ -296,8 +287,20 @@ async function checkUserRedemptionEligibility(supabase, guildId, userId, slotOrI
     };
   }
 
-  // 4. ตรวจสอบการจำกัดสิทธิ์ 1 ครั้งต่อผู้เล่น (Once per user)
-  if (item.limit_type === "once_per_user") {
+  // 4. ตรวจสอบของรางวัลประเภทยศ (Live Role Check บนตัวผู้เล่นใน Discord)
+  if (item.reward_type === "role" && item.role_id) {
+    if (member && member.roles && member.roles.cache && member.roles.cache.has(item.role_id)) {
+      return {
+        eligible: false,
+        reason: `คุณมีบทบาท/ยศ <@&${item.role_id}> อยู่ในครอบครองเรียบร้อยแล้วค่ะ จึงไม่สามารถแลกรับซ้ำได้`,
+        currentPoints: userScore.points,
+        currentWins: userScore.wins,
+      };
+    }
+  }
+
+  // 5. ตรวจสอบการจำกัดสิทธิ์ 1 ครั้งต่อคน สำหรับของรางวัล Custom (Once per user)
+  if (item.reward_type === "custom" && item.limit_type === "once_per_user") {
     const cacheKey = `${guildId}:${userId}:${slot}`;
     if (userRedemptionsCache.has(cacheKey)) {
       return {
@@ -339,14 +342,14 @@ async function checkUserRedemptionEligibility(supabase, guildId, userId, slotOrI
 }
 
 /**
- * ดำเนินการแลกของรางวัล (ตัดแต้ม, มอบยศ Discord, ส่งใบเสร็จ Log, บันทึกประวัติ)
+ * ดำเนินการแลกของรางวัล (ตัดแต้ม, มอบยศ Discord พร้อม Rollback คืนแต้ม, ตัดสต็อก, ส่งใบเสร็จ Log, บันทึกประวัติ)
  */
 async function executeRedemption(client, supabase, guild, member, slot, item) {
   const guildId = guild.id;
   const userId = member.id;
 
   // 1. ตรวจสอบสิทธิ์อีกครั้งเพื่อความปลอดภัย (Atomic Check)
-  const eligibility = await checkUserRedemptionEligibility(supabase, guildId, userId, slot, item);
+  const eligibility = await checkUserRedemptionEligibility(supabase, guildId, userId, slot, item, member);
   if (!eligibility.eligible) {
     return { success: false, error: eligibility.reason };
   }
@@ -355,7 +358,7 @@ async function executeRedemption(client, supabase, guild, member, slot, item) {
   let newPoints = eligibility.currentPoints - item.points_cost;
   if (supabase) {
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from("tenant_minigame_scores")
         .update({
           points: newPoints,
@@ -378,7 +381,7 @@ async function executeRedemption(client, supabase, guild, member, slot, item) {
   const cacheKey = `${guildId}:${userId}:${slot}`;
   userRedemptionsCache.set(cacheKey, true);
 
-  // 3. จัดการของรางวัลตามประเภท
+  // 3. จัดการของรางวัลตามประเภท (พร้อมระบบ Rollback คืนแต้มหากมอบยศไม่สำเร็จ)
   let roleAdded = false;
   let roleError = null;
 
@@ -395,9 +398,36 @@ async function executeRedemption(client, supabase, guild, member, slot, item) {
       console.error(`[akari-store] Failed to add role ${item.role_id} to ${userId}:`, err.message);
       roleError = "บอทไม่มีสิทธิ์มอบยศนี้ (กรุณาให้แอดมินลากตำแหน่งยศบอทไว้สูงกว่ายศของรางวัล)";
     }
+
+    // 🛡️ หากมอบยศไม่สำเร็จ ให้คืนแต้มทันที (Auto Rollback)
+    if (roleError) {
+      if (supabase) {
+        await supabase
+          .from("tenant_minigame_scores")
+          .update({
+            points: eligibility.currentPoints,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("guild_id", guildId)
+          .eq("user_id", userId)
+          .catch(() => {});
+      }
+      userRedemptionsCache.delete(cacheKey);
+      return {
+        success: false,
+        error: `ไม่สามารถมอบยศได้: ${roleError}\n> 💡 **ระบบได้ทำการคืนแต้ม (${item.points_cost.toLocaleString()} แต้ม) ให้คุณเรียบร้อยแล้วค่ะ**`,
+      };
+    }
   }
 
-  // 4. บันทึกประวัติการแลกลงฐานข้อมูล
+  // 4. ตัดสต็อกของรางวัลคงเหลือ (หากตั้งค่าไว้มากกว่า 0)
+  if (typeof item.stock === "number" && item.stock > 0) {
+    const updatedStock = Math.max(0, item.stock - 1);
+    await saveTenantStoreItem(supabase, guildId, slot, { stock: updatedStock });
+    item.stock = updatedStock;
+  }
+
+  // 5. บันทึกประวัติการแลกลงฐานข้อมูล
   if (supabase) {
     try {
       await supabase.from("tenant_store_redemptions").insert({

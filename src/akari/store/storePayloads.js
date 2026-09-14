@@ -122,13 +122,22 @@ function buildStoreSettingsDashboard(guild, storeConfig, items) {
       const rewardText = item.reward_type === "role"
         ? (item.role_id ? `ยศ <@&${item.role_id}>` : "ยศ *(ยังไม่ระบุ)*")
         : "ของรางวัลจริง / สิทธิ์พิเศษ";
-      const limitText = item.limit_type === "once_per_user" ? "(จำกัด 1 ครั้ง/คน)" : "(แลกได้ไม่จำกัด)";
+      const limitText = item.reward_type === "role"
+        ? "(ตรวจยศซ้ำอัตโนมัติ)"
+        : (item.limit_type === "once_per_user" ? "(จำกัด 1 ครั้ง/คน)" : "(แลกได้ไม่จำกัด)");
       const winsLine = item.wins_required > 0 ? `\n> 🎯⠀**ชนะขั้นต่ำ:** ${item.wins_required.toLocaleString()} ครั้ง` : "";
+
+      let stockText = "ไม่จำกัด";
+      if (typeof item.stock === "number") {
+        if (item.stock === 0) stockText = "❌ สินค้าหมด (0 ชิ้น)";
+        else if (item.stock > 0) stockText = `${item.stock.toLocaleString()} ชิ้น`;
+      }
 
       itemContent = `### ${slotEmoji}︲__\` ${item.name} \`__\n` +
         `> ${statusText}\n` +
         `> ${currEmoji}⠀**ราคา:** ${item.points_cost.toLocaleString()} แต้ม${winsLine}\n` +
         `> 🎁⠀**ของรางวัล:** ${rewardText} ${limitText}\n` +
+        `> 📦⠀**สต็อกคงเหลือ:** ${stockText}\n` +
         `> 📝⠀**คำอธิบาย:** ${item.description || "ไม่พบคำอธิบาย"}`;
     }
 
@@ -198,7 +207,7 @@ function buildStoreSettingsDashboard(guild, storeConfig, items) {
     divider: false,
   });
 
-  // ActionRow 2: ปุ่มกดสำหรับผูกยศ และ เลือกห้อง Log
+  // ActionRow 2: ปุ่มกดสำหรับผูกยศ, จำกัด 1 ครั้ง/คน, และ เลือกห้อง Log
   containerComponents.push({
     type: 1, // ActionRow 2
     components: [
@@ -209,6 +218,15 @@ function buildStoreSettingsDashboard(guild, storeConfig, items) {
         custom_id: "akari_store_role_select_btn",
         emoji: {
           name: "🎖️",
+        },
+      },
+      {
+        type: 2,
+        style: 2, // Secondary (Grey)
+        label: "︲จำกัด 1 ครั้ง/คน",
+        custom_id: "akari_store_limit_select_btn",
+        emoji: {
+          name: "🔒",
         },
       },
       {
@@ -249,12 +267,23 @@ function buildPublicStoreCard(guild, storeConfig, items) {
       const rewardDetail = item.reward_type === "role" && item.role_id
         ? `บทบาท <@&${item.role_id}>`
         : "ของรางวัลจริง / สิทธิ์พิเศษ";
-      const limitText = item.limit_type === "once_per_user" ? "*(จำกัด 1 ครั้งต่อผู้เล่น)*" : "";
+      const limitText = item.reward_type === "role"
+        ? "*(ตรวจยศซ้ำอัตโนมัติ)*"
+        : (item.limit_type === "once_per_user" ? "*(จำกัด 1 ครั้งต่อผู้เล่น)*" : "");
       const winsReq = item.wins_required > 0 ? `\n> 🏆 **จำนวนครั้งที่ชนะขั้นต่ำ:** ${item.wins_required.toLocaleString()} ครั้ง` : "";
+
+      let stockLine = "";
+      if (typeof item.stock === "number") {
+        if (item.stock === 0) {
+          stockLine = `\n> 📦 **สถานะ:** ❌ **สินค้าหมดสต็อก (Out of Stock)**`;
+        } else if (item.stock > 0) {
+          stockLine = `\n> 📦 **สต็อกคงเหลือ:** เหลืออีก **${item.stock.toLocaleString()}** ชิ้น`;
+        }
+      }
 
       itemsBody += `### ${item.emoji}︲__\` ${item.name} 𓂃 \`__\n` +
         `> ${currEmoji} **แต้มที่ต้องใช้:** **${item.points_cost.toLocaleString()}** แต้ม${winsReq}\n` +
-        `> 🎁 **ของรางวัลที่จะได้รับ:** ${rewardDetail} ${limitText}\n` +
+        `> 🎁 **ของรางวัลที่จะได้รับ:** ${rewardDetail} ${limitText}${stockLine}\n` +
         `> 📝 *${item.description || "สะสมแต้มเพื่อแลกรับรางวัล"}*\n\n`;
     });
   }
@@ -263,11 +292,15 @@ function buildPublicStoreCard(guild, storeConfig, items) {
   const buttonComponents = [];
   items.forEach((item) => {
     if (item.is_active) {
+      const isOutOfStock = typeof item.stock === "number" && item.stock === 0;
       buttonComponents.push({
         type: 2,
-        style: 1, // Primary
-        label: `แลก ${item.name} (${item.points_cost.toLocaleString()} แต้ม)`,
+        style: isOutOfStock ? 2 : 1, // Secondary if out of stock, Primary if available
+        label: isOutOfStock
+          ? `สินค้าหมด (${item.name})`
+          : `แลก ${item.name} (${item.points_cost.toLocaleString()} แต้ม)`,
         custom_id: `akari_store_redeem_btn_${item.slot}`,
+        disabled: isOutOfStock,
         emoji: {
           name: item.emoji || "🎁",
         },
@@ -413,6 +446,7 @@ function buildRedemptionReceiptLog(guild, user, item, oldPoints, newPoints, role
               `> 🎁 **ของรางวัล:** **${item.emoji} ${item.name}** (ช่องที่ ${item.slot})\n` +
               `> 💰 **แต้มที่ใช้แลก:** **${item.points_cost.toLocaleString()}** แต้ม\n` +
               `> 📊 **ประวัติแต้ม:** ${oldPoints.toLocaleString()} ➔ **${newPoints.toLocaleString()}** แต้ม\n` +
+              `> 📦 **สต็อกคงเหลือ:** ${typeof item.stock === "number" && item.stock >= 0 ? `${item.stock.toLocaleString()} ชิ้น` : "ไม่จำกัด"}\n` +
               `> 👑 **บทบาท Discord:** ${roleText} (${roleStatus})\n` +
               `> 🕒 **เวลา:** <t:${Math.floor(Date.now() / 1000)}:F> (<t:${Math.floor(Date.now() / 1000)}:R>)\n\n` +
               `-# รายการนี้บันทึกอัตโนมัติโดยระบบร้านค้า Akari Bot`,

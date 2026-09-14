@@ -13,6 +13,13 @@ function initFonts() {
     const fontRegular = path.join(fontsDir, "NotoSansThai-Regular.ttf");
     const fontBold = path.join(fontsDir, "NotoSansThai-Bold.ttf");
 
+    // โหลด System Fonts ของเครื่อง (รวมถึง Emoji fonts เช่น Segoe UI Emoji, Noto Color Emoji, etc.)
+    try {
+      GlobalFonts.loadSystemFonts();
+    } catch (e) {
+      console.warn("[FontLoader] Warning loading system fonts:", e.message);
+    }
+
     if (fs.existsSync(fontRegular)) {
       GlobalFonts.registerFromPath(fontRegular, "Noto Sans Thai");
     }
@@ -21,7 +28,7 @@ function initFonts() {
     }
 
     fontsRegistered = true;
-    console.log("[FontLoader] Registered Noto Sans Thai fonts successfully.");
+    console.log("[FontLoader] Registered Noto Sans Thai and loaded system emoji fonts successfully.");
   } catch (err) {
     console.error("[FontLoader] Error registering fonts:", err.message);
   }

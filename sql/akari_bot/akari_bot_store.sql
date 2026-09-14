@@ -28,11 +28,15 @@ CREATE TABLE IF NOT EXISTS public.tenant_store_items (
     reward_type VARCHAR(16) NOT NULL DEFAULT 'custom', -- 'role' หรือ 'custom'
     role_id VARCHAR(32) DEFAULT NULL,
     limit_type VARCHAR(16) NOT NULL DEFAULT 'unlimited', -- 'unlimited' หรือ 'once_per_user'
+    stock INT NOT NULL DEFAULT -1, -- -1 = ไม่จำกัด (Unlimited), 0 = สินค้าหมด (Out of Stock), >0 = สต็อกคงเหลือ
     emoji TEXT DEFAULT '🎁',
     is_active BOOLEAN DEFAULT false,
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     PRIMARY KEY (guild_id, slot)
 );
+
+-- Migration เผื่อมีตารางเดิมอยู่แล้ว
+ALTER TABLE public.tenant_store_items ADD COLUMN IF NOT EXISTS stock INT NOT NULL DEFAULT -1;
 
 -- 3. ตารางประวัติการแลกของรางวัลของผู้เล่น (Redemptions Log)
 CREATE TABLE IF NOT EXISTS public.tenant_store_redemptions (

@@ -335,11 +335,12 @@ const GUILD_SLASH_COMMANDS = [
         type: ApplicationCommandOptionType.String,
         required: true,
         choices: [
-          { name: "1. บอร์ดอ่านข้อตกลงและนโยบาย (Terms)", value: "terms" },
-          { name: "2. บอร์ดเมนูเครื่องดื่มและสั่งบริการ (Menu)", value: "menu" },
-          { name: "3. แผงตอกบัตรเข้ากะของทีมงาน (Shift)", value: "shift" },
-          { name: "7. กล่องความประทับใจ (Public Showcase Preview)", value: "feedback" },
-          { name: "8. บอร์ดห้องเสียงหาเพื่อน (Voice Board)", value: "voice_board" },
+          { name: "บอร์ดอ่านข้อตกลงและนโยบาย (Terms)", value: "terms" },
+          { name: "บอร์ดเมนูเครื่องดื่มและสั่งบริการ (Menu)", value: "menu" },
+          { name: "แผงตอกบัตรเข้ากะของทีมงาน (Shift)", value: "shift" },
+          { name: "กระดานจัดอันดับหมีติดเกม (Minigame Leaderboard)", value: "minigame_top" },
+          { name: "กล่องความประทับใจ (Public Showcase Preview)", value: "feedback" },
+          { name: "บอร์ดห้องเสียงหาเพื่อน (Voice Board)", value: "voice_board" },
         ],
       },
       {

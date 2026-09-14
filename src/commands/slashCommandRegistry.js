@@ -221,11 +221,11 @@ const GUILD_SLASH_COMMANDS = [
   // 12. /เปิดเกม (Minigames)
   {
     name: "เปิดเกม",
-    description: "เปิดใช้งานมินิเกมประจำช่อง (สำหรับผู้ดูแลระบบ)",
+    description: "เปิดใช้งานมินิเกมในห้องนี้และบันทึกการตั้งค่า (สำหรับผู้ดูแลระบบ)",
     options: [
       {
         name: "เกม",
-        description: "เลือกชื่อมินิเกม 1-14",
+        description: "เลือกชื่อมินิเกม 1-13",
         type: ApplicationCommandOptionType.Integer,
         required: true,
         choices: [

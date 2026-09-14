@@ -60,3 +60,17 @@ ALTER TABLE public.tenant_store_redemptions DISABLE ROW LEVEL SECURITY;
 -- มอบสิทธิ์อ่าน/เขียน
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
+
+-- 4. RPC ฟังก์ชันสำหรับช่วยรัน Migration หรือตรวจสอบฐานข้อมูลอัตโนมัติในอนาคต (เฉพาะ service_role)
+CREATE OR REPLACE FUNCTION public.execute_sql(sql_query TEXT)
+RETURNS JSONB AS $$
+BEGIN
+    EXECUTE sql_query;
+    RETURN jsonb_build_object('success', true);
+EXCEPTION WHEN OTHERS THEN
+    RETURN jsonb_build_object('success', false, 'error', SQLERRM);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION public.execute_sql(TEXT) TO service_role;
+

@@ -1,7 +1,7 @@
 // src/features/minigames/minigames.js — ระบบมินิเกม 10 เกม พร้อมการตอบสนอง Component V2 & State Persistence
 
 const { createClient } = require('@supabase/supabase-js');
-const { MessageFlags, AttachmentBuilder } = require('discord.js');
+const { MessageFlags, AttachmentBuilder, PermissionFlagsBits } = require('discord.js');
 const googleTTS = require('google-tts-api');
 const sharedConfig = require('../../sharedSettings.json');
 const { addPointsWithCap, deductPoints } = require('../../utils/pointManager');
@@ -702,6 +702,16 @@ function setupMinigames(client) {
   client.on('interactionCreate', async (interaction) => {
     // 1. Slash Command /เปิดเกม
     if (interaction.isChatInputCommand() && interaction.commandName === 'เปิดเกม') {
+      if (
+        !interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild) &&
+        !interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)
+      ) {
+        return interaction.reply({
+          content: '❌ คำสั่งนี้สำหรับผู้ดูแลเซิร์ฟเวอร์เท่านั้นค่ะ',
+          flags: FLAG_EPHEMERAL
+        });
+      }
+
       const gameId = interaction.options.getInteger('เกม');
       const gameInfo = GAME_CHANNELS[gameId];
 
@@ -709,18 +719,72 @@ function setupMinigames(client) {
         return interaction.reply({ content: 'ไม่พบมินิเกมที่เลือกค่ะ', flags: FLAG_EPHEMERAL });
       }
 
-      const targetChannel = interaction.guild.channels.cache.get(gameInfo.id);
-      if (!targetChannel) {
-        return interaction.reply({ content: `ไม่พบช่องสำหรับเกม ${gameInfo.name} (${gameInfo.id}) ค่ะ`, flags: FLAG_EPHEMERAL });
+      const targetChannel = interaction.channel;
+      if (!targetChannel || !targetChannel.isTextBased()) {
+        return interaction.reply({
+          content: '❌ กรุณาใช้คำสั่งนี้ในห้องข้อความที่ต้องการเปิดเกมค่ะ',
+          flags: FLAG_EPHEMERAL
+        });
       }
 
-      // Send ephemeral confirmation to command user
+      const newChannelId = targetChannel.id;
+      const oldChannelId = gameInfo.id;
+
+      // 1. หากเกมนี้เคยผูกกับห้องอื่นไว้ ให้เคลียร์เซสชันห้องเดิมออก
+      if (oldChannelId && oldChannelId !== newChannelId) {
+        activeSessions.delete(oldChannelId);
+        processingChannels.delete(oldChannelId);
+        if (supabase) {
+          await supabase.from('minigame_active_sessions').delete().eq('channel_id', oldChannelId).catch(() => {});
+        }
+      }
+
+      // 2. เคลียร์เซสชันค้างเก่าของห้องปัจจุบัน (กรณีเปลี่ยนจากเกมอื่นมาเป็นเกมนี้)
+      activeSessions.delete(newChannelId);
+      processingChannels.delete(newChannelId);
+      if (supabase) {
+        await supabase.from('minigame_active_sessions').delete().eq('channel_id', newChannelId).catch(() => {});
+      }
+
+      // 3. บันทึก / อัปเดตลงตาราง minigame_settings ใน Supabase
+      if (supabase) {
+        try {
+          const { error: dbError } = await supabase
+            .from('minigame_settings')
+            .upsert(
+              {
+                game_id: gameId,
+                game_name: gameInfo.name,
+                channel_id: newChannelId,
+                is_enabled: true,
+                updated_at: new Date().toISOString()
+              },
+              { onConflict: 'game_id' }
+            );
+
+          if (dbError) {
+            console.error(`[minigames] Failed to save minigame_settings for game ${gameId}:`, dbError.message);
+          } else {
+            console.log(`[minigames] 💾 Saved Game ${gameId} (${gameInfo.name}) -> Channel ${newChannelId} to minigame_settings`);
+          }
+        } catch (err) {
+          console.error(`[minigames] Error updating minigame_settings:`, err.message);
+        }
+      }
+
+      // 4. อัปเดตหน่วยความจำ in-memory ของบอททันที
+      GAME_CHANNELS[gameId] = {
+        ...gameInfo,
+        id: newChannelId
+      };
+
+      // 5. ตอบกลับ Ephemeral ยืนยันการผูกห้องและเปิดเกม
       await interaction.reply({
-        content: `✅ เปิดใช้งานเกม **${gameId}. ${gameInfo.name}** ในช่อง <#${gameInfo.id}> เรียบร้อยแล้วค่ะ`,
+        content: `✅ ตั้งค่าและเปิดใช้งานเกม **${gameId}. ${gameInfo.name}** ในห้องนี้ (<#${newChannelId}>) เรียบร้อยแล้วค่ะ\n-# 💾 บันทึกข้อมูลลงฐานข้อมูล \`minigame_settings\` เรียบร้อยแล้ว`,
         flags: FLAG_EPHEMERAL
       });
 
-      // Post first question to the designated channel
+      // 6. ส่งโจทย์ข้อแรกลงในห้องปัจจุบัน
       await sendNextGameQuestion(client, supabase, targetChannel, gameId);
     }
 

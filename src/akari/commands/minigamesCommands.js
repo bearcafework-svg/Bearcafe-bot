@@ -377,6 +377,19 @@ async function handleSetupGames(interaction, supabase, client) {
       });
 
       if (supabase) {
+        // หาช่องเดิมของเกมนี้เพื่อเคลียร์เซสชันค้างเก่า (ถ้ามี)
+        const { data: prevBinding } = await supabase
+          .from("tenant_minigame_channels")
+          .select("channel_id")
+          .eq("guild_id", guild.id)
+          .eq("game_id", gameId)
+          .maybeSingle();
+
+        if (prevBinding && prevBinding.channel_id && prevBinding.channel_id !== newChannel.id) {
+          await supabase.from("tenant_minigame_active_sessions").delete().eq("guild_id", guild.id).eq("channel_id", prevBinding.channel_id).catch(() => {});
+          clearActiveTenantSession(guild.id, prevBinding.channel_id);
+        }
+
         await supabase.from("tenant_minigame_channels").upsert(
           {
             guild_id: guild.id,
@@ -1347,6 +1360,24 @@ async function handleSetGame(interaction, supabase, client) {
             clearActiveTenantSession(guild.id, targetChannel.id);
           }
         }
+      }
+
+      // 2. ตรวจสอบว่าเกมนี้เคยผูกกับห้องอื่นไว้ก่อนหรือไม่ ถ้าเคย ให้ล้าง session ของห้องเดิมออก
+      const { data: prevChannelForGame } = await supabase
+        .from("tenant_minigame_channels")
+        .select("channel_id")
+        .eq("guild_id", guild.id)
+        .eq("game_id", gameId)
+        .maybeSingle();
+
+      if (prevChannelForGame && prevChannelForGame.channel_id && prevChannelForGame.channel_id !== targetChannel.id) {
+        await supabase
+          .from("tenant_minigame_active_sessions")
+          .delete()
+          .eq("guild_id", guild.id)
+          .eq("channel_id", prevChannelForGame.channel_id)
+          .catch(() => {});
+        clearActiveTenantSession(guild.id, prevChannelForGame.channel_id);
       }
 
       // บันทึกการผูกเกมใหม่เข้าห้อง

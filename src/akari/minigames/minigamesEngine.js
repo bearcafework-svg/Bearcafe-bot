@@ -960,23 +960,42 @@ async function restoreTenantChannelsOnStartup(client, supabase) {
   if (!supabase || !client) return;
 
   try {
+    const { data: channels } = await supabase
+      .from('tenant_minigame_channels')
+      .select('guild_id, game_id, channel_id');
+
+    const validChannelKeys = new Set(
+      Array.isArray(channels) ? channels.map(c => `${c.guild_id}:${c.channel_id}`) : []
+    );
+
     const { data: dbSessions } = await supabase
       .from('tenant_minigame_active_sessions')
       .select('guild_id, channel_id, game_id, session_data');
+
+    const orphanChannelIds = [];
 
     if (Array.isArray(dbSessions) && dbSessions.length > 0) {
       for (const row of dbSessions) {
         if (row && row.guild_id && row.channel_id && row.session_data) {
           const sessionKey = `${row.guild_id}:${row.channel_id}`;
-          activeTenantSessions.set(sessionKey, row.session_data);
+          if (validChannelKeys.has(sessionKey)) {
+            activeTenantSessions.set(sessionKey, row.session_data);
+          } else {
+            orphanChannelIds.push(row.channel_id);
+          }
         }
       }
-      console.log(`[akari-minigames] ⚡ โหลด ${dbSessions.length} เซสชันเกมเดิมจาก DB เข้าสู่ RAM (เงียบๆ ไม่ส่งข้อความซ้ำ)`);
+      console.log(`[akari-minigames] ⚡ โหลด ${activeTenantSessions.size} เซสชันเกมที่ถูกต้องจาก DB เข้าสู่ RAM`);
     }
 
-    const { data: channels } = await supabase
-      .from('tenant_minigame_channels')
-      .select('guild_id, game_id, channel_id');
+    if (orphanChannelIds.length > 0) {
+      console.log(`[akari-minigames] 🧹 [Startup] ตรวจพบเซสชันค้างเก่าที่ไม่มีการผูกห้อง ${orphanChannelIds.length} รายการ — กำลังลบออกจาก DB...`);
+      await supabase
+        .from('tenant_minigame_active_sessions')
+        .delete()
+        .in('channel_id', orphanChannelIds)
+        .catch(delErr => console.error('[akari-minigames] Error cleaning up orphan sessions:', delErr.message));
+    }
 
     if (Array.isArray(channels) && channels.length > 0) {
       let newlySpawned = 0;

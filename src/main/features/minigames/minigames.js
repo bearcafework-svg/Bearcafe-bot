@@ -735,7 +735,11 @@ function setupMinigames(client) {
         activeSessions.delete(oldChannelId);
         processingChannels.delete(oldChannelId);
         if (supabase) {
-          await supabase.from('minigame_active_sessions').delete().eq('channel_id', oldChannelId).catch(() => {});
+          try {
+            await supabase.from('minigame_active_sessions').delete().eq('channel_id', oldChannelId);
+          } catch (e) {
+            console.error('[minigames] Error clearing old session:', e.message);
+          }
         }
       }
 
@@ -743,7 +747,11 @@ function setupMinigames(client) {
       activeSessions.delete(newChannelId);
       processingChannels.delete(newChannelId);
       if (supabase) {
-        await supabase.from('minigame_active_sessions').delete().eq('channel_id', newChannelId).catch(() => {});
+        try {
+          await supabase.from('minigame_active_sessions').delete().eq('channel_id', newChannelId);
+        } catch (e) {
+          console.error('[minigames] Error clearing current session:', e.message);
+        }
       }
 
       // 3. บันทึก / อัปเดตลงตาราง minigame_settings ใน Supabase

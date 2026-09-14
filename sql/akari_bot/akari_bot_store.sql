@@ -8,10 +8,14 @@
 CREATE TABLE IF NOT EXISTS public.tenant_store_configs (
     guild_id VARCHAR(32) PRIMARY KEY,
     log_channel_id VARCHAR(32) DEFAULT NULL,
+    currency_emoji TEXT DEFAULT '<:strawberryv2:1548976664090779650>',
     is_enabled BOOLEAN DEFAULT true,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Migration สำหรับเพิ่มคอลัมน์ currency_emoji ในกรณีตารางเดิมถูกสร้างไว้แล้ว
+ALTER TABLE public.tenant_store_configs ADD COLUMN IF NOT EXISTS currency_emoji TEXT DEFAULT '<:strawberryv2:1548976664090779650>';
 
 -- 2. ตารางไอเทมร้านค้า 3 Slots ของแต่ละกิลด์ (Store Items)
 CREATE TABLE IF NOT EXISTS public.tenant_store_items (

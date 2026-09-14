@@ -93,6 +93,10 @@ Akari Bot ใช้ฟอนต์ **Mathematical Sans-Serif Unicode ในร�
 | `conektionbad` | `<:conektionbad:1548760143192260689>` | สถานะห้องปิดอยู่ / ปิดการใช้งาน (สีเทา) |
 | `7596clock` | `<a:7596clock:1160230591892029510>` | นาฬิกานับเวลาถอยหลัง, แสดงความคืบหน้ากำลังประมวลผล |
 | `cuteplant` | `<:cuteplant:1152834055528783872>` | ต้นอ่อนวางประดับท้ายบรรทัด `-#` หมายเหตุ |
+| `643900sevlev` | `<a:643900sevlev:1548947725133942824>` | หัวข้อหลักระบบร้านค้าแลกของรางวัล (`/setting-store`) |
+| `minecraft1yellow` | `<:minecraft1yellow:1548948434982141993>` | หมายเลขไอเทมช่องที่ 1 ของร้านค้า |
+| `minecraft2yellow` | `<:minecraft2yellow:1548948476182798416>` | หมายเลขไอเทมช่องที่ 2 ของร้านค้า |
+| `minecraft3yellow` | `<:minecraft3yellow:1548948499846926346>` | หมายเลขไอเทมช่องที่ 3 ของร้านค้า |
 
 ---
 
@@ -153,6 +157,22 @@ const dashboardPayload = {
               custom_id: "akari_setting_reset_menu",
               placeholder: "🔄︲เลือกมินิเกมเพื่อสั่ง สปอว์น/ส่งโจทย์ใหม่ ทันที",
               options: [/* select options */],
+            },
+          ],
+        },
+        { type: 14, spacing: 1, divider: false }, // Spacer without line
+        {
+          type: 1, // ActionRow 3
+          components: [
+            {
+              type: 2,
+              style: 2, // Secondary
+              label: "︲ตั้งค่าสกุลเงินแต้ม",
+              custom_id: "akari_setting_currency_btn",
+              emoji: {
+                id: "1548976664090779650",
+                name: "strawberryv2",
+              },
             },
           ],
         },
@@ -285,6 +305,323 @@ const progressPayload = {
             "⏳ **ความคืบหน้า:** `5/10` ช่อง (`50%`)\n" +
             "🗑️ **กำลังลบ:** **ทายสำนวนไทย**\n\n" +
             "-# 🛡️ มีการหน่วงเวลา 1.2 วินาทีต่อช่อง เพื่อป้องกัน Discord Rate Limit ︲ <a:7596clock:1160230591892029510>",
+        },
+      ],
+    },
+  ],
+};
+```
+
+---
+
+### 🛍️ แม่แบบที่ 6: การ์ดแดชบอร์ดตั้งค่าร้านค้าแลกของรางวัล (`/setting-store`)
+> เหมาะสำหรับ: แดชบอร์ดจัดการร้านค้าแลกของรางวัลมินิเกมของเซิร์ฟเวอร์ Premium มีปุ่มแก้ไข `📝` ประจำแต่ละช่อง และเมนูสลับเปิด/ปิด
+
+```javascript
+const storeSettingsPayload = {
+  flags: 32768,
+  components: [
+    {
+      type: 17,
+      components: [
+        {
+          type: 9, // Section with Guild Server Profile Thumbnail
+          components: [
+            {
+              type: 10,
+              content:
+                "## <a:643900sevlev:1548947725133942824>︲__` 𝖲𝗍𝗈𝗋𝖾 𝗌𝖾𝗍𝗍𝗂𝗇𝗀 ₊ จัดการร้านค้าแลกของรางวัล 𓂃 `__\n" +
+                "> ตั้งค่าของรางวัลที่ผู้เล่นสามารถนำแต้มสะสมจากการเล่นมินิเกมมาแลกรับได้ (สูงสุด 3 รายการ)\n\n" +
+                "-# **ห้องส่งประวัติการแลก (Log Channel):** <#123456789012345678>\n" +
+                "-# 💡 เมื่อตั้งค่าครบแล้ว พิมพ์คำสั่ง `/open-store` ในห้องที่ต้องการเพื่อเปิดหน้าร้านได้ทันทีค่ะ\n ",
+            },
+          ],
+          accessory: {
+            type: 11,
+            media: {
+              url: "https://cdn.discordapp.com/icons/.../icon.png",
+            },
+          },
+        },
+        { type: 14, spacing: 2, divider: true },
+        {
+          type: 9, // Slot 1 Section
+          components: [
+            {
+              type: 10,
+              content:
+                "### <:minecraft1yellow:1548948434982141993>︲__` ว่าง — ยังไม่ได้ตั้งค่า `__\n" +
+                "> <:conektionbad:1548760143192260689>⠀**สถานะ:** ยังไม่มีข้อมูลของรางวัล\n" +
+                "> 💡 *กดเลือกเมนูด้านล่างเพื่อเริ่มสร้างของรางวัลช่องนี้*",
+            },
+          ],
+          accessory: {
+            type: 2,
+            style: 2,
+            custom_id: "akari_store_edit_modal_1",
+            emoji: { name: "📝" },
+          },
+        },
+        { type: 14, spacing: 2, divider: true },
+        {
+          type: 9, // Slot 2 Section
+          components: [
+            {
+              type: 10,
+              content:
+                "### <:minecraft2yellow:1548948476182798416>︲__` VIP Gold Role `__\n" +
+                "> <:goodconektion:1548760301762121801>⠀**สถานะ:** เปิดใช้งาน\n" +
+                "> 💰⠀**ราคา:** 250 แต้ม\n" +
+                "> 🎁⠀**ของรางวัล:** ยศ <@&คนสวย> (จำกัด 1 ครั้ง/คน)\n" +
+                "> 📝⠀**คำอธิบาย:** ไม่พบคำอธิบาย",
+            },
+          ],
+          accessory: {
+            type: 2,
+            style: 2,
+            custom_id: "akari_store_edit_modal_2",
+            emoji: { name: "📝" },
+          },
+        },
+        { type: 14, spacing: 2, divider: true },
+        {
+          type: 9, // Slot 3 Section
+          components: [
+            {
+              type: 10,
+              content:
+                "### <:minecraft3yellow:1548948499846926346>︲__` บัตรแลกเครื่องดื่ม Bear Cafe `__\n" +
+                "> <:conektionokay:1548760281675599964>⠀**สถานะ:** ปิดใช้งาน\n" +
+                "> 💰⠀**ราคา:** 1,000 แต้ม\n" +
+                "> 🎯⠀**ชนะขั้นต่ำ:** 5 ครั้ง\n" +
+                "> 🎁⠀**ของรางวัล:** ของรางวัลจริง / สิทธิ์พิเศษ (แลกได้ไม่จำกัด)\n" +
+                "> 📝⠀**คำอธิบาย:** โค้ดส่วนลดเครื่องดื่ม 50 บาท (แคปใบเสร็จส่งเปิดทิกเก็ตกับทีมงาน)",
+            },
+          ],
+          accessory: {
+            type: 2,
+            style: 2,
+            custom_id: "akari_store_edit_modal_3",
+            emoji: { name: "📝" },
+          },
+        },
+        { type: 14, spacing: 2, divider: true },
+        {
+          type: 1, // ActionRow 1: Toggle Select Menu
+          components: [
+            {
+              type: 3,
+              custom_id: "akari_store_toggle_select",
+              placeholder: "⚡︲สลับสถานะเปิด / ปิด การใช้งานของรางวัล...",
+              options: [
+                {
+                  label: "รางวัล 1: (ยังไม่ได้ตั้งค่า)",
+                  value: "1",
+                  description: "ยังไม่มีข้อมูลของรางวัล ไม่สามารถเปิดใช้งานได้",
+                  emoji: { id: "1548760143192260689", name: "conektionbad" },
+                },
+                {
+                  label: "รางวัล 2: VIP Gold Role (เปิดอยู่)",
+                  value: "2",
+                  description: "คลิกเพื่อสลับเป็น ปิดใช้งาน",
+                  emoji: { id: "1548760301762121801", name: "goodconektion" },
+                },
+                {
+                  label: "รางวัล 3: บัตรแลกเครื่องดื่ม Bear Cafe (ปิดอยู่)",
+                  value: "3",
+                  description: "คลิกเพื่อสลับเป็น เปิดใช้งาน",
+                  emoji: { id: "1548760281675599964", name: "conektionokay" },
+                },
+              ],
+            },
+          ],
+        },
+        { type: 14, divider: false },
+        {
+          type: 1, // ActionRow 2: Action Buttons
+          components: [
+            {
+              type: 2,
+              style: 1,
+              label: "︲ผูกยศ Discord",
+              custom_id: "akari_store_role_select_btn",
+              emoji: { name: "🎖️" },
+            },
+            {
+              type: 2,
+              style: 2,
+              label: "︲เลือกห้องแจ้งเตือน Log",
+              custom_id: "akari_store_channel_select_btn",
+              emoji: { name: "🔔" },
+            },
+          ],
+        },
+      ],
+    },
+  ],
+};
+```
+
+---
+
+### 🎖️ แม่แบบที่ 7: หน้าต่างเลือกช่องที่จะผูกยศ (`Store Role - Slot Target`)
+> เหมาะสำหรับ: หน้าต่าง Ephemeral เมื่อกดปุ่มผูกยศ เพื่อให้แอดมินเลือกช่องของรางวัลที่ต้องการเปลี่ยนประเภทเป็นยศ Discord
+
+```javascript
+const roleSlotTargetPayload = {
+  flags: 32768,
+  components: [
+    {
+      type: 17,
+      components: [
+        {
+          type: 10,
+          content:
+            "## <a:643900sevlev:1548947725133942824>︲__` 𝖲𝗍𝗈𝗋𝖾 𝗋𝗈𝗅𝖾 ₊ เลือกช่องที่ต้องการผูกยศ 𓂃 `__\n" +
+            "> กรุณาเลือกช่องของรางวัลที่ต้องการเปลี่ยนประเภทเป็น **ยศ Discord** เมื่อผู้เล่นแลกของรางวัล บอทจะมอบยศนี้ให้อัตโนมัติ:",
+        },
+        {
+          type: 14,
+          spacing: 2,
+        },
+        {
+          type: 1,
+          components: [
+            {
+              type: 3,
+              custom_id: "akari_store_role_slot_target",
+              placeholder: "📦︲เลือกช่องไอเทมที่ต้องการผูกยศ...",
+              options: [
+                {
+                  label: "รางวัล 1: (ว่าง — ยังไม่ตั้งชื่อ)",
+                  value: "1",
+                  description: "⚠️ ยังไม่ได้ตั้งค่า — กรุณาตั้งค่ารางวัลก่อน",
+                  emoji: {
+                    id: "1548948434982141993",
+                    name: "minecraft1yellow",
+                  },
+                },
+                {
+                  label: "รางวัล 2: VIP Gold Role",
+                  value: "2",
+                  description: "ตั้งค่ายศที่จะมอบให้เมื่อแลกช่อง 2",
+                  emoji: {
+                    id: "1548948476182798416",
+                    name: "minecraft2yellow",
+                  },
+                },
+                {
+                  label: "รางวัล 3: (ว่าง — ยังไม่ตั้งชื่อ)",
+                  value: "3",
+                  description: "⚠️ ยังไม่ได้ตั้งค่า — กรุณาตั้งค่ารางวัลก่อน",
+                  emoji: {
+                    id: "1548948499846926346",
+                    name: "minecraft3yellow",
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  ],
+};
+```
+
+---
+
+### 🎭 แม่แบบที่ 8: หน้าต่างเลือกยศ Discord สำหรับช่องที่ระบุ (`Store Role - Role Select`)
+> เหมาะสำหรับ: หน้าต่าง Ephemeral ต่อจากข้อ 7 ให้แอดมินเลือก Role เพื่อผูกเข้ากับช่องรางวัลโดยตรง
+
+```javascript
+const roleSelectPayload = {
+  flags: 32768,
+  components: [
+    {
+      type: 17,
+      components: [
+        {
+          type: 10,
+          content:
+            "##  <a:643900sevlev:1548947725133942824>︲__` 𝖲𝗍𝗈𝗋𝖾 𝗋𝗈𝗅𝖾 ₊ ผูกยศสำหรับรางวัล 1 𓂃 `__\n" +
+            "> กรุณาเลือกบทบาท Discord ที่ผู้เล่นจะได้รับเมื่อแลกรางวัลช่องที่ 1:",
+        },
+        {
+          type: 14,
+          spacing: 2,
+        },
+        {
+          type: 1,
+          components: [
+            {
+              type: 6, // RoleSelectMenu
+              custom_id: "akari_store_role_selected_slot_1",
+              placeholder: "📦︲เลือกยศ Discord ที่ต้องการมอบให้...",
+            },
+          ],
+        },
+      ],
+    },
+  ],
+};
+```
+
+---
+
+### 🔔 แม่แบบที่ 9: หน้าต่างเลือกห้องบันทึกประวัติการแลก (`Store Log - Channel Select`)
+> เหมาะสำหรับ: หน้าต่าง Ephemeral เมื่อกดปุ่มเลือกห้องแจ้งเตือน Log ให้แอดมินเลือก Text Channel
+
+```javascript
+const logChannelSelectPayload = {
+  flags: 32768,
+  components: [
+    {
+      type: 17,
+      components: [
+        {
+          type: 10,
+          content:
+            "## 🔔︲__` 𝖲𝗍𝗈𝗋𝖾 𝗅𝗈𝗀 ₊ เลือกห้องส่งประวัติการแลก 𓂃 `__\n" +
+            "> เมื่อมีผู้เล่นแลกของรางวัล บอทจะส่งแจ้งเตือนพร้อมข้อมูลผู้แลกลงในห้องนี้ค่ะ:",
+        },
+        {
+          type: 14,
+          spacing: 2,
+        },
+        {
+          type: 1,
+          components: [
+            {
+              type: 8, // ChannelSelectMenu
+              custom_id: "akari_store_log_channel_selected",
+              placeholder: "💭︲เลือกห้องแชทสำหรับส่งแจ้งเตือน...",
+              channel_types: [0], // GuildText
+            },
+          ],
+        },
+      ],
+    },
+  ],
+};
+```
+
+---
+
+### ✅ แม่แบบที่ 10: การ์ดแจ้งแก้ไขสำเร็จแบบกะทัดรัด (`Successfully fixed Card`)
+> เหมาะสำหรับ: ตอบกลับหลังบันทึก Modal หรืออัปเดตตัวเลือก Select Menu ในระบบตั้งค่าร้านค้า
+
+```javascript
+const successfullyFixedPayload = {
+  flags: 32768,
+  components: [
+    {
+      type: 17,
+      components: [
+        {
+          type: 10,
+          content:
+            "## <:50121checkmark:1358584609087946867>︲__` Successfully fixed ₊ แก้ไขสำเร็จ 𓂃 `__",
         },
       ],
     },

@@ -8,6 +8,10 @@ const {
   ChannelType,
   PermissionFlagsBits,
   MessageFlags,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
+  ActionRowBuilder,
 } = require("discord.js");
 const {
   spawnQuestion,
@@ -21,6 +25,10 @@ const {
   FREE_QUOTA_LIMIT,
 } = require("../minigames/minigamesEngine");
 const { isExcludedGuild } = require("../filters/guildIgnoreFilter");
+const {
+  getTenantStoreConfig,
+  saveTenantStoreConfig,
+} = require("../store/storeEngine");
 const {
   STORE_SLASH_COMMANDS,
   handleSettingStore,
@@ -37,7 +45,7 @@ const DEFAULT_ACCESSORY = {
   style: 5,
   label: "Bear Cafe",
   emoji: {
-    id: "1520439075100688614",
+    id: "1548976664090779650",
     name: "strawberryv2",
     animated: false,
   },
@@ -133,6 +141,11 @@ const AKARI_SLASH_COMMANDS = [
   },
   {
     name: "setting-games",
+    description: "เปิด/ปิด การใช้งานมินิเกมแต่ละเกมย่อยในเซิร์ฟเวอร์ (เฉพาะผู้ดูแลระบบ)",
+    default_member_permissions: PermissionFlagsBits.ManageChannels.toString(),
+  },
+  {
+    name: "setting-game",
     description: "เปิด/ปิด การใช้งานมินิเกมแต่ละเกมย่อยในเซิร์ฟเวอร์ (เฉพาะผู้ดูแลระบบ)",
     default_member_permissions: PermissionFlagsBits.ManageChannels.toString(),
   },
@@ -423,17 +436,25 @@ async function handleSetupGames(interaction, supabase, client) {
 }
 
 /**
- * จัดการคำสั่ง /setting-games (Component V2 - ตกแต่งสไตล์ EMOJIS.md)
+ * แปลง String ของ Emoji ให้เป็น Object สำหรับ Button ของ Discord
  */
-async function handleSettingGames(interaction, supabase) {
-  const { member, guild } = interaction;
-
-  if (!member.permissions.has(PermissionFlagsBits.ManageChannels) && !member.permissions.has(PermissionFlagsBits.Administrator)) {
-    return interaction.reply(buildNoPermissionPayload());
+function parseEmojiObject(emojiStr) {
+  if (!emojiStr) return { id: "1548976664090779650", name: "strawberryv2" };
+  const customMatch = emojiStr.match(/^<(a)?:([a-zA-Z0-9_]+):(\d+)>$/);
+  if (customMatch) {
+    return {
+      animated: Boolean(customMatch[1]),
+      name: customMatch[2],
+      id: customMatch[3],
+    };
   }
+  return { name: emojiStr.trim() };
+}
 
-  await interaction.deferReply();
-
+/**
+ * สร้าง Payload แดชบอร์ดสำหรับ /setting-games
+ */
+async function buildSettingGamesPayload(guild, supabase) {
   let settingsMap = {};
   let channelsMap = {}; // gameId -> channelId
 
@@ -462,7 +483,7 @@ async function handleSettingGames(interaction, supabase) {
   }
 
   // ดึงรายชื่อห้องทั้งหมดในแคชของ Guild เพื่อเช็คความสมบูรณ์ของห้อง
-  await guild.channels.fetch().catch(() => { });
+  await guild.channels.fetch().catch(() => {});
 
   const planInfo = await getTenantPlan(guild.id, supabase);
   const isPremium = planInfo.isPremium;
@@ -537,8 +558,11 @@ async function handleSettingGames(interaction, supabase) {
         value: `reset_${gId}`,
         emoji: { name: "🔄" },
       };
-    })
+    }),
   ];
+
+  const storeConfig = await getTenantStoreConfig(supabase, guild.id);
+  const currencyEmoji = storeConfig?.currency_emoji || "<:strawberryv2:1548976664090779650>";
 
   const planText = isPremium ? "👑⠀**แผนสมาชิก:** Premium (พรีเมียม)" : "📦⠀**แผนสมาชิก:** Standard (ฟรี)";
   const quotaText = isPremium ? `🎮⠀**โควตาที่ใช้:** **ไม่จำกัด** (${activeCount} เกม)` : `🎮⠀**โควตาที่ใช้:** **${activeCount}/${FREE_QUOTA_LIMIT}** เกม`;
@@ -554,7 +578,7 @@ async function handleSettingGames(interaction, supabase) {
 
   const guildIconUrl = guild.iconURL({ size: 256 }) || "https://cdn.discordapp.com/embed/avatars/0.png";
 
-  const payload = {
+  return {
     flags: FLAG_V2,
     components: [
       {
@@ -578,9 +602,9 @@ async function handleSettingGames(interaction, supabase) {
                 type: 3,
                 custom_id: "akari_setting_toggle_menu",
                 placeholder: "🎮︲เลือกมินิเกมเพื่อสลับสถานะ หรือเคลียร์ห้องหาย",
-                options: selectOptions
-              }
-            ]
+                options: selectOptions,
+              },
+            ],
           },
           { type: 14, spacing: 1, divider: false },
           {
@@ -590,16 +614,184 @@ async function handleSettingGames(interaction, supabase) {
                 type: 3,
                 custom_id: "akari_setting_reset_menu",
                 placeholder: "🔄︲เลือกมินิเกมเพื่อสั่ง สปอว์น/ส่งโจทย์ใหม่ ทันที",
-                options: resetOptions
-              }
-            ]
-          }
-        ]
-      }
-    ]
+                options: resetOptions,
+              },
+            ],
+          },
+          { type: 14, spacing: 1, divider: false },
+          {
+            type: 1,
+            components: [
+              {
+                type: 2,
+                style: 2, // Secondary
+                label: "︲ตั้งค่าสกุลเงินแต้ม",
+                custom_id: "akari_setting_currency_btn",
+                emoji: parseEmojiObject(currencyEmoji),
+              },
+            ],
+          },
+        ],
+      },
+    ],
   };
+}
 
+/**
+ * จัดการคำสั่ง /setting-games หรือ /setting-game (Component V2 - ตกแต่งสไตล์ EMOJIS.md)
+ */
+async function handleSettingGames(interaction, supabase) {
+  const { member, guild } = interaction;
+
+  if (!member.permissions.has(PermissionFlagsBits.ManageChannels) && !member.permissions.has(PermissionFlagsBits.Administrator)) {
+    return interaction.reply(buildNoPermissionPayload());
+  }
+
+  await interaction.deferReply();
+  const payload = await buildSettingGamesPayload(guild, supabase);
   return interaction.editReply(payload);
+}
+
+/**
+ * จัดการเมื่อคลิกปุ่มตั้งค่าสกุลเงินแต้ม (akari_setting_currency_btn)
+ */
+async function handleSettingCurrencyButton(interaction, supabase) {
+  if (!interaction.member?.permissions?.has(PermissionFlagsBits.ManageChannels) &&
+      !interaction.member?.permissions?.has(PermissionFlagsBits.Administrator)) {
+    return interaction.reply(buildNoPermissionPayload());
+  }
+
+  const storeConfig = await getTenantStoreConfig(supabase, interaction.guildId);
+  const currentEmoji = storeConfig?.currency_emoji || "<:strawberryv2:1548976664090779650>";
+  const msgId = interaction.message?.id || "";
+
+  const modal = new ModalBuilder()
+    .setCustomId(`akari_currency_modal_submit:${msgId}`)
+    .setTitle("ตั้งค่าอิโมจิสกุลเงินแต้ม");
+
+  const emojiInput = new TextInputBuilder()
+    .setCustomId("currency_input")
+    .setLabel("อิโมจิสกุลเงิน (ธรรมดา หรือ Custom Emoji)")
+    .setStyle(TextInputStyle.Short)
+    .setValue(currentEmoji)
+    .setPlaceholder("เช่น 🍓, 🪙, หรือ <:strawberryv2:1548976664090779650>")
+    .setRequired(true)
+    .setMaxLength(100);
+
+  modal.addComponents(new ActionRowBuilder().addComponents(emojiInput));
+  return interaction.showModal(modal);
+}
+
+/**
+ * จัดการเมื่อส่ง Modal ตั้งค่าสกุลเงินแต้ม (akari_currency_modal_submit)
+ */
+async function handleSettingCurrencyModalSubmit(interaction, supabase) {
+  const customId = interaction.customId;
+  if (!customId.startsWith("akari_currency_modal_submit:")) return;
+
+  const msgId = customId.replace("akari_currency_modal_submit:", "");
+  let input = interaction.fields.getTextInputValue("currency_input")?.trim() || "";
+
+  // แปลงอัตโนมัติหากผู้ใช้พิมพ์แค่ :strawberryv2: หรือ strawberryv2 หรือ ID เก่าที่บอทเข้าไม่ถึง
+  if (input === ":strawberryv2:" || input === "strawberryv2" || input.includes("1520439075100688614")) {
+    input = "<:strawberryv2:1548976664090779650>";
+  } else {
+    // ตรวจสอบชื่ออิโมจิในคลังของบอทหากใส่แค่ชื่อ :name:
+    const nameMatch = input.match(/^:?([a-zA-Z0-9_]+):?$/);
+    if (nameMatch) {
+      const name = nameMatch[1];
+      const found = interaction.client.emojis.cache.find(
+        (e) => e.name.toLowerCase() === name.toLowerCase()
+      );
+      if (found) {
+        input = found.toString();
+      }
+    }
+  }
+
+  // ตรวจสอบความถูกต้องของอิโมจิ
+  // รองรับ Discord Custom Emoji (<:name:id> หรือ <a:name:id>) หรือ Unicode Emoji ทั่วไป
+  const isCustomEmoji = /^<a?:[a-zA-Z0-9_]+:\d+>$/.test(input);
+  const isUnicodeEmoji = /\p{Extended_Pictographic}/u.test(input) && [...input].length <= 8;
+
+  if (!isCustomEmoji && !isUnicodeEmoji) {
+    return interaction.reply({
+      flags: MessageFlags.Ephemeral | FLAG_V2,
+      components: [
+        {
+          type: 17,
+          components: [
+            {
+              type: 10,
+              content: `## <:lowwarning:1548772721679278180>︲__\` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ รูปแบบอิโมจิไม่ถูกต้อง 𓂃 \`__\n` +
+                `> กรุณาระบุ **อิโมจิทั่วไป** (เช่น 🍓, 🪙, 💎) หรือ **Discord Custom Emoji** (เช่น \`<:strawberryv2:1548976664090779650>\`) นะคะ!\n\n` +
+                `-# 💡 *คำแนะนำ: หากใช้อิโมจิของเซิร์ฟเวอร์ ให้พิมพ์ \\:ชื่ออิโมจิ: ในช่องแชทเพื่อคัดลอกรหัสแบบเต็มได้ค่ะ* <:cuteplant:1152834055528783872>`,
+            },
+          ],
+        },
+      ],
+    });
+  }
+
+  // 1. รับทราบ interaction ทันทีเพื่อป้องกัน Timeout 3 วินาทีของ Discord
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => {});
+
+  const currentConfig = await getTenantStoreConfig(supabase, interaction.guildId);
+
+  // Duplicate Check: หากเป็นอิโมจิเดิมที่ใช้อยู่แล้ว ข้ามการบันทึกและข้ามการแก้แดชบอร์ด
+  if (currentConfig?.currency_emoji === input) {
+    return interaction.editReply({
+      flags: FLAG_V2,
+      components: [
+        {
+          type: 17,
+          components: [
+            {
+              type: 10,
+              content: `## <:50121checkmark:1358584609087946867>︲__\` 𝖲𝗎𝖼𝖼𝖾𝗌𝗌 ₊ เปลี่ยนสกุลเงินแต้มสำเร็จ 𓂃 \`__\n` +
+                `> สกุลเงินแต้มของเซิร์ฟเวอร์ถูกเปลี่ยนเป็น **${input}** เรียบร้อยแล้วค่ะ! ✨\n\n` +
+                `-# หน้าต่างการตั้งค่าได้รับการอัปเดตเรียบร้อยแล้วค่ะ <:cuteplant:1152834055528783872>`,
+            },
+          ],
+        },
+      ],
+    });
+  }
+
+  // บันทึกลง Supabase / In-Memory Cache
+  await saveTenantStoreConfig(supabase, interaction.guildId, {
+    currency_emoji: input,
+  });
+
+  // อัปเดตแดชบอร์ด /setting-games ในพื้นหลัง
+  if (msgId && interaction.channel) {
+    (async () => {
+      try {
+        const originalMsg = await interaction.channel.messages.fetch(msgId).catch(() => null);
+        if (originalMsg) {
+          const updatedPayload = await buildSettingGamesPayload(interaction.guild, supabase);
+          await originalMsg.edit(updatedPayload).catch(() => {});
+        }
+      } catch (err) {}
+    })();
+  }
+
+  return interaction.editReply({
+    flags: FLAG_V2,
+    components: [
+      {
+        type: 17,
+        components: [
+          {
+            type: 10,
+            content: `## <:50121checkmark:1358584609087946867>︲__\` 𝖲𝗎𝖼𝖼𝖾𝗌𝗌 ₊ เปลี่ยนสกุลเงินแต้มสำเร็จ 𓂃 \`__\n` +
+              `> สกุลเงินแต้มของเซิร์ฟเวอร์ถูกเปลี่ยนเป็น **${input}** เรียบร้อยแล้วค่ะ! ✨\n\n` +
+              `-# หน้าต่างการตั้งค่าได้รับการอัปเดตเรียบร้อยแล้วค่ะ <:cuteplant:1152834055528783872>`,
+          },
+        ],
+      },
+    ],
+  });
 }
 
 /**
@@ -1645,6 +1837,8 @@ module.exports = {
   handleStoreButtonInteraction,
   handleStoreModalSubmit,
   handleStoreSelectMenus,
+  handleSettingCurrencyButton,
+  handleSettingCurrencyModalSubmit,
   STORE_SLASH_COMMANDS,
   AKARI_GAME_NAMES,
   GAME_DESCRIPTIONS,

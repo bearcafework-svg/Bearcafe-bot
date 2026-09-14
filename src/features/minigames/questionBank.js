@@ -1,247 +1,5 @@
-// src/features/minigames/questionBank.js — คลังโจทย์และการสร้างโจทย์ไดนามิกสำหรับทั้ง 10 มินิเกม (Shared Vocabulary & Dynamic Choices)
+// src/features/minigames/questionBank.js — คลังโจทย์และการสร้างโจทย์ไดนามิกสำหรับทั้ง 10 มินิเกม (ดึงจากฐานข้อมูล Supabase 100% ไม่มี Hardcoded Fallback)
 
-const DEFAULT_QUESTIONS = {
-  1: [ // เติมคำศัพท์ (ไทย)
-    { id: 101, word_or_question: "สวัสดี", answer: "สวัสดี" },
-    { id: 102, word_or_question: "ขอบคุณ", answer: "ขอบคุณ" },
-    { id: 103, word_or_question: "ประเทศไทย", answer: "ประเทศไทย" },
-    { id: 104, word_or_question: "มิตรภาพ", answer: "มิตรภาพ" },
-    { id: 105, word_or_question: "ความสุข", answer: "ความสุข" },
-    { id: 106, word_or_question: "ไอศกรีม", answer: "ไอศกรีม" },
-    { id: 107, word_or_question: "ธรรมชาติ", answer: "ธรรมชาติ" },
-    { id: 108, word_or_question: "คอมพิวเตอร์", answer: "คอมพิวเตอร์" }
-  ],
-  2: [ // เติมคำศัพท์ (อังกฤษ)
-    { id: 201, word_or_question: "apple", answer: "apple" },
-    { id: 202, word_or_question: "banana", answer: "banana" },
-    { id: 203, word_or_question: "friendship", answer: "friendship" },
-    { id: 204, word_or_question: "welcome", answer: "welcome" },
-    { id: 205, word_or_question: "sunshine", answer: "sunshine" },
-    { id: 206, word_or_question: "butterfly", answer: "butterfly" },
-    { id: 207, word_or_question: "computer", answer: "computer" }
-  ],
-  5: [ // ฟังเสียงแล้วพิมพ์ตอบ (อังกฤษ)
-    { id: 501, word_or_question: "apple", answer: "apple" },
-    { id: 502, word_or_question: "banana", answer: "banana" },
-    { id: 503, word_or_question: "friendship", answer: "friendship" },
-    { id: 504, word_or_question: "welcome", answer: "welcome" },
-    { id: 505, word_or_question: "sunshine", answer: "sunshine" },
-    { id: 506, word_or_question: "butterfly", answer: "butterfly" },
-    { id: 507, word_or_question: "computer", answer: "computer" },
-    { id: 508, word_or_question: "strawberry", answer: "strawberry" },
-    { id: 509, word_or_question: "icecream", answer: "icecream" },
-    { id: 510, word_or_question: "chocolate", answer: "chocolate" },
-    { id: 511, word_or_question: "keyboard", answer: "keyboard" },
-    { id: 512, word_or_question: "adventure", answer: "adventure" },
-    { id: 513, word_or_question: "universe", answer: "universe" },
-    { id: 514, word_or_question: "happiness", answer: "happiness" },
-    { id: 515, word_or_question: "hospital", answer: "hospital" }
-  ],
-  4: [ // ทายคำจากคำใบ้
-    { id: 401, word_or_question: "สุนัข", answer: "สุนัข", hints: ["เป็นสัตว์สี่ขา", "ส่งเสียงร้องโฮ่งๆ", "เพื่อนที่ซื่อสัตย์ของมนุษย์"], difficulty: "easy" },
-    { id: 402, word_or_question: "แมว", answer: "แมว", hints: ["เป็นสัตว์เลี้ยงยอดนิยม", "ส่งเสียงร้องเหมียวๆ", "ชอบนอนและจับหนู"], difficulty: "easy" },
-    { id: 403, word_or_question: "ช้าง", answer: "ช้าง", hints: ["เป็นสัตว์คู่บ้านคู่เมืองไทย", "ตัวใหญ่ มีงวง มีงา", "ชอบกินอ้อยและกล้วย"], difficulty: "medium" },
-    { id: 404, word_or_question: "ดวงอาทิตย์", answer: "ดวงอาทิตย์", hints: ["อยู่บนท้องฟ้า", "ให้แสงสว่างและความร้อนในตอนกลางวัน", "ขึ้นทางทิศตะวันออก"], difficulty: "medium" },
-    { id: 405, word_or_question: "คอมพิวเตอร์", answer: "คอมพิวเตอร์", hints: ["เป็นอุปกรณ์อิเล็กทรอนิกส์", "มีหน้าจอ แป้นพิมพ์ และเมาส์", "ใช้ประมวลผลและทำงาน"], difficulty: "hard" }
-  ],
-  6: [ // พิมพ์คำต่อไปนี้ (ไทย)
-    { id: 601, word_or_question: "หมีคาเฟ่ต้อนรับเสมอ", answer: "หมีคาเฟ่ต้อนรับเสมอ" },
-    { id: 602, word_or_question: "ยิ้มสดใสในทุกวัน", answer: "ยิ้มสดใสในทุกวัน" },
-    { id: 603, word_or_question: "กาแฟหอมหวานกลมกล่อม", answer: "กาแฟหอมหวานกลมกล่อม" },
-    { id: 604, word_or_question: "ความพยายามไม่เคยทรยศใคร", answer: "ความพยายามไม่เคยทรยศใคร" }
-  ],
-  7: [ // พิมพ์คำต่อไปนี้ (อังกฤษ)
-    { id: 701, word_or_question: "Welcome to Bear Cafe", answer: "Welcome to Bear Cafe" },
-    { id: 702, word_or_question: "Have a wonderful day", answer: "Have a wonderful day" },
-    { id: 703, word_or_question: "Stay happy and positive", answer: "Stay happy and positive" },
-    { id: 704, word_or_question: "Practice makes perfect", answer: "Practice makes perfect" }
-  ],
-  8: [ // คลังคู่แปลภาษา (อังกฤษ <-> ไทย) ใช้สำหรับ Game 8 & 9
-    { id: 801, word_or_question: "Banana", answer: "กล้วย" },
-    { id: 802, word_or_question: "Apple", answer: "แอปเปิ้ล" },
-    { id: 803, word_or_question: "Cat", answer: "แมว" },
-    { id: 804, word_or_question: "Book", answer: "หนังสือ" },
-    { id: 805, word_or_question: "Butterfly", answer: "ผีเสื้อ" },
-    { id: 806, word_or_question: "Orange", answer: "ส้ม" },
-    { id: 807, word_or_question: "Dog", answer: "สุนัข" },
-    { id: 808, word_or_question: "House", answer: "บ้าน" },
-    { id: 809, word_or_question: "Water", answer: "น้ำ" },
-    { id: 810, word_or_question: "Sky", answer: "ท้องฟ้า" }
-  ],
-  10: [ // เกมต่อคำ (Dynamic Choice Generator)
-    { id: 1001, word_or_question: "น้ำ", answer: "แข็ง" },
-    { id: 1002, word_or_question: "ดาว", answer: "ตก" },
-    { id: 1003, word_or_question: "ไฟ", answer: "ฟ้า" },
-    { id: 1004, word_or_question: "พัด", answer: "ลม" },
-    { id: 1005, word_or_question: "รถ", answer: "ไฟ" }
-  ],
-  11: [ // ฟังเสียงแล้วพิมพ์ตอบ (ไทย)
-    { id: 1101, word_or_question: "ก้านกล้วย", answer: "ก้านกล้วย" },
-    { id: 1102, word_or_question: "สวัสดี", answer: "สวัสดี" },
-    { id: 1103, word_or_question: "ขอบคุณ", answer: "ขอบคุณ" },
-    { id: 1104, word_or_question: "ประเทศไทย", answer: "ประเทศไทย" },
-    { id: 1105, word_or_question: "ไอศกรีม", answer: "ไอศกรีม" },
-    { id: 1106, word_or_question: "คอมพิวเตอร์", answer: "คอมพิวเตอร์" },
-    { id: 1107, word_or_question: "กาแฟคาเฟ่", answer: "กาแฟคาเฟ่" },
-    { id: 1108, word_or_question: "ความสุข", answer: "ความสุข" },
-    { id: 1109, word_or_question: "ธรรมชาติ", answer: "ธรรมชาติ" },
-    { id: 1110, word_or_question: "มิตรภาพ", answer: "มิตรภาพ" },
-    { id: 1111, word_or_question: "ดวงอาทิตย์", answer: "ดวงอาทิตย์" },
-    { id: 1112, word_or_question: "ผีเสื้อ", answer: "ผีเสื้อ" },
-    { id: 1113, word_or_question: "น้ำตก", answer: "น้ำตก" },
-    { id: 1114, word_or_question: "รอยยิ้ม", answer: "รอยยิ้ม" },
-    { id: 1115, word_or_question: "กระต่าย", answer: "กระต่าย" }
-  ],
-  12: [ // จริงหรือเท็จ
-    { id: 1201, word_or_question: "แมวเป็นสัตว์เลี้ยงลูกด้วยนม", answer: "จริง", options: ["จริง", "เท็จ"] },
-    { id: 1202, word_or_question: "ดวงอาทิตย์ขึ้นทางทิศตะวันตก", answer: "เท็จ", options: ["จริง", "เท็จ"] },
-    { id: 1203, word_or_question: "ประเทศไทยมี 77 จังหวัด", answer: "จริง", options: ["จริง", "เท็จ"] }
-  ],
-  13: [ // เรียงประโยคภาษาอังกฤษ (Sentence Builder)
-    {
-      id: 1301,
-      word_or_question: "ยิงปืนนัดเดียวได้นกสองตัว",
-      hints: ["Kill two {1} with {2} {3}."],
-      answer: "birds,one,stone",
-      options: ["stone", "frogs", "one", "bugs", "birds"]
-    },
-    {
-      id: 1302,
-      word_or_question: "ฉันชอบดื่มกาแฟในตอนเช้า",
-      hints: ["I like {1} {2} in the {3}."],
-      answer: "drinking,coffee,morning",
-      options: ["tea", "drinking", "evening", "coffee", "morning"]
-    },
-    {
-      id: 1303,
-      word_or_question: "เวลาเป็นเงินเป็นทอง",
-      hints: ["Time is {1}."],
-      answer: "money",
-      options: ["gold", "money", "power", "water"]
-    },
-    {
-      id: 1304,
-      word_or_question: "อย่าตัดสินหนังสือจากหน้าปก",
-      hints: ["Don't {1} a book by its {2}."],
-      answer: "judge,cover",
-      options: ["read", "judge", "page", "cover", "color"]
-    },
-    {
-      id: 1305,
-      word_or_question: "น้ำขึ้นให้รีบตัก",
-      hints: ["Strike while the {1} is {2}."],
-      answer: "iron,hot",
-      options: ["water", "iron", "cold", "hot", "fire"]
-    },
-    {
-      id: 1306,
-      word_or_question: "การกระทำสำคัญกว่าคำพูด",
-      hints: ["Actions speak {1} than {2}."],
-      answer: "louder,words",
-      options: ["louder", "better", "words", "sounds", "voices"]
-    },
-    {
-      id: 1307,
-      word_or_question: "ความพยายามอยู่ที่ไหน ความสำเร็จอยู่ที่นั่น",
-      hints: ["Where there is a {1}, there is a {2}."],
-      answer: "will,way",
-      options: ["hope", "will", "way", "dream", "success"]
-    },
-    {
-      id: 1308,
-      word_or_question: "ไม่มีอะไรได้มาง่ายๆ",
-      hints: ["No {1}, no {2}."],
-      answer: "pain,gain",
-      options: ["rain", "pain", "gain", "win", "game"]
-    },
-    {
-      id: 1309,
-      word_or_question: "ฝนตกไม่ทั่วฟ้า",
-      hints: ["Into each life some {1} must {2}."],
-      answer: "rain,fall",
-      options: ["rain", "water", "drop", "fall", "cloud"]
-    },
-    {
-      id: 1310,
-      word_or_question: "แมวไม่อยู่หนูร่าเริง",
-      hints: ["When the cat's {1}, the mice will {2}."],
-      answer: "away,play",
-      options: ["asleep", "away", "run", "play", "dance"]
-    },
-    {
-      id: 1311,
-      word_or_question: "ช้าๆ ได้พร้าเล่มงาม",
-      hints: ["Slow and {1} wins the {2}."],
-      answer: "steady,race",
-      options: ["steady", "sure", "fast", "race", "game"]
-    },
-    {
-      id: 1312,
-      word_or_question: "เพื่อนแท้ในยามยาก",
-      hints: ["A friend in {1} is a friend {2}."],
-      answer: "need,indeed",
-      options: ["need", "trouble", "indeed", "always", "true"]
-    }
-  ],
-  14: [ // เรียงประโยคภาษาไทย (Thai Sentence Builder)
-    {
-      id: 1401,
-      word_or_question: "Kill two birds with one stone.",
-      hints: ["ยิงปืน{1}เดียวได้{2}สอง{3}"],
-      answer: "นัด,นก,ตัว",
-      options: ["นัด", "นก", "ตัว", "กระสุน", "ปลา"]
-    },
-    {
-      id: 1402,
-      word_or_question: "Strike while the iron is hot.",
-      hints: ["น้ำขึ้นให้{1}{2}"],
-      answer: "รีบ,ตัก",
-      options: ["รีบ", "ตัก", "รอ", "ดื่ม", "เร่ง"]
-    },
-    {
-      id: 1403,
-      word_or_question: "Actions speak louder than words.",
-      hints: ["การกระทำ{1}กว่า{2}"],
-      answer: "สำคัญ,คำพูด",
-      options: ["สำคัญ", "คำพูด", "ดี", "เสียง", "เงียบ"]
-    },
-    {
-      id: 1404,
-      word_or_question: "Don't judge a book by its cover.",
-      hints: ["อย่าตัดสินคนจาก{1}"],
-      answer: "ภายนอก",
-      options: ["ภายนอก", "หน้าตา", "ภายใน", "คำพูด", "เงินทอง"]
-    },
-    {
-      id: 1405,
-      word_or_question: "Where there is a will, there is a way.",
-      hints: ["ความพยายามอยู่ที่ไหน {1}อยู่ที่นั่น"],
-      answer: "ความสำเร็จ",
-      options: ["ความสำเร็จ", "ความหวัง", "ความสุข", "เงินทอง"]
-    },
-    {
-      id: 1406,
-      word_or_question: "Time and tide wait for no man.",
-      hints: ["เวลาและวารี{1}ใคร"],
-      answer: "ไม่คอย",
-      options: ["ไม่คอย", "รอคอย", "ไม่ทิ้ง", "เมตตา"]
-    },
-    {
-      id: 1407,
-      word_or_question: "A friend in need is a friend indeed.",
-      hints: ["เพื่อนแท้ใน{1} คือมิตรแท้"],
-      answer: "ยามยาก",
-      options: ["ยามยาก", "ยามสุข", "ยามเช้า", "ทุกเวลา"]
-    },
-    {
-      id: 1408,
-      word_or_question: "Slow and steady wins the race.",
-      hints: ["ช้าๆ ได้{1}งาม"],
-      answer: "พร้าเล่ม",
-      options: ["พร้าเล่ม", "มีดเล่ม", "เงินทอง", "ของดี"]
-    }
-  ]
-};
 
 // Tracks asked question IDs per game to avoid consecutive repeats
 const askedHistory = new Map();
@@ -515,17 +273,8 @@ async function getNextQuestion(supabase, gameId, gameSettings = null, queryOptio
     }
   }
 
-  // Fallback to default questions if DB is empty
   if (questionsPool.length === 0) {
-    if (gameId === 1 || gameId === 6) questionsPool = DEFAULT_QUESTIONS[1] || [];
-    else if (gameId === 2 || gameId === 7) questionsPool = DEFAULT_QUESTIONS[2] || [];
-    else if (gameId === 5) questionsPool = DEFAULT_QUESTIONS[5] || [];
-    else if (gameId === 11) questionsPool = DEFAULT_QUESTIONS[11] || [];
-    else if (gameId === 8 || gameId === 9) questionsPool = DEFAULT_QUESTIONS[8] || [];
-    else questionsPool = DEFAULT_QUESTIONS[gameId] || [];
-  }
-
-  if (questionsPool.length === 0) {
+    console.warn(`[questionBank] No active questions found in ${tableName} for gameId ${gameId}`);
     return null;
   }
 
@@ -547,7 +296,7 @@ async function getNextQuestion(supabase, gameId, gameSettings = null, queryOptio
       if (len <= 3 || len > 8) return null;
       return { id: q.id, word_or_question: cleanW, answer: cleanW, category: q.category || 'คำทั่วไป' };
     }).filter(Boolean);
-    if (candidates.length === 0) candidates = DEFAULT_QUESTIONS[1] || [];
+    if (candidates.length === 0) return null;
   } else if (gameId === 2 || gameId === 7) {
     // English games: extract words that are English and have NO '_' in raw text
     candidates = questionsPool.map(q => {
@@ -564,33 +313,32 @@ async function getNextQuestion(supabase, gameId, gameSettings = null, queryOptio
       if (len <= 3 || len > 10) return null;
       return { id: q.id, word_or_question: cleanW, answer: cleanW, category: q.category || 'General' };
     }).filter(Boolean);
-    if (candidates.length === 0) candidates = DEFAULT_QUESTIONS[2] || [];
+    if (candidates.length === 0) return null;
   } else if (gameId === 5) {
     // Game 5 (Standalone English Audio)
     candidates = questionsPool.map(q => {
       const cleanW = (q.answer || q.word_or_question || '').replace(/\s+/g, '').trim();
       return cleanW ? { id: q.id, word_or_question: cleanW, answer: cleanW, category: q.category || 'General' } : null;
     }).filter(Boolean);
-    if (candidates.length === 0) candidates = DEFAULT_QUESTIONS[5] || [];
+    if (candidates.length === 0) return null;
   } else if (gameId === 11) {
     // Game 11 (Standalone Thai Audio)
     candidates = questionsPool.map(q => {
       const cleanW = (q.answer || q.word_or_question || '').replace(/\s+/g, '').trim();
       return cleanW ? { id: q.id, word_or_question: cleanW, answer: cleanW, category: q.category || 'คำทั่วไป' } : null;
     }).filter(Boolean);
-    if (candidates.length === 0) candidates = DEFAULT_QUESTIONS[11] || [];
+    if (candidates.length === 0) return null;
   } else if (gameId === 8 || gameId === 9) {
     // Translation pairs (English word <-> Thai translation)
     candidates = questionsPool.filter(q => /[a-zA-Z]/.test(q.word_or_question) && /[\u0E00-\u0E7F]/.test(q.answer));
-    if (candidates.length === 0) candidates = DEFAULT_QUESTIONS[8];
+    if (candidates.length === 0) return null;
     allTranslations = [...candidates];
   } else {
     candidates = questionsPool;
-    if (candidates.length === 0) candidates = DEFAULT_QUESTIONS[gameId] || [];
   }
 
   if (candidates.length === 0) {
-    candidates = DEFAULT_QUESTIONS[gameId] || DEFAULT_QUESTIONS[1];
+    return null;
   }
 
   // Avoid consecutive repeats

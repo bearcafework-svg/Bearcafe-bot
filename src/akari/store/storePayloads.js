@@ -8,7 +8,7 @@ const { MessageFlags } = require("discord.js");
 
 const FLAG_V2 = MessageFlags.IsComponentsV2 || 32768;
 
-const STRAWBERRY_EMOJI = "<:strawberryv2:1520439075100688614>";
+const STRAWBERRY_EMOJI = "<:strawberryv2:1548976664090779650>";
 const WARNING_EMOJI = "<:lowwarning:1548772721679278180>";
 const GIFT_EMOJI = "<:68492gift:1276130500410605609>";
 
@@ -29,7 +29,7 @@ const DEFAULT_ACCESSORY = {
   style: 5,
   label: "Bear Cafe",
   emoji: {
-    id: "1520439075100688614",
+    id: "1548976664090779650",
     name: "strawberryv2",
     animated: false,
   },
@@ -54,7 +54,8 @@ function buildPremiumStoreWarningPayload() {
               `- 🛍️ เปิดระบบร้านค้าแลกของรางวัลมินิเกมได้สูงสุด 3 ไอเทม\n` +
               `- 👑 แจกยศ Discord หรือของรางวัลจริงให้อัตโนมัติ\n` +
               `- 🎮 เล่นมินิเกมได้ครบทั้ง 13 เกมแบบไม่จำกัดโควตา\n` +
-              `- 🎨 ปรับแต่งสีและสไตล์การ์ดเกมได้อย่างอิสระ`,
+              `- 🎨 ปรับแต่งสีและสไตล์การ์ดเกมได้อย่างอิสระ\n\n` +
+              `-# สนใจอัปเกรด ติดต่อสอบถามทีมงานได้ตลอด 24 ชม. ค่ะ <:cuteplant:1152834055528783872>`,
           },
         ],
       },
@@ -95,6 +96,8 @@ function buildStoreSettingsDashboard(guild, storeConfig, items) {
     },
   ];
 
+  const currEmoji = storeConfig?.currency_emoji || "<:strawberryv2:1548976664090779650>";
+
   // วนลูปสร้างรายละเอียดไอเทม Slot 1, 2, 3 แต่ละช่องเป็น Section (Type 9) พร้อมปุ่ม 📝 (Accessory Type 2)
   [1, 2, 3].forEach((s) => {
     const item = items.find((i) => i.slot === s);
@@ -124,7 +127,7 @@ function buildStoreSettingsDashboard(guild, storeConfig, items) {
 
       itemContent = `### ${slotEmoji}︲__\` ${item.name} \`__\n` +
         `> ${statusText}\n` +
-        `> 💰⠀**ราคา:** ${item.points_cost.toLocaleString()} แต้ม${winsLine}\n` +
+        `> ${currEmoji}⠀**ราคา:** ${item.points_cost.toLocaleString()} แต้ม${winsLine}\n` +
         `> 🎁⠀**ของรางวัล:** ${rewardText} ${limitText}\n` +
         `> 📝⠀**คำอธิบาย:** ${item.description || "ไม่พบคำอธิบาย"}`;
     }
@@ -236,6 +239,7 @@ function buildStoreSettingsDashboard(guild, storeConfig, items) {
  */
 function buildPublicStoreCard(guild, storeConfig, items) {
   const activeItems = items.filter((item) => item.is_active);
+  const currEmoji = storeConfig?.currency_emoji || "<:strawberryv2:1548976664090779650>";
 
   let itemsBody = "";
   if (activeItems.length === 0) {
@@ -249,7 +253,7 @@ function buildPublicStoreCard(guild, storeConfig, items) {
       const winsReq = item.wins_required > 0 ? `\n> 🏆 **จำนวนครั้งที่ชนะขั้นต่ำ:** ${item.wins_required.toLocaleString()} ครั้ง` : "";
 
       itemsBody += `### ${item.emoji}︲__\` ${item.name} 𓂃 \`__\n` +
-        `> 💰 **แต้มที่ต้องใช้:** **${item.points_cost.toLocaleString()}** แต้ม${winsReq}\n` +
+        `> ${currEmoji} **แต้มที่ต้องใช้:** **${item.points_cost.toLocaleString()}** แต้ม${winsReq}\n` +
         `> 🎁 **ของรางวัลที่จะได้รับ:** ${rewardDetail} ${limitText}\n` +
         `> 📝 *${item.description || "สะสมแต้มเพื่อแลกรับรางวัล"}*\n\n`;
     });

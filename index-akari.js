@@ -23,6 +23,8 @@ const {
   handleStoreButtonInteraction,
   handleStoreModalSubmit,
   handleStoreSelectMenus,
+  handleSettingCurrencyButton,
+  handleSettingCurrencyModalSubmit,
 } = require("./src/akari/commands/minigamesCommands");
 
 const botToken = process.env.AKARI_BOT_TOKEN;
@@ -80,7 +82,7 @@ client.on("interactionCreate", async (interaction) => {
       if (interaction.commandName === "setup-games") {
         return await handleSetupGames(interaction, akariSupabase, client);
       }
-      if (interaction.commandName === "setting-games") {
+      if (interaction.commandName === "setting-games" || interaction.commandName === "setting-game") {
         return await handleSettingGames(interaction, akariSupabase);
       }
       if (interaction.commandName === "clear") {
@@ -105,6 +107,9 @@ client.on("interactionCreate", async (interaction) => {
 
     // Button Interactions
     if (interaction.isButton()) {
+      if (interaction.customId === "akari_setting_currency_btn") {
+        return await handleSettingCurrencyButton(interaction, akariSupabase);
+      }
       if (interaction.customId.startsWith("akari_store_") || interaction.customId.startsWith("store_")) {
         return await handleStoreButtonInteraction(interaction, akariSupabase, client);
       }
@@ -112,6 +117,9 @@ client.on("interactionCreate", async (interaction) => {
 
     // Modal Submissions
     if (interaction.isModalSubmit()) {
+      if (interaction.customId.startsWith("akari_currency_modal_submit")) {
+        return await handleSettingCurrencyModalSubmit(interaction, akariSupabase);
+      }
       if (interaction.customId.startsWith("akari_store_") || interaction.customId.startsWith("store_")) {
         return await handleStoreModalSubmit(interaction, akariSupabase);
       }

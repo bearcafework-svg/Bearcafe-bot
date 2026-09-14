@@ -28,7 +28,7 @@ const FLAG_V2 = MessageFlags.IsComponentsV2 || 32768;
 const BEE_EMOJI_STR = '<:bee20000:1256669436350562355>';
 const CHECKMARK_EMOJI_ID = '1358584609087946867';
 const POINT_EMOJI = {
-  id: '1520439075100688614',
+  id: '1548976664090779650',
   name: 'strawberryv2',
   animated: false,
 };

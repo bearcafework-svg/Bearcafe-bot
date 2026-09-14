@@ -28,18 +28,35 @@ function createDefaultItem(slot) {
   };
 }
 
+const DEFAULT_CURRENCY_EMOJI = "<:strawberryv2:1548976664090779650>";
+
+function sanitizeCurrencyEmoji(emoji) {
+  if (!emoji || emoji === ":strawberryv2:" || emoji === "strawberryv2" || emoji.includes("1520439075100688614")) {
+    return DEFAULT_CURRENCY_EMOJI;
+  }
+  return emoji;
+}
+
 /**
  * ดึงการตั้งค่าร้านค้าของแต่ละ Guild
  */
 async function getTenantStoreConfig(supabase, guildId) {
-  if (!guildId) return { guild_id: guildId, log_channel_id: null, is_enabled: true };
+  const fallback = {
+    guild_id: guildId,
+    log_channel_id: null,
+    currency_emoji: DEFAULT_CURRENCY_EMOJI,
+    is_enabled: true,
+  };
+
+  if (!guildId) return fallback;
 
   if (storeConfigCache.has(guildId)) {
-    return storeConfigCache.get(guildId);
+    const cached = storeConfigCache.get(guildId);
+    cached.currency_emoji = sanitizeCurrencyEmoji(cached.currency_emoji);
+    return cached;
   }
 
   if (!supabase) {
-    const fallback = { guild_id: guildId, log_channel_id: null, is_enabled: true };
     storeConfigCache.set(guildId, fallback);
     return fallback;
   }
@@ -47,28 +64,31 @@ async function getTenantStoreConfig(supabase, guildId) {
   try {
     const { data, error } = await supabase
       .from("tenant_store_configs")
-      .select("guild_id, log_channel_id, is_enabled")
+      .select("guild_id, log_channel_id, currency_emoji, is_enabled")
       .eq("guild_id", guildId)
       .maybeSingle();
 
     if (error || !data) {
-      const fallback = { guild_id: guildId, log_channel_id: null, is_enabled: true };
       storeConfigCache.set(guildId, fallback);
       return fallback;
     }
 
-    storeConfigCache.set(guildId, data);
-    return data;
+    const config = {
+      ...fallback,
+      ...data,
+      currency_emoji: sanitizeCurrencyEmoji(data.currency_emoji),
+    };
+    storeConfigCache.set(guildId, config);
+    return config;
   } catch (err) {
     console.warn(`[akari-store] getTenantStoreConfig error for ${guildId}:`, err.message);
-    const fallback = { guild_id: guildId, log_channel_id: null, is_enabled: true };
     storeConfigCache.set(guildId, fallback);
     return fallback;
   }
 }
 
 /**
- * บันทึกการตั้งค่าร้านค้า (เช่น ห้อง Log Channel หรือเปิด/ปิดร้าน)
+ * บันทึกการตั้งค่าร้านค้า (เช่น ห้อง Log Channel, currency_emoji หรือเปิด/ปิดร้าน)
  */
 async function saveTenantStoreConfig(supabase, guildId, updates) {
   if (!guildId) return null;

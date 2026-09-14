@@ -6,7 +6,7 @@ const googleTTS = require('google-tts-api');
 const sharedConfig = require('../../sharedSettings.json');
 const { addPointsWithCap, deductPoints } = require('../../utils/pointManager');
 const { getNextQuestion, maskWord, scrambleWord, generateHint } = require('./questionBank');
-const { createTextImageBuffer, createSentenceBuilderImageBuffer, createThaiSentenceBuilderImageBuffer } = require('./canvasGenerator');
+const { createTextImageBuffer, createSentenceBuilderImageBuffer } = require('./canvasGenerator');
 const { setupResetTop } = require('./resetTop');
 const { trackUserDailyQuestProgress } = require('../dailyQuest');
 
@@ -28,13 +28,12 @@ const GAME_CHANNELS = {
   10: { id: '1536934025187295232', name: 'เกมต่อคำ' },
   11: { id: '1544201245974073405', name: 'ฟังเสียงแล้วพิมพ์ตอบ (ไทย)' },
   12: { id: '1536934867256868885', name: 'จริงหรือเท็จ' },
-  13: { id: process.env.GAME_13_CHANNEL_ID || '1524123413122125964', name: 'เรียงประโยคภาษาอังกฤษ' },
-  14: { id: process.env.GAME_14_CHANNEL_ID || '1544088196332134491', name: 'เรียงประโยคภาษาไทย' }
+  13: { id: process.env.GAME_13_CHANNEL_ID || '1524123413122125964', name: 'เรียงประโยคภาษาอังกฤษ' }
 };
 
 // Memory cache for active game session per channel ID
 const activeSessions = new Map();
-// Memory cache for tracking per-user sentence builder progress in Game 13 & 14
+// Memory cache for tracking per-user sentence builder progress in Game 13
 const userSentenceProgress = new Map();
 // Lock per channel ID during win processing & question generation to prevent race conditions
 const processingChannels = new Set();
@@ -62,7 +61,6 @@ const GAME_TYPE_MAP = {
   11: GAME_TYPES.AUDIO,
   12: GAME_TYPES.BUTTON,
   13: GAME_TYPES.BUTTON,
-  14: GAME_TYPES.BUTTON,
 };
 
 const TRANSITION_MIN_MS = {
@@ -332,17 +330,11 @@ function buildGamePayload(gameId, questionData) {
       mediaItem = { media: { url: 'attachment://sentence_card.png' } };
       break;
     }
-    case 14: { // เรียงประโยคภาษาไทย (Thai Sentence Builder)
-      contentText = `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ เรียงประโยคภาษาไทย 𓂃 \`__\n` +
-        `- กดปุ่มคำศัพท์ด้านล่างตามลำดับให้ครบประโยค ใครต่อเสร็จคนแรกชนะ!`;
-      mediaItem = { media: { url: 'attachment://thai_sentence_card.png' } };
-      break;
-    }
   }
 
   const containerComponents = [];
 
-  // For Games 6, 7, 13, 14: Media Component (12)
+  // For Games 6, 7, 13: Media Component (12)
   if (mediaItem) {
     if (mediaItem.type === 13) {
       containerComponents.push(mediaItem);
@@ -364,8 +356,8 @@ function buildGamePayload(gameId, questionData) {
     });
   }
 
-  // 3. Choice Buttons (for Games 8, 9, 10, 12, 13, 14)
-  if ([8, 9, 10, 12, 13, 14].includes(gameId) && Array.isArray(questionData.options) && questionData.options.length > 0) {
+  // 3. Choice Buttons (for Games 8, 9, 10, 12, 13)
+  if ([8, 9, 10, 12, 13].includes(gameId) && Array.isArray(questionData.options) && questionData.options.length > 0) {
     containerComponents.push({ type: 14, spacing: 2 });
     let buttonComponents = [];
 
@@ -478,7 +470,6 @@ function buildWinnerPayload(gameId, questionData, winnerDisplayName) {
   else if (gameId === 11) titleText = 'ฟังเสียงแล้วพิมพ์ตอบ (ไทย)';
   else if (gameId === 12) titleText = 'จริงหรือเท็จ';
   else if (gameId === 13) titleText = 'เรียงประโยคภาษาอังกฤษ';
-  else if (gameId === 14) titleText = 'เรียงประโยคภาษาไทย';
 
   let contentText = '';
   if (gameId === 10) {
@@ -489,8 +480,8 @@ function buildWinnerPayload(gameId, questionData, winnerDisplayName) {
     contentText = `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ ${titleText} 𓂃 \`__\n` +
       `# ${questionData.wordOrQuestion}\n` +
       `-# เฉลย: ${questionData.answer}`;
-  } else if (gameId === 13 || gameId === 14) {
-    const template = (gameId === 13 ? questionData.englishTemplate : questionData.thaiTemplate) || (Array.isArray(questionData.hints) ? questionData.hints[0] : "") || "";
+  } else if (gameId === 13) {
+    const template = questionData.englishTemplate || (Array.isArray(questionData.hints) ? questionData.hints[0] : "") || "";
     const correctWords = questionData.correctWords || String(questionData.answer || "").split(/[,|]/).map(s => s.trim());
     let fullSentence = template;
     correctWords.forEach((word, idx) => {
@@ -559,15 +550,10 @@ async function sendNextGameQuestion(client, supabase, channelOrId, gameId, retri
     }
 
     const gameSettings = GAME_CHANNELS[gameId];
-    let questionData = await getNextQuestion(supabase, gameId, gameSettings).catch(() => null);
-
-    // Fallback: If DB query returned null, retry with default questions
-    if (!questionData) {
-      questionData = await getNextQuestion(null, gameId, gameSettings);
-    }
+    const questionData = await getNextQuestion(supabase, gameId, gameSettings).catch(() => null);
 
     if (!questionData) {
-      console.warn(`[minigames] No questions available for Game ${gameId}`);
+      console.warn(`[minigames] No questions available from Supabase for Game ${gameId}`);
       return;
     }
 
@@ -582,11 +568,6 @@ async function sendNextGameQuestion(client, supabase, channelOrId, gameId, retri
       const template = questionData.englishTemplate || (Array.isArray(questionData.hints) ? questionData.hints[0] : questionData.hints) || '';
       const buffer = createSentenceBuilderImageBuffer(questionData.wordOrQuestion, template);
       const file = new AttachmentBuilder(buffer, { name: 'sentence_card.png' });
-      sentMsg = await channel.send({ ...payload, files: [file] });
-    } else if (gameId === 14) {
-      const template = questionData.thaiTemplate || (Array.isArray(questionData.hints) ? questionData.hints[0] : questionData.hints) || '';
-      const buffer = createThaiSentenceBuilderImageBuffer(questionData.wordOrQuestion, template);
-      const file = new AttachmentBuilder(buffer, { name: 'thai_sentence_card.png' });
       sentMsg = await channel.send({ ...payload, files: [file] });
     } else if (gameId === 5 || gameId === 11) {
       let audioMsgId = null;
@@ -873,7 +854,7 @@ function setupMinigames(client) {
       }
     }
 
-    // 2.5 Button Interactions: Games 13 & 14 (Sentence Builder) — Per-User Ephemeral Flow
+    // 2.5 Button Interactions: Game 13 (Sentence Builder) — Per-User Ephemeral Flow
     if (interaction.isButton() && (interaction.customId.startsWith('mg_sb_') || interaction.customId.startsWith('mg_sb_reset_'))) {
       const channelId = interaction.channelId;
       const userId = interaction.user.id;
@@ -883,7 +864,7 @@ function setupMinigames(client) {
       // For reset: mg_sb_reset_{gameId}_{timestamp} -> parts[3] is gameId
       // For choice: mg_sb_{gameId}_{choiceIndex}_{timestamp} -> parts[2] is gameId
       const targetGameId = parseInt(isReset ? parts[3] : parts[2], 10);
-      if (![13, 14].includes(targetGameId)) return;
+      if (targetGameId !== 13) return;
 
       try {
         const session = activeSessions.get(channelId);
@@ -927,7 +908,7 @@ function setupMinigames(client) {
             btnRows.push({ type: 1, components: buttons.slice(i, i + 5) });
           }
 
-          const templateStr = (targetGameId === 13 ? questionData.englishTemplate : questionData.thaiTemplate) || (Array.isArray(questionData.hints) ? questionData.hints[0] : '') || '';
+          const templateStr = questionData.englishTemplate || (Array.isArray(questionData.hints) ? questionData.hints[0] : '') || '';
           let maskedPreview = templateStr;
           for (let i = 1; i <= correctWords.length; i++) {
             maskedPreview = maskedPreview.replace(new RegExp(`\\{${i}\\}`, 'g'), '`[ ___ ]`');
@@ -979,7 +960,7 @@ function setupMinigames(client) {
             btnRows.push({ type: 1, components: buttons.slice(i, i + 5) });
           }
 
-          const templateStr = (targetGameId === 13 ? questionData.englishTemplate : questionData.thaiTemplate) || (Array.isArray(questionData.hints) ? questionData.hints[0] : '') || '';
+          const templateStr = questionData.englishTemplate || (Array.isArray(questionData.hints) ? questionData.hints[0] : '') || '';
           let maskedPreview = templateStr;
           for (let i = 1; i <= correctWords.length; i++) {
             maskedPreview = maskedPreview.replace(new RegExp(`\\{${i}\\}`, 'g'), '`[ ___ ]`');
@@ -1039,7 +1020,7 @@ function setupMinigames(client) {
             btnRows.push({ type: 1, components: remainingButtons.slice(i, i + 5) });
           }
 
-          const templateStr = (targetGameId === 13 ? questionData.englishTemplate : questionData.thaiTemplate) || (Array.isArray(questionData.hints) ? questionData.hints[0] : '') || '';
+          const templateStr = questionData.englishTemplate || (Array.isArray(questionData.hints) ? questionData.hints[0] : '') || '';
           let previewStr = templateStr;
           for (let i = 1; i <= correctWords.length; i++) {
             if (i <= progress.pickedWords.length) {

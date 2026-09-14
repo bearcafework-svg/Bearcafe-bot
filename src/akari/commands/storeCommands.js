@@ -67,7 +67,9 @@ async function checkAdminAndPremium(interaction, supabase) {
             components: [
               {
                 type: 10,
-                content: `## <:lowwarning:1548772721679278180>︲__\` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ คุณไม่มีสิทธิ์ใช้คำสั่งนี้ 𓂃 \`__\n> คุณต้องมีสิทธิ์ **ผู้ดูแลระบบ (Administrator)** เพื่อใช้คำสั่งนี้นะคะ!`,
+                content: `## <:lowwarning:1548772721679278180>︲__\` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ คุณไม่มีสิทธิ์ใช้คำสั่งนี้ 𓂃 \`__\n` +
+                  `> คุณต้องมีสิทธิ์ **ผู้ดูแลระบบ (Administrator)** เพื่อใช้คำสั่งนี้นะคะ!\n\n` +
+                  `-# เฉพาะผู้ดูแลระบบที่ได้รับอนุญาตเท่านั้นที่สามารถจัดการร้านค้าได้ <:cuteplant:1152834055528783872>`,
               },
             ],
           },
@@ -182,20 +184,11 @@ async function handleStoreButtonInteraction(interaction, supabase, client) {
       .setValue(String(item?.wins_required ?? 0))
       .setRequired(false);
 
-    const emojiInput = new TextInputBuilder()
-      .setCustomId("item_emoji")
-      .setLabel("อิโมจิไอเทม (เช่น 🎁, 👑, ☕, 🎟️)")
-      .setStyle(TextInputStyle.Short)
-      .setValue(item?.emoji || "🎁")
-      .setRequired(false)
-      .setMaxLength(5);
-
     modal.addComponents(
       new ActionRowBuilder().addComponents(nameInput),
       new ActionRowBuilder().addComponents(descInput),
       new ActionRowBuilder().addComponents(pointsInput),
       new ActionRowBuilder().addComponents(winsInput),
-      new ActionRowBuilder().addComponents(emojiInput),
     );
 
     return interaction.showModal(modal);
@@ -221,14 +214,55 @@ async function handleStoreButtonInteraction(interaction, supabase, client) {
   // 3. ปุ่มเลือกผูกยศ Discord: akari_store_role_select_btn
   if (customId === "akari_store_role_select_btn") {
     const items = await getTenantStoreItems(supabase, interaction.guildId);
+
+    // ตรวจสอบว่ามีรางวัลที่ตั้งค่าแล้วอย่างน้อย 1 ช่องหรือไม่
+    if (!items.some((i) => i.is_configured)) {
+      return interaction.reply({
+        flags: MessageFlags.Ephemeral | FLAG_V2,
+        components: [
+          {
+            type: 17,
+            components: [
+              {
+                type: 10,
+                content: `## <:lowwarning:1548772721679278180>︲__\` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ ยังไม่มีของรางวัลที่ตั้งค่า 𓂃 \`__\n` +
+                  `> ยังไม่มีของรางวัลใดถูกตั้งค่าในระบบ กรุณากรอกข้อมูลรางวัลผ่านปุ่มแก้ไข (📝) ก่อนทำการผูกยศนะคะ! ✨`,
+              },
+            ],
+          },
+        ],
+      });
+    }
+
     const msgId = interaction.message?.id || "";
     const slotSelect = new StringSelectMenuBuilder()
       .setCustomId(`akari_store_role_slot_target:${msgId}`)
-      .setPlaceholder("เลือกช่องไอเทมที่ต้องการผูกยศ...")
+      .setPlaceholder("📦︲เลือกช่องไอเทมที่ต้องการผูกยศ...")
       .addOptions([
-        { label: `ช่องที่ 1: ${items[0].name || "(ยังไม่ตั้งชื่อ)"}`, value: "1", description: "ตั้งค่ายศที่จะมอบให้เมื่อแลกช่อง 1", emoji: items[0].emoji || "🎁" },
-        { label: `ช่องที่ 2: ${items[1].name || "(ยังไม่ตั้งชื่อ)"}`, value: "2", description: "ตั้งค่ายศที่จะมอบให้เมื่อแลกช่อง 2", emoji: items[1].emoji || "👑" },
-        { label: `ช่องที่ 3: ${items[2].name || "(ยังไม่ตั้งชื่อ)"}`, value: "3", description: "ตั้งค่ายศที่จะมอบให้เมื่อแลกช่อง 3", emoji: items[2].emoji || "☕" },
+        {
+          label: `รางวัล 1: ${items[0].name || "(ว่าง — ยังไม่ตั้งชื่อ)"}`,
+          value: "1",
+          description: items[0].is_configured
+            ? "ตั้งค่ายศที่จะมอบให้เมื่อแลกช่อง 1"
+            : "⚠️ ยังไม่ได้ตั้งค่า — กรุณาตั้งค่ารางวัลก่อน",
+          emoji: { id: "1548948434982141993", name: "minecraft1yellow" },
+        },
+        {
+          label: `รางวัล 2: ${items[1].name || "(ว่าง — ยังไม่ตั้งชื่อ)"}`,
+          value: "2",
+          description: items[1].is_configured
+            ? "ตั้งค่ายศที่จะมอบให้เมื่อแลกช่อง 2"
+            : "⚠️ ยังไม่ได้ตั้งค่า — กรุณาตั้งค่ารางวัลก่อน",
+          emoji: { id: "1548948476182798416", name: "minecraft2yellow" },
+        },
+        {
+          label: `รางวัล 3: ${items[2].name || "(ว่าง — ยังไม่ตั้งชื่อ)"}`,
+          value: "3",
+          description: items[2].is_configured
+            ? "ตั้งค่ายศที่จะมอบให้เมื่อแลกช่อง 3"
+            : "⚠️ ยังไม่ได้ตั้งค่า — กรุณาตั้งค่ารางวัลก่อน",
+          emoji: { id: "1548948499846926346", name: "minecraft3yellow" },
+        },
       ]);
 
     return interaction.reply({
@@ -239,7 +273,12 @@ async function handleStoreButtonInteraction(interaction, supabase, client) {
           components: [
             {
               type: 10,
-              content: `## 🎭︲__\` 𝖲𝗍𝗈𝗋𝖾 𝗋𝗈𝗅𝖾 ₊ เลือกช่องที่ต้องการผูกยศ 𓂃 \`__\n> กรุณาเลือกช่องของรางวัลที่ต้องการเปลี่ยนประเภทเป็น **ยศ Discord** ค่ะ:`,
+              content: `## <a:643900sevlev:1548947725133942824>︲__\` 𝖲𝗍𝗈𝗋𝖾 𝗋𝗈𝗅𝖾 ₊ เลือกช่องที่ต้องการผูกยศ 𓂃 \`__\n` +
+                `> กรุณาเลือกช่องของรางวัลที่ต้องการเปลี่ยนประเภทเป็น **ยศ Discord** เมื่อผู้เล่นแลกของรางวัล บอทจะมอบยศนี้ให้อัตโนมัติ:`,
+            },
+            {
+              type: 14,
+              spacing: 2,
             },
             {
               type: 1,
@@ -256,7 +295,7 @@ async function handleStoreButtonInteraction(interaction, supabase, client) {
     const msgId = interaction.message?.id || "";
     const channelSelect = new ChannelSelectMenuBuilder()
       .setCustomId(`akari_store_log_channel_selected:${msgId}`)
-      .setPlaceholder("เลือกห้องข้อความสำหรับส่งใบเสร็จ Log...")
+      .setPlaceholder("💭︲เลือกห้องแชทสำหรับส่งแจ้งเตือน...")
       .setChannelTypes([ChannelType.GuildText]);
 
     return interaction.reply({
@@ -267,7 +306,12 @@ async function handleStoreButtonInteraction(interaction, supabase, client) {
           components: [
             {
               type: 10,
-              content: `## 🔔︲__\` 𝖲𝗍𝗈𝗋𝖾 𝗅𝗈𝗀 ₊ เลือกห้องส่งประวัติการแลก 𓂃 \`__\n> เมื่อมีผู้เล่นแลกของรางวัล บอทจะส่งใบเสร็จแจ้งเตือนพร้อมข้อมูลผู้แลกลงในห้องนี้ค่ะ:`,
+              content: `## 🔔︲__\` 𝖲𝗍𝗈𝗋𝖾 𝗅𝗈𝗀 ₊ เลือกห้องส่งประวัติการแลก 𓂃 \`__\n` +
+                `> เมื่อมีผู้เล่นแลกของรางวัล บอทจะส่งแจ้งเตือนพร้อมข้อมูลผู้แลกลงในห้องนี้ค่ะ:`,
+            },
+            {
+              type: 14,
+              spacing: 2,
             },
             {
               type: 1,
@@ -335,8 +379,18 @@ async function handleStoreButtonInteraction(interaction, supabase, client) {
 
     if (!item) {
       return interaction.update({
-        content: "❌ ไม่พบข้อมูลของรางวัลชิ้นนี้ค่ะ",
-        components: [],
+        flags: MessageFlags.Ephemeral | FLAG_V2,
+        components: [
+          {
+            type: 17,
+            components: [
+              {
+                type: 10,
+                content: `## <:lowwarning:1548772721679278180>︲__\` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ ไม่พบข้อมูลของรางวัล 𓂃 \`__\n> ไม่พบข้อมูลของรางวัลชิ้นนี้ในระบบค่ะ!`,
+              },
+            ],
+          },
+        ],
       });
     }
 
@@ -373,7 +427,7 @@ async function handleStoreButtonInteraction(interaction, supabase, client) {
           components: [
             {
               type: 10,
-              content: `## ❌︲__\` 𝖢𝖺𝗇𝖼𝖾𝗅 ₊ ยกเลิกการแลกของรางวัลแล้ว 𓂃 \`__\n> ไม่มีการหักแต้มสะสมใดๆ คุณสามารถกลับมาแลกใหม่ได้ทุกเมื่อค่ะ ✨`,
+              content: `## <:68440x:1358584606911369226>︲__\` 𝖢𝖺𝗇𝖼𝖾𝗅 ₊ ยกเลิกการแลกของรางวัลแล้ว 𓂃 \`__\n> ไม่มีการหักแต้มสะสมใดๆ คุณสามารถกลับมาแลกใหม่ได้ทุกเมื่อค่ะ ✨`,
             },
           ],
         },
@@ -392,17 +446,171 @@ async function handleStoreModalSubmit(interaction, supabase) {
   const raw = customId.replace("akari_store_modal_submit_", "");
   const [slotStr, msgId] = raw.split(":");
   const slot = parseInt(slotStr, 10);
-  const name = interaction.fields.getTextInputValue("item_name").trim();
-  const desc = interaction.fields.getTextInputValue("item_desc")?.trim() || "";
-  const pointsStr = interaction.fields.getTextInputValue("item_points").trim();
-  const winsStr = interaction.fields.getTextInputValue("item_wins")?.trim() || "0";
-  const emoji = interaction.fields.getTextInputValue("item_emoji")?.trim() || "🎁";
+  const name = interaction.fields.getTextInputValue("item_name")?.trim() || "";
+  if (!name || name.length === 0) {
+    return interaction.reply({
+      flags: MessageFlags.Ephemeral | FLAG_V2,
+      components: [
+        {
+          type: 17,
+          components: [
+            {
+              type: 10,
+              content: `## <:lowwarning:1548772721679278180>︲__\` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ ชื่อของรางวัลไม่ถูกต้อง 𓂃 \`__\n` +
+                `> กรุณาระบุชื่อของรางวัล (ความยาว 1-50 ตัวอักษร) นะคะ!`,
+            },
+          ],
+        },
+      ],
+    });
+  }
+  if (name.length > 50) {
+    return interaction.reply({
+      flags: MessageFlags.Ephemeral | FLAG_V2,
+      components: [
+        {
+          type: 17,
+          components: [
+            {
+              type: 10,
+              content: `## <:lowwarning:1548772721679278180>︲__\` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ ชื่อของรางวัลยาวเกินไป 𓂃 \`__\n` +
+                `> ชื่อของรางวัลต้องมีความยาวไม่เกิน **50** ตัวอักษรค่ะ (ปัจจุบัน: ${name.length} ตัวอักษร)`,
+            },
+          ],
+        },
+      ],
+    });
+  }
 
-  const pointsCost = Math.max(0, parseInt(pointsStr, 10) || 100);
-  const winsRequired = Math.max(0, parseInt(winsStr, 10) || 0);
+  const desc = interaction.fields.getTextInputValue("item_desc")?.trim() || "";
+  if (desc.length > 100) {
+    return interaction.reply({
+      flags: MessageFlags.Ephemeral | FLAG_V2,
+      components: [
+        {
+          type: 17,
+          components: [
+            {
+              type: 10,
+              content: `## <:lowwarning:1548772721679278180>︲__\` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ คำอธิบายยาวเกินไป 𓂃 \`__\n` +
+                `> คำอธิบายของรางวัลต้องมีความยาวไม่เกิน **100** ตัวอักษรค่ะ (ปัจจุบัน: ${desc.length} ตัวอักษร)`,
+            },
+          ],
+        },
+      ],
+    });
+  }
+
+  const pointsStr = interaction.fields.getTextInputValue("item_points")?.trim() || "";
+  if (!/^\d+$/.test(pointsStr)) {
+    return interaction.reply({
+      flags: MessageFlags.Ephemeral | FLAG_V2,
+      components: [
+        {
+          type: 17,
+          components: [
+            {
+              type: 10,
+              content: `## <:lowwarning:1548772721679278180>︲__\` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ แต้มต้องเป็นตัวเลข 𓂃 \`__\n` +
+                `> แต้มที่ต้องใช้แลกต้องเป็น **ตัวเลขจำนวนเต็มบวกเท่านั้น** (เช่น 100 หรือ 500) และห้ามมีตัวอักษรหรือทศนิยมค่ะ!`,
+            },
+          ],
+        },
+      ],
+    });
+  }
+  const pointsCost = parseInt(pointsStr, 10);
+  if (pointsCost <= 0 || pointsCost > 10000000) {
+    return interaction.reply({
+      flags: MessageFlags.Ephemeral | FLAG_V2,
+      components: [
+        {
+          type: 17,
+          components: [
+            {
+              type: 10,
+              content: `## <:lowwarning:1548772721679278180>︲__\` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ แต้มไม่อยู่ในเกณฑ์ที่กำหนด 𓂃 \`__\n` +
+                `> แต้มที่ต้องใช้แลกต้องอยู่ระหว่าง **1 ถึง 10,000,000** แต้มค่ะ!`,
+            },
+          ],
+        },
+      ],
+    });
+  }
+
+  const winsStr = interaction.fields.getTextInputValue("item_wins")?.trim() || "0";
+  if (!/^\d+$/.test(winsStr)) {
+    return interaction.reply({
+      flags: MessageFlags.Ephemeral | FLAG_V2,
+      components: [
+        {
+          type: 17,
+          components: [
+            {
+              type: 10,
+              content: `## <:lowwarning:1548772721679278180>︲__\` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ จำนวนชนะต้องเป็นตัวเลข 𓂃 \`__\n` +
+                `> จำนวนครั้งที่ชนะขั้นต่ำต้องเป็น **ตัวเลขจำนวนเต็ม 0 ขึ้นไป** (เช่น 0 หากไม่จำกัด หรือ 5) ค่ะ!`,
+            },
+          ],
+        },
+      ],
+    });
+  }
+  const winsRequired = parseInt(winsStr, 10);
+  if (winsRequired < 0 || winsRequired > 100000) {
+    return interaction.reply({
+      flags: MessageFlags.Ephemeral | FLAG_V2,
+      components: [
+        {
+          type: 17,
+          components: [
+            {
+              type: 10,
+              content: `## <:lowwarning:1548772721679278180>︲__\` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ จำนวนชนะไม่อยู่ในเกณฑ์ 𓂃 \`__\n` +
+                `> จำนวนครั้งที่ชนะขั้นต่ำต้องอยู่ระหว่าง **0 ถึง 100,000** ครั้งค่ะ!`,
+            },
+          ],
+        },
+      ],
+    });
+  }
+
+  // 1. รับทราบ interaction ทันทีเพื่อป้องกัน Timeout 3 วินาทีของ Discord
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => {});
+
+  const existingItems = await getTenantStoreItems(supabase, interaction.guildId);
+  const existingItem = existingItems.find((i) => i.slot === slot);
+
+  // Duplicate Check: หากข้อมูลเหมือนเดิมทุกประการ ไม่ต้องบันทึกซ้ำและไม่ต้องแก้แดชบอร์ด
+  if (
+    existingItem &&
+    existingItem.is_configured &&
+    existingItem.name === name &&
+    (existingItem.description || "") === desc &&
+    existingItem.points_cost === pointsCost &&
+    existingItem.wins_required === winsRequired
+  ) {
+    return interaction.editReply({
+      flags: FLAG_V2,
+      components: [
+        {
+          type: 17,
+          components: [
+            {
+              type: 10,
+              content: "## <:50121checkmark:1358584609087946867>︲__` Successfully fixed ₊ แก้ไขสำเร็จ 𓂃 `__",
+            },
+          ],
+        },
+      ],
+    });
+  }
+
+  const defaultSlotEmojis = { 1: "🎁", 2: "👑", 3: "☕" };
+  const emoji = existingItem?.emoji || defaultSlotEmojis[slot] || "🎁";
 
   await saveTenantStoreItem(supabase, interaction.guildId, slot, {
-    name: name || `ของรางวัลช่องที่ ${slot}`,
+    name,
     description: desc,
     points_cost: pointsCost,
     wins_required: winsRequired,
@@ -410,34 +618,42 @@ async function handleStoreModalSubmit(interaction, supabase) {
     is_configured: true,
   });
 
-  // อัปเดต Component V2 ของแดชบอร์ดหลักทันที
-  const storeConfig = await getTenantStoreConfig(supabase, interaction.guildId);
-  const updatedItems = await getTenantStoreItems(supabase, interaction.guildId);
-  const updatedDashboard = buildStoreSettingsDashboard(interaction.guild, storeConfig, updatedItems);
-
+  // อัปเดต Component V2 ของแดชบอร์ดหลักในห้องแชท
   if (interaction.message) {
-    await interaction.message.edit(updatedDashboard).catch(() => {});
+    (async () => {
+      try {
+        const [storeConfig, updatedItems] = await Promise.all([
+          getTenantStoreConfig(supabase, interaction.guildId),
+          getTenantStoreItems(supabase, interaction.guildId),
+        ]);
+        await interaction.message.edit(buildStoreSettingsDashboard(interaction.guild, storeConfig, updatedItems)).catch(() => {});
+      } catch (err) {}
+    })();
   } else if (msgId && interaction.channel) {
-    const originalMsg = await interaction.channel.messages.fetch(msgId).catch(() => null);
-    if (originalMsg) {
-      await originalMsg.edit(updatedDashboard).catch(() => {});
-    }
+    (async () => {
+      try {
+        const [originalMsg, storeConfig, updatedItems] = await Promise.all([
+          interaction.channel.messages.fetch(msgId).catch(() => null),
+          getTenantStoreConfig(supabase, interaction.guildId),
+          getTenantStoreItems(supabase, interaction.guildId),
+        ]);
+        if (originalMsg) {
+          await originalMsg.edit(buildStoreSettingsDashboard(interaction.guild, storeConfig, updatedItems)).catch(() => {});
+        }
+      } catch (err) {}
+    })();
   }
 
-  return interaction.reply({
-    flags: MessageFlags.Ephemeral | FLAG_V2,
+  // อัปเดตหน้าต่าง Ephemeral เป็นการ์ดแก้ไขสำเร็จ (Component V2)
+  return interaction.editReply({
+    flags: FLAG_V2,
     components: [
       {
         type: 17,
         components: [
           {
             type: 10,
-            content: `## <:strawberryv2:1520439075100688614>︲__\` 𝖲𝗎𝖼𝖼𝖾𝗌𝗌 ₊ บันทึกไอเทมช่องที่ ${slot} เรียบร้อย 𓂃 \`__\n` +
-              `> 🎁 **ชื่อ:** **${emoji} ${name || `ของรางวัลช่องที่ ${slot}`}**\n` +
-              `> 💰 **ราคา:** **${pointsCost.toLocaleString()}** แต้ม\n` +
-              `> 🏆 **ชนะขั้นต่ำ:** ${winsRequired > 0 ? `${winsRequired.toLocaleString()} ครั้ง` : "ไม่จำกัด"}\n` +
-              `> 📝 **คำอธิบาย:** ${desc || "ไม่มีคำอธิบาย"}\n\n` +
-              `-# การ์ดการตั้งค่าหลักได้รับการอัปเดตเรียบร้อยแล้วค่ะ ✨`,
+            content: "## <:50121checkmark:1358584609087946867>︲__` Successfully fixed ₊ แก้ไขสำเร็จ 𓂃 `__",
           },
         ],
       },
@@ -494,20 +710,11 @@ async function handleStoreSelectMenus(interaction, supabase) {
       .setValue(String(item?.wins_required ?? 0))
       .setRequired(false);
 
-    const emojiInput = new TextInputBuilder()
-      .setCustomId("item_emoji")
-      .setLabel("อิโมจิไอเทม (เช่น 🎁, 👑, ☕, 🎟️)")
-      .setStyle(TextInputStyle.Short)
-      .setValue(item?.emoji || "🎁")
-      .setRequired(false)
-      .setMaxLength(5);
-
     modal.addComponents(
       new ActionRowBuilder().addComponents(nameInput),
       new ActionRowBuilder().addComponents(descInput),
       new ActionRowBuilder().addComponents(pointsInput),
       new ActionRowBuilder().addComponents(winsInput),
-      new ActionRowBuilder().addComponents(emojiInput),
     );
 
     return interaction.showModal(modal);
@@ -552,9 +759,33 @@ async function handleStoreSelectMenus(interaction, supabase) {
     const parts = customId.split(":");
     const msgId = parts[1] || "";
     const targetSlot = interaction.values[0];
+    const targetSlotNum = parseInt(targetSlot, 10);
+
+    const items = await getTenantStoreItems(supabase, interaction.guildId);
+    const targetItem = items.find((i) => i.slot === targetSlotNum);
+
+    // ตรวจสอบว่าช่องที่เลือกได้รับการตั้งค่ารางวัลแล้วหรือไม่
+    if (!targetItem || !targetItem.is_configured) {
+      return interaction.update({
+        flags: MessageFlags.Ephemeral | FLAG_V2,
+        components: [
+          {
+            type: 17,
+            components: [
+              {
+                type: 10,
+                content: `## <:lowwarning:1548772721679278180>︲__\` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ ช่องนี้ยังไม่ได้ตั้งค่า 𓂃 \`__\n` +
+                  `> ช่องที่ ${targetSlot} ยังไม่ได้ตั้งค่า กรุณากรอกข้อมูลรางวัลผ่านปุ่มแก้ไข (📝) ก่อนทำการผูกยศนะคะ! ✨`,
+              },
+            ],
+          },
+        ],
+      });
+    }
+
     const roleSelect = new RoleSelectMenuBuilder()
       .setCustomId(`akari_store_role_selected_slot_${targetSlot}:${msgId}`)
-      .setPlaceholder("เลือกยศ Discord ที่ต้องการมอบให้...");
+      .setPlaceholder("📦︲เลือกยศ Discord ที่ต้องการมอบให้...");
 
     return interaction.update({
       flags: MessageFlags.Ephemeral | FLAG_V2,
@@ -564,7 +795,12 @@ async function handleStoreSelectMenus(interaction, supabase) {
           components: [
             {
               type: 10,
-              content: `## 🎭︲__\` 𝖲𝗍𝗈𝗋𝖾 𝗋𝗈𝗅𝖾 ₊ ผูกยศสำหรับช่องที่ ${targetSlot} 𓂃 \`__\n> กรุณาเลือกบทบาท Discord ที่ผู้เล่นจะได้รับเมื่อแลกไอเทมช่องที่ ${targetSlot}:`,
+              content: `##  <a:643900sevlev:1548947725133942824>︲__\` 𝖲𝗍𝗈𝗋𝖾 𝗋𝗈𝗅𝖾 ₊ ผูกยศสำหรับรางวัล ${targetSlot} 𓂃 \`__\n` +
+                `> กรุณาเลือกบทบาท Discord ที่ผู้เล่นจะได้รับเมื่อแลกรางวัลช่องที่ ${targetSlot}:`,
+            },
+            {
+              type: 14,
+              spacing: 2,
             },
             {
               type: 1,
@@ -578,10 +814,53 @@ async function handleStoreSelectMenus(interaction, supabase) {
 
   // เมนูเลือกยศ Discord สำหรับช่องที่ระบุ: akari_store_role_selected_slot_1/2/3
   if (customId.startsWith("akari_store_role_selected_slot_")) {
+    // 1. รับทราบ interaction ทันทีเพื่อป้องกัน Timeout 3 วินาทีของ Discord
+    await interaction.deferUpdate().catch(() => {});
+
     const raw = customId.replace("akari_store_role_selected_slot_", "");
     const [slotStr, msgId] = raw.split(":");
     const slot = parseInt(slotStr, 10);
     const selectedRoleId = interaction.values[0];
+
+    const items = await getTenantStoreItems(supabase, interaction.guildId);
+    const item = items.find((i) => i.slot === slot);
+
+    // Safety net: ถ้าช่องนี้ยังไม่ได้ตั้งค่า
+    if (!item || !item.is_configured) {
+      return interaction.editReply({
+        flags: FLAG_V2,
+        components: [
+          {
+            type: 17,
+            components: [
+              {
+                type: 10,
+                content: `## <:lowwarning:1548772721679278180>︲__\` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ ช่องนี้ยังไม่ได้ตั้งค่า 𓂃 \`__\n` +
+                  `> ช่องที่ ${slot} ยังไม่ได้ตั้งค่า กรุณากรอกข้อมูลรางวัลผ่านปุ่มแก้ไข (📝) ก่อนทำการผูกยศนะคะ! ✨`,
+              },
+            ],
+          },
+        ],
+      });
+    }
+
+    // Duplicate Check: หากช่องนี้ผูกยศเดิมนี้อยู่แล้ว ข้ามการบันทึกและข้ามการแก้แดชบอร์ด
+    if (item.reward_type === "role" && item.role_id === selectedRoleId) {
+      return interaction.editReply({
+        flags: FLAG_V2,
+        components: [
+          {
+            type: 17,
+            components: [
+              {
+                type: 10,
+                content: "## <:50121checkmark:1358584609087946867>︲__` Successfully fixed ₊ แก้ไขสำเร็จ 𓂃 `__",
+              },
+            ],
+          },
+        ],
+      });
+    }
 
     await saveTenantStoreItem(supabase, interaction.guildId, slot, {
       reward_type: "role",
@@ -590,68 +869,106 @@ async function handleStoreSelectMenus(interaction, supabase) {
       is_configured: true,
     });
 
-    // อัปเดต Component V2 ของแดชบอร์ดหลัก
-    if (msgId && interaction.channel) {
-      const originalMsg = await interaction.channel.messages.fetch(msgId).catch(() => null);
-      if (originalMsg) {
-        const storeConfig = await getTenantStoreConfig(supabase, interaction.guildId);
-        const updatedItems = await getTenantStoreItems(supabase, interaction.guildId);
-        await originalMsg.edit(buildStoreSettingsDashboard(interaction.guild, storeConfig, updatedItems)).catch(() => {});
-      }
-    }
-
-    return interaction.update({
-      flags: MessageFlags.Ephemeral | FLAG_V2,
+    // อัปเดตหน้าต่าง Ephemeral เป็นการ์ดแก้ไขสำเร็จ (Component V2)
+    const editReplyPromise = interaction.editReply({
+      flags: FLAG_V2,
       components: [
         {
           type: 17,
           components: [
             {
               type: 10,
-              content: `## <:strawberryv2:1520439075100688614>︲__\` 𝖲𝗎𝖼𝖼𝖾𝗌𝗌 ₊ ผูกยศสำเร็จ 𓂃 \`__\n` +
-                `> ระบบได้ผูกยศ <@&${selectedRoleId}> เข้ากับของรางวัลช่องที่ **${slot}** เรียบร้อยแล้วค่ะ!\n` +
-                `-# เมื่อผู้เล่นแลกไอเทมช่องนี้ บอทจะมอบยศให้อัตโนมัติทันที`,
+              content: "## <:50121checkmark:1358584609087946867>︲__` Successfully fixed ₊ แก้ไขสำเร็จ 𓂃 `__",
             },
           ],
         },
       ],
-    });
+    }).catch(() => {});
+
+    // อัปเดต Component V2 ของแดชบอร์ดหลักในห้องแชท
+    if (msgId && interaction.channel) {
+      (async () => {
+        try {
+          const [originalMsg, storeConfig, updatedItems] = await Promise.all([
+            interaction.channel.messages.fetch(msgId).catch(() => null),
+            getTenantStoreConfig(supabase, interaction.guildId),
+            getTenantStoreItems(supabase, interaction.guildId),
+          ]);
+          if (originalMsg) {
+            await originalMsg.edit(buildStoreSettingsDashboard(interaction.guild, storeConfig, updatedItems)).catch(() => {});
+          }
+        } catch (err) {}
+      })();
+    }
+
+    return await editReplyPromise;
   }
 
   // เมนูเลือกห้อง Log Channel: akari_store_log_channel_selected
   if (customId.startsWith("akari_store_log_channel_selected")) {
+    // 1. รับทราบ interaction ทันทีเพื่อป้องกัน Timeout 3 วินาทีของ Discord
+    await interaction.deferUpdate().catch(() => {});
+
     const [_, msgId] = customId.split(":");
     const selectedChannelId = interaction.values[0];
+
+    const currentConfig = await getTenantStoreConfig(supabase, interaction.guildId);
+
+    // Duplicate Check: หากเลือกห้องเดิมที่ตั้งไว้อยู่แล้ว ข้ามการบันทึกและข้ามการแก้แดชบอร์ด
+    if (currentConfig?.log_channel_id === selectedChannelId) {
+      return interaction.editReply({
+        flags: FLAG_V2,
+        components: [
+          {
+            type: 17,
+            components: [
+              {
+                type: 10,
+                content: "## <:50121checkmark:1358584609087946867>︲__` Successfully fixed ₊ แก้ไขสำเร็จ 𓂃 `__",
+              },
+            ],
+          },
+        ],
+      });
+    }
 
     await saveTenantStoreConfig(supabase, interaction.guildId, {
       log_channel_id: selectedChannelId,
     });
 
-    // อัปเดต Component V2 ของแดชบอร์ดหลัก
-    if (msgId && interaction.channel) {
-      const originalMsg = await interaction.channel.messages.fetch(msgId).catch(() => null);
-      if (originalMsg) {
-        const storeConfig = await getTenantStoreConfig(supabase, interaction.guildId);
-        const updatedItems = await getTenantStoreItems(supabase, interaction.guildId);
-        await originalMsg.edit(buildStoreSettingsDashboard(interaction.guild, storeConfig, updatedItems)).catch(() => {});
-      }
-    }
-
-    return interaction.update({
-      flags: MessageFlags.Ephemeral | FLAG_V2,
+    // อัปเดตหน้าต่าง Ephemeral เป็นการ์ดแก้ไขสำเร็จ (Component V2)
+    const editReplyPromise = interaction.editReply({
+      flags: FLAG_V2,
       components: [
         {
           type: 17,
           components: [
             {
               type: 10,
-              content: `## <:strawberryv2:1520439075100688614>︲__\` 𝖲𝗎𝖼𝖼𝖾𝗌𝗌 ₊ ตั้งห้องแจ้งเตือนสำเร็จ 𓂃 \`__\n` +
-                `> ระบบได้ตั้งห้อง <#${selectedChannelId}> เป็นห้องรับใบเสร็จแจ้งเตือนประวัติการแลกของรางวัลเรียบร้อยแล้วค่ะ! 🔔✨`,
+              content: "## <:50121checkmark:1358584609087946867>︲__` Successfully fixed ₊ แก้ไขสำเร็จ 𓂃 `__",
             },
           ],
         },
       ],
-    });
+    }).catch(() => {});
+
+    // อัปเดต Component V2 ของแดชบอร์ดหลักในห้องแชท
+    if (msgId && interaction.channel) {
+      (async () => {
+        try {
+          const [originalMsg, storeConfig, updatedItems] = await Promise.all([
+            interaction.channel.messages.fetch(msgId).catch(() => null),
+            getTenantStoreConfig(supabase, interaction.guildId),
+            getTenantStoreItems(supabase, interaction.guildId),
+          ]);
+          if (originalMsg) {
+            await originalMsg.edit(buildStoreSettingsDashboard(interaction.guild, storeConfig, updatedItems)).catch(() => {});
+          }
+        } catch (err) {}
+      })();
+    }
+
+    return await editReplyPromise;
   }
 }
 

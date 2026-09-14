@@ -451,6 +451,102 @@ async function handleStoreModalSubmit(interaction, supabase) {
 async function handleStoreSelectMenus(interaction, supabase) {
   const customId = interaction.customId;
 
+  // 1. เมนูเลือกช่องเพื่อตั้งค่าไอเทม: akari_store_edit_select
+  if (customId === "akari_store_edit_select") {
+    const slot = parseInt(interaction.values[0], 10);
+    const items = await getTenantStoreItems(supabase, interaction.guildId);
+    const item = items.find((i) => i.slot === slot);
+    const msgId = interaction.message?.id || "";
+
+    const modal = new ModalBuilder()
+      .setCustomId(`akari_store_modal_submit_${slot}:${msgId}`)
+      .setTitle(`ตั้งค่าของรางวัลช่องที่ ${slot}`);
+
+    const nameInput = new TextInputBuilder()
+      .setCustomId("item_name")
+      .setLabel("ชื่อของรางวัล")
+      .setStyle(TextInputStyle.Short)
+      .setValue(item?.name || "")
+      .setPlaceholder("เช่น ยศ VIP, บัตรเครื่องดื่ม, ของพรีเมียม")
+      .setRequired(true)
+      .setMaxLength(50);
+
+    const descInput = new TextInputBuilder()
+      .setCustomId("item_desc")
+      .setLabel("คำอธิบายของรางวัล")
+      .setStyle(TextInputStyle.Paragraph)
+      .setValue(item?.description || "")
+      .setPlaceholder("ระบุรายละเอียดหรือสิ่งที่ผู้เล่นจะได้รับ...")
+      .setRequired(false)
+      .setMaxLength(100);
+
+    const pointsInput = new TextInputBuilder()
+      .setCustomId("item_points")
+      .setLabel("แต้มที่ต้องใช้แลก (ตัวเลข)")
+      .setStyle(TextInputStyle.Short)
+      .setValue(item?.points_cost ? String(item.points_cost) : "100")
+      .setRequired(true);
+
+    const winsInput = new TextInputBuilder()
+      .setCustomId("item_wins")
+      .setLabel("จำนวนครั้งที่ชนะขั้นต่ำ (0 หากไม่จำกัด)")
+      .setStyle(TextInputStyle.Short)
+      .setValue(String(item?.wins_required ?? 0))
+      .setRequired(false);
+
+    const emojiInput = new TextInputBuilder()
+      .setCustomId("item_emoji")
+      .setLabel("อิโมจิไอเทม (เช่น 🎁, 👑, ☕, 🎟️)")
+      .setStyle(TextInputStyle.Short)
+      .setValue(item?.emoji || "🎁")
+      .setRequired(false)
+      .setMaxLength(5);
+
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(nameInput),
+      new ActionRowBuilder().addComponents(descInput),
+      new ActionRowBuilder().addComponents(pointsInput),
+      new ActionRowBuilder().addComponents(winsInput),
+      new ActionRowBuilder().addComponents(emojiInput),
+    );
+
+    return interaction.showModal(modal);
+  }
+
+  // 2. เมนูสลับสถานะเปิด / ปิด การใช้งาน: akari_store_toggle_select
+  if (customId === "akari_store_toggle_select") {
+    const slot = parseInt(interaction.values[0], 10);
+    const items = await getTenantStoreItems(supabase, interaction.guildId);
+    const item = items.find((i) => i.slot === slot);
+
+    if (!item || !item.is_configured) {
+      return interaction.reply({
+        flags: MessageFlags.Ephemeral | FLAG_V2,
+        components: [
+          {
+            type: 17,
+            components: [
+              {
+                type: 10,
+                content: `## <:lowwarning:1548772721679278180>︲__\` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ ช่องนี้ยังไม่ได้ตั้งค่า 𓂃 \`__\n` +
+                  `> ช่องที่ ${slot} ยังไม่มีข้อมูลของรางวัล กรุณาเลือกตั้งค่าของรางวัลจากเมนูด้านบนก่อนเปิดใช้งานนะคะ! ✨`,
+              },
+            ],
+          },
+        ],
+      });
+    }
+
+    await saveTenantStoreItem(supabase, interaction.guildId, slot, {
+      is_active: !item.is_active,
+    });
+
+    const storeConfig = await getTenantStoreConfig(supabase, interaction.guildId);
+    const updatedItems = await getTenantStoreItems(supabase, interaction.guildId);
+    const updatedPayload = buildStoreSettingsDashboard(interaction.guild, storeConfig, updatedItems);
+    return interaction.update(updatedPayload);
+  }
+
   // เมนูเลือกช่องเป้าหมายที่จะผูกยศ: akari_store_role_slot_target
   if (customId.startsWith("akari_store_role_slot_target")) {
     const parts = customId.split(":");

@@ -63,7 +63,7 @@ function buildPremiumStoreWarningPayload() {
 }
 
 /**
- * สร้างแดชบอร์ดตั้งค่าร้านค้าสำหรับ Admin (/setting-store) ตามดีไซน์ใหม่
+ * สร้างแดชบอร์ดตั้งค่าร้านค้าสำหรับ Admin (/setting-store) ตามดีไซน์ใหม่ล่าสุด
  */
 function buildStoreSettingsDashboard(guild, storeConfig, items) {
   const logChannelText = storeConfig?.log_channel_id
@@ -95,7 +95,7 @@ function buildStoreSettingsDashboard(guild, storeConfig, items) {
     },
   ];
 
-  // วนลูปสร้างรายละเอียดไอเทม Slot 1, 2, 3
+  // วนลูปสร้างรายละเอียดไอเทม Slot 1, 2, 3 แต่ละช่องเป็น Section (Type 9) พร้อมปุ่ม 📝 (Accessory Type 2)
   [1, 2, 3].forEach((s) => {
     const item = items.find((i) => i.slot === s);
     const isConfigured = Boolean(item?.is_configured && item?.name && item?.name.trim() !== "");
@@ -104,16 +104,14 @@ function buildStoreSettingsDashboard(guild, storeConfig, items) {
     containerComponents.push({
       type: 14,
       spacing: 2,
-      divider: s === 1,
+      divider: true,
     });
 
+    let itemContent = "";
     if (!isConfigured) {
-      containerComponents.push({
-        type: 10,
-        content: `### ${slotEmoji}︲__\` ว่าง — ยังไม่ได้ตั้งค่า \`__\n` +
-          `> ${STATUS_EMOJIS.bad}⠀**สถานะ:** ยังไม่มีข้อมูลของรางวัล\n` +
-          `> 💡 *กดเลือกเมนูด้านล่างเพื่อเริ่มสร้างของรางวัลช่องนี้*`,
-      });
+      itemContent = `### ${slotEmoji}︲__\` ว่าง — ยังไม่ได้ตั้งค่า \`__\n` +
+        `> ${STATUS_EMOJIS.bad}⠀**สถานะ:** ยังไม่มีข้อมูลของรางวัล\n` +
+        `> 💡 *กดเลือกเมนูด้านล่างเพื่อเริ่มสร้างของรางวัลช่องนี้*`;
     } else {
       const statusText = item.is_active
         ? `${STATUS_EMOJIS.good}⠀**สถานะ:** เปิดใช้งาน`
@@ -124,15 +122,30 @@ function buildStoreSettingsDashboard(guild, storeConfig, items) {
       const limitText = item.limit_type === "once_per_user" ? "(จำกัด 1 ครั้ง/คน)" : "(แลกได้ไม่จำกัด)";
       const winsLine = item.wins_required > 0 ? `\n> 🎯⠀**ชนะขั้นต่ำ:** ${item.wins_required.toLocaleString()} ครั้ง` : "";
 
-      containerComponents.push({
-        type: 10,
-        content: `### ${slotEmoji}︲__\` ${item.name} \`__\n` +
-          `> ${statusText}\n` +
-          `> 💰⠀**ราคา:** ${item.points_cost.toLocaleString()} แต้ม${winsLine}\n` +
-          `> 🎁⠀**ของรางวัล:** ${rewardText} ${limitText}\n` +
-          `> 📝⠀**คำอธิบาย:** ${item.description || "ไม่พบคำอธิบาย"}`,
-      });
+      itemContent = `### ${slotEmoji}︲__\` ${item.name} \`__\n` +
+        `> ${statusText}\n` +
+        `> 💰⠀**ราคา:** ${item.points_cost.toLocaleString()} แต้ม${winsLine}\n` +
+        `> 🎁⠀**ของรางวัล:** ${rewardText} ${limitText}\n` +
+        `> 📝⠀**คำอธิบาย:** ${item.description || "ไม่พบคำอธิบาย"}`;
     }
+
+    containerComponents.push({
+      type: 9, // Section with Button Accessory
+      components: [
+        {
+          type: 10,
+          content: itemContent,
+        },
+      ],
+      accessory: {
+        type: 2, // Button
+        style: 2, // Secondary
+        custom_id: `akari_store_edit_modal_${s}`,
+        emoji: {
+          name: "📝",
+        },
+      },
+    });
   });
 
   // ตัวคั่นก่อนเข้าสู่เมนูควบคุม
@@ -142,52 +155,20 @@ function buildStoreSettingsDashboard(guild, storeConfig, items) {
     divider: true,
   });
 
-  // Row 1: Select Menu สำหรับเลือกช่องเพื่อแก้ไข / ตั้งค่า
-  const editOptions = [1, 2, 3].map((s) => {
-    const item = items.find((i) => i.slot === s);
-    const isConfigured = Boolean(item?.is_configured && item?.name && item?.name.trim() !== "");
-    return {
-      label: `ช่องที่ ${s}: ${isConfigured ? item.name : "ว่าง — ยังไม่ได้ตั้งค่า"}`,
-      value: String(s),
-      description: isConfigured
-        ? `ราคา: ${item.points_cost.toLocaleString()} แต้ม | ชนะ: ${item.wins_required} ครั้ง`
-        : "คลิกเพื่อตั้งค่าชื่อ, แต้ม, จำนวนชนะ และคำอธิบาย",
-      emoji: SLOT_EMOJIS[s],
-    };
-  });
-
-  containerComponents.push({
-    type: 1, // ActionRow 1
-    components: [
-      {
-        type: 3, // StringSelectMenu
-        custom_id: "akari_store_edit_select",
-        placeholder: "✏️ เลือกช่องของรางวัลที่ต้องการแก้ไข / ตั้งค่า...",
-        options: editOptions,
-      },
-    ],
-  });
-
-  // ตัวคั่นระหว่างเมนู
-  containerComponents.push({
-    type: 14,
-    divider: false,
-  });
-
-  // Row 2: Select Menu สำหรับสลับสถานะเปิด / ปิด การใช้งาน
+  // ActionRow 1: Select Menu สำหรับสลับสถานะเปิด / ปิด การใช้งาน
   const toggleOptions = [1, 2, 3].map((s) => {
     const item = items.find((i) => i.slot === s);
     const isConfigured = Boolean(item?.is_configured && item?.name && item?.name.trim() !== "");
     if (!isConfigured) {
       return {
-        label: `ช่องที่ ${s}: (ยังไม่ได้ตั้งค่า)`,
+        label: `รางวัล ${s}: (ยังไม่ได้ตั้งค่า)`,
         value: String(s),
         description: "ยังไม่มีข้อมูลของรางวัล ไม่สามารถเปิดใช้งานได้",
         emoji: { id: "1548760143192260689", name: "conektionbad" },
       };
     }
     return {
-      label: `ช่องที่ ${s}: ${item.name} (${item.is_active ? "เปิดอยู่" : "ปิดอยู่"})`,
+      label: `รางวัล ${s}: ${item.name} (${item.is_active ? "เปิดอยู่" : "ปิดอยู่"})`,
       value: String(s),
       description: item.is_active ? "คลิกเพื่อสลับเป็น ปิดใช้งาน" : "คลิกเพื่อสลับเป็น เปิดใช้งาน",
       emoji: item.is_active
@@ -197,38 +178,44 @@ function buildStoreSettingsDashboard(guild, storeConfig, items) {
   });
 
   containerComponents.push({
-    type: 1, // ActionRow 2
+    type: 1, // ActionRow 1
     components: [
       {
         type: 3, // StringSelectMenu
         custom_id: "akari_store_toggle_select",
-        placeholder: "⚡ สลับสถานะเปิด / ปิด การใช้งานของรางวัล...",
+        placeholder: "⚡︲สลับสถานะเปิด / ปิด การใช้งานของรางวัล...",
         options: toggleOptions,
       },
     ],
   });
 
-  // ตัวคั่นก่อนปุ่ม Row 3
+  // ตัวคั่นก่อนปุ่ม Row 2
   containerComponents.push({
     type: 14,
     divider: false,
   });
 
-  // Row 3: ปุ่มกดสำหรับผูกยศ และ เลือกห้อง Log (ยังคงเป็นปุ่มตามที่สั่ง)
+  // ActionRow 2: ปุ่มกดสำหรับผูกยศ และ เลือกห้อง Log
   containerComponents.push({
-    type: 1, // ActionRow 3
+    type: 1, // ActionRow 2
     components: [
       {
         type: 2,
         style: 1, // Primary (Blurple)
-        label: "🎭 ผูกยศ Discord",
+        label: "︲ผูกยศ Discord",
         custom_id: "akari_store_role_select_btn",
+        emoji: {
+          name: "🎖️",
+        },
       },
       {
         type: 2,
         style: 2, // Secondary (Grey)
-        label: "🔔 เลือกห้องแจ้งเตือน Log",
+        label: "︲เลือกห้องแจ้งเตือน Log",
         custom_id: "akari_store_channel_select_btn",
+        emoji: {
+          name: "🔔",
+        },
       },
     ],
   });

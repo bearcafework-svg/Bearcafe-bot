@@ -9,8 +9,13 @@
     "local": "node scripts/local-start.js",
     "preflight": "node scripts/preflight.js",
     "dev": "node scripts/dev-both.js",
-    "dev:main": "nodemon index.js",
-    "dev:akari": "nodemon index-akari.js"
+    "dev:main": "nodemon --config nodemon.main.json index.js",
+    "dev:akari": "nodemon --config nodemon.akari.json index-akari.js",
+    "dev:main:watch": "nodemon index.js",
+    "dev:akari:watch": "nodemon index-akari.js",
+    "reload": "node scripts/reload.js",
+    "reload:main": "node scripts/reload.js main",
+    "reload:akari": "node scripts/reload.js akari"
   },
   "engines": {
     "node": "20.x",

@@ -177,6 +177,7 @@ Every feature must strictly separate concerns:
 - **Rule 1 (No Top-Level Content):** When `flags: 32768` is used, the root `content` MUST be omitted or `null`. All text must reside in Text Components (`type: 10`) inside a Container (`type: 17`).
 - **Rule 2 (No Trailing Separator):** The last component inside a Container (`type: 17`) **MUST NOT be a Separator/Divider (`type: 14`)**. If there are no ActionRows/Buttons below it, omit the trailing separator.
 - **Rule 3 (Max 5 Buttons per Row):** ActionRows (`type: 1`) hold a maximum of 5 buttons (`type: 2`). Chunk button arrays into groups of 5.
+- **Akari Master Guide:** Refer to `AKARI_COMPONENT_V2.md` (or `src/akari/AKARI_COMPONENT_V2.md`) for complete JSON templates, typography patterns, and custom emojis for Akari Bot.
 
 ### 3.5 Naming & Style Conventions
 - **Custom IDs:** Prefix with system abbreviation and game ID (e.g. `mg_sb_13_${index}_${timestamp}`, `bee_gacha_${action}`).

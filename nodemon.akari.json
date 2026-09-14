@@ -1,0 +1,8 @@
+{
+  "watch": [
+    ".reload-trigger",
+    ".reload-akari"
+  ],
+  "ext": "*",
+  "delay": "200"
+}

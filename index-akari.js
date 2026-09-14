@@ -15,6 +15,9 @@ const {
   handleSettingToggle,
   handleSettingReset,
   handleClearCategory,
+  handleSetGame,
+  handleRemoveGame,
+  handleAkariAdmin,
 } = require("./src/akari/commands/minigamesCommands");
 
 const botToken = process.env.AKARI_BOT_TOKEN;
@@ -77,6 +80,15 @@ client.on("interactionCreate", async (interaction) => {
       }
       if (interaction.commandName === "clear") {
         return await handleClearCategory(interaction, akariSupabase);
+      }
+      if (interaction.commandName === "set-game") {
+        return await handleSetGame(interaction, akariSupabase, client);
+      }
+      if (interaction.commandName === "remove-game") {
+        return await handleRemoveGame(interaction, akariSupabase);
+      }
+      if (interaction.commandName === "akari-admin") {
+        return await handleAkariAdmin(interaction, akariSupabase, client);
       }
     }
 

@@ -4,17 +4,17 @@
 
 const { spawn } = require("child_process");
 
-console.log("🚀 [DevAll] กำลังเริ่มรันบอททั้ง 2 ตัวพร้อมกันในโหมด Dev (nodemon debounce 2.5s)...");
+console.log("🚀 [DevAll] กำลังเริ่มรันบอททั้ง 2 ตัวพร้อมกันในโหมด Dev (Trigger File watch)...");
 
 // 1. รัน Bear Cafe Main Bot (index.js)
-const mainBot = spawn("npx", ["nodemon", "index.js"], {
+const mainBot = spawn("npx", ["nodemon", "--config", "nodemon.main.json", "index.js"], {
   stdio: "inherit",
   shell: true,
   env: { ...process.env },
 });
 
 // 2. รัน Akari Public Bot (index-akari.js)
-const akariBot = spawn("npx", ["nodemon", "index-akari.js"], {
+const akariBot = spawn("npx", ["nodemon", "--config", "nodemon.akari.json", "index-akari.js"], {
   stdio: "inherit",
   shell: true,
   env: { ...process.env },

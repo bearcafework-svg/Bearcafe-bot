@@ -59,9 +59,10 @@ CREATE TABLE IF NOT EXISTS public.tenant_minigame_settings (
 -- ถ้าตาราง tenant_minigame_settings มีอยู่แล้ว ให้เพิ่มคอลัมน์ updated_at (หากยังไม่มี)
 ALTER TABLE public.tenant_minigame_settings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
 
--- Indexes เพื่อความรวดเร็วในการแสดงผล Leaderboard ของแต่ละเซิร์ฟเวอร์
+-- Indexes เพื่อความรวดเร็วในการแสดงผล Leaderboard และการเช็คสถานะ Plan ของแต่ละเซิร์ฟเวอร์
 CREATE INDEX IF NOT EXISTS idx_tenant_scores_leaderboard ON public.tenant_minigame_scores (guild_id, points DESC);
 CREATE INDEX IF NOT EXISTS idx_tenant_minigame_channels_guild ON public.tenant_minigame_channels (guild_id);
+CREATE INDEX IF NOT EXISTS idx_tenant_configs_plan ON public.tenant_configs (guild_id, plan);
 
 -- 🔓 ปิดใช้งาน Row Level Security (RLS) เพื่อให้อ่าน/เขียนข้อมูลได้แบบเรียลไทม์
 ALTER TABLE public.tenant_configs DISABLE ROW LEVEL SECURITY;

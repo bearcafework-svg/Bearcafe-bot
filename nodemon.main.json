@@ -1,0 +1,8 @@
+{
+  "watch": [
+    ".reload-trigger",
+    ".reload-main"
+  ],
+  "ext": "*",
+  "delay": "200"
+}

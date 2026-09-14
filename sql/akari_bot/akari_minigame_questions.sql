@@ -7,11 +7,11 @@
 -- 1. สร้างตารางคลังโจทย์มินิเกม (Akari Minigame Question Bank)
 CREATE TABLE IF NOT EXISTS public.akari_minigame_questions (
     id BIGSERIAL PRIMARY KEY,
-    game_id INT NOT NULL,                     -- หมายเลขเกม (1-12)
+    game_id INT NOT NULL,                     -- หมายเลขเกม (1-13)
     word_or_question TEXT NOT NULL,           -- โจทย์, คำศัพท์ หรือประโยค
     answer TEXT NOT NULL,                     -- คำตอบที่ถูกต้อง
-    options JSONB,                            -- Array ช้อยส์เลือกตอบ (สำหรับเกม 8, 9, 10, 12) เช่น ["ช้อยส์ 1", "ช้อยส์ 2"]
-    hints JSONB,                              -- Array คำใบ้ (สำหรับเกม 4) เช่น ["คำใบ้ 1", "คำใบ้ 2"]
+    options JSONB,                            -- Array ช้อยส์เลือกตอบ (สำหรับเกม 8, 9, 10, 12, 13)
+    hints JSONB,                              -- Array คำใบ้/Template (สำหรับเกม 4, 13)
     category VARCHAR(64) DEFAULT 'คำทั่วไป',  -- หมวดหมู่โจทย์
     difficulty VARCHAR(32) DEFAULT 'medium',  -- ระดับความยาก: 'easy', 'medium', 'hard'
     is_active BOOLEAN DEFAULT true,           -- สถานะเปิดใช้งานโจทย์ข้อนี้
@@ -47,4 +47,8 @@ INSERT INTO public.akari_minigame_questions (game_id, word_or_question, answer, 
 -- ตัวอย่างที่ 3: เพิ่มโจทย์เกม 12 (จริงหรือเท็จ)
 INSERT INTO public.akari_minigame_questions (game_id, word_or_question, answer, options, category, difficulty) VALUES
 (12, 'ดวงอาทิตย์ขึ้นทางทิศตะวันออก', 'จริง', '["จริง", "เท็จ"]', 'ความรู้ทั่วไป', 'easy');
+
+-- ตัวอย่างที่ 4: เพิ่มโจทย์เกม 13 (เรียงประโยคภาษาอังกฤษ)
+INSERT INTO public.akari_minigame_questions (game_id, word_or_question, hints, answer, options, category, difficulty) VALUES
+(13, 'เรื่องกล้วยๆ (ง่ายมาก)', '["It is a {1} of {2}."]'::jsonb, 'piece,cake', '["banana", "cake", "piece", "pie", "slice"]'::jsonb, 'สำนวนและสุภาษิต', 'easy');
 */

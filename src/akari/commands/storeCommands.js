@@ -89,7 +89,7 @@ async function checkAdminAndPremium(interaction, supabase) {
 }
 
 /**
- * จัดการคำสั่ง /setting-store
+ * จัดการคำสั่ง /setting-store (แสดงผลแบบ Public ตามที่แอดมินต้องการ)
  */
 async function handleSettingStore(interaction, supabase) {
   const check = await checkAdminAndPremium(interaction, supabase);
@@ -102,17 +102,22 @@ async function handleSettingStore(interaction, supabase) {
   const items = await getTenantStoreItems(supabase, interaction.guildId);
 
   const payload = buildStoreSettingsDashboard(interaction.guild, storeConfig, items);
-  return interaction.reply({ ...payload, flags: MessageFlags.Ephemeral | FLAG_V2 });
+  return interaction.reply({ ...payload, flags: FLAG_V2 });
 }
 
 /**
- * จัดการคำสั่ง /open-store
+ * จัดการคำสั่ง /open-store (ตอบรับทันทีเพื่อแก้ปัญหาคำสั่งไม่ตอบสนอง และลบทิ้งเพื่อความสะอาด)
  */
 async function handleOpenStore(interaction, supabase, client) {
+  // ตอบรับ interaction ทันทีแบบ Ephemeral เพื่อป้องกันปัญหา Discord 3-second timeout
+  await interaction.deferReply({ ephemeral: true });
+
   const check = await checkAdminAndPremium(interaction, supabase);
   if (!check.allowed) {
-    if (check.reason === "excluded") return;
-    return interaction.reply({ ...check.payload, flags: MessageFlags.Ephemeral | FLAG_V2 });
+    if (check.reason === "excluded") {
+      return interaction.deleteReply().catch(() => {});
+    }
+    return interaction.editReply(check.payload);
   }
 
   const storeConfig = await getTenantStoreConfig(supabase, interaction.guildId);
@@ -124,23 +129,8 @@ async function handleOpenStore(interaction, supabase, client) {
     console.error("[akari-store] Failed to send store card to channel:", err.message);
   });
 
-  // ตอบกลับแอดมินลับๆ (Ephemeral)
-  return interaction.reply({
-    flags: MessageFlags.Ephemeral | FLAG_V2,
-    components: [
-      {
-        type: 17,
-        components: [
-          {
-            type: 10,
-            content: `## <:strawberryv2:1520439075100688614>︲__\` 𝖲𝗍𝗈𝗋𝖾 ₊ เปิดร้านค้าสำเร็จ 𓂃 \`__\n` +
-              `> ระบบได้ส่งการ์ดร้านค้าแลกของรางวัลลงในห้อง ${interaction.channel} เรียบร้อยแล้วค่ะ!\n` +
-              `-# สมาชิกในเซิร์ฟเวอร์สามารถเริ่มกดแลกของรางวัลตามแต้มที่สะสมได้ทันทีค่ะ ✨`,
-          },
-        ],
-      },
-    ],
-  });
+  // ลบ interaction reply ทิ้งเพื่อความสะอาด ไม่ให้เหลือข้อความ /slash หรือแถบไม่ตอบสนอง
+  return interaction.deleteReply().catch(() => {});
 }
 
 /**
@@ -154,16 +144,18 @@ async function handleStoreButtonInteraction(interaction, supabase, client) {
     const slot = parseInt(customId.replace("akari_store_edit_modal_", ""), 10);
     const items = await getTenantStoreItems(supabase, interaction.guildId);
     const item = items.find((i) => i.slot === slot);
+    const msgId = interaction.message?.id || "";
 
     const modal = new ModalBuilder()
-      .setCustomId(`akari_store_modal_submit_${slot}`)
+      .setCustomId(`akari_store_modal_submit_${slot}:${msgId}`)
       .setTitle(`ตั้งค่าของรางวัลช่องที่ ${slot}`);
 
     const nameInput = new TextInputBuilder()
       .setCustomId("item_name")
       .setLabel("ชื่อของรางวัล")
       .setStyle(TextInputStyle.Short)
-      .setValue(item?.name || `ของรางวัลช่องที่ ${slot}`)
+      .setValue(item?.name || "")
+      .setPlaceholder("เช่น ยศ VIP, บัตรเครื่องดื่ม, ของพรีเมียม")
       .setRequired(true)
       .setMaxLength(50);
 
@@ -172,6 +164,7 @@ async function handleStoreButtonInteraction(interaction, supabase, client) {
       .setLabel("คำอธิบายของรางวัล")
       .setStyle(TextInputStyle.Paragraph)
       .setValue(item?.description || "")
+      .setPlaceholder("ระบุรายละเอียดหรือสิ่งที่ผู้เล่นจะได้รับ...")
       .setRequired(false)
       .setMaxLength(100);
 
@@ -179,7 +172,7 @@ async function handleStoreButtonInteraction(interaction, supabase, client) {
       .setCustomId("item_points")
       .setLabel("แต้มที่ต้องใช้แลก (ตัวเลข)")
       .setStyle(TextInputStyle.Short)
-      .setValue(String(item?.points_cost ?? 100))
+      .setValue(item?.points_cost ? String(item.points_cost) : "100")
       .setRequired(true);
 
     const winsInput = new TextInputBuilder()
@@ -228,13 +221,14 @@ async function handleStoreButtonInteraction(interaction, supabase, client) {
   // 3. ปุ่มเลือกผูกยศ Discord: akari_store_role_select_btn
   if (customId === "akari_store_role_select_btn") {
     const items = await getTenantStoreItems(supabase, interaction.guildId);
+    const msgId = interaction.message?.id || "";
     const slotSelect = new StringSelectMenuBuilder()
-      .setCustomId("akari_store_role_slot_target")
+      .setCustomId(`akari_store_role_slot_target:${msgId}`)
       .setPlaceholder("เลือกช่องไอเทมที่ต้องการผูกยศ...")
       .addOptions([
-        { label: `ช่องที่ 1: ${items[0].name}`, value: "1", description: "ตั้งค่ายศที่จะมอบให้เมื่อแลกช่อง 1", emoji: "🎁" },
-        { label: `ช่องที่ 2: ${items[1].name}`, value: "2", description: "ตั้งค่ายศที่จะมอบให้เมื่อแลกช่อง 2", emoji: "👑" },
-        { label: `ช่องที่ 3: ${items[2].name}`, value: "3", description: "ตั้งค่ายศที่จะมอบให้เมื่อแลกช่อง 3", emoji: "☕" },
+        { label: `ช่องที่ 1: ${items[0].name || "(ยังไม่ตั้งชื่อ)"}`, value: "1", description: "ตั้งค่ายศที่จะมอบให้เมื่อแลกช่อง 1", emoji: items[0].emoji || "🎁" },
+        { label: `ช่องที่ 2: ${items[1].name || "(ยังไม่ตั้งชื่อ)"}`, value: "2", description: "ตั้งค่ายศที่จะมอบให้เมื่อแลกช่อง 2", emoji: items[1].emoji || "👑" },
+        { label: `ช่องที่ 3: ${items[2].name || "(ยังไม่ตั้งชื่อ)"}`, value: "3", description: "ตั้งค่ายศที่จะมอบให้เมื่อแลกช่อง 3", emoji: items[2].emoji || "☕" },
       ]);
 
     return interaction.reply({
@@ -259,8 +253,9 @@ async function handleStoreButtonInteraction(interaction, supabase, client) {
 
   // 4. ปุ่มเลือกห้องแจ้งเตือน Log: akari_store_channel_select_btn
   if (customId === "akari_store_channel_select_btn") {
+    const msgId = interaction.message?.id || "";
     const channelSelect = new ChannelSelectMenuBuilder()
-      .setCustomId("akari_store_log_channel_selected")
+      .setCustomId(`akari_store_log_channel_selected:${msgId}`)
       .setPlaceholder("เลือกห้องข้อความสำหรับส่งใบเสร็จ Log...")
       .setChannelTypes([ChannelType.GuildText]);
 
@@ -394,8 +389,10 @@ async function handleStoreModalSubmit(interaction, supabase) {
   const customId = interaction.customId;
   if (!customId.startsWith("akari_store_modal_submit_")) return;
 
-  const slot = parseInt(customId.replace("akari_store_modal_submit_", ""), 10);
-  const name = interaction.fields.getTextInputValue("item_name").trim() || `ของรางวัลช่องที่ ${slot}`;
+  const raw = customId.replace("akari_store_modal_submit_", "");
+  const [slotStr, msgId] = raw.split(":");
+  const slot = parseInt(slotStr, 10);
+  const name = interaction.fields.getTextInputValue("item_name").trim();
   const desc = interaction.fields.getTextInputValue("item_desc")?.trim() || "";
   const pointsStr = interaction.fields.getTextInputValue("item_points").trim();
   const winsStr = interaction.fields.getTextInputValue("item_wins")?.trim() || "0";
@@ -405,12 +402,27 @@ async function handleStoreModalSubmit(interaction, supabase) {
   const winsRequired = Math.max(0, parseInt(winsStr, 10) || 0);
 
   await saveTenantStoreItem(supabase, interaction.guildId, slot, {
-    name,
+    name: name || `ของรางวัลช่องที่ ${slot}`,
     description: desc,
     points_cost: pointsCost,
     wins_required: winsRequired,
     emoji,
+    is_configured: true,
   });
+
+  // อัปเดต Component V2 ของแดชบอร์ดหลักทันที
+  const storeConfig = await getTenantStoreConfig(supabase, interaction.guildId);
+  const updatedItems = await getTenantStoreItems(supabase, interaction.guildId);
+  const updatedDashboard = buildStoreSettingsDashboard(interaction.guild, storeConfig, updatedItems);
+
+  if (interaction.message) {
+    await interaction.message.edit(updatedDashboard).catch(() => {});
+  } else if (msgId && interaction.channel) {
+    const originalMsg = await interaction.channel.messages.fetch(msgId).catch(() => null);
+    if (originalMsg) {
+      await originalMsg.edit(updatedDashboard).catch(() => {});
+    }
+  }
 
   return interaction.reply({
     flags: MessageFlags.Ephemeral | FLAG_V2,
@@ -421,11 +433,11 @@ async function handleStoreModalSubmit(interaction, supabase) {
           {
             type: 10,
             content: `## <:strawberryv2:1520439075100688614>︲__\` 𝖲𝗎𝖼𝖼𝖾𝗌𝗌 ₊ บันทึกไอเทมช่องที่ ${slot} เรียบร้อย 𓂃 \`__\n` +
-              `> 🎁 **ชื่อ:** **${emoji} ${name}**\n` +
+              `> 🎁 **ชื่อ:** **${emoji} ${name || `ของรางวัลช่องที่ ${slot}`}**\n` +
               `> 💰 **ราคา:** **${pointsCost.toLocaleString()}** แต้ม\n` +
               `> 🏆 **ชนะขั้นต่ำ:** ${winsRequired > 0 ? `${winsRequired.toLocaleString()} ครั้ง` : "ไม่จำกัด"}\n` +
               `> 📝 **คำอธิบาย:** ${desc || "ไม่มีคำอธิบาย"}\n\n` +
-              `-# ข้อมูลได้รับการอัปเดตเรียบร้อยแล้วค่ะ`,
+              `-# การ์ดการตั้งค่าหลักได้รับการอัปเดตเรียบร้อยแล้วค่ะ ✨`,
           },
         ],
       },
@@ -440,10 +452,12 @@ async function handleStoreSelectMenus(interaction, supabase) {
   const customId = interaction.customId;
 
   // เมนูเลือกช่องเป้าหมายที่จะผูกยศ: akari_store_role_slot_target
-  if (customId === "akari_store_role_slot_target") {
+  if (customId.startsWith("akari_store_role_slot_target")) {
+    const parts = customId.split(":");
+    const msgId = parts[1] || "";
     const targetSlot = interaction.values[0];
     const roleSelect = new RoleSelectMenuBuilder()
-      .setCustomId(`akari_store_role_selected_slot_${targetSlot}`)
+      .setCustomId(`akari_store_role_selected_slot_${targetSlot}:${msgId}`)
       .setPlaceholder("เลือกยศ Discord ที่ต้องการมอบให้...");
 
     return interaction.update({
@@ -468,14 +482,27 @@ async function handleStoreSelectMenus(interaction, supabase) {
 
   // เมนูเลือกยศ Discord สำหรับช่องที่ระบุ: akari_store_role_selected_slot_1/2/3
   if (customId.startsWith("akari_store_role_selected_slot_")) {
-    const slot = parseInt(customId.replace("akari_store_role_selected_slot_", ""), 10);
+    const raw = customId.replace("akari_store_role_selected_slot_", "");
+    const [slotStr, msgId] = raw.split(":");
+    const slot = parseInt(slotStr, 10);
     const selectedRoleId = interaction.values[0];
 
     await saveTenantStoreItem(supabase, interaction.guildId, slot, {
       reward_type: "role",
       role_id: selectedRoleId,
       limit_type: "once_per_user", // รางวัลยศกำหนดให้แลกได้ครั้งเดียวต่อคนเป็นค่าเริ่มต้น
+      is_configured: true,
     });
+
+    // อัปเดต Component V2 ของแดชบอร์ดหลัก
+    if (msgId && interaction.channel) {
+      const originalMsg = await interaction.channel.messages.fetch(msgId).catch(() => null);
+      if (originalMsg) {
+        const storeConfig = await getTenantStoreConfig(supabase, interaction.guildId);
+        const updatedItems = await getTenantStoreItems(supabase, interaction.guildId);
+        await originalMsg.edit(buildStoreSettingsDashboard(interaction.guild, storeConfig, updatedItems)).catch(() => {});
+      }
+    }
 
     return interaction.update({
       flags: MessageFlags.Ephemeral | FLAG_V2,
@@ -496,12 +523,23 @@ async function handleStoreSelectMenus(interaction, supabase) {
   }
 
   // เมนูเลือกห้อง Log Channel: akari_store_log_channel_selected
-  if (customId === "akari_store_log_channel_selected") {
+  if (customId.startsWith("akari_store_log_channel_selected")) {
+    const [_, msgId] = customId.split(":");
     const selectedChannelId = interaction.values[0];
 
     await saveTenantStoreConfig(supabase, interaction.guildId, {
       log_channel_id: selectedChannelId,
     });
+
+    // อัปเดต Component V2 ของแดชบอร์ดหลัก
+    if (msgId && interaction.channel) {
+      const originalMsg = await interaction.channel.messages.fetch(msgId).catch(() => null);
+      if (originalMsg) {
+        const storeConfig = await getTenantStoreConfig(supabase, interaction.guildId);
+        const updatedItems = await getTenantStoreItems(supabase, interaction.guildId);
+        await originalMsg.edit(buildStoreSettingsDashboard(interaction.guild, storeConfig, updatedItems)).catch(() => {});
+      }
+    }
 
     return interaction.update({
       flags: MessageFlags.Ephemeral | FLAG_V2,

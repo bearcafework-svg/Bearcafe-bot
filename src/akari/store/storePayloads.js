@@ -60,18 +60,26 @@ function buildStoreSettingsDashboard(guild, storeConfig, items) {
 
   let itemsSummary = "";
   items.forEach((item) => {
-    const statusIcon = item.is_active ? "🟢 เปิดใช้งาน" : "⚪ ปิดอยู่";
-    const rewardDetail = item.reward_type === "role"
-      ? (item.role_id ? `ยศ <@&${item.role_id}>` : "ยศ *(ยังไม่ระบุ)*")
-      : "ของรางวัลจริง / สิทธิ์พิเศษ";
-    const limitDetail = item.limit_type === "once_per_user" ? "จำกัด 1 ครั้ง/คน" : "แลกได้ไม่จำกัด";
-    const winsDetail = item.wins_required > 0 ? ` | ชนะขั้นต่ำ: ${item.wins_required.toLocaleString()} ครั้ง` : "";
+    const isConfigured = Boolean(item.is_configured && item.name && item.name.trim() !== "");
 
-    itemsSummary += `### ${item.emoji}︲__\` ช่องที่ ${item.slot}: ${item.name} 𓂃 \`__\n` +
-      `> 📌 **สถานะ:** ${statusIcon}\n` +
-      `> 💰 **ราคา:** **${item.points_cost.toLocaleString()}** แต้ม${winsDetail}\n` +
-      `> 🎁 **ของรางวัล:** ${rewardDetail} (${limitDetail})\n` +
-      `> 📝 **คำอธิบาย:** ${item.description || "ไม่มีคำอธิบาย"}\n\n`;
+    if (!isConfigured) {
+      itemsSummary += `### ⚪︲__\` ช่องที่ ${item.slot}: (ว่าง — ยังไม่ได้ตั้งค่า) 𓂃 \`__\n` +
+        `> 📌 **สถานะ:** ⚪ ปิดอยู่ (ยังไม่มีข้อมูลของรางวัล)\n` +
+        `> 💡 *กดปุ่ม \`✏️ ตั้งค่าไอเทม ${item.slot}\` ด้านล่างเพื่อเริ่มสร้างของรางวัลช่องนี้*\n\n`;
+    } else {
+      const statusIcon = item.is_active ? "🟢 เปิดใช้งาน" : "⚪ ปิดอยู่";
+      const rewardDetail = item.reward_type === "role"
+        ? (item.role_id ? `ยศ <@&${item.role_id}>` : "ยศ *(ยังไม่ระบุ)*")
+        : "ของรางวัลจริง / สิทธิ์พิเศษ";
+      const limitDetail = item.limit_type === "once_per_user" ? "จำกัด 1 ครั้ง/คน" : "แลกได้ไม่จำกัด";
+      const winsDetail = item.wins_required > 0 ? ` | ชนะขั้นต่ำ: ${item.wins_required.toLocaleString()} ครั้ง` : "";
+
+      itemsSummary += `### ${item.emoji || "🎁"}︲__\` ช่องที่ ${item.slot}: ${item.name} 𓂃 \`__\n` +
+        `> 📌 **สถานะ:** ${statusIcon}\n` +
+        `> 💰 **ราคา:** **${item.points_cost.toLocaleString()}** แต้ม${winsDetail}\n` +
+        `> 🎁 **ของรางวัล:** ${rewardDetail} (${limitDetail})\n` +
+        `> 📝 **คำอธิบาย:** ${item.description || "ไม่มีคำอธิบาย"}\n\n`;
+    }
   });
 
   return {
@@ -115,27 +123,26 @@ function buildStoreSettingsDashboard(guild, storeConfig, items) {
             ],
           },
           {
-            type: 1, // ActionRow แถวที่ 2: สลับเปิด/ปิด และผูกยศ
-            components: [
-              {
+            type: 1, // ActionRow แถวที่ 2: สลับเปิด/ปิด
+            components: [1, 2, 3].map((s) => {
+              const item = items.find((i) => i.slot === s);
+              const isConfigured = Boolean(item?.is_configured && item?.name && item?.name.trim() !== "");
+              if (!isConfigured) {
+                return {
+                  type: 2,
+                  style: 2, // Secondary
+                  label: `⚪ ช่อง ${s} (ยังไม่ตั้งค่า)`,
+                  custom_id: `akari_store_toggle_${s}`,
+                  disabled: true,
+                };
+              }
+              return {
                 type: 2,
-                style: items[0].is_active ? 4 : 3, // Danger or Success
-                label: `${items[0].is_active ? "🔴 ปิด" : "🟢 เปิด"} ไอเทม 1`,
-                custom_id: "akari_store_toggle_1",
-              },
-              {
-                type: 2,
-                style: items[1].is_active ? 4 : 3,
-                label: `${items[1].is_active ? "🔴 ปิด" : "🟢 เปิด"} ไอเทม 2`,
-                custom_id: "akari_store_toggle_2",
-              },
-              {
-                type: 2,
-                style: items[2].is_active ? 4 : 3,
-                label: `${items[2].is_active ? "🔴 ปิด" : "🟢 เปิด"} ไอเทม 3`,
-                custom_id: "akari_store_toggle_3",
-              },
-            ],
+                style: item.is_active ? 4 : 3, // Danger (ปิด) or Success (เปิด)
+                label: `${item.is_active ? "🔴 ปิด" : "🟢 เปิด"} ไอเทม ${s}`,
+                custom_id: `akari_store_toggle_${s}`,
+              };
+            }),
           },
           {
             type: 1, // ActionRow แถวที่ 3: จัดการยศ และ ห้อง Log

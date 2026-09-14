@@ -9,23 +9,22 @@ const storeConfigCache = new Map(); // guildId -> config
 const storeItemsCache = new Map();  // guildId -> Map(slot -> item)
 const userRedemptionsCache = new Map(); // `${guildId}:${userId}:${slot}` -> boolean
 
-// ค่าเริ่มต้นสำหรับ Item 3 ช่อง (Slot 1, 2, 3)
+// ค่าเริ่มต้นสำหรับ Item 3 ช่อง (Slot 1, 2, 3) — ค่าเริ่มต้นเป็นช่องว่างเพื่อให้แอดมินตั้งค่าเอง
 function createDefaultItem(slot) {
   const defaultEmojis = { 1: "🎁", 2: "👑", 3: "☕" };
-  const defaultNames = { 1: "ยศพิเศษประจำเซิร์ฟเวอร์", 2: "บัตรแลกเครื่องดื่ม/สิทธิพิเศษ", 3: "ของรางวัลพรีเมียม" };
-  const defaultCosts = { 1: 200, 2: 500, 3: 1000 };
 
   return {
     slot,
-    name: defaultNames[slot] || `ของรางวัลชิ้นที่ ${slot}`,
-    description: "สะสมแต้มจากการเล่นมินิเกมเพื่อนำมาแลกรับของรางวัลนี้",
-    points_cost: defaultCosts[slot] || (slot * 250),
+    name: "",
+    description: "",
+    points_cost: 0,
     wins_required: 0,
-    reward_type: slot === 1 ? "role" : "custom",
+    reward_type: "custom",
     role_id: null,
-    limit_type: slot === 1 ? "once_per_user" : "unlimited",
+    limit_type: "unlimited",
     emoji: defaultEmojis[slot] || "🎁",
     is_active: false,
+    is_configured: false,
   };
 }
 
@@ -120,17 +119,19 @@ async function getTenantStoreItems(supabase, guildId) {
       if (!error && Array.isArray(data)) {
         data.forEach((item) => {
           if (item.slot >= 1 && item.slot <= 3) {
+            const hasConfig = Boolean(item.name && item.name.trim() !== "");
             itemsMap.set(item.slot, {
               slot: item.slot,
-              name: item.name || `ของรางวัลชิ้นที่ ${item.slot}`,
+              name: item.name || "",
               description: item.description || "",
-              points_cost: Number(item.points_cost) || 100,
+              points_cost: Number(item.points_cost) || 0,
               wins_required: Number(item.wins_required) || 0,
               reward_type: item.reward_type || "custom",
               role_id: item.role_id || null,
               limit_type: item.limit_type || "unlimited",
               emoji: item.emoji || "🎁",
               is_active: Boolean(item.is_active),
+              is_configured: hasConfig,
             });
           }
         });
@@ -163,6 +164,7 @@ async function saveTenantStoreItem(supabase, guildId, slot, itemData) {
     ...itemData,
     guild_id: guildId,
     slot,
+    is_configured: true,
     updated_at: new Date().toISOString(),
   };
 

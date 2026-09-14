@@ -117,58 +117,20 @@ client.on("interactionCreate", async (interaction) => {
   }
 });
 
-// 7. clientReady Event & Dynamic Presence
-let presenceIndex = 0;
-let presenceInterval = null;
-
-function updateAkariPresence(client) {
-  if (!client.user) return;
-
-  try {
-    const serverCount = client.guilds.cache.size;
-    const totalMembers = client.guilds.cache.reduce((acc, g) => acc + (g.memberCount || 0), 0);
-
-    const rotatingStreamingMessages = [
-      "/setup-game | เริ่มเล่นมินิเกม",
-      `ตั้งร้านเกมอยู่บน ${serverCount.toLocaleString()} เซิร์ฟเวอร์`,
-      `พบผู้เล่นทั้งหมด ${totalMembers.toLocaleString()} คน`,
-    ];
-
-    const currentStreamText = rotatingStreamingMessages[presenceIndex % rotatingStreamingMessages.length];
-    presenceIndex++;
-
-    client.user.setPresence({
-      activities: [
-        {
-          name: "custom",
-          type: ActivityType.Custom,
-          state: "บอทมินิเกมอันดับ #1 — เพราะฉันสร้างคนเดียวจ้า",
-          emoji: { name: "🎮" },
-        },
-        {
-          name: currentStreamText,
-          type: ActivityType.Streaming,
-          url: "https://www.twitch.tv/bearcafe",
-        },
-      ],
-      status: "online",
-    });
-  } catch (err) {
-    console.error("❌ [AkariBot] Failed to update presence:", err.message);
-  }
-}
-
+// 7. clientReady Event & Custom User Status
 client.once("clientReady", () => {
   console.log(`🏮 Akari Public Bot "${client.user.tag}" พร้อมใช้งานแล้ว! (ID: ${client.user.id})`);
 
-  // อัปเดตทันทีเมื่อพร้อม
-  updateAkariPresence(client);
-
-  // สลับข้อความ Streaming ทุก 15 วินาที
-  if (presenceInterval) clearInterval(presenceInterval);
-  presenceInterval = setInterval(() => {
-    updateAkariPresence(client);
-  }, 15000);
+  client.user.setPresence({
+    activities: [
+      {
+        name: "custom",
+        type: ActivityType.Custom,
+        state: "🎮 บอทมินิเกมอันดับ #1 — เพราะฉันสร้างคนเดียวจ้า",
+      },
+    ],
+    status: "online",
+  });
 });
 
 // 8. Login เข้า Discord Gateway
@@ -181,7 +143,6 @@ let isShuttingDown = false;
 async function gracefulShutdown(signal) {
   if (isShuttingDown) return;
   isShuttingDown = true;
-  if (presenceInterval) clearInterval(presenceInterval);
   console.log(`\n🛑 [AkariBot] ได้รับสัญญาณ ${signal} กำลังบันทึกข้อมูลและปิดระบบอย่างปลอดภัย...`);
 
   try {

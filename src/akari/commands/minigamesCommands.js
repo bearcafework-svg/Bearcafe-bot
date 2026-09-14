@@ -21,6 +21,14 @@ const {
   FREE_QUOTA_LIMIT,
 } = require("../minigames/minigamesEngine");
 const { isExcludedGuild } = require("../filters/guildIgnoreFilter");
+const {
+  STORE_SLASH_COMMANDS,
+  handleSettingStore,
+  handleOpenStore,
+  handleStoreButtonInteraction,
+  handleStoreModalSubmit,
+  handleStoreSelectMenus,
+} = require("./storeCommands");
 
 const FLAG_V2 = MessageFlags.IsComponentsV2 || 32768;
 
@@ -235,6 +243,7 @@ const AKARI_SLASH_COMMANDS = [
       },
     ],
   },
+  ...STORE_SLASH_COMMANDS,
 ];
 
 /**
@@ -1631,6 +1640,12 @@ module.exports = {
   handleRemoveGame,
   handleAkariAdmin,
   isAkariAdmin,
+  handleSettingStore,
+  handleOpenStore,
+  handleStoreButtonInteraction,
+  handleStoreModalSubmit,
+  handleStoreSelectMenus,
+  STORE_SLASH_COMMANDS,
   AKARI_GAME_NAMES,
   GAME_DESCRIPTIONS,
   AKARI_SLASH_COMMANDS,

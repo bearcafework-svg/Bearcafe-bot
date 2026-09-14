@@ -18,6 +18,11 @@ const {
   handleSetGame,
   handleRemoveGame,
   handleAkariAdmin,
+  handleSettingStore,
+  handleOpenStore,
+  handleStoreButtonInteraction,
+  handleStoreModalSubmit,
+  handleStoreSelectMenus,
 } = require("./src/akari/commands/minigamesCommands");
 
 const botToken = process.env.AKARI_BOT_TOKEN;
@@ -90,9 +95,43 @@ client.on("interactionCreate", async (interaction) => {
       if (interaction.commandName === "akari-admin") {
         return await handleAkariAdmin(interaction, akariSupabase, client);
       }
+      if (interaction.commandName === "setting-store") {
+        return await handleSettingStore(interaction, akariSupabase);
+      }
+      if (interaction.commandName === "open-store") {
+        return await handleOpenStore(interaction, akariSupabase);
+      }
     }
 
-    if (interaction.isStringSelectMenu()) {
+    // Button Interactions
+    if (interaction.isButton()) {
+      if (interaction.customId.startsWith("akari_store_") || interaction.customId.startsWith("store_")) {
+        return await handleStoreButtonInteraction(interaction, akariSupabase, client);
+      }
+    }
+
+    // Modal Submissions
+    if (interaction.isModalSubmit()) {
+      if (interaction.customId.startsWith("akari_store_") || interaction.customId.startsWith("store_")) {
+        return await handleStoreModalSubmit(interaction, akariSupabase);
+      }
+    }
+
+    // Select Menus (String, Role, Channel)
+    if (typeof interaction.isAnySelectMenu === "function" && interaction.isAnySelectMenu()) {
+      if (interaction.customId.startsWith("akari_store_") || interaction.customId.startsWith("store_")) {
+        return await handleStoreSelectMenus(interaction, akariSupabase);
+      }
+      if (interaction.customId === "akari_setting_toggle_menu") {
+        return await handleSettingToggle(interaction, akariSupabase);
+      }
+      if (interaction.customId === "akari_setting_reset_menu") {
+        return await handleSettingReset(interaction, akariSupabase, client);
+      }
+    } else if (interaction.isStringSelectMenu()) {
+      if (interaction.customId.startsWith("akari_store_") || interaction.customId.startsWith("store_")) {
+        return await handleStoreSelectMenus(interaction, akariSupabase);
+      }
       if (interaction.customId === "akari_setting_toggle_menu") {
         return await handleSettingToggle(interaction, akariSupabase);
       }

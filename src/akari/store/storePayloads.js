@@ -344,7 +344,9 @@ function buildPublicStoreCard(guild, storeConfig, items) {
  * สร้างการ์ด Ephemeral ยืนยันการแลกของรางวัล
  */
 function buildRedeemConfirmCard(guild, user, item, userScore) {
-  const diff = userScore.points - item.points_cost;
+  const currentPts = Number(userScore?.points ?? userScore?.currentPoints) || 0;
+  const cost = Number(item?.points_cost) || 0;
+  const diff = Math.max(0, currentPts - cost);
   const rewardDetail = item.reward_type === "role" && item.role_id
     ? `ยศ Discord <@&${item.role_id}>`
     : "ของรางวัลจริง / สิทธิ์พิเศษ";
@@ -358,9 +360,9 @@ function buildRedeemConfirmCard(guild, user, item, userScore) {
           {
             type: 10,
             content: `## ${GIFT_EMOJI}︲__\` 𝖱𝖾𝖽𝖾𝖾𝗆 ₊ ยืนยันการแลกของรางวัล 𓂃 \`__\n` +
-              `> คุณกำลังจะแลกรับ: **${item.emoji} ${item.name}**\n\n` +
-              `💰 **ค่าใช้จ่าย:** **${item.points_cost.toLocaleString()}** แต้ม\n` +
-              `📊 **แต้มสะสมปัจจุบัน:** ${userScore.points.toLocaleString()} แต้ม\n` +
+              `> คุณกำลังจะแลกรับ: **${item.emoji || "🎁"} ${item.name}**\n\n` +
+              `💰 **ค่าใช้จ่าย:** **${cost.toLocaleString()}** แต้ม\n` +
+              `📊 **แต้มสะสมปัจจุบัน:** ${currentPts.toLocaleString()} แต้ม\n` +
               `✨ **แต้มคงเหลือหลังแลก:** **${diff.toLocaleString()}** แต้ม\n` +
               `🎁 **ของรางวัล:** ${rewardDetail}\n\n` +
               `-# หากแน่ใจแล้ว โปรดกดปุ่มยืนยันด้านล่างเพื่อดำเนินการทันทีค่ะ`,
@@ -417,7 +419,7 @@ function buildRedeemSuccessCard(item, newPoints, roleAdded, roleError) {
             content: `## ${STRAWBERRY_EMOJI}︲__\` 𝖲𝗎𝖼𝖼𝖾𝗌𝗌 ₊ แลกของรางวัลสำเร็จแล้ว 𓂃 \`__\n` +
               `> 🎉 ยินดีด้วยค่ะ! คุณได้แลกรับ **${item.emoji} ${item.name}** สำเร็จแล้ว` +
               extraNote + `\n\n` +
-              `💰 **แต้มคงเหลือปัจจุบัน:** **${newPoints.toLocaleString()}** แต้ม\n` +
+              `💰 **แต้มคงเหลือปัจจุบัน:** **${(Number(newPoints) || 0).toLocaleString()}** แต้ม\n` +
               `-# ขอบคุณที่ร่วมสนุกกับมินิเกม Akari Bot นะคะ ʕ •ᴥ• ʔ ♡`,
           },
         ],
@@ -432,6 +434,10 @@ function buildRedeemSuccessCard(item, newPoints, roleAdded, roleError) {
 function buildRedemptionReceiptLog(guild, user, item, oldPoints, newPoints, roleAdded, roleError) {
   const roleText = item.role_id ? `<@&${item.role_id}>` : "ไม่ใช่รางวัลประเภทยศ";
   const roleStatus = roleAdded ? "✅ มอบยศอัตโนมัติสำเร็จ" : (roleError ? `❌ ขัดข้อง (${roleError})` : "➖");
+  const safeCost = Number(item?.points_cost) || 0;
+  const safeOld = Number(oldPoints) || 0;
+  const safeNew = Number(newPoints) || 0;
+  const safeStock = typeof item?.stock === "number" && item.stock >= 0 ? `${item.stock.toLocaleString()} ชิ้น` : "ไม่จำกัด";
 
   return {
     flags: FLAG_V2,
@@ -443,10 +449,10 @@ function buildRedemptionReceiptLog(guild, user, item, oldPoints, newPoints, role
             type: 10,
             content: `## 🧾︲__\` 𝖲𝗍𝗈𝗋𝖾 𝗅𝗈𝗀 ₊ มีผู้เล่นแลกของรางวัลใหม่ 𓂃 \`__\n` +
               `> 👤 **ผู้เล่น:** <@${user.id}> (\`${user.tag || user.username}\`)\n` +
-              `> 🎁 **ของรางวัล:** **${item.emoji} ${item.name}** (ช่องที่ ${item.slot})\n` +
-              `> 💰 **แต้มที่ใช้แลก:** **${item.points_cost.toLocaleString()}** แต้ม\n` +
-              `> 📊 **ประวัติแต้ม:** ${oldPoints.toLocaleString()} ➔ **${newPoints.toLocaleString()}** แต้ม\n` +
-              `> 📦 **สต็อกคงเหลือ:** ${typeof item.stock === "number" && item.stock >= 0 ? `${item.stock.toLocaleString()} ชิ้น` : "ไม่จำกัด"}\n` +
+              `> 🎁 **ของรางวัล:** **${item.emoji || "🎁"} ${item.name || "ของรางวัล"}** (ช่องที่ ${item.slot})\n` +
+              `> 💰 **แต้มที่ใช้แลก:** **${safeCost.toLocaleString()}** แต้ม\n` +
+              `> 📊 **ประวัติแต้ม:** ${safeOld.toLocaleString()} ➔ **${safeNew.toLocaleString()}** แต้ม\n` +
+              `> 📦 **สต็อกคงเหลือ:** ${safeStock}\n` +
               `> 👑 **บทบาท Discord:** ${roleText} (${roleStatus})\n` +
               `> 🕒 **เวลา:** <t:${Math.floor(Date.now() / 1000)}:F> (<t:${Math.floor(Date.now() / 1000)}:R>)\n\n` +
               `-# รายการนี้บันทึกอัตโนมัติโดยระบบร้านค้า Akari Bot`,

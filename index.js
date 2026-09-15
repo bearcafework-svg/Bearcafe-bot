@@ -15,7 +15,6 @@ const { setupContractNotifier } = require("./src/services/contractNotifier");
 const { setupBroadcastScheduler } = require("./src/services/broadcastScheduler");
 const voiceStateUpdate = require("./events/voiceStateUpdate");
 const { getAllRooms, getAllSeparators } = require("./state/redisClient");
-const { syncAllSeparators } = require("./utils/separatorManager");
 const { registerAllGuildCommands } = require("./src/commands/slashCommandRegistry");
 const logger = require("./utils/logger");
 const config = require("./config");
@@ -124,6 +123,7 @@ setupFeature("copyCategoryPerms", "./src/commands/copyCategoryPerms", "setupCopy
 setupFeature("beeGacha", "./src/features/beeGacha", "setupBeeGacha", supabaseEnvKeys);
 setupFeature("dailyQuest", "./src/features/dailyQuest", "setupDailyQuest");
 setupFeature("voiceBoard", "./src/features/voiceBoard", "setupVoiceBoard"); // Live Voice & Friend Finder Board
+setupFeature("aiAssistant", "./src/features/ai", "setupAI");
 
 
 
@@ -262,6 +262,11 @@ client.once("clientReady", async () => {
   } else {
     console.log("[local] ⏭️ Skipping Voice Log Worker in Local/Dev mode.");
   }
+
+  // 8. เริ่มต้นระบบตรวจนับถอยหลังและหมดอายุห้อง VIP 3 วัน (รันตรวจทุก 1 นาที)
+  const { checkVipRoomsExpiry } = require("./handlers/roomDestroyer");
+  checkVipRoomsExpiry(client);
+  setInterval(() => checkVipRoomsExpiry(client), 60 * 1000);
 });
 
 // ── Startup Cleanup ────────────────────────────────────────────────
@@ -302,16 +307,6 @@ async function startupCleanup() {
     }
 
     console.log(`🧹 Cleanup เสร็จ — ลบ ${deletedCount} ห้อง`);
-
-    // sync separator ทุกโซนหลัง cleanup
-    const remainingRooms = await getAllRooms();
-
-    // หา guild แรกที่บอทอยู่ (ที่ไม่ถูกปฏิเสธ)
-    const guild = getValidGuild(client);
-    if (guild) {
-      await syncAllSeparators(guild, remainingRooms, { immediate: true });
-    }
-
   } catch (e) {
     console.error("❌ Startup Cleanup error:", e.message);
   }

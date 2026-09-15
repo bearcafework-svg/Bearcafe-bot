@@ -336,7 +336,9 @@ async function checkUserRedemptionEligibility(supabase, guildId, userId, slot, i
 
   return {
     eligible: true,
+    points: userScore.points,
     currentPoints: userScore.points,
+    wins: userScore.wins,
     currentWins: userScore.wins,
   };
 }

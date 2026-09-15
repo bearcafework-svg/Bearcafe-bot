@@ -169,6 +169,18 @@ const GUILD_SLASH_COMMANDS = [
         type: ApplicationCommandOptionType.Boolean,
         required: false,
       },
+      {
+        name: "theme",
+        description: "เลือกธีมเพื่อสร้างห้องเสียงลงในหมวดหมู่ปลายทางทันที (ไม่เลือก = คัดลอกสิทธิ์อย่างเดียว)",
+        type: ApplicationCommandOptionType.String,
+        required: false,
+        choices: [
+          { name: "🐻 ธีมหมี & คาเฟ่ (จำกัด 6 คน)", value: "bear_cafe" },
+          { name: "🌸 ธีมดอกไม้ & ธรรมชาติ (จำกัด 7 คน)", value: "flower_nature" },
+          { name: "🍑 ธีมผลไม้นุ่มฟู (จำกัด 8 คน)", value: "fruit_fluffy" },
+          { name: "🥦 ธีมผักปุกปุย (จำกัด 9 คน)", value: "vegetable_fluffy" },
+        ],
+      },
     ],
   },
 
@@ -351,6 +363,13 @@ const GUILD_SLASH_COMMANDS = [
         required: false,
       },
     ],
+  },
+
+  // 19. /ai-reload (Hot-Reload AI Knowledge)
+  {
+    name: "ai-reload",
+    description: "รีโหลดไฟล์ความรู้และบุคลิกของ AI (Hot-Reload) เข้าสู่ RAM ทันที (เฉพาะทีมงาน)",
+    default_member_permissions: String(PermissionFlagsBits.Administrator),
   },
 ];
 

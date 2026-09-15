@@ -32,6 +32,7 @@ function setupCopyCategoryPerms(client) {
       const sourceCategory = interaction.options.getChannel("source");
       const targetCategory = interaction.options.getChannel("target");
       const syncChannels = interaction.options.getBoolean("sync_channels") ?? true;
+      const themeKey = interaction.options.getString("theme");
 
       // ตรวจสอบประเภทช่อง
       if (sourceCategory.type !== ChannelType.GuildCategory || targetCategory.type !== ChannelType.GuildCategory) {
@@ -74,6 +75,29 @@ function setupCopyCategoryPerms(client) {
         }
       }
 
+      // ถ้าเลือกสร้างห้องตามธีม ให้สร้างห้องเสียงทั้งหมดตามธีมลงใน targetCategory
+      let createdRoomsCount = 0;
+      let themeInfoText = "";
+      const config = require("../../config");
+      if (themeKey && config.roomThemes && config.roomThemes[themeKey]) {
+        const selectedTheme = config.roomThemes[themeKey];
+        for (const roomName of selectedTheme.rooms) {
+          try {
+            const newVoiceChannel = await interaction.guild.channels.create({
+              name: roomName,
+              type: ChannelType.GuildVoice,
+              parent: targetCategory.id,
+              userLimit: selectedTheme.userLimit,
+            });
+            await newVoiceChannel.lockPermissions();
+            createdRoomsCount++;
+          } catch (createErr) {
+            console.error(`[copyCategoryPerms] Failed to create theme channel ${roomName}:`, createErr.message);
+          }
+        }
+        themeInfoText = `\n- **สร้างห้องตามธีม**: ${selectedTheme.name} (สร้างสำเร็จ ${createdRoomsCount}/${selectedTheme.rooms.length} ห้อง, จำกัดห้องละ ${selectedTheme.userLimit} คน)`;
+      }
+
       const syncStatusText = syncChannels
         ? `\n- **ปรับปรุงสิทธิ์ห้องย่อย (Sync)**: สำเร็จ ${syncedCount} ห้อง${syncFailedCount > 0 ? ` (ล้มเหลว ${syncFailedCount} ห้อง)` : ''}`
         : '\n- **การ Sync ห้องย่อย**: ข้ามการทำงานตามที่ระบุ';
@@ -81,7 +105,7 @@ function setupCopyCategoryPerms(client) {
       await interaction.editReply({
         content: `✅ **คัดลอกสิทธิ์หมวดหมู่เรียบร้อยแล้วค่ะ!**\n` +
           `- **ต้นทาง**: \`${sourceCategory.name}\` (${overwrites.length} สิทธิ์ยศ/สมาชิก)\n` +
-          `- **ปลายทาง**: \`${targetCategory.name}\`${syncStatusText}`
+          `- **ปลายทาง**: \`${targetCategory.name}\`${syncStatusText}${themeInfoText}`
       });
 
     } catch (err) {

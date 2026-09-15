@@ -1053,6 +1053,8 @@ async function restoreTenantChannelsOnStartup(client, supabase) {
         if (row && row.guild_id && row.channel_id && row.session_data) {
           const sessionKey = `${row.guild_id}:${row.channel_id}`;
           if (validChannelKeys.has(sessionKey)) {
+            const planInfo = await getTenantPlan(row.guild_id, supabase);
+            row.session_data.isPremium = planInfo.isPremium;
             activeTenantSessions.set(sessionKey, row.session_data);
           } else {
             orphanChannelIds.push(row.channel_id);
@@ -1163,8 +1165,8 @@ function setupAkariMinigames(client, supabase) {
 
     const isThaiGame = session.gameId === 1 || session.gameId === 4 || session.gameId === 6 || session.gameId === 11;
     const isCorrect = isThaiGame
-      ? userText === session.displayAnswer
-      : userText.toLowerCase() === session.answer;
+      ? userText.trim() === String(session.displayAnswer || '').trim()
+      : userText.trim().toLowerCase() === String(session.answer || '').trim().toLowerCase();
 
     const userId = message.author.id;
 
@@ -1180,10 +1182,13 @@ function setupAkariMinigames(client, supabase) {
 
     recordUserAction(userId, message.channel.id, session.gameId);
 
+    const planInfo = await getTenantPlan(guildId, supabase);
+    const isPremium = planInfo.isPremium;
+
     if (!isCorrect) {
       // ❌ ตอบผิด: ลบข้อความผิดทิ้ง สุ่มหักแต้ม 5-15 แต้ม (เฉพาะเมื่อเป็น Premium) และส่งข้อความเตือน
       message.delete().catch(() => {});
-      if (session.isPremium) {
+      if (isPremium) {
         const penalty = Math.floor(Math.random() * 11) + 5; // 5-15
         bufferTenantPoints(guildId, userId, -penalty, 0);
         flushTenantPoints(supabase, guildId, userId, 0, 0).catch(() => {});
@@ -1219,9 +1224,10 @@ function setupAkariMinigames(client, supabase) {
           return message.react('✅').catch(() => {});
         });
 
-        if (session.isPremium) {
+        if (isPremium) {
           const pointsPerWin = session.questionData?.rewardPoints || 3;
           bufferTenantPoints(guildId, message.author.id, pointsPerWin, 1);
+          await flushTenantPoints(supabase, guildId, message.author.id, 0, 0);
         }
 
         // 2. สำหรับเกมฟังเสียง (เกม 5 และ 11): ลบการ์ด Component V2 ทิ้ง (เหลือข้อความไฟล์เสียง MP3 ไว้) แบบเดียวกับบอทหลัก
@@ -1243,9 +1249,6 @@ function setupAkariMinigames(client, supabase) {
 
         await new Promise((r) => setTimeout(r, 2000));
         await spawnQuestion(client, message.channel, session.gameId, guildId, supabase);
-        if (session.isPremium) {
-          await flushTenantPoints(supabase, guildId, message.author.id, 0, 0);
-        }
       } finally {
         clearTimeout(safetyTimeout);
         userInFlightProcessing.delete(userId);
@@ -1533,10 +1536,12 @@ function setupAkariMinigames(client, supabase) {
       }, 10000);
 
       try {
-        const isPremium = session.isPremium ?? (await getTenantPlan(guildId, supabase)).isPremium;
+        const planInfo = await getTenantPlan(guildId, supabase);
+        const isPremium = planInfo.isPremium;
         const pointsPerWin = questionData.rewardPoints || 3;
         if (isPremium) {
           bufferTenantPoints(guildId, user.id, pointsPerWin, 1);
+          await flushTenantPoints(supabase, guildId, user.id, 0, 0);
         }
 
         const winnerDisplayName = interaction.member?.displayName || user.username;
@@ -1582,9 +1587,6 @@ function setupAkariMinigames(client, supabase) {
 
         await new Promise((r) => setTimeout(r, 1500));
         await spawnQuestion(client, channel, targetGameId, guildId, supabase);
-        if (isPremium) {
-          await flushTenantPoints(supabase, guildId, user.id, 0, 0);
-        }
       } finally {
         clearTimeout(safetyTimeout);
         userInFlightProcessing.delete(userId);
@@ -1635,8 +1637,11 @@ function setupAkariMinigames(client, supabase) {
 
       recordUserAction(userId, channel.id, session.gameId);
 
+      const planInfo = await getTenantPlan(guildId, supabase);
+      const isPremium = planInfo.isPremium;
+
       if (!isCorrect) {
-        if (session.isPremium) {
+        if (isPremium) {
           const penalty = Math.floor(Math.random() * 11) + 5; // 5-15
           bufferTenantPoints(guildId, user.id, -penalty, 0);
           flushTenantPoints(supabase, guildId, user.id, 0, 0).catch(() => {});
@@ -1668,10 +1673,10 @@ function setupAkariMinigames(client, supabase) {
       }, 10000);
 
       try {
-        const isPremium = session.isPremium ?? (await getTenantPlan(guildId, supabase)).isPremium;
         const pointsPerWin = session.questionData?.rewardPoints || 3;
         if (isPremium) {
           bufferTenantPoints(guildId, user.id, pointsPerWin, 1);
+          await flushTenantPoints(supabase, guildId, user.id, 0, 0);
         }
 
         const winnerDisplayName = interaction.member?.displayName || user.username;
@@ -1698,9 +1703,6 @@ function setupAkariMinigames(client, supabase) {
 
         await new Promise((r) => setTimeout(r, 1500));
         await spawnQuestion(client, channel, session.gameId, guildId, supabase);
-        if (isPremium) {
-          await flushTenantPoints(supabase, guildId, user.id, 0, 0);
-        }
       } finally {
         clearTimeout(safetyTimeout);
         userInFlightProcessing.delete(userId);

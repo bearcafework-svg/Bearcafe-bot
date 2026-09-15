@@ -4,7 +4,7 @@
 
 const { resolveZoneFromLobby } = require("../utils/zoneResolver");
 const { createRoom } = require("../handlers/roomCreator");
-const { markRoomActive, destroyRoom } = require("../handlers/roomDestroyer");
+const { markRoomActive, destroyRoom, clearVipRoomCountdown } = require("../handlers/roomDestroyer");
 const { getAllRooms, deleteRoom } = require("../state/redisClient");
 const { sendRoomLog } = require("../utils/roomLogger");
 const { sendRentHousePanel, isRentHouseOwner, RENT_HOUSE_CATEGORY_ID } = require("../handlers/rentHousePanel");
@@ -46,8 +46,9 @@ module.exports = {
         // ตรวจลบห้องเดิมก่อน แม้จะกำลังเข้า Lobby (รันแบบ Background ไม่บล็อกการสร้างห้องใหม่)
         if (leftChannel && rooms[leftChannel]) {
           const leftCh = guild.channels.cache.get(leftChannel);
-          if (leftCh && leftCh.members.size === 0) {
-            console.log(`🔕 "${leftCh.name}" ว่างแล้ว (ออกไปเข้า Lobby) — เริ่มลบในพื้นหลัง`);
+          const nonBotCount = leftCh && leftCh.members ? leftCh.members.filter(m => !m.user?.bot).size : 0;
+          if (leftCh && nonBotCount === 0) {
+            console.log(`🔕 "${leftCh.name}" ว่างแล้ว (ออกไปเข้า Lobby) — จัดการในพื้นหลัง`);
             destroyRoom(guild, leftChannel).catch((err) => {
               console.error(`[voiceStateUpdate] destroyRoom error for ${leftChannel}:`, err.message);
             });
@@ -61,6 +62,9 @@ module.exports = {
       // ถ้าเข้าห้องที่บอทสร้าง → mark ว่ามีคนอยู่ (ยกเลิกนับถอยหลังลบ)
       if (rooms[joinedChannel]) {
         await markRoomActive(joinedChannel);
+        if (rooms[joinedChannel].zoneId === "vip") {
+          await clearVipRoomCountdown(guild, joinedChannel);
+        }
       }
 
       // ── 1.1 เจ้าของห้องบ้านเช่า เข้าห้องบ้านเช่าของตัวเอง → ส่งแผงควบคุม Rent House Panel ทันที ──

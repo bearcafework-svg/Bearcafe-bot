@@ -8,6 +8,7 @@ const { Client, GatewayIntentBits, ActivityType, MessageFlags } = require("disco
 const { createClient } = require("@supabase/supabase-js");
 const { setupAkariGuildFilter } = require("./src/akari/filters/guildIgnoreFilter");
 const { setupAkariMinigames, flushAllTenantPoints } = require("./src/akari/minigames/minigamesEngine");
+const { setupServerActivitySync } = require("./src/akari/services/serverActivitySync");
 const {
   registerAkariCommands,
   handleSetupGames,
@@ -34,7 +35,7 @@ if (!botToken) {
   process.exit(1);
 }
 
-// 1. สร้าง Supabase Client สำหรับ Akari Database
+// 1. สร้าง Supabase Client สำหรับ Akari Database และ Main Database
 let akariSupabase = null;
 if (process.env.AKARI_SUPABASE_URL && process.env.AKARI_SUPABASE_SERVICE_ROLE_KEY) {
   akariSupabase = createClient(
@@ -49,13 +50,26 @@ if (process.env.AKARI_SUPABASE_URL && process.env.AKARI_SUPABASE_SERVICE_ROLE_KE
   console.warn("⚠️ [AkariBot] AKARI_SUPABASE_URL หรือ AKARI_SUPABASE_SERVICE_ROLE_KEY ยังไม่ได้กรอก (ทำงานแบบ RAM Fallback Mode)");
 }
 
-// 2. สร้าง Discord Client สำหรับ Akari Bot (ปรับลด Intents เพื่อประหยัด CPU/Network และเปิด Message Cache Sweeper)
+let mainSupabase = null;
+if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  mainSupabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY,
+    {
+      auth: { persistSession: false },
+    }
+  );
+  console.log("⚡ [AkariBot] เชื่อมต่อ Main Supabase Database (สำหรับ Activity Sync) สำเร็จแล้ว!");
+}
+
+// 2. สร้าง Discord Client สำหรับ Akari Bot (เพิ่ม GuildVoiceStates เพื่อตรวจนับห้องเสียง)
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildVoiceStates,
   ],
   sweepers: {
     messages: {
@@ -178,6 +192,11 @@ client.once("clientReady", () => {
     ],
     status: "online",
   });
+
+  // 7.1 เริ่มการทำงานของ Server Activity Sync (ซิงค์ Live Voice & Joins ทุก 5 นาที)
+  if (mainSupabase) {
+    setupServerActivitySync(client, mainSupabase);
+  }
 });
 
 // 8. Login เข้า Discord Gateway

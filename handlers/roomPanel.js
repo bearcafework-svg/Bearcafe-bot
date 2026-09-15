@@ -13,7 +13,6 @@ const {
 } = require("discord.js");
 const config = require("../config");
 const { deleteRoom, getAllRooms, getRoom, updateRoom } = require("../state/redisClient");
-const { syncAllSeparators } = require("../utils/separatorManager");
 const { saveSmartRoomPreset, getSmartRoomPreset } = require("../utils/smartRoomPresets");
 const {
   EPHEMERAL_FLAG,
@@ -812,9 +811,6 @@ async function deleteOwnedRoom(interaction, context) {
   await safeDisconnectMember(member, "Room owner deleted room");
   await safeDeleteChannel(context.channel, "Room owner deleted room");
   await deleteRoom(channelId);
-
-  const rooms = await getAllRooms();
-  await syncAllSeparators(interaction.guild, rooms);
   return true;
 }
 

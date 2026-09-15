@@ -42,31 +42,12 @@ module.exports = {
     coffee2Id: "1156930842434752614",
   },
 
-  // โซนทั้งหมด — เพิ่ม/ลดได้ตามต้องการ
-  zones: [
-    {
-      id: "vip",
-      name: "VIP",
-      lobbyChannelId: "1524122963904036945",
-      separatorChannelId: null,
-      separatorName: "〔𝖵𝖨𝖯〕𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃",
-      nameThemes: ["⭐︲VIP username"],
-    },
-    {
-      id: "general",
-      name: "ห้องโต๊ะชิล",
-
-      // Channel ID ของปุ่มกด "➕ สร้างห้องพูดคุย"
-      lobbyChannelId: "1524122945428127914",
-
-      // บอทจะเติมให้เองตอน sync separator — ไม่ต้องกรอก
-      separatorChannelId: null,
-
-      // ✏️ แก้ชื่อเส้นคั่นได้ตามใจชอบ
-      separatorName: "〔𝖢𝖧𝖨𝖫𝖫〕𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃",
-
-      // ชื่อห้องที่จะสุ่มสร้าง
-      nameThemes: [
+  // 4 ธีมห้องเสียง สำหรับคำสั่ง /คัดลอกสิทธิ์หมวดหมู่
+  roomThemes: {
+    bear_cafe: {
+      name: "🐻 ธีมหมี & คาเฟ่",
+      userLimit: 6,
+      rooms: [
         "🏡︲หมีอินโทรเวิร์ต",
         "🌞︲พระอาทิตย์ยิ้มแฉ่ง",
         "🍯︲น้ำผึ้งเดือนแปด",
@@ -79,6 +60,12 @@ module.exports = {
         "🍵︲ชาเขียวเตือนใจ",
         "🧺︲ร้านซักหมี",
         "🍨︲น้ำแข็งไสป้าหยก",
+      ],
+    },
+    flower_nature: {
+      name: "🌸 ธีมดอกไม้ & ธรรมชาติ",
+      userLimit: 7,
+      rooms: [
         "🥀︲กุหลาบเฉา",
         "🌻︲ทานตะวัน",
         "🍀︲ใบโคลเวอร์",
@@ -89,6 +76,12 @@ module.exports = {
         "🌺︲ฮิบิคัส",
         "🌱︲ต้นอ่อน",
         "🍂︲ใบไม้ร่วง",
+      ],
+    },
+    fruit_fluffy: {
+      name: "🍑 ธีมผลไม้นุ่มฟู",
+      userLimit: 8,
+      rooms: [
         "🍒︲เชอร์รีนุ่มฟู",
         "🍊︲ส้มนุ่มฟู",
         "🍋︲เลม่อนนุ่มฟู",
@@ -101,6 +94,12 @@ module.exports = {
         "🍉︲แตงโมนุ่มฟู",
         "🍌︲กล้วยนุ่มฟู",
         "🍈︲เมล่อนนุ่มฟู",
+      ],
+    },
+    vegetable_fluffy: {
+      name: "🥦 ธีมผักปุกปุย",
+      userLimit: 9,
+      rooms: [
         "🍅︲มะเขือเทศปุกปุย",
         "🥕︲แครอทปุกปุย",
         "🌽︲ข้าวโพดปุกปุย",
@@ -113,29 +112,18 @@ module.exports = {
         "🧄︲กระเทียมปุกปุย",
       ],
     },
+  },
+
+  // โซนทั้งหมด — คงไว้เฉพาะ VIP และห้องนอน (ไม่มีเส้นคั่น)
+  zones: [
     {
-      id: "game",
-      name: "เกม",
-      lobbyChannelId: "1524124494099255356",
-      separatorChannelId: null,
-      separatorName: "〔𝖦𝖠𝖬𝖤〕𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃",
-      nameThemes: ["🎮︲โต๊ะเกม username"],
-    },
-    {
-      id: "music",
-      name: "เพลง",
-      lobbyChannelId: "1524124359768277193",
-      separatorChannelId: null,
-      separatorName: "〔𝖬𝖴𝖲𝖨𝖢〕𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃",
-      nameThemes: ["🎶︲โต๊ะเพลง username"],
-    },
-    {
-      id: "work",
-      name: "ทำงาน",
-      lobbyChannelId: "1524123845886476428",
-      separatorChannelId: null,
-      separatorName: "〔𝖶𝖮𝖱𝖪〕𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃𓂃",
-      nameThemes: ["💼︲โต๊ะทำงาน username"],
+      id: "vip",
+      name: "VIP",
+      lobbyChannelId: "1524122963904036945",
+      nameThemes: ["⭐︲VIP username"],
+      retentionMs: 3 * 24 * 60 * 60 * 1000, // 3 วัน (259,200,000 ms)
+      skipSeparator: true,
+      skipLayout: true,
     },
     {
       id: "sleep_single",

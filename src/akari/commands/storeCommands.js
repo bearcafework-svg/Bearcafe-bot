@@ -477,8 +477,8 @@ async function handleStoreButtonInteraction(interaction, supabase, client) {
               {
                 type: 10,
                 content: `## <:lowwarning:1548772721679278180>︲__\` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ ไม่สามารถแลกของรางวัลได้ 𓂃 \`__\n> ${eligibility.reason}\n\n` +
-                  `📊 **แต้มสะสมของคุณ:** **${eligibility.currentPoints.toLocaleString()}** แต้ม\n` +
-                  `🏆 **จำนวนครั้งที่ชนะ:** **${eligibility.currentWins.toLocaleString()}** ครั้ง`,
+                  `📊 **แต้มสะสมของคุณ:** **${(Number(eligibility.currentPoints ?? eligibility.points) || 0).toLocaleString()}** แต้ม\n` +
+                  `🏆 **จำนวนครั้งที่ชนะ:** **${(Number(eligibility.currentWins ?? eligibility.wins) || 0).toLocaleString()}** ครั้ง`,
               },
             ],
           },

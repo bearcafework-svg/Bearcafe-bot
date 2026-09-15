@@ -1,7 +1,6 @@
 const { ChannelType } = require("discord.js");
 const { generateRoomName } = require("../utils/nameGenerator");
 const { acquireLock, deleteRoom, getAllRooms, releaseLock, saveRoom } = require("../state/redisClient");
-const { syncAllSeparators } = require("../utils/separatorManager");
 const { applyRoomPermissions, sendRoomPanel } = require("./roomPanel");
 const { sendRoomLog } = require("../utils/roomLogger");
 const { getSmartRoomPreset, normalizePresetSettings } = require("../utils/smartRoomPresets");
@@ -152,6 +151,15 @@ async function createRoomWithLock(guild, member, zone) {
       || await guild.channels.fetch(existingChannelId).catch(() => null);
 
     if (existingChannel) {
+      // 🌟 เงื่อนไขพิเศษสำหรับห้อง VIP: หากเจ้าของห้องยังมีห้อง VIP อยู่ ไม่สร้างห้องใหม่ แต่ให้ส่งกลับไปห้องเดิมทันที
+      if (zone.id === "vip" && existingRoom.zoneId === "vip") {
+        console.log(`👑 ${member.user.tag} มีห้อง VIP เดิมอยู่แล้ว (${existingChannel.name}) — ส่งกลับเข้าห้องเดิม ไม่สร้างใหม่`);
+        const { clearVipRoomCountdown } = require("./roomDestroyer");
+        await clearVipRoomCountdown(guild, existingChannelId);
+        await safeMoveMember(member, existingChannel, "Move VIP owner to existing room");
+        return existingChannel;
+      }
+
       if (existingChannel.members.size === 0) {
         // ห้องเดิมว่างแล้ว ลบทิ้งและสร้างห้องใหม่ทันที
         console.log(`🧹 ห้องเดิมของ ${member.user.tag} ว่างแล้ว (${existingChannel.name}) — ลบทิ้งเพื่อสร้างห้องใหม่`);
@@ -241,13 +249,6 @@ async function createRoomWithLock(guild, member, zone) {
   } else {
     console.log(`Skip room panel for non-VIP room "${roomName}" zone=${zone.id}`);
   }
-
-  // ⚡ รัน syncAllSeparators ใน Background แบบ Non-blocking เพื่อให้ปล่อยคิวสร้างห้องคนถัดไปได้ทันที!
-  getAllRooms().then((rooms) => {
-    syncAllSeparators(guild, rooms).catch((e) => {
-      console.error(`[roomCreator] Background syncAllSeparators error:`, e.message);
-    });
-  }).catch(() => {});
 
   return newChannel;
 }

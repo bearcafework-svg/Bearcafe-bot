@@ -248,13 +248,23 @@ async function initializeQueue(queue, client, supabase) {
       targetUserIds = members.map((m) => m.user.id);
     } else if (queue.target_type === "option" && queue.target_value) {
       console.log(`[queue-processor] Fetching subscribers for option: ${queue.target_value}`);
-      const { data: subs, error: subErr } = await supabase
-        .from("dms_options")
-        .select("user_id")
-        .eq("option_value", queue.target_value);
+      let allSubs = [];
+      let from = 0;
+      const pageSize = 1000;
+      while (true) {
+        const { data: subs, error: subErr } = await supabase
+          .from("dms_options")
+          .select("user_id")
+          .eq("option_value", queue.target_value)
+          .range(from, from + pageSize - 1);
 
-      if (subErr) throw subErr;
-      targetUserIds = (subs || []).map((s) => s.user_id);
+        if (subErr) throw subErr;
+        if (!subs || subs.length === 0) break;
+        allSubs = allSubs.concat(subs);
+        if (subs.length < pageSize) break;
+        from += pageSize;
+      }
+      targetUserIds = allSubs.map((s) => s.user_id);
     } else if (queue.target_type === "test" && queue.target_value) {
       console.log(`[queue-processor] Fetching test targets: ${queue.target_value}`);
       targetUserIds = queue.target_value.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
@@ -279,6 +289,24 @@ async function initializeQueue(queue, client, supabase) {
         const originalCount = targetUserIds.length;
         targetUserIds = targetUserIds.filter((uid) => !successUserIds.has(uid));
         await logBroadcast(supabase, "info", `🛡️ ระบบกันส่งซ้ำ: กรองสมาชิกที่เคยได้รับแล้วออก ${originalCount - targetUserIds.length} คน เหลือเป้าหมาย ${targetUserIds.length} คน`, queue.id);
+      }
+    }
+
+    // Pre-filtering: Exclude users who are already known to have closed DMs (from member_dm_status)
+    if (targetUserIds.length > 0) {
+      const { data: closedRows, error: closedErr } = await supabase
+        .from("member_dm_status")
+        .select("user_id")
+        .eq("dm_status", "closed");
+
+      if (!closedErr && closedRows && closedRows.length > 0) {
+        const closedSet = new Set(closedRows.map((r) => r.user_id));
+        const beforeCount = targetUserIds.length;
+        targetUserIds = targetUserIds.filter((uid) => !closedSet.has(uid));
+        const filteredCount = beforeCount - targetUserIds.length;
+        if (filteredCount > 0) {
+          await logBroadcast(supabase, "info", `🔒 กรองข้ามผู้ใช้ที่ปิด DM จากประวัติล่วงหน้า ${filteredCount} คน เหลือเป้าหมาย ${targetUserIds.length} คน`, queue.id);
+        }
       }
     }
 
@@ -415,6 +443,7 @@ async function processQueue(queue, client, supabase) {
     let failed = queue.failed_count;
     let processedInSession = 0;
     let consecutiveFailures = 0;
+    let purgedClosedDmCount = 0;
 
     for (const log of pendingLogs) {
       // Check if queue has been cancelled in the database
@@ -525,6 +554,14 @@ async function processQueue(queue, client, supabase) {
             last_checked_at: new Date().toISOString(),
             last_error: errorMsg
           });
+
+          // Auto-Purge from dms_options
+          try {
+            await supabase.from("dms_options").delete().eq("user_id", log.user_id);
+            purgedClosedDmCount++;
+          } catch (purgeErr) {
+            console.error(`[queue-processor] Failed to auto-purge user ${log.user_id} from dms_options:`, purgeErr.message);
+          }
         } else {
           // Increment consecutive failures only for unexpected system errors (e.g. rate limit, token issue, network drop)
           consecutiveFailures++;
@@ -574,6 +611,10 @@ async function processQueue(queue, client, supabase) {
       // Safe randomized delay: minDelaySec to maxDelaySec
       const delayMs = Math.floor(Math.random() * ((maxDelaySec - minDelaySec) * 1000 + 1)) + (minDelaySec * 1000);
       await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+
+    if (purgedClosedDmCount > 0) {
+      await logBroadcast(supabase, "info", `🧹 ระบบล้างการรับข่าวสารของสมาชิกที่ปิด DM/บล็อก ออกจากระบบเรียบร้อยแล้ว ${purgedClosedDmCount} คน`, queue.id);
     }
 
     // Re-evaluate if there are any remaining pending logs

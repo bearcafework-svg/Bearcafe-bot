@@ -52,7 +52,7 @@ async function serializeGuildStructure(guild) {
 
     // ข้ามห้องชั่วคราวที่ถูกสร้างจากบอท
     if (activeTempRoomIds.includes(ch.id)) return;
-    if (ch.parentId === tempRoomCategoryId && ch.type === ChannelType.GuildVoice) {
+    if ((ch.parentId === tempRoomCategoryId || (config.vipInactiveCategoryId && ch.parentId === config.vipInactiveCategoryId)) && ch.type === ChannelType.GuildVoice) {
       // ข้าม voice room ที่สร้างใน temp category ยกเว้น lobbyChannelId
       const isLobbyChannel = config.zones && config.zones.some(z => z.lobbyChannelId === ch.id);
       if (!isLobbyChannel) return;

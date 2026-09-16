@@ -5,9 +5,27 @@
 const { deleteRoom, setRoomEmpty, getAllRooms, getRoom } = require("../state/redisClient");
 const { isSeparatorChannel, isLobbyChannel } = require("../utils/zoneResolver");
 const { safeDeleteChannel } = require("../utils/discordSafety");
+const config = require("../config");
 
 const deletingChannels = new Set();
 const VIP_RETENTION_MS = 3 * 24 * 60 * 60 * 1000; // 3 วัน (259,200,000 ms)
+const VIP_ACTIVE_CATEGORY_ID = config.roomsCategoryId || "1524122788015636682";
+const VIP_INACTIVE_CATEGORY_ID = config.vipInactiveCategoryId || "1549723895936979004";
+
+/**
+ * ย้าย Category ของห้อง VIP อย่างปลอดภัย โดยรักษาสิทธิ์เดิมไว้ทั้งหมด
+ */
+async function moveVipRoomCategory(channel, targetCategoryId, label = "") {
+  if (!channel || !targetCategoryId) return;
+  if (channel.parentId === targetCategoryId) return;
+
+  try {
+    await channel.setParent(targetCategoryId, { lockPermissions: false });
+    console.log(`📂 [VIP] ย้ายห้อง "${channel.name}" ไปยัง Category ${label} (${targetCategoryId}) สำเร็จ`);
+  } catch (err) {
+    console.error(`❌ [VIP] ย้ายห้อง "${channel?.name}" ไปยัง Category ${label} (${targetCategoryId}) ล้มเหลว:`, err.message);
+  }
+}
 
 /**
  * คำนวณและจัดรูปแบบข้อความนับถอยหลังของสถานะ Voice Status
@@ -76,11 +94,18 @@ async function markRoomActive(channelId) {
 }
 
 /**
- * ล้างเวลานับถอยหลังและเคลียร์ข้อความ Voice Status สำหรับห้อง VIP
+ * ล้างเวลานับถอยหลัง เคลียร์ข้อความ Voice Status และย้ายห้อง VIP กลับมาหมวดหมู่ใช้งาน (Active)
  */
 async function clearVipRoomCountdown(guild, channelId) {
   await setRoomEmpty(channelId, null);
   await setVoiceChannelStatus(guild, channelId, "");
+
+  const channel = guild?.channels?.cache?.get(channelId)
+    || (guild?.channels?.fetch ? await guild.channels.fetch(channelId).catch(() => null) : null);
+
+  if (channel) {
+    await moveVipRoomCategory(channel, VIP_ACTIVE_CATEGORY_ID, "ใช้งาน (Active)");
+  }
 }
 
 /**
@@ -96,7 +121,8 @@ async function destroyRoom(guild, channelId, force = false) {
     return;
   }
 
-  const channel = guild.channels.cache.get(channelId);
+  const channel = guild.channels.cache.get(channelId)
+    || await guild.channels.fetch(channelId).catch(() => null);
   const rooms = await getAllRooms();
   const room = rooms[channelId];
 
@@ -110,12 +136,13 @@ async function destroyRoom(guild, channelId, force = false) {
     return;
   }
 
-  // หากเป็นห้อง VIP และไม่ใช่การสั่งลบแบบ force -> ให้นับถอยหลัง 3 วัน
+  // หากเป็นห้อง VIP และไม่ใช่การสั่งลบแบบ force -> ให้นับถอยหลัง 3 วัน และย้ายไปยัง Inactive Category
   if (room && room.zoneId === "vip" && !force) {
     const emptyAt = Date.now();
     await setRoomEmpty(channelId, emptyAt);
     await setVoiceChannelStatus(guild, channelId, "🗑️ ห้องจะถูกลบ 3 วัน");
     console.log(`⏳ ห้อง VIP "${channel.name}" ว่างแล้ว — เริ่มนับถอยหลังลบห้อง 3 วัน`);
+    await moveVipRoomCategory(channel, VIP_INACTIVE_CATEGORY_ID, "พักห้อง (Inactive)");
     return;
   }
 
@@ -162,14 +189,18 @@ async function checkVipRoomsExpiry(client) {
 
       const nonBotCount = channel.members ? channel.members.filter((m) => !m.user?.bot).size : 0;
 
-      // ถ้ามีคนเข้าห้อง -> หยุดนับถอยหลังและเคลียร์สถานะ
+      // ถ้ามีคนเข้าห้อง -> หยุดนับถอยหลังและเคลียร์สถานะ พร้อมย้ายกลับหมวดหมู่ใช้งาน
       if (nonBotCount > 0) {
-        if (room.emptyAt) {
-          console.log(`👥 มีสมาชิกเข้าห้อง VIP "${channel.name}" — รีเซ็ตและยกเลิกการนับถอยหลัง`);
-          await setRoomEmpty(channelId, null);
-          await setVoiceChannelStatus(guild, channelId, "");
+        if (room.emptyAt || channel.parentId !== VIP_ACTIVE_CATEGORY_ID) {
+          console.log(`👥 มีสมาชิกเข้าห้อง VIP "${channel.name}" — รีเซ็ตและย้ายกลับหมวดหมู่ใช้งาน`);
+          await clearVipRoomCountdown(guild, channelId);
         }
         continue;
+      }
+
+      // ถ้าห้องว่างแต่ยังไม่ได้ย้ายไปหมวดหมู่พักห้อง ให้ย้ายทันที
+      if (channel.parentId !== VIP_INACTIVE_CATEGORY_ID) {
+        await moveVipRoomCategory(channel, VIP_INACTIVE_CATEGORY_ID, "พักห้อง (Inactive)");
       }
 
       // ถ้าห้องว่างแต่ยังไม่มี emptyAt ให้บันทึกเวลาปัจจุบัน
@@ -204,4 +235,7 @@ module.exports = {
   clearVipRoomCountdown,
   destroyRoom,
   checkVipRoomsExpiry,
+  moveVipRoomCategory,
+  VIP_ACTIVE_CATEGORY_ID,
+  VIP_INACTIVE_CATEGORY_ID,
 };

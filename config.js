@@ -22,9 +22,12 @@ module.exports = {
   // จำนวนคนสูงสุดต่อห้อง (soft cap)
   softCap: 10,
 
-  // Category ID สำหรับห้องที่บอทสร้างใหม่ทั้งหมด
+  // Category ID สำหรับห้องที่บอทสร้างใหม่ทั้งหมด (ห้องใช้งาน / Active)
   // ถ้ายังไม่กรอก บอทจะใช้ Category เดียวกับ lobby ของโซนนั้นเหมือนเดิม
   roomsCategoryId: "1524122788015636682",
+
+  // Category ID สำหรับพักห้อง VIP ที่ไม่มีการใช้งาน (Unused / Inactive)
+  vipInactiveCategoryId: "1549723895936979004",
 
   separatorPermissions: {
     visibleNoConnectIds: [
@@ -120,6 +123,8 @@ module.exports = {
       id: "vip",
       name: "VIP",
       lobbyChannelId: "1524122963904036945",
+      roomsCategoryId: "1524122788015636682",
+      inactiveCategoryId: "1549723895936979004",
       nameThemes: ["⭐︲VIP username"],
       retentionMs: 3 * 24 * 60 * 60 * 1000, // 3 วัน (259,200,000 ms)
       skipSeparator: true,

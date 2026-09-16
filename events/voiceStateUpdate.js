@@ -123,8 +123,9 @@ module.exports = {
         return;
       }
 
-      if (channel.members.size === 0) {
-        console.log(`🔕 "${channel.name}" ว่างแล้ว — ลบทันที`);
+      const nonBotCount = channel.members ? channel.members.filter((m) => !m.user?.bot).size : 0;
+      if (nonBotCount === 0) {
+        console.log(`🔕 "${channel.name}" ไม่มีสมาชิก — ดำเนินการจัดการห้อง`);
         await destroyRoom(channel.guild, leftChannel);
       }
     }

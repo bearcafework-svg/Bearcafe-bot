@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS heal_jai_orders_sessions (
   session_channel_id TEXT,
   session_voice_id TEXT,
   slip_url TEXT,
+  slip_verified_at TIMESTAMPTZ,
   started_at TIMESTAMPTZ,
   ended_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW(),

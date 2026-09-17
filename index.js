@@ -11,6 +11,7 @@ const { destroyRoom } = require("./handlers/roomDestroyer");
 const { createRoom } = require("./handlers/roomCreator");
 const { handleRoomPanel, handleRoomPanelInteraction } = require("./handlers/roomPanel");
 const { handleRentHousePanelInteraction, handleRentHousePanelMessage } = require("./handlers/rentHousePanel");
+const { archiveRentHouseChannel } = require("./handlers/rentHouseArchive");
 const { setupContractNotifier } = require("./src/services/contractNotifier");
 const { setupBroadcastScheduler } = require("./src/services/broadcastScheduler");
 const voiceStateUpdate = require("./events/voiceStateUpdate");
@@ -330,6 +331,15 @@ client.on("interactionCreate", async (interaction) => {
   const handledRoom = await handleRoomPanelInteraction(interaction).catch(console.error);
   if (handledRoom) return;
   await handleRentHousePanelInteraction(interaction).catch(console.error);
+});
+
+// ── จับ event ลบห้องเสียง (สำรองข้อมูลบ้านเช่าอัตโนมัติหากถูกลบ) ────────
+client.on("channelDelete", async (channel) => {
+  try {
+    await archiveRentHouseChannel(channel);
+  } catch (err) {
+    console.error("[channelDelete] Error archiving rent house:", err.message);
+  }
 });
 
 // ── อัปเดตสถานะเมื่อสมาชิกเข้า/ออกจาก Guild ───────────────────────

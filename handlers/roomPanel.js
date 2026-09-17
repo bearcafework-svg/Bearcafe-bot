@@ -22,6 +22,21 @@ const {
   safeRespond,
 } = require("../utils/discordSafety");
 const { getSupabaseClient } = require("../src/services/supabaseClient");
+const {
+  getMemberRoomQuota,
+  getVipPresets,
+  saveVipPresets,
+  createV2CardResponse,
+  createQuotaFullResponse,
+  checkPresetSwitchCooldown,
+  setPresetSwitchCooldown,
+  createCooldownResponse,
+  getUnauthorizedVoiceMembers,
+  buildEvictionConfirmPayload,
+  buildPresetSwitchPayload,
+  buildPresetManagePayload,
+  buildPresetRenameModal,
+} = require("../utils/permissionPresets");
 
 const CUSTOM_IDS = {
   panelSelect: "vip_panel_select_action",
@@ -109,6 +124,18 @@ const VIP_SELECT_OPTIONS = [
     emoji: { name: "📋" },
   },
   {
+    label: "สลับสิทธิ์ห้อง (Presets)",
+    description: "สลับชุดสิทธิ์และจำนวนคนที่บันทึกไว้ (3 รูปแบบ)",
+    value: "vip_opt_preset_switch",
+    emoji: { name: "🔀" },
+  },
+  {
+    label: "จัดการสิทธิ์ห้อง (Presets)",
+    description: "ตั้งชื่อ, เซฟห้องปัจจุบัน, ล้างค่า Preset สิทธิ์",
+    value: "vip_opt_preset_manage",
+    emoji: { name: "⚙️" },
+  },
+  {
     label: "ตั้งค่ารูปภาพแผง",
     description: "กำหนดรูปภาพแบนเนอร์ของแผงควบคุมห้อง VIP",
     value: "vip_opt_image",
@@ -168,6 +195,22 @@ async function handleRoomPanelInteraction(interaction) {
 
   if (interaction.isStringSelectMenu() && interaction.customId === CUSTOM_IDS.panelSelect) {
     return await handleVipPanelSelect(interaction);
+  }
+
+  if (interaction.isStringSelectMenu() && interaction.customId === "vip_select_apply_preset") {
+    return await handleVipApplyPresetSelect(interaction);
+  }
+
+  if (interaction.isButton() && interaction.customId.startsWith("vip_p_")) {
+    return await handleVipPresetButton(interaction);
+  }
+
+  if (interaction.isButton() && interaction.customId.startsWith("vip_confirm_")) {
+    return await handleVipConfirmEvictionButton(interaction);
+  }
+
+  if (interaction.isModalSubmit() && interaction.customId.startsWith("vip_modal_rename_preset_")) {
+    return await handleVipPresetRenameModal(interaction);
   }
 
   if (interaction.isButton() && PANEL_BUTTON_IDS.has(interaction.customId)) {
@@ -343,7 +386,19 @@ async function handleVipPanelSelect(interaction) {
   }
 
   if (selected === "vip_opt_trust") {
-    return await replyWithUserSelect(interaction, CUSTOM_IDS.selectTrust, "เลือกสมาชิกที่จะอนุญาตให้เข้าห้อง");
+    const quota = getMemberRoomQuota(member);
+    const settings = getSettings(room);
+    const currentCount = settings.trustedUserIds?.length || 0;
+    const remaining = quota.maxTrusted - currentCount;
+    if (remaining <= 0) {
+      return await respondEphemeral(interaction, createQuotaFullResponse("Trust", quota.maxTrusted, quota.roleName));
+    }
+    return await replyWithUserSelect(
+      interaction,
+      CUSTOM_IDS.selectTrust,
+      `เลือกสมาชิกที่จะอนุญาตให้เข้าห้อง (เพิ่มได้อีก ${remaining} คน)`,
+      Math.min(remaining, 25)
+    );
   }
 
   if (selected === "vip_opt_untrust") {
@@ -351,7 +406,19 @@ async function handleVipPanelSelect(interaction) {
   }
 
   if (selected === "vip_opt_block") {
-    return await replyWithUserSelect(interaction, CUSTOM_IDS.selectBlock, "เลือกสมาชิกที่จะซ่อนห้องจากเขา");
+    const quota = getMemberRoomQuota(member);
+    const settings = getSettings(room);
+    const currentCount = settings.blockedUserIds?.length || 0;
+    const remaining = quota.maxBlocked - currentCount;
+    if (remaining <= 0) {
+      return await respondEphemeral(interaction, createQuotaFullResponse("Block", quota.maxBlocked, quota.roleName));
+    }
+    return await replyWithUserSelect(
+      interaction,
+      CUSTOM_IDS.selectBlock,
+      `เลือกสมาชิกที่จะซ่อนห้องจากเขา (เพิ่มได้อีก ${remaining} คน)`,
+      Math.min(remaining, 25)
+    );
   }
 
   if (selected === "vip_opt_unblock") {
@@ -363,25 +430,77 @@ async function handleVipPanelSelect(interaction) {
   }
 
   if (selected === "vip_opt_permissions") {
+    const quota = getMemberRoomQuota(member);
     const settings = getSettings(room);
     const ownerId = room.ownerId;
+    const trustedCount = settings.trustedUserIds?.length || 0;
+    const blockedCount = settings.blockedUserIds?.length || 0;
 
-    const trustedList = settings.trustedUserIds.length > 0
-      ? settings.trustedUserIds.map((id) => `<@${id}>`).join(", ")
-      : "ไม่มี";
+    const trustedList = trustedCount > 0
+      ? settings.trustedUserIds.map((id) => `<@${id}> (\`${id}\`)`).join("\n> ")
+      : "*ไม่มี*";
 
-    const blockedList = settings.blockedUserIds.length > 0
-      ? settings.blockedUserIds.map((id) => `<@${id}>`).join(", ")
-      : "ไม่มี";
+    const blockedList = blockedCount > 0
+      ? settings.blockedUserIds.map((id) => `<@${id}> (\`${id}\`)`).join("\n> ")
+      : "*ไม่มี*";
 
-    const content = [
-      `📋 **รายละเอียดสิทธิ์สมาชิกภายในห้อง VIP**`,
-      `👑 **เจ้าของห้อง**: <@${ownerId}>`,
-      `🟢 **อนุญาตให้เข้า (มองเห็น)**: ${trustedList}`,
-      `🔴 **ถูกซ่อน/บล็อค (ถูกบล็อค)**: ${blockedList}`,
-    ].join("\n");
+    const contentLines = [
+      `> 👑 **เจ้าของห้อง:** <@${ownerId}>`,
+      `> 🏷️ **ระดับสิทธิ์:** \`${quota.roleName}\``,
+      `> 🔒 **สถานะล็อค:** ${settings.locked ? "🔒 ล็อคอยู่" : "🔓 เปิดปกติ"}`,
+      `> 👀 **สถานะซ่อน:** ${settings.hidden ? "👀 ซ่อนอยู่" : "👁️ มองเห็นปกติ"}`,
+      ``,
+      `### ➕ สมาชิกที่ได้รับอนุญาตพิเศษ (Trust): \`${trustedCount} / ${quota.maxTrusted} คน\` *(ว่างอีก ${Math.max(0, quota.maxTrusted - trustedCount)} ที่)*`,
+      `> ${trustedList}`,
+      ``,
+      `### ⛔ สมาชิกที่ถูกซ่อน/บล็อค (Block): \`${blockedCount} / ${quota.maxBlocked} คน\` *(ว่างอีก ${Math.max(0, quota.maxBlocked - blockedCount)} ที่)*`,
+      `> ${blockedList}`,
+    ];
 
-    return await respondEphemeral(interaction, { content });
+    return await respondEphemeral(
+      interaction,
+      createV2CardResponse("รายละเอียดสิทธิ์สมาชิกภายในห้อง VIP", contentLines.join("\n"), "📋")
+    );
+  }
+
+  if (selected === "vip_opt_preset_switch") {
+    const quota = getMemberRoomQuota(member);
+    if (!quota.canUsePresets) {
+      return await respondEphemeral(
+        interaction,
+        createV2CardResponse(
+          "ฟังก์ชันพิเศษสำหรับยศพิเศษ",
+          `> ❌ ขออภัยค่ะ ระบบ **Permission Presets** สงวนสิทธิ์เฉพาะสมาชิกที่มีบทบาท <@&${SPECIAL_IMAGE_ROLE_ID}> หรือบ้านเช่าส่วนตัวเท่านั้นนะคะ\n\n` +
+          `> 👑 ปัจจุบันคุณสามารถตั้งค่าสิทธิ์ห้องได้ 1 รูปแบบ (สูงสุด ${quota.maxTrusted} คนสำหรับ Trust และ ${quota.maxBlocked} คนสำหรับ Block ค่ะ)`,
+          "🔒"
+        )
+      );
+    }
+    const presets = await getVipPresets(room.ownerId, settings);
+    return await respondEphemeral(
+      interaction,
+      buildPresetSwitchPayload(presets, "vip_select_apply_preset")
+    );
+  }
+
+  if (selected === "vip_opt_preset_manage") {
+    const quota = getMemberRoomQuota(member);
+    if (!quota.canUsePresets) {
+      return await respondEphemeral(
+        interaction,
+        createV2CardResponse(
+          "ฟังก์ชันพิเศษสำหรับยศพิเศษ",
+          `> ❌ ขออภัยค่ะ ระบบ **Permission Presets** สงวนสิทธิ์เฉพาะสมาชิกที่มีบทบาท <@&${SPECIAL_IMAGE_ROLE_ID}> หรือบ้านเช่าส่วนตัวเท่านั้นนะคะ\n\n` +
+          `> 👑 ปัจจุบันคุณสามารถตั้งค่าสิทธิ์ห้องได้ 1 รูปแบบ (สูงสุด ${quota.maxTrusted} คนสำหรับ Trust และ ${quota.maxBlocked} คนสำหรับ Block ค่ะ)`,
+          "🔒"
+        )
+      );
+    }
+    const presets = await getVipPresets(room.ownerId, settings);
+    return await respondEphemeral(
+      interaction,
+      buildPresetManagePayload(presets, "vip_p")
+    );
   }
 
   if (selected === "vip_opt_delete") {
@@ -435,7 +554,19 @@ async function handlePanelButton(interaction) {
   }
 
   if (interaction.customId === CUSTOM_IDS.trust) {
-    return await replyWithUserSelect(interaction, CUSTOM_IDS.selectTrust, "เลือกสมาชิกที่จะอนุญาตให้เข้าห้อง");
+    const quota = getMemberRoomQuota(interaction.member);
+    const settings = getSettings(context.room);
+    const currentCount = settings.trustedUserIds?.length || 0;
+    const remaining = quota.maxTrusted - currentCount;
+    if (remaining <= 0) {
+      return await respondEphemeral(interaction, createQuotaFullResponse("Trust", quota.maxTrusted, quota.roleName));
+    }
+    return await replyWithUserSelect(
+      interaction,
+      CUSTOM_IDS.selectTrust,
+      `เลือกสมาชิกที่จะอนุญาตให้เข้าห้อง (เพิ่มได้อีก ${remaining} คน)`,
+      Math.min(remaining, 25)
+    );
   }
 
   if (interaction.customId === CUSTOM_IDS.untrust) {
@@ -443,7 +574,19 @@ async function handlePanelButton(interaction) {
   }
 
   if (interaction.customId === CUSTOM_IDS.block) {
-    return await replyWithUserSelect(interaction, CUSTOM_IDS.selectBlock, "เลือกสมาชิกที่จะซ่อนห้องจากเขา");
+    const quota = getMemberRoomQuota(interaction.member);
+    const settings = getSettings(context.room);
+    const currentCount = settings.blockedUserIds?.length || 0;
+    const remaining = quota.maxBlocked - currentCount;
+    if (remaining <= 0) {
+      return await respondEphemeral(interaction, createQuotaFullResponse("Block", quota.maxBlocked, quota.roleName));
+    }
+    return await replyWithUserSelect(
+      interaction,
+      CUSTOM_IDS.selectBlock,
+      `เลือกสมาชิกที่จะซ่อนห้องจากเขา (เพิ่มได้อีก ${remaining} คน)`,
+      Math.min(remaining, 25)
+    );
   }
 
   if (interaction.customId === CUSTOM_IDS.unblock) {
@@ -460,25 +603,37 @@ async function handlePanelButton(interaction) {
   }
 
   if (interaction.customId === CUSTOM_IDS.permissionsList) {
+    const quota = getMemberRoomQuota(interaction.member);
     const settings = getSettings(context.room);
     const ownerId = context.room.ownerId;
+    const trustedCount = settings.trustedUserIds?.length || 0;
+    const blockedCount = settings.blockedUserIds?.length || 0;
 
-    const trustedList = settings.trustedUserIds.length > 0
-      ? settings.trustedUserIds.map((id) => `<@${id}>`).join(", ")
-      : "ไม่มี";
+    const trustedList = trustedCount > 0
+      ? settings.trustedUserIds.map((id) => `<@${id}> (\`${id}\`)`).join("\n> ")
+      : "*ไม่มี*";
 
-    const blockedList = settings.blockedUserIds.length > 0
-      ? settings.blockedUserIds.map((id) => `<@${id}>`).join(", ")
-      : "ไม่มี";
+    const blockedList = blockedCount > 0
+      ? settings.blockedUserIds.map((id) => `<@${id}> (\`${id}\`)`).join("\n> ")
+      : "*ไม่มี*";
 
-    const content = [
-      `📋 **รายละเอียดสิทธิ์สมาชิกภายในห้อง**`,
-      `👑 **เจ้าของห้อง**: <@${ownerId}>`,
-      `🟢 **อนุญาตให้เข้า (มองเห็น)**: ${trustedList}`,
-      `🔴 **ถูกซ่อน/บล็อค (ถูกบล็อค)**: ${blockedList}`,
-    ].join("\n");
+    const contentLines = [
+      `> 👑 **เจ้าของห้อง:** <@${ownerId}>`,
+      `> 🏷️ **ระดับสิทธิ์:** \`${quota.roleName}\``,
+      `> 🔒 **สถานะล็อค:** ${settings.locked ? "🔒 ล็อคอยู่" : "🔓 เปิดปกติ"}`,
+      `> 👀 **สถานะซ่อน:** ${settings.hidden ? "👀 ซ่อนอยู่" : "👁️ มองเห็นปกติ"}`,
+      ``,
+      `### ➕ สมาชิกที่ได้รับอนุญาตพิเศษ (Trust): \`${trustedCount} / ${quota.maxTrusted} คน\` *(ว่างอีก ${Math.max(0, quota.maxTrusted - trustedCount)} ที่)*`,
+      `> ${trustedList}`,
+      ``,
+      `### ⛔ สมาชิกที่ถูกซ่อน/บล็อค (Block): \`${blockedCount} / ${quota.maxBlocked} คน\` *(ว่างอีก ${Math.max(0, quota.maxBlocked - blockedCount)} ที่)*`,
+      `> ${blockedList}`,
+    ];
 
-    return await respondEphemeral(interaction, { content });
+    return await respondEphemeral(
+      interaction,
+      createV2CardResponse("รายละเอียดสิทธิ์สมาชิกภายในห้อง VIP", contentLines.join("\n"), "📋")
+    );
   }
 
   return false;
@@ -513,6 +668,7 @@ async function handlePanelUserSelect(interaction) {
     return await respondEphemeral(interaction, { content: `เตะ ${member} ออกจากห้องแล้วค่ะ` });
   }
 
+  const quota = getMemberRoomQuota(interaction.member);
   const settings = getSettings(context.room);
   const trustedUserIds = new Set(settings.trustedUserIds);
   const blockedUserIds = new Set(settings.blockedUserIds);
@@ -521,6 +677,9 @@ async function handlePanelUserSelect(interaction) {
     if (member.id === context.room.ownerId) continue;
 
     if (interaction.customId === CUSTOM_IDS.selectTrust) {
+      if (trustedUserIds.size >= quota.maxTrusted && !trustedUserIds.has(member.id)) {
+        continue;
+      }
       trustedUserIds.add(member.id);
       blockedUserIds.delete(member.id);
     }
@@ -530,6 +689,9 @@ async function handlePanelUserSelect(interaction) {
     }
 
     if (interaction.customId === CUSTOM_IDS.selectBlock) {
+      if (blockedUserIds.size >= quota.maxBlocked && !blockedUserIds.has(member.id)) {
+        continue;
+      }
       blockedUserIds.add(member.id);
       trustedUserIds.delete(member.id);
     }
@@ -542,8 +704,8 @@ async function handlePanelUserSelect(interaction) {
   const room = await updateRoom(context.channel.id, {
     settings: {
       ...settings,
-      trustedUserIds: [...trustedUserIds],
-      blockedUserIds: [...blockedUserIds],
+      trustedUserIds: [...trustedUserIds].slice(0, quota.maxTrusted),
+      blockedUserIds: [...blockedUserIds].slice(0, quota.maxBlocked),
     },
   });
 
@@ -652,6 +814,237 @@ async function handlePanelModal(interaction) {
         ? "✅ รีเซ็ตรูปภาพแผงควบคุมกลับเป็นภาพเริ่มต้นเรียบร้อยแล้วค่ะ"
         : `✅ ตั้งค่ารูปภาพแผงควบคุมเรียบร้อยแล้วค่ะ! (มีผลกับทั้งห้อง VIP และบ้านเช่าของคุณ)\n🔗 ลิงก์: ${newImageUrl}`,
     });
+  }
+
+  return false;
+}
+
+async function applyVipPresetToRoom(context, targetPreset, member, channel) {
+  const currentSettings = getSettings(context.room);
+  const updatedSettings = {
+    ...currentSettings,
+    locked: targetPreset.locked,
+    hidden: targetPreset.hidden,
+    trustedUserIds: targetPreset.trustedUserIds,
+    blockedUserIds: targetPreset.blockedUserIds,
+  };
+  if (Number.isInteger(targetPreset.limit)) {
+    updatedSettings.limit = targetPreset.limit;
+    await channel.setUserLimit(targetPreset.limit).catch(() => {});
+  }
+
+  const updatedRoom = await updateRoom(channel.id, { settings: updatedSettings });
+  await persistRoomPreset(channel, updatedRoom);
+  await applyRoomPermissions(channel, updatedRoom);
+
+  const refreshed = await buildUpdatedVipPanelPayload(member, updatedRoom, channel);
+  if (refreshed) {
+    channel.messages.fetch({ limit: 5 }).then((msgs) => {
+      const botMsg = msgs.find((m) => m.author.id === channel.client.user.id && (m.flags?.has(32768) || m.flags?.bitfield === 32768));
+      if (botMsg) botMsg.edit(refreshed).catch(() => {});
+    }).catch(() => {});
+  }
+
+  setPresetSwitchCooldown(channel.id);
+  return updatedRoom;
+}
+
+async function handleVipApplyPresetSelect(interaction) {
+  const context = await getOwnedRoomContextFromInteraction(interaction);
+  if (!context) return await replyOwnerOnly(interaction);
+
+  // 1. ตรวจสอบคูลดาวน์การสลับ Preset (15 วินาที)
+  const cooldown = checkPresetSwitchCooldown(context.channel.id);
+  if (cooldown.onCooldown) {
+    return await respondEphemeral(interaction, createCooldownResponse(cooldown.remainingSeconds));
+  }
+
+  const presetId = interaction.values[0];
+  const presets = await getVipPresets(context.room.ownerId, getSettings(context.room));
+  const targetPreset = presets.find((p) => p.id === presetId);
+  if (!targetPreset) {
+    return await respondEphemeral(
+      interaction,
+      createV2CardResponse("ไม่พบ Preset", "> ❌ ไม่พบการตั้งค่า Preset ที่เลือกค่ะ", "⚠️")
+    );
+  }
+
+  // 2. ตรวจสอบสมาชิกที่ไม่มีสิทธิ์ใน Preset ใหม่
+  const unauthorized = getUnauthorizedVoiceMembers(context.channel, targetPreset, context.room.ownerId);
+  if (unauthorized.length > 0) {
+    return await respondEphemeral(
+      interaction,
+      buildEvictionConfirmPayload(targetPreset, unauthorized, "vip_confirm")
+    );
+  }
+
+  // 3. ไม่มีสมาชิกที่ไม่มีสิทธิ์ -> สลับ Preset ทันที
+  await applyVipPresetToRoom(context, targetPreset, interaction.member, context.channel);
+
+  return await respondEphemeral(
+    interaction,
+    createV2CardResponse(
+      "สลับ Preset สำเร็จ",
+      `> ✨ สลับการตั้งค่าห้อง VIP ตาม **${targetPreset.name}** เรียบร้อยแล้วค่ะ!\n\n` +
+      `> 👥 **สมาชิกที่อนุญาต:** \`${targetPreset.trustedUserIds.length} คน\`\n` +
+      `> 🔒 **สถานะห้อง:** \`${targetPreset.locked ? "ล็อค" : "ไม่ล็อค"} / ${targetPreset.hidden ? "ซ่อน" : "มองเห็น"}\`\n` +
+      `> 🔢 **จำกัดจำนวน:** \`${targetPreset.limit > 0 ? `${targetPreset.limit} คน` : "ไม่จำกัด"}\``,
+      "✨"
+    )
+  );
+}
+
+async function handleVipConfirmEvictionButton(interaction) {
+  const context = await getOwnedRoomContextFromInteraction(interaction);
+  if (!context) return await replyOwnerOnly(interaction);
+
+  const customId = interaction.customId;
+
+  if (customId === "vip_confirm_cancel") {
+    return await respondEphemeral(
+      interaction,
+      createV2CardResponse("ยกเลิกการสลับ Preset", "> ❌ ยกเลิกการสลับ Preset เรียบร้อยแล้วค่ะ ห้องยังคงใช้การตั้งค่าเดิม", "ℹ️")
+    );
+  }
+
+  // ตรวจสอบคูลดาวน์ก่อนดำเนินการ
+  const cooldown = checkPresetSwitchCooldown(context.channel.id);
+  if (cooldown.onCooldown) {
+    return await respondEphemeral(interaction, createCooldownResponse(cooldown.remainingSeconds));
+  }
+
+  const isKick = customId.startsWith("vip_confirm_kick_");
+  const presetId = customId.replace(isKick ? "vip_confirm_kick_" : "vip_confirm_keep_", "");
+  const presets = await getVipPresets(context.room.ownerId, getSettings(context.room));
+  const targetPreset = presets.find((p) => p.id === presetId);
+
+  if (!targetPreset) {
+    return await respondEphemeral(interaction, createV2CardResponse("ไม่พบ Preset", "> ❌ ไม่พบการตั้งค่า Preset ที่เลือกค่ะ", "⚠️"));
+  }
+
+  let actionSummary = "";
+  if (isKick) {
+    const unauthorized = getUnauthorizedVoiceMembers(context.channel, targetPreset, context.room.ownerId);
+    let kickedCount = 0;
+    for (const m of unauthorized) {
+      const disconnected = await safeDisconnectMember(m, "Room owner switched preset (kick unauthorized)");
+      if (disconnected) kickedCount++;
+    }
+    actionSummary = `> 🚪 **จัดการสมาชิก:** เตะสมาชิกที่ไม่มีสิทธิ์ออกจากห้องแล้ว \`${kickedCount} คน\`\n`;
+  } else {
+    actionSummary = `> ⏳ **จัดการสมาชิก:** อนุญาตให้สมาชิกเดิมอยู่ต่อได้จนกว่าจะออกเอง (ไม่สามารถเข้ากลับมาใหม่ได้)\n`;
+  }
+
+  await applyVipPresetToRoom(context, targetPreset, interaction.member, context.channel);
+
+  return await respondEphemeral(
+    interaction,
+    createV2CardResponse(
+      "สลับ Preset สำเร็จ",
+      `> ✨ สลับการตั้งค่าห้อง VIP ตาม **${targetPreset.name}** เรียบร้อยแล้วค่ะ!\n` +
+      `${actionSummary}\n` +
+      `> 👥 **สมาชิกที่อนุญาต:** \`${targetPreset.trustedUserIds.length} คน\`\n` +
+      `> 🔒 **สถานะห้อง:** \`${targetPreset.locked ? "ล็อค" : "ไม่ล็อค"} / ${targetPreset.hidden ? "ซ่อน" : "มองเห็น"}\`\n` +
+      `> 🔢 **จำกัดจำนวน:** \`${targetPreset.limit > 0 ? `${targetPreset.limit} คน` : "ไม่จำกัด"}\``,
+      "✨"
+    )
+  );
+}
+
+async function handleVipPresetButton(interaction) {
+  const context = await getOwnedRoomContextFromInteraction(interaction);
+  if (!context) return await replyOwnerOnly(interaction);
+
+  const parts = interaction.customId.split("_"); // ["vip", "p", "action", "num"]
+  const action = parts[2];
+  const num = parseInt(parts[3], 10);
+  const presets = await getVipPresets(context.room.ownerId);
+  const targetPreset = presets[num - 1];
+
+  if (!targetPreset) {
+    return await respondEphemeral(interaction, createV2CardResponse("เกิดข้อผิดพลาด", "> ❌ ไม่พบ Preset หมายเลขนี้ค่ะ", "⚠️"));
+  }
+
+  if (action === "rename") {
+    const modal = buildPresetRenameModal(`vip_modal_rename_preset_${num}`, num, targetPreset.name);
+    return await safeShowModal(interaction, modal);
+  }
+
+  if (action === "save") {
+    const currentSettings = getSettings(context.room);
+    targetPreset.locked = currentSettings.locked;
+    targetPreset.hidden = currentSettings.hidden;
+    targetPreset.limit = currentSettings.limit || 0;
+    targetPreset.trustedUserIds = (currentSettings.trustedUserIds || []).slice(0, 15);
+    targetPreset.blockedUserIds = (currentSettings.blockedUserIds || []).slice(0, 10);
+
+    await saveVipPresets(context.room.ownerId, presets);
+
+    return await respondEphemeral(
+      interaction,
+      createV2CardResponse(
+        "บันทึก Preset สำเร็จ",
+        `> 💾 บันทึกการตั้งค่าห้อง VIP ปัจจุบันลง **${targetPreset.name}** เรียบร้อยแล้วค่ะ!\n\n` +
+        `> 👥 **เพื่อนที่อนุญาต:** \`${targetPreset.trustedUserIds.length} คน\`\n` +
+        `> 🔒 **สถานะ:** \`${targetPreset.locked ? "ล็อค" : "เปิด"} / ${targetPreset.hidden ? "ซ่อน" : "มองเห็น"}\`\n` +
+        `> 🔢 **จำกัดจำนวน:** \`${targetPreset.limit > 0 ? `${targetPreset.limit} คน` : "ไม่จำกัด"}\``,
+        "💾"
+      )
+    );
+  }
+
+  if (action === "reset") {
+    targetPreset.name = `Preset ${num}`;
+    targetPreset.locked = false;
+    targetPreset.hidden = false;
+    targetPreset.limit = 0;
+    targetPreset.trustedUserIds = [];
+    targetPreset.blockedUserIds = [];
+
+    await saveVipPresets(context.room.ownerId, presets);
+
+    return await respondEphemeral(
+      interaction,
+      createV2CardResponse(
+        "ล้างค่า Preset สำเร็จ",
+        `> 🗑️ ล้างการตั้งค่าของ **Preset ${num}** เป็นค่าเริ่มต้นเรียบร้อยแล้วค่ะ`,
+        "🗑️"
+      )
+    );
+  }
+
+  return false;
+}
+
+async function handleVipPresetRenameModal(interaction) {
+  const context = await getOwnedRoomContextFromInteraction(interaction);
+  if (!context) return await replyOwnerOnly(interaction);
+
+  const num = parseInt(interaction.customId.replace("vip_modal_rename_preset_", ""), 10);
+  const newName = interaction.fields.getTextInputValue("preset_name_input")?.trim();
+
+  if (!newName) {
+    return await respondEphemeral(
+      interaction,
+      createV2CardResponse("ชื่อไม่ถูกต้อง", "> ❌ กรุณาระบุชื่อ Preset ค่ะ", "⚠️")
+    );
+  }
+
+  const presets = await getVipPresets(context.room.ownerId);
+  const targetPreset = presets[num - 1];
+
+  if (targetPreset) {
+    targetPreset.name = newName.slice(0, 50);
+    await saveVipPresets(context.room.ownerId, presets);
+
+    return await respondEphemeral(
+      interaction,
+      createV2CardResponse(
+        "เปลี่ยนชื่อ Preset สำเร็จ",
+        `> ✏️ เปลี่ยนชื่อ Preset ${num} เป็น **${targetPreset.name}** เรียบร้อยแล้วค่ะ`,
+        "✏️"
+      )
+    );
   }
 
   return false;

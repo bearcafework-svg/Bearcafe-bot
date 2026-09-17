@@ -93,6 +93,18 @@ function setupCreateRentHouse(client) {
           [PermissionFlagsBits.ManageWebhooks]: false
         });
 
+        // 4.1 ตรวจสอบและกู้คืนการตั้งค่าบ้านเช่าเดิม (กรณีเคยเช่าและถูกลบไม่เกิน 30 วัน)
+        try {
+          const { restoreArchivedRentHouse } = require("../../handlers/rentHouseArchive");
+          const { syncRentHousePermissions } = require("../features/rentHouse/services/rentHouseService");
+          const restored = await restoreArchivedRentHouse(targetUserId, createdChannel.id);
+          if (restored) {
+            await syncRentHousePermissions(createdChannel, restored);
+          }
+        } catch (restoreErr) {
+          console.warn("[createRentHouse] Error restoring archived rent house settings:", restoreErr.message);
+        }
+
         // 5. ส่งแผงควบคุมบ้านเช่าเข้าห้องใหม่
         try {
           const targetMember = await guild.members.fetch(targetUserId).catch(() => null);

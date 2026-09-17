@@ -8,6 +8,7 @@ const {
   buildRentNameModal,
   buildRentLimitModal,
   buildRentImageModal,
+  buildRentPresetRenameModal,
   buildUserSelectMenuPayload,
 } = require("../src/features/rentHouse/components/rentHousePayloads");
 
@@ -21,11 +22,25 @@ const {
   getRentHousePermissionsInfo,
   processRentUserSelect,
   saveRentHouseImage,
+  syncRentHousePermissions,
 } = require("../src/features/rentHouse/services/rentHouseService");
 
-const { safeShowModal } = require("../utils/discordSafety");
+const { safeShowModal, safeDisconnectMember } = require("../utils/discordSafety");
 const { safeSetChannelName } = require("../utils/channelRenameGuard");
 const { getRandomSessionAd, getGlobalCtaButton } = require("../src/services/sessionAdsService");
+const {
+  getRentHousePresets,
+  saveRentHousePresets,
+  buildPresetSwitchPayload,
+  buildPresetManagePayload,
+  createQuotaFullResponse,
+  checkPresetSwitchCooldown,
+  setPresetSwitchCooldown,
+  createCooldownResponse,
+  getUnauthorizedVoiceMembers,
+  buildEvictionConfirmPayload,
+} = require("../utils/permissionPresets");
+const { getSupabaseClient } = require("../src/services/supabaseClient");
 
 const SPECIAL_IMAGE_ROLE_ID = "1383998275711012956";
 
@@ -91,7 +106,7 @@ async function sendInteractionResponse(interaction, payload) {
  */
 async function handleRentHousePanelInteraction(interaction) {
   if (!interaction.guild) return false;
-  if (!interaction.isUserSelectMenu() && !interaction.isStringSelectMenu() && !interaction.isModalSubmit()) return false;
+  if (!interaction.isUserSelectMenu() && !interaction.isStringSelectMenu() && !interaction.isModalSubmit() && !interaction.isButton()) return false;
 
   const customId = interaction.customId;
   if (!customId || typeof customId !== "string") return false;
@@ -213,8 +228,22 @@ async function handleRentHousePanelInteraction(interaction) {
         );
       }
 
-      case "rh_opt_trust":
-        return await sendInteractionResponse(interaction, buildUserSelectMenuPayload(RENT_CUSTOM_IDS.selectTrust, "เลือกสมาชิกที่ต้องการให้อนุญาตเข้าห้อง (เลือกได้หลายคน)", 25));
+      case "rh_opt_trust": {
+        const setting = await getRentHousePermissionsInfo(channel);
+        const currentCount = setting?.trusted_user_ids?.length || 0;
+        const remaining = 15 - currentCount;
+        if (remaining <= 0) {
+          return await sendInteractionResponse(interaction, createQuotaFullResponse("Trust", 15, "บ้านเช่าส่วนตัว"));
+        }
+        return await sendInteractionResponse(
+          interaction,
+          buildUserSelectMenuPayload(
+            RENT_CUSTOM_IDS.selectTrust,
+            `เลือกสมาชิกที่ต้องการให้อนุญาตเข้าห้อง (เพิ่มได้อีก ${remaining} คน)`,
+            Math.min(remaining, 25)
+          )
+        );
+      }
 
       case "rh_opt_untrust":
         return await sendInteractionResponse(interaction, buildUserSelectMenuPayload(RENT_CUSTOM_IDS.selectUntrust, "เลือกสมาชิกที่ต้องการยกเลิกการอนุญาต (เลือกได้หลายคน)", 25));
@@ -225,14 +254,15 @@ async function handleRentHousePanelInteraction(interaction) {
       case "rh_opt_permissions": {
         const setting = await getRentHousePermissionsInfo(channel);
         const trustedIds = setting?.trusted_user_ids || [];
-        const trustedList = trustedIds.length > 0 ? trustedIds.map((id) => `<@${id}> (\`${id}\`)`).join("\n> ") : "*ไม่มี*";
+        const trustedCount = trustedIds.length;
+        const trustedList = trustedCount > 0 ? trustedIds.map((id) => `<@${id}> (\`${id}\`)`).join("\n> ") : "*ไม่มี*";
 
         const contentLines = [
           `> (🏠)︰**ชื่อห้อง:** <#${channel.id}>`,
           `> (🔒)︰**สถานะล็อค:** ${setting?.locked ? "🔒 ล็อคอยู่" : "🔓 เปิดปกติ"}`,
           `> (👀)︰**สถานะซ่อน:** ${setting?.hidden ? "👀 ซ่อนอยู่" : "👁️ มองเห็นปกติ"}`,
           ``,
-          `### ➕ สมาชิกที่ได้รับอนุญาตพิเศษ (Trust):`,
+          `### ➕ สมาชิกที่ได้รับอนุญาตพิเศษ (Trust): \`${trustedCount} / 15 คน\` *(ว่างอีก ${Math.max(0, 15 - trustedCount)} ที่)*`,
           `> ${trustedList}`,
         ];
 
@@ -242,8 +272,212 @@ async function handleRentHousePanelInteraction(interaction) {
         );
       }
 
+      case "rh_opt_preset_switch": {
+        const currentSetting = (await getRentHousePermissionsInfo(channel)) || {};
+        const presets = await getRentHousePresets(channel.id, currentSetting);
+        return await sendInteractionResponse(
+          interaction,
+          buildPresetSwitchPayload(presets, "rh_select_apply_preset")
+        );
+      }
+
+      case "rh_opt_preset_manage": {
+        const currentSetting = (await getRentHousePermissionsInfo(channel)) || {};
+        const presets = await getRentHousePresets(channel.id, currentSetting);
+        return await sendInteractionResponse(
+          interaction,
+          buildPresetManagePayload(presets, "rh_p")
+        );
+      }
+
       default:
         return false;
+    }
+  }
+
+  // Helper สำหรับบันทึกและซิงค์ Preset เข้าห้องบ้านเช่า
+  async function applyRentHousePresetToChannel(targetPreset) {
+    const currentSetting = (await getRentHousePermissionsInfo(channel)) || {};
+    const presets = await getRentHousePresets(channel.id, currentSetting);
+    const updatedSetting = {
+      channel_id: channel.id,
+      owner_id: currentSetting.owner_id || interaction.user.id,
+      locked: targetPreset.locked,
+      hidden: targetPreset.hidden,
+      trusted_user_ids: targetPreset.trustedUserIds,
+      blocked_user_ids: targetPreset.blockedUserIds,
+      image_url: currentSetting.image_url || null,
+      permission_presets: presets,
+      updated_at: new Date().toISOString(),
+    };
+
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      await supabase.from("rent_house_settings").upsert(updatedSetting);
+    }
+
+    await syncRentHousePermissions(channel, updatedSetting);
+    if (Number.isInteger(targetPreset.limit)) {
+      await channel.setUserLimit(targetPreset.limit).catch(() => {});
+    }
+
+    const refreshedPayload = await buildRentPanelPayloadWithAds(interaction.member, channel, currentSetting.image_url);
+    if (refreshedPayload) {
+      channel.messages.fetch({ limit: 5 }).then((msgs) => {
+        const panelMsg = msgs.find((m) => m.author.id === interaction.client.user.id && (m.flags?.has(32768) || m.flags?.bitfield === 32768));
+        if (panelMsg) panelMsg.edit(refreshedPayload).catch(() => {});
+      }).catch(() => {});
+    }
+
+    setPresetSwitchCooldown(channel.id);
+    return updatedSetting;
+  }
+
+  // 1.1 สลับ Preset ของบ้านเช่า
+  if (interaction.isStringSelectMenu() && customId === "rh_select_apply_preset") {
+    // ตรวจสอบคูลดาวน์ 15 วินาที
+    const cooldown = checkPresetSwitchCooldown(channel.id);
+    if (cooldown.onCooldown) {
+      return await sendInteractionResponse(interaction, createCooldownResponse(cooldown.remainingSeconds));
+    }
+
+    const presetId = interaction.values[0];
+    const currentSetting = (await getRentHousePermissionsInfo(channel)) || {};
+    const presets = await getRentHousePresets(channel.id, currentSetting);
+    const targetPreset = presets.find((p) => p.id === presetId);
+    if (!targetPreset) {
+      return await sendInteractionResponse(interaction, createV2CardResponse("ไม่พบ Preset", "> ❌ ไม่พบการตั้งค่า Preset ที่เลือกค่ะ", "⚠️"));
+    }
+
+    // ตรวจสอบสมาชิกที่ไม่มีสิทธิ์ใน Preset ใหม่
+    const unauthorized = getUnauthorizedVoiceMembers(channel, targetPreset, currentSetting.owner_id || interaction.user.id);
+    if (unauthorized.length > 0) {
+      return await sendInteractionResponse(
+        interaction,
+        buildEvictionConfirmPayload(targetPreset, unauthorized, "rh_confirm")
+      );
+    }
+
+    await applyRentHousePresetToChannel(targetPreset);
+
+    return await sendInteractionResponse(
+      interaction,
+      createV2CardResponse(
+        "สลับ Preset สำเร็จ",
+        `> ✨ สลับการตั้งค่าบ้านเช่าตาม **${targetPreset.name}** เรียบร้อยแล้วค่ะ!\n\n` +
+        `> 👥 **สมาชิกที่อนุญาต:** \`${targetPreset.trustedUserIds.length} คน\`\n` +
+        `> 🔒 **สถานะห้อง:** \`${targetPreset.locked ? "ล็อค" : "ไม่ล็อค"} / ${targetPreset.hidden ? "ซ่อน" : "มองเห็น"}\`\n` +
+        `> 🔢 **จำกัดจำนวน:** \`${targetPreset.limit > 0 ? `${targetPreset.limit} คน` : "ไม่จำกัด"}\``,
+        "✨"
+      )
+    );
+  }
+
+  // 1.1.1 ปุ่มยืนยันการจัดการสมาชิกเมื่อสลับ Preset (Kick / Soft Lock / Cancel)
+  if (interaction.isButton() && customId.startsWith("rh_confirm_")) {
+    if (customId === "rh_confirm_cancel") {
+      return await sendInteractionResponse(
+        interaction,
+        createV2CardResponse("ยกเลิกการสลับ Preset", "> ❌ ยกเลิกการสลับ Preset เรียบร้อยแล้วค่ะ บ้านเช่ายังคงใช้การตั้งค่าเดิม", "ℹ️")
+      );
+    }
+
+    const cooldown = checkPresetSwitchCooldown(channel.id);
+    if (cooldown.onCooldown) {
+      return await sendInteractionResponse(interaction, createCooldownResponse(cooldown.remainingSeconds));
+    }
+
+    const isKick = customId.startsWith("rh_confirm_kick_");
+    const presetId = customId.replace(isKick ? "rh_confirm_kick_" : "rh_confirm_keep_", "");
+    const currentSetting = (await getRentHousePermissionsInfo(channel)) || {};
+    const presets = await getRentHousePresets(channel.id, currentSetting);
+    const targetPreset = presets.find((p) => p.id === presetId);
+
+    if (!targetPreset) {
+      return await sendInteractionResponse(interaction, createV2CardResponse("ไม่พบ Preset", "> ❌ ไม่พบการตั้งค่า Preset ที่เลือกค่ะ", "⚠️"));
+    }
+
+    let actionSummary = "";
+    if (isKick) {
+      const unauthorized = getUnauthorizedVoiceMembers(channel, targetPreset, currentSetting.owner_id || interaction.user.id);
+      let kickedCount = 0;
+      for (const m of unauthorized) {
+        const disconnected = await safeDisconnectMember(m, "Rent house owner switched preset (kick unauthorized)");
+        if (disconnected) kickedCount++;
+      }
+      actionSummary = `> 🚪 **จัดการสมาชิก:** เตะสมาชิกที่ไม่มีสิทธิ์ออกจากห้องแล้ว \`${kickedCount} คน\`\n`;
+    } else {
+      actionSummary = `> ⏳ **จัดการสมาชิก:** อนุญาตให้สมาชิกเดิมอยู่ต่อได้จนกว่าจะออกเอง (ไม่สามารถเข้ากลับมาใหม่ได้)\n`;
+    }
+
+    await applyRentHousePresetToChannel(targetPreset);
+
+    return await sendInteractionResponse(
+      interaction,
+      createV2CardResponse(
+        "สลับ Preset สำเร็จ",
+        `> ✨ สลับการตั้งค่าบ้านเช่าตาม **${targetPreset.name}** เรียบร้อยแล้วค่ะ!\n` +
+        `${actionSummary}\n` +
+        `> 👥 **สมาชิกที่อนุญาต:** \`${targetPreset.trustedUserIds.length} คน\`\n` +
+        `> 🔒 **สถานะห้อง:** \`${targetPreset.locked ? "ล็อค" : "ไม่ล็อค"} / ${targetPreset.hidden ? "ซ่อน" : "มองเห็น"}\`\n` +
+        `> 🔢 **จำกัดจำนวน:** \`${targetPreset.limit > 0 ? `${targetPreset.limit} คน` : "ไม่จำกัด"}\``,
+        "✨"
+      )
+    );
+  }
+
+  // 1.2 ปุ่มจัดการ Preset ของบ้านเช่า
+  if (interaction.isButton() && customId.startsWith("rh_p_")) {
+    const parts = customId.split("_"); // ["rh", "p", "action", "num"]
+    const action = parts[2];
+    const num = parseInt(parts[3], 10);
+    const presets = await getRentHousePresets(channel.id);
+    const targetPreset = presets[num - 1];
+
+    if (action === "rename") {
+      const modal = buildRentPresetRenameModal(`rh_modal_rename_preset_${num}`, num, targetPreset?.name);
+      await safeShowModal(interaction, modal);
+      return true;
+    }
+
+    if (action === "save") {
+      const currentSetting = (await getRentHousePermissionsInfo(channel)) || {};
+      presets[num - 1].trustedUserIds = currentSetting.trusted_user_ids || [];
+      presets[num - 1].blockedUserIds = currentSetting.blocked_user_ids || [];
+      presets[num - 1].locked = Boolean(currentSetting.locked);
+      presets[num - 1].hidden = Boolean(currentSetting.hidden);
+      presets[num - 1].limit = channel.userLimit || 0;
+
+      await saveRentHousePresets(channel.id, presets);
+      return await sendInteractionResponse(
+        interaction,
+        createV2CardResponse(
+          "บันทึก Preset สำเร็จ",
+          `> 💾 บันทึกสิทธิ์บ้านเช่าปัจจุบันลงใน **Preset ${num} (${presets[num - 1].name})** เรียบร้อยแล้วค่ะ!`,
+          "💾"
+        )
+      );
+    }
+
+    if (action === "reset") {
+      presets[num - 1] = {
+        id: `preset_${num}`,
+        name: `Preset ${num}`,
+        limit: 0,
+        locked: false,
+        hidden: false,
+        trustedUserIds: [],
+        blockedUserIds: [],
+      };
+      await saveRentHousePresets(channel.id, presets);
+      return await sendInteractionResponse(
+        interaction,
+        createV2CardResponse(
+          "ล้าง Preset สำเร็จ",
+          `> 🗑️ รีเซ็ตการตั้งค่า **Preset ${num}** กลับเป็นค่าเริ่มต้นเรียบร้อยแล้วค่ะ`,
+          "🗑️"
+        )
+      );
     }
   }
 
@@ -270,6 +504,29 @@ async function handleRentHousePanelInteraction(interaction) {
 
   // 3. Modal Submit
   if (interaction.isModalSubmit() && customId.startsWith("rh_modal_")) {
+    if (customId.startsWith("rh_modal_rename_preset_")) {
+      const num = parseInt(customId.replace("rh_modal_rename_preset_", ""), 10);
+      const newName = interaction.fields.getTextInputValue("preset_name_input").trim().slice(0, 50);
+      if (!newName) {
+        return await sendInteractionResponse(interaction, createV2CardResponse("ข้อมูลไม่ถูกต้อง", "> ❌ กรุณาระบุชื่อ Preset ค่ะ", "⚠️"));
+      }
+
+      const presets = await getRentHousePresets(channel.id);
+      if (presets[num - 1]) {
+        presets[num - 1].name = newName;
+        await saveRentHousePresets(channel.id, presets);
+      }
+
+      return await sendInteractionResponse(
+        interaction,
+        createV2CardResponse(
+          "เปลี่ยนชื่อ Preset สำเร็จ",
+          `> ✏️ เปลี่ยนชื่อ **Preset ${num}** เป็น **${newName}** เรียบร้อยแล้วค่ะ`,
+          "✏️"
+        )
+      );
+    }
+
     if (customId === RENT_CUSTOM_IDS.modalName) {
       const newName = interaction.fields.getTextInputValue("room_name").trim();
       if (newName) {

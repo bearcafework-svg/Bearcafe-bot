@@ -97,7 +97,9 @@ async function getUserGachaData(userId) {
         inventory: [],
         equipped: defaultEquipped
       };
-      await supabase.from('user_bee_gacha').upsert(newRecord).catch(() => {});
+      try {
+        await supabase.from('user_bee_gacha').upsert(newRecord);
+      } catch (e) {}
       return {
         points: currentPoints,
         honey_dust: 0,

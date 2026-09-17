@@ -107,6 +107,18 @@ function createRentHousePanelPayload(ownerMember, customImageUrl = null, ad = nu
       value: "rh_opt_image",
       emoji: { name: "🖼️" },
     },
+    {
+      label: "สลับ Preset สิทธิ์",
+      description: "สลับชุดสิทธิ์และจำนวนคนตามที่บันทึกไว้ใน 1 คลิก",
+      value: "rh_opt_preset_switch",
+      emoji: { name: "🔀" },
+    },
+    {
+      label: "จัดการ Preset สิทธิ์",
+      description: "ตั้งชื่อ หรือบันทึกสิทธิ์ห้องปัจจุบันลง Preset (1-3)",
+      value: "rh_opt_preset_manage",
+      emoji: { name: "⚙️" },
+    },
   ];
 
   const isCustomImageActive = Boolean(customImageUrl);
@@ -267,6 +279,24 @@ function buildRentImageModal(currentUrl = "") {
     );
 }
 
+function buildRentPresetRenameModal(customId, presetNum, currentName = "") {
+  return new ModalBuilder()
+    .setCustomId(customId)
+    .setTitle(`ตั้งชื่อ Preset ${presetNum}`)
+    .addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("preset_name_input")
+          .setLabel("ชื่อ Preset ใหม่")
+          .setStyle(TextInputStyle.Short)
+          .setValue(currentName || `Preset ${presetNum}`)
+          .setPlaceholder("เช่น 🎮 ตี้เล่นเกม, ☕ คุยส่วนตัว")
+          .setMaxLength(50)
+          .setRequired(true)
+      )
+    );
+}
+
 module.exports = {
   RENT_CUSTOM_IDS,
   RENT_HOUSE_IMAGE_URL,
@@ -275,5 +305,6 @@ module.exports = {
   buildRentNameModal,
   buildRentLimitModal,
   buildRentImageModal,
+  buildRentPresetRenameModal,
   buildUserSelectMenuPayload,
 };

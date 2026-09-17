@@ -371,6 +371,54 @@ const GUILD_SLASH_COMMANDS = [
     description: "รีโหลดไฟล์ความรู้และบุคลิกของ AI (Hot-Reload) เข้าสู่ RAM ทันที (เฉพาะทีมงาน)",
     default_member_permissions: String(PermissionFlagsBits.Administrator),
   },
+
+  // 20. /ยืนยันการโอน (Heal Jai Payment Verification)
+  {
+    name: "ยืนยันการโอน",
+    description: "แนบสลิปเพื่อตรวจสอบการชำระเงินและค้นหาผู้รับฟัง",
+    options: [
+      {
+        name: "สลิป",
+        description: "รูปภาพหลักฐานการโอนเงิน (สลิป)",
+        type: ApplicationCommandOptionType.Attachment,
+        required: true,
+      },
+      {
+        name: "test_success",
+        description: "[สำหรับทดสอบ] จำลองผลการตรวจสลิป",
+        type: ApplicationCommandOptionType.String,
+        required: true,
+        choices: [
+          { name: "✅ ตรวจสอบผ่าน (pass)", value: "pass" },
+          { name: "❌ ตรวจสอบไม่ผ่าน (fail)", value: "fail" },
+        ],
+      },
+    ],
+  },
+
+  // 21. /ยืนยันสลิป (Alias for /ยืนยันการโอน)
+  {
+    name: "ยืนยันสลิป",
+    description: "แนบสลิปเพื่อตรวจสอบการชำระเงินและค้นหาผู้รับฟัง (ทดสอบ)",
+    options: [
+      {
+        name: "สลิป",
+        description: "รูปภาพหลักฐานการโอนเงิน (สลิป)",
+        type: ApplicationCommandOptionType.Attachment,
+        required: true,
+      },
+      {
+        name: "test_success",
+        description: "[สำหรับทดสอบ] จำลองผลการตรวจสลิป",
+        type: ApplicationCommandOptionType.String,
+        required: true,
+        choices: [
+          { name: "✅ ตรวจสอบผ่าน (pass)", value: "pass" },
+          { name: "❌ ตรวจสอบไม่ผ่าน (fail)", value: "fail" },
+        ],
+      },
+    ],
+  },
 ];
 
 /**
@@ -420,7 +468,7 @@ async function registerAllGuildCommands(guild) {
     let targetCommands = GUILD_SLASH_COMMANDS;
 
     if (isDevMode) {
-      const allowedDevCommands = (process.env.DEV_SLASH_COMMANDS || "test_bee,send-component")
+      const allowedDevCommands = (process.env.DEV_SLASH_COMMANDS || "test_bee,send-component,ยืนยันการโอน")
         .split(",")
         .map((s) => s.trim().toLowerCase())
         .filter(Boolean);

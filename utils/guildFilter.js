@@ -176,14 +176,19 @@ function isHealJaiEvent(eventName, args) {
     if (!interaction) return false;
 
     // 1. ตรวจสอบ Component Buttons / Select Menus / Modals ของ HealJai
-    if (typeof interaction.customId === "string" && interaction.customId.startsWith("heal_jai_")) {
+    if (
+      typeof interaction.customId === "string" &&
+      (interaction.customId.startsWith("heal_jai_") ||
+       interaction.customId.startsWith("btn_cancel_order") ||
+       interaction.customId.startsWith("btn_call_admin"))
+    ) {
       return true;
     }
 
     // 2. ตรวจสอบ Slash Commands ของ HealJai
     if (typeof interaction.isChatInputCommand === "function" && interaction.isChatInputCommand()) {
       const name = interaction.commandName ? interaction.commandName.toLowerCase() : "";
-      if (name.startsWith("heal") || name.startsWith("ฮิลใจ")) {
+      if (name.startsWith("heal") || name.startsWith("ฮิลใจ") || name === "ยืนยันการโอน" || name === "ยืนยันสลิป") {
         return true;
       }
     }
@@ -246,7 +251,7 @@ function setupGuildFilter(client) {
 
               // 1. คำสั่งทดสอบ เช่น /test_bee, /send-component อนุญาตให้ทำงานได้ในทุกห้อง
               if (interaction && typeof interaction.isChatInputCommand === "function" && interaction.isChatInputCommand()) {
-                const allowedDevCommands = (process.env.DEV_SLASH_COMMANDS || "test_bee,send-component")
+                const allowedDevCommands = (process.env.DEV_SLASH_COMMANDS || "test_bee,send-component,ยืนยันการโอน")
                   .split(",")
                   .map((s) => s.trim().toLowerCase())
                   .filter(Boolean);

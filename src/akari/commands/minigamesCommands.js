@@ -395,7 +395,7 @@ async function handleSetupGames(interaction, supabase, client) {
           .maybeSingle();
 
         if (prevBinding && prevBinding.channel_id && prevBinding.channel_id !== newChannel.id) {
-          await supabase.from("tenant_minigame_active_sessions").delete().eq("guild_id", guild.id).eq("channel_id", prevBinding.channel_id).catch(() => {});
+          await supabase.from("tenant_minigame_active_sessions").delete().eq("guild_id", guild.id).eq("channel_id", prevBinding.channel_id);
           clearActiveTenantSession(guild.id, prevBinding.channel_id);
         }
 

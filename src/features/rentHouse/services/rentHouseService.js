@@ -287,7 +287,9 @@ async function processRentUserSelect(channel, ownerId, customId, targetUserIds, 
     processedNames.push(userMention);
 
     if (customId.includes("trust") && !customId.includes("untrust")) {
-      trustedSet.add(userId);
+      if (trustedSet.size < 15) {
+        trustedSet.add(userId);
+      }
     } else if (customId.includes("untrust")) {
       trustedSet.delete(userId);
     } else if (customId.includes("kick")) {
@@ -307,6 +309,7 @@ async function processRentUserSelect(channel, ownerId, customId, targetUserIds, 
     hidden: currentSetting?.hidden || false,
     trusted_user_ids: Array.from(trustedSet),
     image_url: currentSetting?.image_url || null,
+    permission_presets: currentSetting?.permission_presets || [],
     updated_at: new Date().toISOString(),
   };
 

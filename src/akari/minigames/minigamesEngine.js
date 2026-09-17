@@ -1084,9 +1084,8 @@ async function restoreTenantChannelsOnStartup(client, supabase) {
         try {
           const channel = await client.channels.fetch(channel_id).catch(() => null);
           if (!channel) {
-            console.log(`[akari-minigames] 🧹 [Startup] ตรวจพบช่องที่ถูกลบใน Discord (${channel_id}) — ลบออกจาก DB`);
-            await supabase.from('tenant_minigame_channels').delete().eq('channel_id', channel_id).catch(() => {});
-            await supabase.from('tenant_minigame_active_sessions').delete().eq('channel_id', channel_id).catch(() => {});
+            await supabase.from('tenant_minigame_channels').delete().eq('channel_id', channel_id);
+            await supabase.from('tenant_minigame_active_sessions').delete().eq('channel_id', channel_id);
             continue;
           }
 

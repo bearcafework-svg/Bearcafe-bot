@@ -319,6 +319,7 @@ async function handleVipPanelSelect(interaction) {
   const member = interaction.member;
   const room = context.room;
   const channel = context.channel;
+  const settings = getSettings(room);
 
   if (selected === "vip_opt_name") {
     await showNameModal(interaction);

@@ -313,9 +313,10 @@ function buildPresetSwitchPayload(presets, selectCustomId, activePresetId = null
             content: `## 🔀︲__\` สลับ Preset สิทธิ์ห้อง \`__\n` +
                      `เลือกชุดสิทธิ์และจำนวนคนที่ต้องการสลับใช้งานจากเมนูด้านล่างได้ทันทีค่ะ\n\n${textContent}`,
           },
+          { type: 14, spacing: 2 },
+          row.toJSON(),
         ],
       },
-      row.toJSON(),
     ],
   };
 }
@@ -349,21 +350,27 @@ function buildPresetManagePayload(presets, prefix = "vip_p") {
     );
   });
 
+  const containerComponents = [
+    {
+      type: 10,
+      content: `## ⚙️︲__\` จัดการ Preset สิทธิ์ \`__\n` +
+               `คุณสามารถเปลี่ยนชื่อ Preset, บันทึกสิทธิ์ห้องปัจจุบันลง Preset หรือล้างค่าได้ค่ะ\n\n` +
+               `📋 **รายการ Preset ปัจจุบัน:**\n${textContent}`,
+    },
+  ];
+
+  rows.forEach((r) => {
+    containerComponents.push({ type: 14, spacing: 1, divider: false });
+    containerComponents.push(r.toJSON());
+  });
+
   return {
     flags: 32768 | 64, // Component V2 Ephemeral
     components: [
       {
         type: 17, // Container
-        components: [
-          {
-            type: 10,
-            content: `## ⚙️︲__\` จัดการ Preset สิทธิ์ \`__\n` +
-                     `คุณสามารถเปลี่ยนชื่อ Preset, บันทึกสิทธิ์ห้องปัจจุบันลง Preset หรือล้างค่าได้ค่ะ\n\n` +
-                     `📋 **รายการ Preset ปัจจุบัน:**\n${textContent}`,
-          },
-        ],
+        components: containerComponents,
       },
-      ...rows.map(r => r.toJSON()),
     ],
   };
 }
@@ -492,9 +499,10 @@ function buildEvictionConfirmPayload(targetPreset, unauthorizedMembers, prefix =
               `${memberListText}${moreText}\n\n` +
               `คุณต้องการจัดการกับสมาชิกกลุ่มนี้อย่างไรคะ?`,
           },
+          { type: 14, spacing: 2 },
+          actionRow.toJSON(),
         ],
       },
-      actionRow.toJSON(),
     ],
   };
 }

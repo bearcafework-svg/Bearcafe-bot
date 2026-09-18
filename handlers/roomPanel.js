@@ -160,7 +160,7 @@ const DEFAULT_VIP_IMAGE_URL =
   "https://cdn.discordapp.com/attachments/1524704267015819274/1532018949703729234/NewsBoard_-_bearcafe_17.png?ex=6a6b5355&is=6a6a01d5&hm=7f51d2a4e6791f5046fe887f0a1a23d91bc64806712520785e0209fd7c701b17&";
 
 function ephemeral(options) {
-  return { ...options, flags: EPHEMERAL_FLAG };
+  return { ...options, flags: (options?.flags || 0) | EPHEMERAL_FLAG };
 }
 
 async function handleRoomPanel(message) {

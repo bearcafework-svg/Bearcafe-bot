@@ -10,7 +10,7 @@ function isDiscordCode(error, codes) {
 }
 
 function ephemeral(options) {
-  return { ...options, flags: options?.flags ?? EPHEMERAL_FLAG };
+  return { ...options, flags: (options?.flags || 0) | EPHEMERAL_FLAG };
 }
 
 async function safeDeferReply(interaction, options = {}) {

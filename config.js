@@ -126,7 +126,7 @@ module.exports = {
       roomsCategoryId: "1524122788015636682",
       inactiveCategoryId: "1549723895936979004",
       nameThemes: ["⭐︲VIP username"],
-      retentionMs: 3 * 24 * 60 * 60 * 1000, // 3 วัน (259,200,000 ms)
+      retentionMs: 24 * 60 * 60 * 1000, // 24 ชั่วโมง (86,400,000 ms)
       skipSeparator: true,
       skipLayout: true,
     },

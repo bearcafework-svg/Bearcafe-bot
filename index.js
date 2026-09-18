@@ -264,7 +264,7 @@ client.once("clientReady", async () => {
     console.log("[local] ⏭️ Skipping Voice Log Worker in Local/Dev mode.");
   }
 
-  // 8. เริ่มต้นระบบตรวจนับถอยหลังและหมดอายุห้อง VIP 3 วัน (รันตรวจทุก 1 นาที)
+  // 8. เริ่มต้นระบบตรวจนับถอยหลังและหมดอายุห้อง VIP 24 ชั่วโมง (รันตรวจทุก 1 นาที)
   const { checkVipRoomsExpiry } = require("./handlers/roomDestroyer");
   checkVipRoomsExpiry(client);
   setInterval(() => checkVipRoomsExpiry(client), 60 * 1000);

@@ -8,7 +8,7 @@ const { safeDeleteChannel } = require("../utils/discordSafety");
 const config = require("../config");
 
 const deletingChannels = new Set();
-const VIP_RETENTION_MS = 3 * 24 * 60 * 60 * 1000; // 3 วัน (259,200,000 ms)
+const VIP_RETENTION_MS = 24 * 60 * 60 * 1000; // 24 ชั่วโมง (86,400,000 ms)
 const VIP_ACTIVE_CATEGORY_ID = config.roomsCategoryId || "1524122788015636682";
 const VIP_INACTIVE_CATEGORY_ID = config.vipInactiveCategoryId || "1549723895936979004";
 
@@ -30,8 +30,8 @@ async function moveVipRoomCategory(channel, targetCategoryId, label = "") {
 /**
  * คำนวณและจัดรูปแบบข้อความนับถอยหลังของสถานะ Voice Status
  * ตัวอย่าง:
- * - 🗑️ ห้องจะถูกลบ 3 วัน
- * - 🗑️ ห้องจะถูกลบ 2 วัน 18 ชั่วโมง
+ * - 🗑️ ห้องจะถูกลบ 1 วัน
+ * - 🗑️ ห้องจะถูกลบ 23 ชั่วโมง 59 นาที
  * - 🗑️ ห้องจะถูกลบ 1 ชั่วโมง
  * - 🗑️ ห้องจะถูกลบ 12 นาที
  * - 🚫 ห้องจะถูกลบ 1 นาที
@@ -112,7 +112,7 @@ async function clearVipRoomCountdown(guild, channelId) {
  * ฟังก์ชันหลักในการทำลายหรือเริ่มนับถอยหลังห้อง
  * @param {Guild} guild 
  * @param {string} channelId 
- * @param {boolean} force บังคับลบทันที (สำหรับปุ่มแผงควบคุม หรือหมดเวลา 3 วัน)
+ * @param {boolean} force บังคับลบทันที (สำหรับปุ่มแผงควบคุม หรือหมดเวลา 24 ชั่วโมง)
  */
 async function destroyRoom(guild, channelId, force = false) {
   if (deletingChannels.has(channelId)) return;
@@ -136,12 +136,12 @@ async function destroyRoom(guild, channelId, force = false) {
     return;
   }
 
-  // หากเป็นห้อง VIP และไม่ใช่การสั่งลบแบบ force -> ให้นับถอยหลัง 3 วัน และย้ายไปยัง Inactive Category
+  // หากเป็นห้อง VIP และไม่ใช่การสั่งลบแบบ force -> ให้นับถอยหลัง 24 ชั่วโมง และย้ายไปยัง Inactive Category
   if (room && room.zoneId === "vip" && !force) {
     const emptyAt = Date.now();
     await setRoomEmpty(channelId, emptyAt);
-    await setVoiceChannelStatus(guild, channelId, "🗑️ ห้องจะถูกลบ 3 วัน");
-    console.log(`⏳ ห้อง VIP "${channel.name}" ว่างแล้ว — เริ่มนับถอยหลังลบห้อง 3 วัน`);
+    await setVoiceChannelStatus(guild, channelId, "🗑️ ห้องจะถูกลบ 1 วัน");
+    console.log(`⏳ ห้อง VIP "${channel.name}" ว่างแล้ว — เริ่มนับถอยหลังลบห้อง 24 ชั่วโมง`);
     await moveVipRoomCategory(channel, VIP_INACTIVE_CATEGORY_ID, "พักห้อง (Inactive)");
     return;
   }
@@ -160,7 +160,7 @@ async function destroyRoom(guild, channelId, force = false) {
 }
 
 /**
- * ตรวจสอบห้อง VIP ที่ว่างอยู่ทั้งหมดเพื่ออัปเดต Voice Status หรือลบเมื่อครบ 3 วัน
+ * ตรวจสอบห้อง VIP ที่ว่างอยู่ทั้งหมดเพื่ออัปเดต Voice Status หรือลบเมื่อครบ 24 ชั่วโมง
  * รันเป็นรอบ Background Loop ทุก 1 นาที
  */
 async function checkVipRoomsExpiry(client) {
@@ -206,16 +206,16 @@ async function checkVipRoomsExpiry(client) {
       // ถ้าห้องว่างแต่ยังไม่มี emptyAt ให้บันทึกเวลาปัจจุบัน
       if (!room.emptyAt) {
         await setRoomEmpty(channelId, now);
-        await setVoiceChannelStatus(guild, channelId, "🗑️ ห้องจะถูกลบ 3 วัน");
+        await setVoiceChannelStatus(guild, channelId, "🗑️ ห้องจะถูกลบ 1 วัน");
         continue;
       }
 
       const elapsed = now - Number(room.emptyAt);
       const remaining = VIP_RETENTION_MS - elapsed;
 
-      // ถ้าครบ 3 วันแล้ว ให้ลบห้องทันที
+      // ถ้าครบ 24 ชั่วโมงแล้ว ให้ลบห้องทันที
       if (remaining <= 0) {
-        console.log(`⏰ ห้อง VIP "${channel.name}" ว่างครบ 3 วันแล้ว — ทำการลบห้อง`);
+        console.log(`⏰ ห้อง VIP "${channel.name}" ว่างครบ 24 ชั่วโมงแล้ว — ทำการลบห้อง`);
         await destroyRoom(guild, channelId, true);
         continue;
       }

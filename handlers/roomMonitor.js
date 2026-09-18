@@ -20,7 +20,7 @@ function startMonitor(client) {
       const now = Date.now();
 
       for (const [channelId, roomData] of Object.entries(rooms)) {
-        // ห้อง VIP มีระบบนับถอยหลัง 3 วันแยกต่างหาก ให้ข้าม
+        // ห้อง VIP มีระบบนับถอยหลัง 24 ชั่วโมงแยกต่างหาก ให้ข้าม
         if (roomData.zoneId === "vip") continue;
 
         // ถ้าห้องไม่ได้ถูก mark ว่าว่าง ข้ามไป

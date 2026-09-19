@@ -5,7 +5,6 @@ const { createClient } = require('@supabase/supabase-js');
 const { MessageFlags } = require('discord.js');
 const sharedConfig = require('../../sharedSettings.json');
 const { blacklistPayload } = require('../shared/tarotComponents');
-const { trackUserDailyQuestProgress } = require('../dailyQuest');
 
 const FLAG_V2 = MessageFlags.IsComponentsV2 || 32768;
 const TARGET_CHANNEL_ID = "1524123478431895692";
@@ -133,10 +132,6 @@ function setupHealing(client) {
           }
         ]
       });
-
-      // อัปเดตภารกิจประจำวัน FEATURE-01 (เติมพลังใจ)
-      trackUserDailyQuestProgress(userId, "USE_HEALJAI", 1, message.guild);
-
     } catch (err) {
       console.error('[Healing Command] Error:', err.message);
       await message.reply({ content: "เกิดข้อผิดพลาดในการดึงข้อความให้กำลังใจ โปรดลองอีกครั้งค่ะ", flags: MessageFlags.Ephemeral });

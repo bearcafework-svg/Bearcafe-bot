@@ -8,7 +8,6 @@ const { addPointsWithCap, deductPoints } = require('../../utils/pointManager');
 const { getNextQuestion, maskWord, scrambleWord, generateHint } = require('./questionBank');
 const { createTextImageBuffer, createSentenceBuilderImageBuffer } = require('./canvasGenerator');
 const { setupResetTop } = require('./resetTop');
-const { trackUserDailyQuestProgress } = require('../dailyQuest');
 
 const FLAG_V2 = MessageFlags.IsComponentsV2 || 32768;
 const FLAG_EPHEMERAL = MessageFlags.Ephemeral || 64;
@@ -1198,9 +1197,6 @@ function setupMinigames(client) {
           const basePoints = questionData.rewardPoints || 4;
           const pointsEarned = hasVipMinigameRole(member) ? (basePoints * 2) : basePoints;
 
-          trackUserDailyQuestProgress(userId, 'MINIGAME_PLAY', 1);
-          trackUserDailyQuestProgress(userId, 'MINIGAME_WIN', 1);
-
           if (supabase) {
             addPointsWithCap(supabase, member, userId, pointsEarned)
               .then((pointResult) => {
@@ -1438,7 +1434,6 @@ function setupMinigames(client) {
       : userText.toLowerCase() === correctAnswer.toLowerCase();
 
     if (!isCorrect) {
-      trackUserDailyQuestProgress(message.author.id, "MINIGAME_PLAY", 1);
       // Delete wrong text message asynchronously
       message.delete().catch(() => { });
 
@@ -1461,8 +1456,6 @@ function setupMinigames(client) {
     userInFlightProcessing.add(userId);
     processingChannels.add(message.channelId);
     activeSessions.delete(message.channelId);
-    trackUserDailyQuestProgress(message.author.id, "MINIGAME_PLAY", 1);
-    trackUserDailyQuestProgress(message.author.id, "MINIGAME_WIN", 1);
     if (supabase) {
       Promise.resolve(supabase.from('minigame_active_sessions').delete().eq('channel_id', message.channelId)).catch(() => { });
     }

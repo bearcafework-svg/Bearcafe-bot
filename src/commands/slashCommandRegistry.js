@@ -259,13 +259,7 @@ const GUILD_SLASH_COMMANDS = [
     ],
   },
 
-  // 13. /เควสของฉัน (Daily Quest)
-  {
-    name: "เควสของฉัน",
-    description: "☕ เปิดเมนูภารกิจคาเฟ่ประจำวัน (Daily Quests)",
-  },
-
-  // 14. /gacha-bee (Bee Gacha)
+  // 13. /gacha-bee (Bee Gacha)
   {
     name: "gacha-bee",
     description: "🐝 เปิดตู้สุ่มกาชาแต่งตัวผึ้งอ้วนและจัดการคลังชุดแต่งกาย",

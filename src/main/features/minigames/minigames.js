@@ -13,6 +13,23 @@ const { trackUserDailyQuestProgress } = require('../dailyQuest');
 const FLAG_V2 = MessageFlags.IsComponentsV2 || 32768;
 const FLAG_EPHEMERAL = MessageFlags.Ephemeral || 64;
 const CHECKMARK_EMOJI_ID = '1358584609087946867';
+const VIP_MINIGAME_ROLE_ID = '1383998275711012956';
+
+/**
+ * ตรวจสอบว่าผู้เล่นมียศ VIP Moon Gem (แต้มมินิเกม x2) หรือไม่
+ * @param {object} member Discord GuildMember
+ * @returns {boolean}
+ */
+function hasVipMinigameRole(member) {
+  if (!member || !member.roles) return false;
+  if (Array.isArray(member.roles)) {
+    return member.roles.includes(VIP_MINIGAME_ROLE_ID);
+  }
+  if (member.roles.cache && typeof member.roles.cache.has === 'function') {
+    return member.roles.cache.has(VIP_MINIGAME_ROLE_ID);
+  }
+  return false;
+}
 
 // Mapping Game IDs to Channel IDs and Game Names
 const GAME_CHANNELS = {
@@ -882,7 +899,8 @@ function setupMinigames(client) {
 
         // 2. Process points and DB recording asynchronously in background
         const member = interaction.member;
-        const pointsEarned = questionData.rewardPoints || 3;
+        const basePoints = questionData.rewardPoints || 3;
+        const pointsEarned = hasVipMinigameRole(member) ? (basePoints * 2) : basePoints;
 
         if (supabase) {
           addPointsWithCap(supabase, member, userId, pointsEarned)
@@ -1177,7 +1195,8 @@ function setupMinigames(client) {
           }
 
           const member = interaction.member;
-          const pointsEarned = questionData.rewardPoints || 4;
+          const basePoints = questionData.rewardPoints || 4;
+          const pointsEarned = hasVipMinigameRole(member) ? (basePoints * 2) : basePoints;
 
           trackUserDailyQuestProgress(userId, 'MINIGAME_PLAY', 1);
           trackUserDailyQuestProgress(userId, 'MINIGAME_WIN', 1);
@@ -1492,7 +1511,8 @@ function setupMinigames(client) {
 
       // 3. Award points and record win stats asynchronously in background
       if (supabase) {
-        const rewardPoints = session.questionData.rewardPoints || 3;
+        const baseReward = session.questionData.rewardPoints || 3;
+        const rewardPoints = hasVipMinigameRole(message.member) ? (baseReward * 2) : baseReward;
         addPointsWithCap(supabase, message.member, message.author.id, rewardPoints)
           .then((pointResult) => {
             const awarded = pointResult && typeof pointResult.awarded === 'number' ? pointResult.awarded : 0;

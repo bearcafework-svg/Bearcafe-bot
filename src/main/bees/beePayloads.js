@@ -1,12 +1,7 @@
 // src/bees/beePayloads.js
 // สร้าง Component v2 สำหรับผึ้งแต่ละสถานะ โดยฝังบทพูดไว้ใน Component v2 โดยตรง
 
-let sharedSettings;
-try {
-  sharedSettings = require('../../sharedSettings.json');
-} catch {
-  sharedSettings = require('../sharedSettings.json');
-}
+const sharedSettings = require('../sharedSettings.json');
 const settingBee = require('./settingBee.json');
 
 const FLAG_V2 = 32768; // MessageFlags.IsComponentsV2
@@ -19,6 +14,9 @@ function getPointIconStr() {
 }
 
 // ─── Helper: ดึง Garden Background URL Fallback ──────────────────────────────
+function getGardenUrl(gardenUrl) {
+  return gardenUrl || "https://cdn.discordapp.com/attachments/1528780402544611348/1528780439836430487/Garden.png";
+}
 
 const CUTEPLANT_EMOJI = "<:cuteplant:1152834055528783872>";
 
@@ -26,10 +24,7 @@ const CUTEPLANT_EMOJI = "<:cuteplant:1152834055528783872>";
 function formatBeeDialogue(rawText) {
   if (!rawText || typeof rawText !== "string") return CUTEPLANT_EMOJI;
   const clean = rawText.replace(/<:cuteplant:1152834055528783872>/g, "").trim();
-  return clean + " " + CUTEPLANT_EMOJI;
-}
-function getGardenUrl(gardenUrl) {
-  return gardenUrl || "https://cdn.discordapp.com/attachments/1528780402544611348/1528780439836430487/Garden.png";
+  return `${clean} ${CUTEPLANT_EMOJI}`;
 }
 
 // ─── 1. Payload: Component v2 อันที่ 1 (Spawn Message) ──────────────────────
@@ -92,7 +87,7 @@ function buildBeeSpawnPayload(beeConfig, customId, isReady = false, gardenUrl = 
                 type: 10,
                 content:
                   `## <:bee20000:1256669436350562355>︲__\` 𝖡𝖾𝖾 ₊ ${beeConfig.name || 'เจ้าผึ้งอ้วนตัวกลม'} 𓂃 \`__\n` +
-                  `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${formatBeeDialogue(dialogueText)}\n` +
+                  `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${dialogueText} <:cuteplant:1152834055528783872>\n` +
                   ` > (${iconStr})⠀**__\`𝗍𝗂𝗉𝗌\`__** : ${tipText}`
               }
             ],
@@ -161,7 +156,7 @@ function buildBeeWinPayload(beeConfig, userId, pointsGained, gardenUrl = null) {
                 type: 10,
                 content:
                   `## <:bee20000:1256669436350562355>︲__\` 𝖡𝖾𝖾 ₊ ${beeConfig.name || 'เจ้าผึ้งอ้วนตัวกลม'} 𓂃 \`__\n` +
-                  `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${formatBeeDialogue(dialogueText)}\n` +
+                  `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${dialogueText} <:cuteplant:1152834055528783872>\n` +
                   ` > (${iconStr})⠀**__\`𝗋𝖾𝗐𝖺𝗋𝖽\`__** : <@${userId}> ได้รับ **+${pointsGained}**`
               }
             ],
@@ -225,7 +220,7 @@ function buildBeeWinPayload(beeConfig, userId, pointsGained, gardenUrl = null) {
 }
 
 // ─── 3. Payload: Result Message (แพ้ปกติ) ────────────────────────────────────
-function buildBeeLossPayload(beeConfig, userId, pointsLost, gardenUrl = null) {
+function buildBeeLossPayload(beeConfig, userId, pointsLost, gardenUrl = null, isProtected = false) {
   const iconStr = getPointIconStr();
   const bgUrl = getGardenUrl(gardenUrl || beeConfig.garden_background_url);
   const beeImgUrl = beeConfig.lose_image_url || beeConfig.image_url || bgUrl;
@@ -236,81 +231,100 @@ function buildBeeLossPayload(beeConfig, userId, pointsLost, gardenUrl = null) {
     beeConfig.dialogues?.loss ||
     "(ต่อย) นี่แน่ะ! บังอาจจะมาขโมยสตรอว์เบอร์รีของฉัน อย่าให้เห็นอีกนะไอหมีบ้า?!";
 
+  const rewardLine = isProtected
+    ? ` > (${iconStr})⠀**__\`𝗋𝖾𝗐𝖺𝗋𝖽\`__** : เจ้าผึ้งขโมยสตรอว์เบอร์รีของ <@${userId}> **-0**`
+    : ` > (${iconStr})⠀**__\`𝗋𝖾𝗐𝖺𝗋𝖽\`__** : เจ้าผึ้งขโมยสตรอว์เบอร์รีของ <@${userId}> **-${pointsLost}**`;
+
+  const components = [
+    {
+      type: 14,
+      divider: false
+    },
+    {
+      type: 9,
+      components: [
+        {
+          type: 10,
+          content:
+            `## <:bee20000:1256669436350562355>︲__\` 𝖡𝖾𝖾 ₊ ${beeConfig.name || 'เจ้าผึ้งอ้วนตัวกลม'} 𓂃 \`__\n` +
+            `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${dialogueText} <:cuteplant:1152834055528783872>\n` +
+            rewardLine
+        }
+      ],
+      accessory: {
+        type: 11,
+        media: {
+          url: beeImgUrl
+        }
+      }
+    },
+    {
+      type: 14,
+      divider: false,
+      spacing: 2
+    },
+    {
+      type: 12,
+      items: [
+        {
+          media: {
+            url: bgUrl
+          }
+        }
+      ]
+    },
+    {
+      type: 14,
+      spacing: 2
+    },
+    {
+      type: 1,
+      components: [
+        {
+          type: 2,
+          style: 5,
+          label: "︲คลิกเพื่อเช็กแต้ม",
+          emoji: {
+            id: "1522154708200849449",
+            name: "bagpack_icon",
+            animated: false
+          },
+          url: "https://discord.com/channels/1144251788493602848/1524123727724417276"
+        },
+        {
+          style: 2,
+          type: 2,
+          label: "︲ผึ้งคืออะไร",
+          emoji: {
+            id: "1370964974733758474",
+            name: "28906question",
+            animated: false
+          },
+          custom_id: "bee_info"
+        }
+      ]
+    }
+  ];
+
+  if (isProtected) {
+    components.push(
+      {
+        type: 14,
+        divider: false
+      },
+      {
+        type: 10,
+        content: "-# (<:Limited_26:1542162263253848164>)⠀**__`คุณได้รับการปกป้อง`__** : ได้รับการคุ้มครองจากยศ `@💎⠀𝖬𝗈𝗈𝗇 𝖦𝖾𝗆 ₊  𓂃 ลิมิเต็ด 𝟤𝟢𝟤𝟨` **ป้องกันการโดนผึ้งต่อยสำเร็จ!** (ไม่เสียสตรอว์เบอร์รี)"
+      }
+    );
+  }
+
   return {
     flags: FLAG_V2,
     components: [
       {
         type: 17,
-        components: [
-          {
-            type: 14,
-            divider: false
-          },
-          {
-            type: 9,
-            components: [
-              {
-                type: 10,
-                content:
-                  `## <:bee20000:1256669436350562355>︲__\` 𝖡𝖾𝖾 ₊ ${beeConfig.name || 'เจ้าผึ้งอ้วนตัวกลม'} 𓂃 \`__\n` +
-                  `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${formatBeeDialogue(dialogueText)}\n` +
-                  ` > (${iconStr})⠀**__\`𝗋𝖾𝗐𝖺𝗋𝖽\`__** : เจ้าผึ้งขโมยสตรอว์เบอร์รีของ <@${userId}> **-${pointsLost}**`
-              }
-            ],
-            accessory: {
-              type: 11,
-              media: {
-                url: beeImgUrl
-              }
-            }
-          },
-          {
-            type: 14,
-            divider: false,
-            spacing: 2
-          },
-          {
-            type: 12,
-            items: [
-              {
-                media: {
-                  url: bgUrl
-                }
-              }
-            ]
-          },
-          {
-            type: 14,
-            spacing: 2
-          },
-          {
-            type: 1,
-            components: [
-              {
-                type: 2,
-                style: 5,
-                label: "︲คลิกเพื่อเช็กแต้ม",
-                emoji: {
-                  id: "1522154708200849449",
-                  name: "bagpack_icon",
-                  animated: false
-                },
-                url: "https://discord.com/channels/1144251788493602848/1524123727724417276"
-              },
-              {
-                style: 2,
-                type: 2,
-                label: "︲ผึ้งคืออะไร",
-                emoji: {
-                  id: "1370964974733758474",
-                  name: "28906question",
-                  animated: false
-                },
-                custom_id: "bee_info"
-              }
-            ]
-          }
-        ]
+        components
       }
     ]
   };
@@ -344,7 +358,7 @@ function buildBeePoisonLossPayload(beeConfig, userId, pointsLost = 150, gardenUr
                 type: 10,
                 content:
                   `## <:bee20000:1256669436350562355>︲__\` 𝖡𝖾𝖾 ₊ ${beeConfig.name || 'เจ้าผึ้งอ้วนตัวกลม'} 𓂃 \`__\n` +
-                  `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${formatBeeDialogue(dialogueText)}\n` +
+                  `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${dialogueText} <:cuteplant:1152834055528783872>\n` +
                   ` > (${iconStr})⠀**__\`𝗋𝖾𝗐𝖺𝗋𝖽\`__** : <@${userId}> ติดพิษเจ้าผึ้ง เสียสตรอว์เบอร์รีไป **-${pointsLost}**`
               }
             ],
@@ -593,7 +607,7 @@ function buildQueenBeeWinPayload(beeConfig, userId, winResult, gardenUrl = null)
                 type: 10,
                 content:
                   `## <:bee20000:1256669436350562355>︲__\` 𝖡𝖾𝖾 ₊ ${beeConfig.name || 'นางพญาผึ้งอ้วนตัวกลม'} 𓂃 \`__\n` +
-                  `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${formatBeeDialogue(dialogueText)}\n` +
+                  `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${dialogueText} <:cuteplant:1152834055528783872>\n` +
                   ` > (${iconStr})⠀**__\`𝗋𝖾𝗐𝖺𝗋𝖽\`__** : ${rewardText}`
               }
             ],
@@ -619,7 +633,7 @@ function buildQueenBeeWinPayload(beeConfig, userId, winResult, gardenUrl = null)
 }
 
 // ─── 7. Payload: Queen Bee Result Message (ขโมยล้มเหลว) ───────────────────────
-function buildQueenBeeLossPayload(beeConfig, userId, lossResult, gardenUrl = null) {
+function buildQueenBeeLossPayload(beeConfig, userId, lossResult, gardenUrl = null, isProtected = false) {
   const iconStr = getPointIconStr();
   const bgUrl = getGardenUrl(gardenUrl || beeConfig.garden_background_url);
   const beeImgUrl = (lossResult.type === 'poison'
@@ -631,7 +645,13 @@ function buildQueenBeeLossPayload(beeConfig, userId, lossResult, gardenUrl = nul
   let dialogueText = '';
   let penaltyText = '';
 
-  if (lossResult.type === 'bankrupt') {
+  if (isProtected) {
+    dialogueText =
+      beeConfig.dialogue_loss ||
+      beeConfig.dialogues?.lose ||
+      "(ต่อย) คิดว่าฉันอ้วนกลมแล้วจะไม่เห็นเหรอ? นี่แน่ะ! อย่าให้เห็นอีกนะไอหมีจอมตะกละ?!";
+    penaltyText = `เจ้าผึ้งขโมยสตรอเบอรี่ของ <@${userId}> **-0**`;
+  } else if (lossResult.type === 'bankrupt') {
     dialogueText =
       beeConfig.dialogues?.bankrupt ||
       "(ต่อย) แกขโมยผิดคนแล้วไอหมีจอมตะกละ! ฉันจะขโมยสตรอเบอรี่ทั้งหมดของแก วะฮ่า!";
@@ -650,62 +670,74 @@ function buildQueenBeeLossPayload(beeConfig, userId, lossResult, gardenUrl = nul
     penaltyText = `เจ้าผึ้งขโมยสตรอเบอรี่ของ <@${userId}> **-${lossResult.points.toLocaleString()}**`;
   }
 
+  const components = [
+    { type: 14, divider: false },
+    {
+      type: 9,
+      components: [
+        {
+          type: 10,
+          content:
+            `## <:bee20000:1256669436350562355>︲__\` 𝖡𝖾𝖾 ₊ ${beeConfig.name || 'นางพญาผึ้งอ้วนตัวกลม'} 𓂃 \`__\n` +
+            `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${dialogueText} <:cuteplant:1152834055528783872>\n` +
+            ` > (${iconStr})⠀**__\`𝗋𝖾𝗐𝖺𝗋𝖽\`__** : ${penaltyText}`
+        }
+      ],
+      accessory: {
+        type: 11,
+        media: { url: beeImgUrl }
+      }
+    },
+    { type: 14, divider: false, spacing: 2 },
+    {
+      type: 12,
+      items: [{ media: { url: bgUrl } }]
+    },
+    { type: 14, spacing: 2 },
+    {
+      type: 1,
+      components: [
+        {
+          type: 2,
+          style: 5,
+          label: "︲คลิกเพื่อเช็กแต้ม",
+          emoji: { id: "1522154708200849449", name: "bagpack_icon", animated: false },
+          url: "https://discord.com/channels/1144251788493602848/1524123727724417276"
+        },
+        {
+          style: 2,
+          type: 2,
+          label: "︲ผึ้งคืออะไร",
+          emoji: { id: "1370964974733758474", name: "28906question", animated: false },
+          custom_id: "bee_info"
+        }
+      ]
+    }
+  ];
+
+  if (isProtected) {
+    components.push(
+      { type: 14, divider: false },
+      {
+        type: 10,
+        content: "-# (<:Limited_26:1542162263253848164>)⠀**__`คุณได้รับการปกป้อง`__** : ได้รับการคุ้มครองจากยศ `@💎⠀𝖬𝗈𝗈𝗇 𝖦𝖾𝗆 ₊  𓂃 ลิมิเต็ด 𝟤𝟢𝟤𝟨` **ป้องกันการโดนต่อย & ล้มละลายสำเร็จ!** (รอดพ้นการสูญเสียแต้ม)"
+      }
+    );
+  }
+
   return {
     flags: FLAG_V2,
     components: [
       {
         type: 17,
-        components: [
-          { type: 14, divider: false },
-          {
-            type: 9,
-            components: [
-              {
-                type: 10,
-                content:
-                  `## <:bee20000:1256669436350562355>︲__\` 𝖡𝖾𝖾 ₊ ${beeConfig.name || 'นางพญาผึ้งอ้วนตัวกลม'} 𓂃 \`__\n` +
-                  `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${formatBeeDialogue(dialogueText)}\n` +
-                  ` > (${iconStr})⠀**__\`𝗋𝖾𝗐𝖺𝗋𝖽\`__** : ${penaltyText}`
-              }
-            ],
-            accessory: {
-              type: 11,
-              media: { url: beeImgUrl }
-            }
-          },
-          { type: 14, divider: false, spacing: 2 },
-          {
-            type: 12,
-            items: [{ media: { url: bgUrl } }]
-          },
-          { type: 14, spacing: 2 },
-          {
-            type: 1,
-            components: [
-              {
-                type: 2,
-                style: 5,
-                label: "︲คลิกเพื่อเช็กแต้ม",
-                emoji: { id: "1522154708200849449", name: "bagpack_icon", animated: false },
-                url: "https://discord.com/channels/1144251788493602848/1524123727724417276"
-              },
-              {
-                style: 2,
-                type: 2,
-                label: "︲ผึ้งคืออะไร",
-                emoji: { id: "1370964974733758474", name: "28906question", animated: false },
-                custom_id: "bee_info"
-              }
-            ]
-          }
-        ]
+        components
       }
     ]
   };
 }
 
 // ─── 8. Payload: Vampire Bee Result Message (โดนดูดเอง) ─────────────────────────
-function buildVampireDrainSelfPayload(beeConfig, userId, lossPoints, gardenUrl = null) {
+function buildVampireDrainSelfPayload(beeConfig, userId, lossPoints, gardenUrl = null, isProtected = false) {
   const iconStr = getPointIconStr();
   const bgUrl = getGardenUrl(gardenUrl || beeConfig.garden_background_url);
   const beeImgUrl = beeConfig.lose_image_url || beeConfig.image_url || bgUrl;
@@ -715,55 +747,71 @@ function buildVampireDrainSelfPayload(beeConfig, userId, lossPoints, gardenUrl =
     beeConfig.dialogues?.lose ||
     "(หัวเราะเบาๆ) โอ๊ยย ขอโทษที~ ปีกมันลั่นอะ~ ฮึๆๆ แย่จัง...ดูดหมดเลยแฮะ~!";
 
+  const rewardLine = isProtected
+    ? ` > (${iconStr})⠀**__\`𝗋𝖾𝗐𝖺𝗋𝖽\`__** : เจ้าผึ้งแวมไพร์ดูดสตรอเบอรี่ของ <@${userId}> **-0**`
+    : ` > (${iconStr})⠀**__\`𝗋𝖾𝗐𝖺𝗋𝖽\`__** : เจ้าผึ้งแวมไพร์ดูดสตรอเบอรี่ของ <@${userId}> **-${lossPoints.toLocaleString()}**`;
+
+  const components = [
+    { type: 14, divider: false },
+    {
+      type: 9,
+      components: [
+        {
+          type: 10,
+          content:
+            `## <:bee20000:1256669436350562355>︲__\` 𝖡𝖾𝖾 ₊ ${beeConfig.name || 'เจ้าผึ้งแวมไพร์'} 𓂃 \`__\n` +
+            `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${dialogueText} <:cuteplant:1152834055528783872>\n` +
+            rewardLine
+        }
+      ],
+      accessory: {
+        type: 11,
+        media: { url: beeImgUrl }
+      }
+    },
+    { type: 14, divider: false, spacing: 2 },
+    {
+      type: 12,
+      items: [{ media: { url: bgUrl } }]
+    },
+    { type: 14, spacing: 2 },
+    {
+      type: 1,
+      components: [
+        {
+          type: 2,
+          style: 5,
+          label: "︲คลิกเพื่อเช็กแต้ม",
+          emoji: { id: "1522154708200849449", name: "bagpack_icon", animated: false },
+          url: "https://discord.com/channels/1144251788493602848/1524123727724417276"
+        },
+        {
+          style: 2,
+          type: 2,
+          label: "︲ผึ้งคืออะไร",
+          emoji: { id: "1370964974733758474", name: "28906question", animated: false },
+          custom_id: "bee_info"
+        }
+      ]
+    }
+  ];
+
+  if (isProtected) {
+    components.push(
+      { type: 14, divider: false },
+      {
+        type: 10,
+        content: "-# (<:Limited_26:1542162263253848164>)⠀**__`คุณได้รับการปกป้อง`__** : ได้รับการคุ้มครองจากยศ `@💎⠀𝖬𝗈𝗈𝗇 𝖦𝖾𝗆 ₊  𓂃 ลิมิเต็ด 𝟤𝟢𝟤𝟨` **ป้องกันการโดนผึ้งดูดแต้มตัวเองสำเร็จ!** (ไม่เสียสตรอว์เบอร์รี)"
+      }
+    );
+  }
+
   return {
     flags: FLAG_V2,
     components: [
       {
         type: 17,
-        components: [
-          { type: 14, divider: false },
-          {
-            type: 9,
-            components: [
-              {
-                type: 10,
-                content:
-                  `## <:bee20000:1256669436350562355>︲__\` 𝖡𝖾𝖾 ₊ ${beeConfig.name || 'เจ้าผึ้งแวมไพร์'} 𓂃 \`__\n` +
-                  `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${formatBeeDialogue(dialogueText)}\n` +
-                  ` > (${iconStr})⠀**__\`𝗋𝖾𝗐𝖺𝗋𝖽\`__** : เจ้าผึ้งแวมไพร์ดูดสตรอเบอรี่ของ <@${userId}> **-${lossPoints.toLocaleString()}**`
-              }
-            ],
-            accessory: {
-              type: 11,
-              media: { url: beeImgUrl }
-            }
-          },
-          { type: 14, divider: false, spacing: 2 },
-          {
-            type: 12,
-            items: [{ media: { url: bgUrl } }]
-          },
-          { type: 14, spacing: 2 },
-          {
-            type: 1,
-            components: [
-              {
-                type: 2,
-                style: 5,
-                label: "︲คลิกเพื่อเช็กแต้ม",
-                emoji: { id: "1522154708200849449", name: "bagpack_icon", animated: false },
-                url: "https://discord.com/channels/1144251788493602848/1524123727724417276"
-              },
-              {
-                style: 2,
-                type: 2,
-                label: "︲ผึ้งคืออะไร",
-                emoji: { id: "1370964974733758474", name: "28906question", animated: false },
-                custom_id: "bee_info"
-              }
-            ]
-          }
-        ]
+        components
       }
     ]
   };
@@ -793,7 +841,7 @@ function buildVampireAwakenPayload(beeConfig, userId, expireTimestamp, gardenUrl
                 type: 10,
                 content:
                   `## <:bee20000:1256669436350562355>︲__\` 𝖡𝖾𝖾 ₊ ${beeConfig.name || 'เจ้าผึ้งแวมไพร์'} 𓂃 \`__\n` +
-                  `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${formatBeeDialogue(dialogueText)}\n` +
+                  `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${dialogueText} <:cuteplant:1152834055528783872>\n` +
                   `### ❝ คุณสามารถแท็กใครก็ได้เพื่อทำการดูดแต้ม (${iconStr}) ของเขาภายใน <t:${expireTimestamp}:R> ❞\n` +
                   `> (${iconStr})⠀**__\`𝗍𝗂𝗉𝗌\`__** : <@${userId}> พิมพ์แท็กเพื่อน เช่น \`@ชื่อเพื่อน\` ในห้องนี้ได้ทันทีเลยน้า (แนะนำให้รีบแท็ก ไม่งั้นผึ้งอาจโมโหได้นะ!)`
               }
@@ -899,7 +947,7 @@ function buildVampireTargetResultPayload(beeConfig, userId, targetId, resultData
                 type: 10,
                 content:
                   `## <:bee20000:1256669436350562355>︲__\` 𝖡𝖾𝖾 ₊ ${beeConfig.name || 'เจ้าผึ้งแวมไพร์'} 𓂃 \`__\n` +
-                  `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${formatBeeDialogue(dialogueText)}\n` +
+                  `-# <a:3602exclamationmarkbubble:1372837492205555812>⠀**บทพูดเจ้าผึ้ง** : ${dialogueText} <:cuteplant:1152834055528783872>\n` +
                   ` > (${iconStr})⠀**__\`𝗋𝖾𝗐𝖺𝗋𝖽\`__** : ${rewardText}`
               }
             ],
@@ -1041,7 +1089,7 @@ function buildSpyBeeSpawnPayload(beeConfig, customIdPrefix, starsState = [true, 
 }
 
 // ─── 10. Payload: Spy Bee Star Reward Message (+point, -point, meme, role) ───
-function buildSpyBeeRewardPayload(beeConfig, userId, rewardType, rewardData, gardenUrl = null) {
+function buildSpyBeeRewardPayload(beeConfig, userId, rewardType, rewardData, gardenUrl = null, isProtected = false) {
   const iconStr = getPointIconStr();
   const bgUrl = getGardenUrl(gardenUrl || beeConfig?.garden_background_url);
   const dialogues = beeConfig?.dialogues || {};
@@ -1067,7 +1115,9 @@ function buildSpyBeeRewardPayload(beeConfig, userId, rewardType, rewardData, gar
   } else if (rewardType === '-point') {
     const points = rewardData?.amount || 50;
     dialogueText = dialogues.minus_point || "(น้ำลายไหล) ฮือ ผมขอโทษนะครับ.. แต่ผมหิวอะ ขอกินสตรอเบอรี่ของคุณเลยละกัน! <:cuteplant:1152834055528783872>";
-    rewardText = `<@${userId}> ได้รับสตรอเบอรี่ **-${points}**`;
+    rewardText = isProtected
+      ? `<@${userId}> ได้รับสตรอเบอรี่ **-0**`
+      : `<@${userId}> ได้รับสตรอเบอรี่ **-${points}**`;
     rewardImgUrl = beeConfig?.minus_point_image_url || "https://cdn.discordapp.com/attachments/1528780402544611348/1546790968634904717/spy_bee3.png?ex=6aa1b998&is=6aa06818&hm=45d2537ddf1d439b06edda3bf79d9cf9f8bdca107248c58eef984dbb10ebba95&";
     actionRowComponents.push({
       style: 5,
@@ -1124,6 +1174,16 @@ function buildSpyBeeRewardPayload(beeConfig, userId, rewardType, rewardData, gar
       type: 1,
       components: actionRowComponents
     });
+  }
+
+  if (isProtected && rewardType === '-point') {
+    innerComponents.push(
+      { type: 14, divider: false },
+      {
+        type: 10,
+        content: "-# (<:Limited_26:1542162263253848164>)⠀**__`คุณได้รับการปกป้อง`__** : ได้รับการคุ้มครองจากยศ `@💎⠀𝖬𝗈𝗈𝗇 𝖦𝖾𝗆 ₊  𓂃 ลิมิเต็ด 𝟤𝟢𝟤𝟨` **บล็อกดาวลบแต้มของผึ้งสายลับสำเร็จ!** (ไม่เสียสตรอว์เบอร์รี)"
+      }
+    );
   }
 
   return {

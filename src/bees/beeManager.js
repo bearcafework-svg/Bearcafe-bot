@@ -53,6 +53,18 @@ function scheduleMessageDeletion(message, delayMs = 45000) {
   }, delayMs);
 }
 
+// ─── VIP Protection Helper: ลดโอกาสโดนผึ้งกัด 50% สำหรับยศ 1383998275711012956 ───
+const VIP_PROTECTION_ROLE_ID = '1383998275711012956';
+
+function checkVipBeeProtection(member) {
+  if (!member || !member.roles) return false;
+  const hasRole = Array.isArray(member.roles)
+    ? member.roles.includes(VIP_PROTECTION_ROLE_ID)
+    : Boolean(member.roles.cache?.has(VIP_PROTECTION_ROLE_ID));
+  if (!hasRole) return false;
+  return Math.random() < 0.5;
+}
+
 // ─── Level Role Cap Helper: คำนวณเพดานแต้มสูงสุดตาม 12 Level Roles ─────────────
 let checkInCfg = null;
 try {
@@ -759,10 +771,16 @@ async function handleBeeInteraction(interaction, client, supabase) {
       rewardPayload = buildSpyBeeRewardPayload(session.beeConfig, userId, '+point', { amount: pts }, session.gardenUrl);
     } else if (rewardChoice === 2) {
       // 2: -point (50, 100, 150, 200, 250)
-      const possibleLoss = [50, 100, 150, 200, 250];
-      const pts = possibleLoss[randInt(0, possibleLoss.length - 1)];
-      await updateUserPoints(userId, -pts);
-      rewardPayload = buildSpyBeeRewardPayload(session.beeConfig, userId, '-point', { amount: pts }, session.gardenUrl);
+      const isProtected = checkVipBeeProtection(member);
+      if (isProtected) {
+        // ได้รับการปกป้องจากยศ VIP: ไม่หักแต้ม
+        rewardPayload = buildSpyBeeRewardPayload(session.beeConfig, userId, '-point', { amount: 0 }, session.gardenUrl, true);
+      } else {
+        const possibleLoss = [50, 100, 150, 200, 250];
+        const pts = possibleLoss[randInt(0, possibleLoss.length - 1)];
+        await updateUserPoints(userId, -pts);
+        rewardPayload = buildSpyBeeRewardPayload(session.beeConfig, userId, '-point', { amount: pts }, session.gardenUrl, false);
+      }
     } else if (rewardChoice === 3) {
       // 3: meme
       const memeImages = session.beeConfig.meme_images || [
@@ -1116,33 +1134,43 @@ async function handleBeeInteraction(interaction, client, supabase) {
         scheduleMessageDeletion(winMsg, 45000);
       } else {
         // ขโมยล้มเหลว (50%)
-        const chance1 = Math.random();
-        let lossResult = null;
+        const isProtected = checkVipBeeProtection(member);
 
-        if (chance1 > 0.100) {
-          // 90%: สุ่มหักแต้ม 100 – 499
-          const lossPoints = randInt(100, 499);
-          await updateUserPoints(userId, -lossPoints);
-          lossResult = { type: 'normal', points: lossPoints };
+        if (isProtected) {
+          // ได้รับการปกป้องจากยศ VIP: ไม่หักแต้ม ไม่ล้มละลาย ไม่ติดพิษ
+          const lossResult = { type: 'normal', points: 0 };
+          const lossPayload = buildQueenBeeLossPayload(beeConfig, userId, lossResult, gardenUrl, true);
+          const lossMsg = await interaction.channel.send(lossPayload);
+          scheduleMessageDeletion(lossMsg, 45000);
         } else {
-          // 10%: แจ็กพอตฝั่งแย่
-          const currentPoints = await getUserPoints(userId);
-          if (currentPoints >= 1) {
-            // แต้มตั้งแต่ 1 ขึ้นไป: ริบแต้มทั้งหมดเหลือ 0 ทันที (หมดตัว)
-            await setUserPoints(userId, 0);
-            lossResult = { type: 'bankrupt', previousPoints: currentPoints };
-          } else {
-            // แต้ม <= 0: ติดพิษนางพญาผึ้ง (-250 แต้ม)
-            await updateUserPoints(userId, -250);
-            lossResult = { type: 'poison', points: 250 };
-          }
-        }
+          const chance1 = Math.random();
+          let lossResult = null;
 
-        const lossPayload = buildQueenBeeLossPayload(beeConfig, userId, lossResult, gardenUrl);
-        const lossMsg = await interaction.channel.send(lossPayload);
-        scheduleMessageDeletion(lossMsg, 45000);
+          if (chance1 > 0.100) {
+            // 90%: สุ่มหักแต้ม 100 – 499
+            const lossPoints = randInt(100, 499);
+            await updateUserPoints(userId, -lossPoints);
+            lossResult = { type: 'normal', points: lossPoints };
+          } else {
+            // 10%: แจ็กพอตฝั่งแย่
+            const currentPoints = await getUserPoints(userId);
+            if (currentPoints >= 1) {
+              // แต้มตั้งแต่ 1 ขึ้นไป: ริบแต้มทั้งหมดเหลือ 0 ทันที (หมดตัว)
+              await setUserPoints(userId, 0);
+              lossResult = { type: 'bankrupt', previousPoints: currentPoints };
+            } else {
+              // แต้ม <= 0: ติดพิษนางพญาผึ้ง (-250 แต้ม)
+              await updateUserPoints(userId, -250);
+              lossResult = { type: 'poison', points: 250 };
+            }
+          }
+
+          const lossPayload = buildQueenBeeLossPayload(beeConfig, userId, lossResult, gardenUrl, false);
+          const lossMsg = await interaction.channel.send(lossPayload);
+          scheduleMessageDeletion(lossMsg, 45000);
+        }
+        return;
       }
-      return;
     }
 
     // 4.2 กรณีเป็น เจ้าผึ้งแวมไพร์ (vampire_bee)
@@ -1154,10 +1182,20 @@ async function handleBeeInteraction(interaction, client, supabase) {
 
       if (!isWin) {
         // 50% แพ้: โดนดูดแต้มเอง สุ่ม -100 ถึง -300 แต้ม
+        const isProtected = checkVipBeeProtection(member);
+
+        if (isProtected) {
+          // ได้รับการปกป้องจากยศ VIP: ไม่โดนดูดแต้ม
+          const lossPayload = buildVampireDrainSelfPayload(beeConfig, userId, 0, gardenUrl, true);
+          const lossMsg = await interaction.channel.send(lossPayload);
+          scheduleMessageDeletion(lossMsg, 45000);
+          return;
+        }
+
         const lossPoints = randInt(100, 300);
         await updateUserPoints(userId, -lossPoints);
 
-        const lossPayload = buildVampireDrainSelfPayload(beeConfig, userId, lossPoints, gardenUrl);
+        const lossPayload = buildVampireDrainSelfPayload(beeConfig, userId, lossPoints, gardenUrl, false);
         const lossMsg = await interaction.channel.send(lossPayload);
         scheduleMessageDeletion(lossMsg, 45000);
         return;
@@ -1319,25 +1357,39 @@ async function handleBeeInteraction(interaction, client, supabase) {
       const winMsg = await interaction.channel.send(winPayload);
       scheduleMessageDeletion(winMsg, 45000);
     } else {
-      // แพ้: เช็กแต้มปัจจุบันก่อน
-      const currentPoints = await getUserPoints(userId);
+      // แพ้: ตรวจสอบการคุ้มครอง 50% จากยศ VIP
+      let member = interaction.member;
+      if ((!member || !member.roles || !member.roles.cache) && interaction.guild) {
+        member = await interaction.guild.members.fetch(userId).catch(() => member);
+      }
 
-      if (currentPoints <= 0) {
-        // แต้ม <= 0 -> ติดพิษ
-        const poisonLoss = beeConfig.poison_loss_points || 150;
-        await updateUserPoints(userId, -poisonLoss);
+      const isProtected = checkVipBeeProtection(member);
 
-        const poisonPayload = buildBeePoisonLossPayload(beeConfig, userId, poisonLoss, gardenUrl);
-        const poisonMsg = await interaction.channel.send(poisonPayload);
-        scheduleMessageDeletion(poisonMsg, 45000);
-      } else {
-        // แต้ม > 0 -> สุ่มลบแต้ม
-        const lossPoints = randInt(beeConfig.min_loss_points || 15, beeConfig.max_loss_points || 50);
-        await updateUserPoints(userId, -lossPoints);
-
-        const lossPayload = buildBeeLossPayload(beeConfig, userId, lossPoints, gardenUrl);
+      if (isProtected) {
+        // ได้รับการปกป้อง: ไม่หักแต้ม ไม่ติดพิษ
+        const lossPayload = buildBeeLossPayload(beeConfig, userId, 0, gardenUrl, true);
         const lossMsg = await interaction.channel.send(lossPayload);
         scheduleMessageDeletion(lossMsg, 45000);
+      } else {
+        const currentPoints = await getUserPoints(userId);
+
+        if (currentPoints <= 0) {
+          // แต้ม <= 0 -> ติดพิษ
+          const poisonLoss = beeConfig.poison_loss_points || 150;
+          await updateUserPoints(userId, -poisonLoss);
+
+          const poisonPayload = buildBeePoisonLossPayload(beeConfig, userId, poisonLoss, gardenUrl);
+          const poisonMsg = await interaction.channel.send(poisonPayload);
+          scheduleMessageDeletion(poisonMsg, 45000);
+        } else {
+          // แต้ม > 0 -> สุ่มลบแต้ม
+          const lossPoints = randInt(beeConfig.min_loss_points || 15, beeConfig.max_loss_points || 50);
+          await updateUserPoints(userId, -lossPoints);
+
+          const lossPayload = buildBeeLossPayload(beeConfig, userId, lossPoints, gardenUrl, false);
+          const lossMsg = await interaction.channel.send(lossPayload);
+          scheduleMessageDeletion(lossMsg, 45000);
+        }
       }
     }
   }

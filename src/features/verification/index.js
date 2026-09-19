@@ -138,22 +138,31 @@ function matchesBannedWord(text, bannedWord) {
   return boundaryRegex.test(text);
 }
 
+let bannedWordsCache = null;
+let bannedWordsCacheExpiry = 0;
+
 /**
  * Check member username / nickname against banned_name table in Supabase
  */
 async function checkBannedName(member) {
   try {
-    const { data: wordsData, error } = await supabase
-      .from("banned_name")
-      .select("word");
+    const now = Date.now();
+    let wordsData = bannedWordsCache;
+    if (!wordsData || now > bannedWordsCacheExpiry) {
+      const { data, error } = await supabase
+        .from("banned_name")
+        .select("word");
 
-    if (error) {
-      console.error("[verification] Error fetching banned words from DB:", error.message);
-      return null;
+      if (error) {
+        console.error("[verification] Error fetching banned words from DB:", error.message);
+      } else {
+        wordsData = data || [];
+        bannedWordsCache = wordsData;
+        bannedWordsCacheExpiry = now + 5 * 60 * 1000; // Cache 5 mins
+      }
     }
 
     if (!wordsData || wordsData.length === 0) {
-      console.log("[verification] No banned words found in public.banned_words table.");
       return null;
     }
 
@@ -802,6 +811,10 @@ function setupVerification(client) {
 
       // ─── Button: ลงทะเบียน ──────────────────────────────────────────
       if (interaction.isButton() && interaction.customId === "p_323843380868026369") {
+        if (!interaction.deferred && !interaction.replied) {
+          await interaction.deferReply({ flags: 32768 | 64 }).catch(() => { });
+        }
+
         // Fetch fresh member details to bypass stale cache
         let member = interaction.member;
         try {
@@ -815,13 +828,13 @@ function setupVerification(client) {
         if (hasBlacklisted) {
           const payload = blacklistPayload(interaction.user.id);
           payload.flags = 32768 | 64; // Ephemeral V2
-          return interaction.reply(payload);
+          return interaction.editReply(payload);
         }
 
         // 2. Check banned words
         const bannedWord = await checkBannedName(member);
         if (bannedWord) {
-          return interaction.reply({
+          return interaction.editReply({
             content: `❌ ชื่อของคุณมีคำไม่เหมาะสมที่ระบบไม่อนุญาตค่ะ (ตรวจพบคำว่า: **${bannedWord}**)\n\n**กรุณาเปลี่ยนชื่อใหม่ของคุณก่อนกดลงทะเบียนอีกครั้งนะคะ!**\n*หากพบว่าหลังจากเข้ากลุ่มมีการเปลี่ยนชื่อกลับไปเป็นชื่อที่ไม่ดีหรือแฝงคำไม่สุภาพ จะถูกลงโทษตามกฎของเซิร์ฟเวอร์ทันทีค่ะ*`,
             flags: 64 // Ephemeral
           });
@@ -880,7 +893,7 @@ function setupVerification(client) {
           ]
         };
 
-        await interaction.reply(notifyPayload);
+        await interaction.editReply(notifyPayload);
       }
 
       // ─── Select Menu: เลือกรับการแจ้งเตือน ──────────────────────────
@@ -1185,7 +1198,11 @@ function setupVerification(client) {
       }
 
     } catch (err) {
-      console.error("[verification] Interaction error:", err);
+      if (err?.code === 10062) {
+        console.warn("[verification] Interaction timed out or already expired (10062):", err.message);
+      } else {
+        console.error("[verification] Interaction error:", err);
+      }
     }
   });
 

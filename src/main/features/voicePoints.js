@@ -236,29 +236,60 @@ function setupVoicePoints(client) {
         if (profile?.avatar_url) avatarUrl = profile.avatar_url;
       } catch { /* silent */ }
 
-      const embedPayload = {
-        content: `<@${userId}>`,
-        embeds: [{
-          description: `<:line:1144701793989840997>\n- <:bearcafe_star:1212856675053346897>︲__\` Activity Points \`__\n  - ยินดีด้วยนะคะ : <@${userId}> *!*\n  - คุณได้รับ <:strawbear:1280194407014076447> **+${pending}** จากการลงห้อง **\`"${channelName}"\`** <:cuteplant:1152834055528783872>\n<:line:1144701793989840997>`,
-          color: 16768911,
-          thumbnail: { url: avatarUrl },
-        }],
-        components: [{
-          type: 1,
-          components: [{
-            type: 2, style: 5,
-            label: "︲เช็กแต้มของคุณ",
-            emoji: { id: "1212856675053346897", name: "bearcafe_star", animated: false },
-            url: "https://discord.com/channels/1144251788493602848/1145305334806741122",
-          }],
-        }],
+      const componentPayload = {
+        flags: 32768,
+        components: [
+          {
+            type: 17,
+            accent_color: null,
+            components: [
+              {
+                type: 9,
+                components: [
+                  {
+                    type: 10,
+                    content: `## <:strawberryv2:1520439075100688614>︲__\` 𝖠𝖼𝗍𝗂𝗏𝗂𝗍𝗒 𝗉𝗈𝗂𝗇𝗍𝗌 ₊ แต้มลงห้อง 𓂃 \`__\n  - ยินดีด้วยนะคะ : <@${userId}> *!*\n  - คุณได้รับ **+${pending}** จากการลงห้อง **\`"${channelName}"\`** <:cuteplant:1152834055528783872>`,
+                  },
+                ],
+                accessory: {
+                  type: 11,
+                  media: {
+                    url: avatarUrl,
+                  },
+                },
+              },
+              {
+                type: 14,
+                spacing: 2,
+              },
+              {
+                type: 1,
+                components: [
+                  {
+                    type: 2,
+                    style: 5,
+                    label: "︲เช็กแต้มของคุณ",
+                    emoji: {
+                      id: "1212856675053346897",
+                      name: "bearcafe_star",
+                      animated: false,
+                    },
+                    url: "https://discord.com/channels/1144251788493602848/1524123727724417276",
+                  },
+                ],
+              },
+            ],
+          },
+        ],
       };
 
-      const targetChannel = client?.channels?.cache?.get(NOTIFY_CHANNEL_ID);
+      const targetChannel = client?.channels?.cache?.get(NOTIFY_CHANNEL_ID) ||
+        await client?.channels?.fetch(NOTIFY_CHANNEL_ID).catch(() => null);
+
       if (targetChannel && typeof targetChannel.send === "function") {
-        await targetChannel.send(embedPayload).catch(() => {});
+        await targetChannel.send(componentPayload).catch(() => {});
       } else if (client?.rest) {
-        await client.rest.post(`/channels/${NOTIFY_CHANNEL_ID}/messages`, { body: embedPayload }).catch(() => {});
+        await client.rest.post(`/channels/${NOTIFY_CHANNEL_ID}/messages`, { body: componentPayload }).catch(() => {});
       }
     } catch (err) {
       console.error("[voice-points] handleVoiceNotification error:", err.message);

@@ -30,42 +30,23 @@ assert.strictEqual(themeOption.choices.length, 4, "Must have 4 theme choices");
 console.log("✅ Slash command option 'theme' verified with 4 choices!");
 
 console.log("=== Testing 4: formatRemainingTime format logic ===");
-// Test the logic implemented in roomDestroyer
-function formatRemainingTime(ms) {
-  if (ms <= 0) return "🚫 ห้องจะถูกลบ 1 นาที";
-  const totalMinutes = Math.floor(ms / (60 * 1000));
-  const totalHours = Math.floor(totalMinutes / 60);
-  const days = Math.floor(totalHours / 24);
-  const hours = totalHours % 24;
-  const minutes = totalMinutes % 60;
+const { formatRemainingTime } = require("../handlers/roomDestroyer");
 
-  if (days >= 1) {
-    if (hours === 0) {
-      return `🗑️ ห้องจะถูกลบ ${days} วัน`;
-    }
-    return `🗑️ ห้องจะถูกลบ ${days} วัน ${hours} ชั่วโมง`;
-  }
+// มากกว่า 60 นาที: แสดงเป็นชั่วโมงเท่านั้น (ไม่แสดงนาที)
+assert.strictEqual(formatRemainingTime(24 * 60 * 60 * 1000), "🗑️ ห้องจะถูกลบ 24 ชั่วโมง");
+assert.strictEqual(formatRemainingTime((23 * 60 + 45) * 60 * 1000), "🗑️ ห้องจะถูกลบ 24 ชั่วโมง");
+assert.strictEqual(formatRemainingTime((22 * 60 + 30) * 60 * 1000), "🗑️ ห้องจะถูกลบ 23 ชั่วโมง");
+assert.strictEqual(formatRemainingTime((2 * 60 + 10) * 60 * 1000), "🗑️ ห้องจะถูกลบ 3 ชั่วโมง");
+assert.strictEqual(formatRemainingTime((1 * 60 + 1) * 60 * 1000), "🗑️ ห้องจะถูกลบ 2 ชั่วโมง");
 
-  if (hours >= 1) {
-    if (minutes === 0) {
-      return `🗑️ ห้องจะถูกลบ ${hours} ชั่วโมง`;
-    }
-    return `🗑️ ห้องจะถูกลบ ${hours} ชั่วโมง ${minutes} นาที`;
-  }
-
-  if (minutes > 1) {
-    return `🗑️ ห้องจะถูกลบ ${minutes} นาที`;
-  }
-
-  return `🚫 ห้องจะถูกลบ 1 นาที`;
-}
-
-assert.strictEqual(formatRemainingTime(3 * 24 * 60 * 60 * 1000), "🗑️ ห้องจะถูกลบ 3 วัน");
-assert.strictEqual(formatRemainingTime((2 * 24 + 18) * 60 * 60 * 1000), "🗑️ ห้องจะถูกลบ 2 วัน 18 ชั่วโมง");
-assert.strictEqual(formatRemainingTime(1 * 60 * 60 * 1000), "🗑️ ห้องจะถูกลบ 1 ชั่วโมง");
+// 60 นาทีสุดท้าย: แสดงเป็นนาที
+assert.strictEqual(formatRemainingTime(60 * 60 * 1000), "🗑️ ห้องจะถูกลบ 60 นาที");
+assert.strictEqual(formatRemainingTime(59 * 60 * 1000), "🗑️ ห้องจะถูกลบ 59 นาที");
 assert.strictEqual(formatRemainingTime(12 * 60 * 1000), "🗑️ ห้องจะถูกลบ 12 นาที");
+assert.strictEqual(formatRemainingTime(2 * 60 * 1000), "🗑️ ห้องจะถูกลบ 2 นาที");
 assert.strictEqual(formatRemainingTime(1 * 60 * 1000), "🚫 ห้องจะถูกลบ 1 นาที");
 assert.strictEqual(formatRemainingTime(30 * 1000), "🚫 ห้องจะถูกลบ 1 นาที");
+assert.strictEqual(formatRemainingTime(0), "🚫 ห้องจะถูกลบ 1 นาที");
 console.log("✅ Voice Status formatting matches all user specifications exactly!");
 
 console.log("\n🎉 ALL TESTS PASSED SUCCESSFULLY!");

@@ -5,6 +5,7 @@ const { applyRoomPermissions, sendRoomPanel } = require("./roomPanel");
 const { sendRoomLog } = require("../utils/roomLogger");
 const { getSmartRoomPreset, normalizePresetSettings } = require("../utils/smartRoomPresets");
 const { safeDeleteChannel, safeMoveMember } = require("../utils/discordSafety");
+const { syncVipRoomToDatabase } = require("../src/services/vipRoomService");
 const config = require("../config");
 
 let isCreating = false;
@@ -172,6 +173,13 @@ async function createRoomWithLock(guild, member, zone) {
           console.log(`👑 ${member.user.tag} ออกมาสร้างห้องใหม่ — โอนสิทธิ์ห้องเดิม "${existingChannel.name}" ให้ ${remainingMember.user.tag}`);
           existingRoom.ownerId = remainingMember.id;
           await saveRoom(existingChannelId, existingRoom.zoneId, remainingMember.id, existingRoom.settings || {});
+          if (existingRoom.zoneId === "vip") {
+            syncVipRoomToDatabase(existingChannelId, {
+              ownerId: remainingMember.id,
+              guildId: guild.id,
+              channelName: existingChannel.name,
+            }).catch(() => {});
+          }
         } else {
           safeDeleteChannel(existingChannel, "Owner left empty room").catch(() => {});
           await deleteRoom(existingChannelId);
@@ -220,6 +228,14 @@ async function createRoomWithLock(guild, member, zone) {
   };
 
   await saveRoom(newChannel.id, zone.id, member.id, settings);
+  if (zone.id === "vip") {
+    syncVipRoomToDatabase(newChannel.id, {
+      ownerId: member.id,
+      guildId: guild.id,
+      channelName: roomName,
+      emptyAt: null,
+    }).catch(() => {});
+  }
   try {
     await applyRoomPermissions(newChannel, room);
   } catch (e) {

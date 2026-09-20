@@ -235,6 +235,14 @@ client.once("clientReady", async () => {
     console.warn("[slash] CLEAR_SLASH_COMMANDS_ON_START is disabled in this project to avoid wiping another bot's slash commands.");
   }
 
+  // 4.5 กู้คืนข้อมูลห้อง VIP จาก Supabase Table เข้าสู่ Redis (Disaster Recovery เผื่อกรณี Redis รีสตาร์ต/แคชหลุด)
+  try {
+    const { restoreVipRoomsFromDatabaseToRedis } = require("./src/services/vipRoomService");
+    await restoreVipRoomsFromDatabaseToRedis();
+  } catch (e) {
+    console.warn("[VIP] ไม่สามารถกู้คืนห้อง VIP จาก Supabase ได้:", e.message);
+  }
+
   // 5. Startup Cleanup — ลบห้องค้างจากก่อนบอทดับ & สร้างห้องให้สมาชิกที่ค้างใน Lobby
   if (isLocalFastStart) {
     console.log("[local] Skipping startup cleanup.");

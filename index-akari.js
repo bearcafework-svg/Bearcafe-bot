@@ -26,6 +26,9 @@ const {
   handleStoreSelectMenus,
   handleSettingCurrencyButton,
   handleSettingCurrencyModalSubmit,
+  handlePointsCommand,
+  handleLeaderboardCommand,
+  handlePointsButtonInteraction,
 } = require("./src/akari/commands/minigamesCommands");
 
 const botToken = process.env.AKARI_BOT_TOKEN;
@@ -111,16 +114,29 @@ client.on("interactionCreate", async (interaction) => {
       if (interaction.commandName === "akari-admin") {
         return await handleAkariAdmin(interaction, akariSupabase, client);
       }
-      if (interaction.commandName === "setting-store") {
-        return await handleSettingStore(interaction, akariSupabase);
+      if (interaction.commandName === "points") {
+        return await handlePointsCommand(interaction, akariSupabase);
       }
-      if (interaction.commandName === "open-store") {
-        return await handleOpenStore(interaction, akariSupabase, client);
+      if (interaction.commandName === "leaderboard") {
+        return await handleLeaderboardCommand(interaction, akariSupabase);
       }
+      // ระบบร้านค้าปิดชั่วคราวตามคำสั่ง
+      // if (interaction.commandName === "setting-store") {
+      //   return await handleSettingStore(interaction, akariSupabase);
+      // }
+      // if (interaction.commandName === "open-store") {
+      //   return await handleOpenStore(interaction, akariSupabase, client);
+      // }
     }
 
     // Button Interactions
     if (interaction.isButton()) {
+      if (
+        interaction.customId === "akari_view_leaderboard" ||
+        interaction.customId.startsWith("akari_lb_")
+      ) {
+        return await handlePointsButtonInteraction(interaction, akariSupabase);
+      }
       if (interaction.customId === "akari_setting_currency_btn") {
         return await handleSettingCurrencyButton(interaction, akariSupabase);
       }

@@ -2,6 +2,7 @@
 const { createClient } = require("@supabase/supabase-js");
 const { AttachmentBuilder } = require("discord.js");
 const { createCanvas, loadImage } = require("@napi-rs/canvas");
+const axios = require("axios");
 const path = require("path");
 const rootDir = path.resolve(__dirname, __dirname.includes("src" + path.sep + "main") ? "../../../.." : "../../..");
 const sharedConfig = require(path.join(rootDir, "src/sharedSettings.json"));
@@ -27,6 +28,7 @@ const MONTHLY_PERIOD_TEXT = "1 ก.ย. 2026 – 30 ก.ย. 2026 (23:59 น.)";
 const EVENT_ANNOUNCE_CHANNEL_ID = "1524123305471115287"; // 🎀︰ประกาศอีเว้นท์
 const LEADERBOARD_CHANNEL_ID = "1535546990711283743";    // 🏆︰จัดอันดับหมีติดเกม
 const LEADERBOARD_MESSAGE_ID = "1536940318761558057";    // ข้อความบอร์ดเดิมที่จะ Edit
+const LEADERBOARD_BANNER_URL = "https://cdn.discordapp.com/attachments/1524704267015819274/1551235830146662401/ChatGPT_Image_20_.._2569_21_00_59.png?ex=6ab13c72&is=6aafeaf2&hm=da2b541ca8f8e10a33675ed07524bf3812fb5165809ca5ac05e7b0b154ef8153&";
 
 /**
  * ดึงสถานะช่วงเวลาที่กำลัง Active อยู่ในปัจจุบัน
@@ -197,12 +199,34 @@ async function getUserMinigameRank(supabase, userId, gameId = null, startTime = 
 // ── ดึงข้อมูล Guild Member (Avatar + Name + Handle + ID) ───────
 async function getMemberDetail(guild, userId) {
   try {
-    const member = await guild.members.fetch(userId);
-    const avatarUrl = member.displayAvatarURL({ size: 256, extension: "png" }) ||
-      `https://cdn.discordapp.com/embed/avatars/0.png`;
-    const displayName = member.displayName || member.user.username;
-    const usernameHandle = `@${member.user.username}`;
-    const idText = `ID: ${member.id}`;
+    let member = null;
+    let user = null;
+    let displayName = "—";
+    let usernameHandle = "";
+    let avatarUrl = null;
+
+    try {
+      member = await guild.members.fetch(userId);
+      user = member.user;
+      displayName = member.displayName || user.globalName || user.username;
+      usernameHandle = `@${user.username}`;
+      avatarUrl = member.displayAvatarURL({ size: 256, extension: "png", forceStatic: true });
+    } catch {
+      if (guild?.client) {
+        user = await guild.client.users.fetch(userId).catch(() => null);
+        if (user) {
+          displayName = user.globalName || user.username;
+          usernameHandle = `@${user.username}`;
+          avatarUrl = user.displayAvatarURL({ size: 256, extension: "png", forceStatic: true });
+        }
+      }
+    }
+
+    if (!avatarUrl) {
+      avatarUrl = `https://cdn.discordapp.com/embed/avatars/0.png`;
+    }
+
+    const idText = userId ? `ID: ${userId}` : "";
     return { avatarUrl, displayName, usernameHandle, idText };
   } catch {
     return {
@@ -230,14 +254,17 @@ function drawRoundedRect(ctx, x, y, w, h, r) {
 }
 
 // ── Font Fallback รวมฟอนต์ภาษาไทยและ Emoji สำหรับ Canvas ────
-const FONT_FALLBACK = '"Noto Sans Thai", "Segoe UI Emoji", "Noto Color Emoji", "Segoe UI Symbol", "Apple Color Emoji", "Leelawadee UI", "Segoe UI", sans-serif';
+const FONT_FALLBACK = '"Noto Sans Thai", "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", "Segoe UI Symbol", "Segoe UI", Arial, sans-serif';
 
 // ── Helper ตัดข้อความยาวเกินไปใน Canvas (รองรับ Emoji & Unicode) ─
 function truncateText(ctx, text, maxWidth, font) {
   ctx.font = font;
   if (!text) return "";
   // กรอง Discord custom emoji syntax <:name:id> หรือ <a:name:id> ออกเพื่อไม่ให้แสดง ID ดิบ
-  const cleanText = String(text).replace(/<a?:(\w+):\d+>/g, "$1").trim();
+  let cleanText = String(text).replace(/<a?:(\w+):\d+>/g, "$1").trim();
+  // แปลงตัวอักษรแบบพิเศษ (เช่น Mathematical Alphanumeric) ให้อ่านได้ในทุกฟอนต์ และตัด invisible characters
+  cleanText = cleanText.normalize("NFKD").replace(/[\u200B-\u200D\uFEFF]/g, "").trim();
+
   if (ctx.measureText(cleanText).width <= maxWidth) return cleanText;
 
   // ตัดตัวอักษรแบบ Unicode code points เพื่อป้องกัน Surrogate pair แตก
@@ -309,33 +336,6 @@ async function generateTop3Canvas(top3Details, periodText = null) {
   // พื้นหลังมืด
   ctx.fillStyle = "#0A0A0C";
   ctx.fillRect(0, 0, width, height);
-
-  // วาด Header Pill Badge แจ้งเตือนระยะเวลาแข่งขันที่ด้านบนสุด Canvas
-  const activePeriod = getCurrentActivePeriod();
-  const effectivePeriod = periodText || activePeriod.periodText;
-  const seasonHeaderLabel = periodText
-    ? `🏆 SEASON 1 [FINAL]: ${effectivePeriod}`
-    : (activePeriod.isMonthly ? `📅 MONTHLY LEADERBOARD: ${effectivePeriod}` : `🎁 SEASON 1: ${effectivePeriod}`);
-  ctx.font = `bold 12px ${FONT_FALLBACK}`;
-  const headerMetrics = ctx.measureText(seasonHeaderLabel);
-  const headerPillW = headerMetrics.width + 36;
-  const headerPillH = 26;
-  const headerPillX = (width - headerPillW) / 2;
-  const headerPillY = 16;
-
-  ctx.save();
-  drawRoundedRect(ctx, headerPillX, headerPillY, headerPillW, headerPillH, 13);
-  ctx.fillStyle = "#1E1B2E";
-  ctx.fill();
-  ctx.lineWidth = 1.5;
-  ctx.strokeStyle = "#8B5CF6";
-  ctx.stroke();
-
-  ctx.fillStyle = "#A78BFA";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(seasonHeaderLabel, width / 2, headerPillY + headerPillH / 2);
-  ctx.restore();
 
   const spots = [
     {
@@ -433,17 +433,29 @@ async function generateTop3Canvas(top3Details, periodText = null) {
 
     // ดึงรูปโปรไฟล์ Avatar
     const avatarY = pillY + pillH + s.avatarR + 14;
-    let imgBuffer = null;
+    let avatarImg = null;
     if (s.detail.avatarUrl) {
       try {
-        const res = await axios.get(s.detail.avatarUrl, {
-          responseType: "arraybuffer",
-          timeout: 4000,
-          headers: { "User-Agent": "BearCafeBot/1.0" }
-        });
-        imgBuffer = Buffer.from(res.data);
-      } catch (e) {
-        // เงียบหากดึงรูปไม่ได้
+        avatarImg = await loadImage(s.detail.avatarUrl);
+      } catch (e1) {
+        try {
+          const res = await fetch(s.detail.avatarUrl, { signal: AbortSignal.timeout(4000) });
+          if (res.ok) {
+            const arrayBuf = await res.arrayBuffer();
+            avatarImg = await loadImage(Buffer.from(arrayBuf));
+          }
+        } catch (e2) {
+          try {
+            const res = await axios.get(s.detail.avatarUrl, {
+              responseType: "arraybuffer",
+              timeout: 4000,
+              headers: { "User-Agent": "BearCafeBot/1.0" }
+            });
+            avatarImg = await loadImage(Buffer.from(res.data));
+          } catch (e3) {
+            console.warn(`[resetTop] Unable to load avatar for ${s.detail.idText || s.rank}:`, e3.message);
+          }
+        }
       }
     }
 
@@ -453,17 +465,17 @@ async function generateTop3Canvas(top3Details, periodText = null) {
     ctx.closePath();
     ctx.clip();
 
-    if (imgBuffer) {
-      try {
-        const img = await loadImage(imgBuffer);
-        ctx.drawImage(img, s.cx - s.avatarR, avatarY - s.avatarR, s.avatarR * 2, s.avatarR * 2);
-      } catch {
-        ctx.fillStyle = "#1A181C";
-        ctx.fill();
-      }
+    if (avatarImg) {
+      ctx.drawImage(avatarImg, s.cx - s.avatarR, avatarY - s.avatarR, s.avatarR * 2, s.avatarR * 2);
     } else {
       ctx.fillStyle = "#1A181C";
       ctx.fill();
+      ctx.fillStyle = "#94A3B8";
+      ctx.font = `bold ${Math.round(s.avatarR * 0.7)}px ${FONT_FALLBACK}`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      const initial = (s.detail.displayName || "?")[0] || "?";
+      ctx.fillText(initial.toUpperCase(), s.cx, avatarY + 2);
     }
     ctx.restore();
 
@@ -618,6 +630,16 @@ async function buildTopLeaderboardPayload(guild, supabase, options = {}) {
             items: [
               {
                 media: {
+                  url: LEADERBOARD_BANNER_URL
+                }
+              }
+            ]
+          },
+          {
+            type: 12,
+            items: [
+              {
+                media: {
                   url: "attachment://top_leaderboard.png"
                 }
               }
@@ -625,7 +647,8 @@ async function buildTopLeaderboardPayload(guild, supabase, options = {}) {
           },
           {
             type: 14,
-            spacing: 2
+            spacing: 2,
+            divider: true
           },
           {
             type: 10,
@@ -633,7 +656,8 @@ async function buildTopLeaderboardPayload(guild, supabase, options = {}) {
           },
           {
             type: 14,
-            spacing: 2
+            spacing: 2,
+            divider: true
           },
           {
             type: 1,
@@ -652,7 +676,8 @@ async function buildTopLeaderboardPayload(guild, supabase, options = {}) {
           },
           {
             type: 14,
-            spacing: 2
+            spacing: 1,
+            divider: false
           },
           {
             type: 9,
@@ -967,14 +992,16 @@ function setupResetTop(client, supabaseClient) {
 
       let userRankText = '';
       if (!userRank || !userRank.rank) {
-        userRankText = `### <:bee20000:1256669436350562355>︲__\` สถิติจัดอันดับมินิเกม${periodName}ของคุณ 𓂃 \`__\n\n<@${interaction.user.id}> คุณยังไม่มีประวัติการชนะมินิเกมในรอบนี้เลยค่ะ 🎮\nมาลองร่วมสนุกเล่นมินิเกมเพื่อสะสมชัยชนะกันนะคะ!`;
+        userRankText = `## <:bee20000:1256669436350562355>︲__\` สถิติจัดอันดับมินิเกม${periodName}ของคุณ 𓂃 \`__\n\nคุณยังไม่มีประวัติการชนะมินิเกมในรอบนี้เลยค่ะ 🎮\nมาลองร่วมสนุกเล่นมินิเกมเพื่อสะสมชัยชนะกันนะคะ!`;
       } else {
         const rankBadge = userRank.rank === 1 ? "🥇" : userRank.rank === 2 ? "🥈" : userRank.rank === 3 ? "🥉" : "📊";
         const winsStr = (Number(userRank.wins) || 0).toLocaleString();
         const pointsStr = (Number(userRank.points) || 0).toLocaleString();
         const totalPStr = (Number(userRank.totalPlayers) || 0).toLocaleString();
-        userRankText = `### <:bee20000:1256669436350562355>︲__\` สถิติจัดอันดับมินิเกม${periodName}ของคุณ 𓂃 \`__\n\n<@${interaction.user.id}>\n${rankBadge} **อันดับของคุณ:** **อันดับที่ ${userRank.rank}** (จากผู้เล่นทั้งหมด ${totalPStr} คน)\n⚔️ **ชนะทั้งหมด:** **${winsStr}** ครั้ง\n${pointEmojiStr} **คะแนนรวมที่ได้:** **${pointsStr}** แต้ม`;
+        userRankText = `## <:bee20000:1256669436350562355>︲__\` สถิติจัดอันดับมินิเกม${periodName}ของคุณ 𓂃 \`__\n${rankBadge} — **อันดับของคุณ:** **อันดับที่ ${userRank.rank}** (จากผู้เล่นทั้งหมด ${totalPStr} คน)\n⚔️ — **ชนะทั้งหมด:** **${winsStr}** ครั้ง\n${pointEmojiStr} — **คะแนนรวมที่ได้:** **${pointsStr}** แต้ม`;
       }
+
+      const userAvatarUrl = interaction.user.displayAvatarURL({ extension: 'png', size: 512, forceStatic: true });
 
       return interaction.reply({
         flags: 32768 | 64, // Component V2 + Ephemeral
@@ -983,8 +1010,19 @@ function setupResetTop(client, supabaseClient) {
             type: 17,
             components: [
               {
-                type: 10,
-                content: userRankText
+                type: 9,
+                components: [
+                  {
+                    type: 10,
+                    content: userRankText
+                  }
+                ],
+                accessory: {
+                  type: 11,
+                  media: {
+                    url: userAvatarUrl
+                  }
+                }
               }
             ]
           }
@@ -1056,15 +1094,21 @@ function setupResetTop(client, supabaseClient) {
             type: 17,
             components: [
               {
-                type: 10,
-                content: `### ${gameInfo.emoji}︲__\` 𝖫𝖾𝖺𝖽𝖾𝗋𝖻𝗈𝖺𝗋𝖽 ₊ ${gameInfo.label} 𓂃 \`__`
+                type: 12,
+                items: [
+                  {
+                    media: {
+                      url: LEADERBOARD_BANNER_URL
+                    }
+                  }
+                ]
               },
-              { type: 14, spacing: 2 },
+              { type: 14, spacing: 2, divider: true },
               {
                 type: 10,
-                content: lines.join("\n")
+                content: `## ${gameInfo.emoji}︲__\` 𝖫𝖾𝖺𝖽𝖾𝗋𝖻𝗈𝖺𝗋𝖽 ₊ ${gameInfo.label} 𓂃 \`__\n` + lines.join("\n")
               },
-              { type: 14, spacing: 2 },
+              { type: 14, spacing: 2, divider: true },
               {
                 type: 10,
                 content: userRankText

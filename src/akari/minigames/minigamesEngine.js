@@ -385,22 +385,27 @@ function invalidateLeaderboardCache(guildId) {
 /**
  * ดึง leaderboard ของแต่ละ Guild จาก Akari DB
  */
-async function getTenantLeaderboard(supabase, guildId, limit = 10, force = false) {
-  if (!force && guildLeaderboardCache.has(guildId)) {
-    return guildLeaderboardCache.get(guildId);
+async function getTenantLeaderboard(supabase, guildId, limit = 10, force = false, sortBy = 'points') {
+  const cacheKey = `${guildId}:${sortBy}`;
+  if (!force && guildLeaderboardCache.has(cacheKey)) {
+    return guildLeaderboardCache.get(cacheKey);
   }
 
   if (!supabase) {
-    guildLeaderboardCache.set(guildId, []);
+    guildLeaderboardCache.set(cacheKey, []);
     return [];
   }
 
   try {
+    const orderColumn = sortBy === 'wins' ? 'wins' : 'points';
+    const secondaryColumn = sortBy === 'wins' ? 'points' : 'wins';
+
     const { data, error } = await supabase
       .from('tenant_minigame_scores')
       .select('user_id, points, wins')
       .eq('guild_id', guildId)
-      .order('points', { ascending: false })
+      .order(orderColumn, { ascending: false })
+      .order(secondaryColumn, { ascending: false })
       .limit(limit);
 
     if (error) {
@@ -408,11 +413,59 @@ async function getTenantLeaderboard(supabase, guildId, limit = 10, force = false
       return [];
     }
     const result = data || [];
-    guildLeaderboardCache.set(guildId, result);
+    guildLeaderboardCache.set(cacheKey, result);
     return result;
   } catch (e) {
     console.error('[akari-minigames] DB Leaderboard error:', e.message);
     return [];
+  }
+}
+
+/**
+ * ดึงอันดับและข้อมูลคะแนนของผู้ใช้ใน Guild
+ */
+async function getUserTenantRank(supabase, guildId, userId) {
+  if (!supabase || !guildId || !userId) {
+    return { rank: "-", totalPlayers: 0, points: 0, wins: 0 };
+  }
+
+  try {
+    const { data: userData, error: userError } = await supabase
+      .from('tenant_minigame_scores')
+      .select('points, wins')
+      .eq('guild_id', guildId)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    const { count: totalPlayers } = await supabase
+      .from('tenant_minigame_scores')
+      .select('*', { count: 'exact', head: true })
+      .eq('guild_id', guildId);
+
+    if (userError || !userData) {
+      return { rank: "-", totalPlayers: totalPlayers || 0, points: 0, wins: 0 };
+    }
+
+    const points = Number(userData.points) || 0;
+    const wins = Number(userData.wins) || 0;
+
+    const { count: higherCount } = await supabase
+      .from('tenant_minigame_scores')
+      .select('*', { count: 'exact', head: true })
+      .eq('guild_id', guildId)
+      .gt('points', points);
+
+    const rank = (higherCount || 0) + 1;
+
+    return {
+      rank,
+      totalPlayers: totalPlayers || 1,
+      points,
+      wins,
+    };
+  } catch (err) {
+    console.error('[akari-minigames] getUserTenantRank error:', err.message);
+    return { rank: "-", totalPlayers: 0, points: 0, wins: 0 };
   }
 }
 
@@ -1778,6 +1831,7 @@ module.exports = {
   getTenantSettings,
   setTenantSettingsInCache,
   getTenantLeaderboard,
+  getUserTenantRank,
   invalidateLeaderboardCache,
   invalidateSettingsCache,
   flushAllTenantPoints,

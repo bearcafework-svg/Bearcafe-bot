@@ -37,6 +37,12 @@ const {
   handleStoreModalSubmit,
   handleStoreSelectMenus,
 } = require("./storeCommands");
+const {
+  POINTS_SLASH_COMMANDS,
+  handlePointsCommand,
+  handleLeaderboardCommand,
+  handlePointsButtonInteraction,
+} = require("./pointsCommands");
 
 const FLAG_V2 = MessageFlags.IsComponentsV2 || 32768;
 
@@ -256,7 +262,8 @@ const AKARI_SLASH_COMMANDS = [
       },
     ],
   },
-  ...STORE_SLASH_COMMANDS,
+  ...POINTS_SLASH_COMMANDS,
+  // ...STORE_SLASH_COMMANDS, // ปิดระบบร้านค้าชั่วคราวตามคำสั่ง
 ];
 
 /**
@@ -1879,6 +1886,10 @@ module.exports = {
   handleStoreSelectMenus,
   handleSettingCurrencyButton,
   handleSettingCurrencyModalSubmit,
+  handlePointsCommand,
+  handleLeaderboardCommand,
+  handlePointsButtonInteraction,
+  POINTS_SLASH_COMMANDS,
   STORE_SLASH_COMMANDS,
   AKARI_GAME_NAMES,
   GAME_DESCRIPTIONS,

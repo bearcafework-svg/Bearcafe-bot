@@ -229,12 +229,42 @@ function setupVoicePoints(client) {
         { onConflict: "user_id" }
       );
 
-      let avatarUrl = "https://cdn.discordapp.com/embed/avatars/0.png";
+      let avatarUrl = null;
       try {
-        const { data: profile } = await supabase
-          .from("profiles").select("avatar_url").eq("discord_id", userId).maybeSingle();
-        if (profile?.avatar_url) avatarUrl = profile.avatar_url;
-      } catch { /* silent */ }
+        // 1. ลองดึงจาก Guild Member เพื่อให้ได้ Server Avatar (ถ้ามี)
+        const notifyChannel = client.channels.cache.get(NOTIFY_CHANNEL_ID);
+        const targetGuild = notifyChannel?.guild || client.guilds.cache.first();
+        if (targetGuild) {
+          const member = await targetGuild.members.fetch(userId).catch(() => null);
+          if (member) {
+            avatarUrl = member.displayAvatarURL({ extension: "png", size: 256, forceStatic: true });
+          }
+        }
+
+        // 2. ถ้าไม่มีใน Guild หรือดึงไม่สำเร็จ ให้ดึงจาก Discord User API ตรงๆ
+        if (!avatarUrl) {
+          const user = await client.users.fetch(userId).catch(() => null);
+          if (user) {
+            avatarUrl = user.displayAvatarURL({ extension: "png", size: 256, forceStatic: true });
+          }
+        }
+      } catch (err) {
+        console.warn(`[voice-points] Error fetching Discord avatar for ${userId}:`, err.message);
+      }
+
+      // 3. Fallback: ถ้า Discord API ดึงไม่ได้ ให้ลองดึงจาก profiles ใน Supabase
+      if (!avatarUrl) {
+        try {
+          const { data: profile } = await supabase
+            .from("profiles").select("avatar_url").eq("discord_id", userId).maybeSingle();
+          if (profile?.avatar_url) avatarUrl = profile.avatar_url;
+        } catch { /* silent */ }
+      }
+
+      // 4. Default Fallback
+      if (!avatarUrl) {
+        avatarUrl = "https://cdn.discordapp.com/embed/avatars/0.png";
+      }
 
       const componentPayload = {
         flags: 32768,

@@ -9,7 +9,12 @@ function initFonts() {
   if (fontsRegistered) return;
 
   try {
-    const fontsDir = path.join(process.cwd(), "assets", "fonts");
+    const candidateDirs = [
+      path.join(process.cwd(), "assets", "fonts"),
+      path.resolve(__dirname, "../../assets/fonts"),
+      path.resolve(__dirname, "../../../assets/fonts")
+    ];
+    const fontsDir = candidateDirs.find(d => fs.existsSync(d)) || candidateDirs[0];
     const fontRegular = path.join(fontsDir, "NotoSansThai-Regular.ttf");
     const fontBold = path.join(fontsDir, "NotoSansThai-Bold.ttf");
 

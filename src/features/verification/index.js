@@ -88,16 +88,16 @@ const WELCOME_BUTTON_POOL = [
   {
     type: 2,
     style: 5,
-    label: "︲สุ่มแชทหาเพื่อน",
-    emoji: { id: "1518217054711189644", name: "27073hispeechbubble", animated: true },
-    url: "https://discord.com/channels/1144251788493602848/1524124222555947109"
+    label: "︲ซื้อยศลิมิเต็ด 2026",
+    emoji: { id: "1542162263253848164", name: "Limited_26", animated: false },
+    url: "https://discord.com/channels/1144251788493602848/1542161645243998392"
   },
   {
     type: 2,
     style: 5,
-    label: "︲สร้างห้องของตัวเอง",
-    emoji: { id: "1352955313648828477", name: "8439crownemoji3", animated: true },
-    url: "https://discord.com/channels/1144251788493602848/1525400520934555790"
+    label: "︲สินค้าคาเฟ่เริ่มต้น 15 บาท",
+    emoji: { id: "1548947725133942824", name: "643900sevlev", animated: true },
+    url: "https://discord.com/channels/1144251788493602848/1524124124836790294"
   },
   {
     type: 2,

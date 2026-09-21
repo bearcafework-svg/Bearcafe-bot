@@ -1132,6 +1132,7 @@ async function handleBeeInteraction(interaction, client, supabase) {
         const winPayload = buildQueenBeeWinPayload(beeConfig, userId, winResult, gardenUrl);
         const winMsg = await interaction.channel.send(winPayload);
         scheduleMessageDeletion(winMsg, 45000);
+        return;
       } else {
         // ขโมยล้มเหลว (50%)
         const isProtected = checkVipBeeProtection(member);

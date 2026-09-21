@@ -414,12 +414,6 @@ const GUILD_SLASH_COMMANDS = [
     ],
   },
 
-  // 22. /ภารกิจประจำวัน (Daily Quest)
-  {
-    name: "ภารกิจประจำวัน",
-    description: "ดูภารกิจประจำวันและตรวจสอบความคืบหน้าของตนเอง",
-    options: [],
-  },
 
   // 23. /อนุมัติเควส (Approve Daily Quest - Staff Only)
   {

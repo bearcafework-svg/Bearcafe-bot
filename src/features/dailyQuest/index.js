@@ -100,29 +100,6 @@ function setupDailyQuest(client, supabaseClient) {
         return safeRespond(interaction, progressPayload);
       }
 
-      // ── 3.2 คำสั่ง Slash Command: /ภารกิจประจำวัน ──────────
-      if (interaction.isChatInputCommand() && interaction.commandName === "ภารกิจประจำวัน") {
-        const userId = interaction.user.id;
-        const today = getBangkokTodayDate();
-
-        if (TEST_ONLY_DISCORD_ID && userId !== TEST_ONLY_DISCORD_ID) {
-          return safeRespond(interaction, buildBetaNoticePayload());
-        }
-
-        const { quests } = await getOrInitDailyQuestSet(supabase, today);
-        const progressMap = await getUserDailyProgress(supabase, userId, today);
-        const nextMidnightTs = getNextMidnightTimestamp();
-
-        const progressPayload = buildDailyQuestProgressPayload(
-          interaction.user,
-          today,
-          quests,
-          progressMap,
-          nextMidnightTs
-        );
-
-        return safeRespond(interaction, progressPayload);
-      }
 
       // ── 3.3 คำสั่ง Slash Command: /อนุมัติเควส (Staff Only) ──
       if (interaction.isChatInputCommand() && interaction.commandName === "อนุมัติเควส") {

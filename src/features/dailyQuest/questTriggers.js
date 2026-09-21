@@ -55,14 +55,23 @@ function setupQuestTriggers(client, supabase) {
       const hasGifAttachment = message.attachments?.some((a) =>
         a.contentType?.toLowerCase().includes("gif")
       );
-      const hasMediaLink =
-        /https?:\/\/(tenor|giphy|youtube|youtu\.be|spotify|soundcloud|music\.apple)\./i.test(
-          content
-        );
+      const hasGifLink = /https?:\/\/(tenor|giphy)\./i.test(content);
+      const isStickerOrGif = hasSticker || hasGifAttachment || hasGifLink;
 
-      if (hasSticker || hasGifAttachment || hasMediaLink) {
+      const hasMusicLink =
+        /https?:\/\/(youtube|youtu\.be|spotify|soundcloud|music\.apple)\./i.test(content);
+
+      if (isStickerOrGif) {
         await processTriggerEvent(client, supabase, user, "chat_media", {
-          channelId
+          channelId,
+          mediaType: "sticker_or_gif"
+        });
+      }
+
+      if (hasMusicLink) {
+        await processTriggerEvent(client, supabase, user, "chat_media", {
+          channelId,
+          mediaType: "music_link"
         });
       }
 
@@ -82,6 +91,14 @@ function setupQuestTriggers(client, supabase) {
   client.on(Events.MessageReactionAdd, async (reaction, user) => {
     try {
       if (!user || user.bot) return;
+
+      if (reaction.partial) {
+        try {
+          await reaction.fetch();
+        } catch {
+          return;
+        }
+      }
 
       const channelId = reaction.message?.channel?.id;
       const messageUrl = reaction.message?.url;
@@ -159,6 +176,21 @@ function setupQuestTriggers(client, supabase) {
       console.error("[dailyQuest] Voice minute ticker error:", err);
     }
   }, 60 * 1000);
+
+  // ─── 4. ดักจับการใช้คำสั่ง Slash Command (command_usage) ────────────
+  client.on(Events.InteractionCreate, async (interaction) => {
+    try {
+      if (!interaction || !interaction.isChatInputCommand?.() || interaction.user?.bot) return;
+
+      await processTriggerEvent(client, supabase, interaction.user, "command_usage", {
+        commandName: interaction.commandName,
+        channelId: interaction.channelId,
+        amount: 1
+      });
+    } catch (err) {
+      console.error("[dailyQuest] InteractionCreate command_usage trigger error:", err.message);
+    }
+  });
 }
 
 module.exports = { setupQuestTriggers };

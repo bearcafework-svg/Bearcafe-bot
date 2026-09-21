@@ -5,7 +5,7 @@
 require("dotenv").config();
 
 const http = require("http");
-const { Client, GatewayIntentBits, ActivityType, Events } = require("discord.js");
+const { Client, GatewayIntentBits, ActivityType, Events, Partials } = require("discord.js");
 const { startMonitor } = require("./handlers/roomMonitor");
 const { destroyRoom } = require("./handlers/roomDestroyer");
 const { createRoom } = require("./handlers/roomCreator");
@@ -58,6 +58,12 @@ const client = new Client({
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildPresences,
     GatewayIntentBits.DirectMessages,
+    GatewayIntentBits.GuildMessageReactions,
+  ],
+  partials: [
+    Partials.Message,
+    Partials.Channel,
+    Partials.Reaction,
   ],
   sweepers: {
     messages: {

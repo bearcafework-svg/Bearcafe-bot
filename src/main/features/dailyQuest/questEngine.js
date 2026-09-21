@@ -402,6 +402,9 @@ async function processTriggerEvent(client, supabase, user, triggerType, eventCon
     } else if (triggerType === "chat_any" || triggerType === "voice_duration" || triggerType === "voice_join") {
       if (cfg.channel_id && eventContext.channelId !== cfg.channel_id) continue;
       if (cfg.min_members && (eventContext.memberCount || 0) < cfg.min_members) continue;
+    } else if (triggerType === "chat_media") {
+      if (cfg.media_type && eventContext.mediaType !== cfg.media_type) continue;
+      if (cfg.channel_id && eventContext.channelId !== cfg.channel_id) continue;
     } else if (triggerType === "reaction_add") {
       if (cfg.message_url && eventContext.messageUrl !== cfg.message_url) continue;
       if (cfg.channel_id && eventContext.channelId !== cfg.channel_id) continue;

@@ -70,7 +70,7 @@ function setupDailyQuest(client, supabaseClient) {
         const userId = interaction.user.id;
         const today = getBangkokTodayDate();
 
-        // บันทึกสถิติการคลิกปุ่มดู Progress
+        // บันทึกสถิติการคลิกปุ่มดู Progress (Fire and forget)
         supabase
           .from("daily_quest_analytics")
           .insert({
@@ -78,7 +78,7 @@ function setupDailyQuest(client, supabaseClient) {
             event_type: "click_progress",
             user_id: userId
           })
-          .catch(() => {});
+          .then(null, () => {});
 
         // ตรวจสอบ Whitelist ในช่วง Beta Testing
         if (TEST_ONLY_DISCORD_ID && userId !== TEST_ONLY_DISCORD_ID) {

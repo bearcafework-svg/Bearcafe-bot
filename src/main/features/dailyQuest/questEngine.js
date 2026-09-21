@@ -251,12 +251,15 @@ async function checkAndAwardFullBonus(client, supabase, user, targetDate, quests
     await updateUserPoints(supabase, user.id, FULL_COMPLETION_BONUS_POINTS);
 
     // 5. บันทึกสถิติ Analytics
-    await supabase.from("daily_quest_analytics").insert({
-      quest_date: targetDate,
-      event_type: "all_completed",
-      user_id: user.id,
-      metadata: { bonus: FULL_COMPLETION_BONUS_POINTS }
-    }).catch(() => {});
+    await supabase
+      .from("daily_quest_analytics")
+      .insert({
+        quest_date: targetDate,
+        event_type: "all_completed",
+        user_id: user.id,
+        metadata: { bonus: FULL_COMPLETION_BONUS_POINTS }
+      })
+      .then(null, () => {});
 
     // 6. ส่งการ์ดประกาศพิเศษฉลองทำครบ 3 เควสไปยัง NOTIFY_CHANNEL_ID
     const notifyCh =
@@ -315,12 +318,15 @@ async function completeQuest(client, supabase, user, quest, targetDate, dailyQue
     await updateUserPoints(supabase, user.id, pointsToAdd);
 
     // 3. บันทึกสถิติ Analytics
-    await supabase.from("daily_quest_analytics").insert({
-      quest_date: targetDate,
-      event_type: "quest_completed",
-      user_id: user.id,
-      metadata: { quest_code: quest.code, reward: pointsToAdd }
-    }).catch(() => {});
+    await supabase
+      .from("daily_quest_analytics")
+      .insert({
+        quest_date: targetDate,
+        event_type: "quest_completed",
+        user_id: user.id,
+        metadata: { quest_code: quest.code, reward: pointsToAdd }
+      })
+      .then(null, () => {});
 
     // 4. คำนวณจำนวนเควสที่เหลือของวันนี้
     const progressMap = await getUserDailyProgress(supabase, user.id, targetDate);
@@ -421,8 +427,8 @@ async function processTriggerEvent(client, supabase, user, triggerType, eventCon
           },
           { onConflict: "quest_date,user_id,quest_id" }
         )
-        .catch((err) => {
-          console.error("[dailyQuest] Failed to upsert progress:", err.message);
+        .then(null, (err) => {
+          console.error("[dailyQuest] Failed to upsert progress:", err?.message);
         });
     }
   }
@@ -460,16 +466,19 @@ async function approveIrlQuest(client, supabase, targetUser, questId, staffUser)
   await completeQuest(client, supabase, targetUser, quest, today, quests);
 
   // บันทึก Log การอนุมัติ
-  await supabase.from("daily_quest_analytics").insert({
-    quest_date: today,
-    event_type: "irl_approved",
-    user_id: targetUser.id,
-    metadata: {
-      quest_id: quest.id,
-      quest_code: quest.code,
-      approved_by: staffUser.id
-    }
-  }).catch(() => {});
+  await supabase
+    .from("daily_quest_analytics")
+    .insert({
+      quest_date: today,
+      event_type: "irl_approved",
+      user_id: targetUser.id,
+      metadata: {
+        quest_id: quest.id,
+        quest_code: quest.code,
+        approved_by: staffUser.id
+      }
+    })
+    .then(null, () => {});
 
   return {
     success: true,

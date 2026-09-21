@@ -253,3 +253,110 @@ return {
 - [`src/bees/beePayloads.js`](file:///d:/bearcafe-bot/src/bees/beePayloads.js)
 - [`src/main/bees/beePayloads.js`](file:///d:/bearcafe-bot/src/main/bees/beePayloads.js)
 - [`src/bees/index.js`](file:///d:/bearcafe-bot/src/bees/index.js)
+
+---
+
+### 9. Supabase JS PostgrestBuilder Thenable Traps (`TypeError: .catch is not a function`)
+**Date:** 2026-09-21  
+**Domain:** Supabase / JavaScript / Node.js  
+**Description of Issue:**  
+เมื่อเรียกคำสั่ง Supabase Query เช่น `supabase.from(...).insert(...).catch(() => {})` ตัว Node.js จะแครชด้วย Error:
+`TypeError: supabase.from(...).insert(...).catch is not a function`
+
+**Root Cause:**  
+`PostgrestBuilder` ในไลบรารี `@supabase/supabase-js` เป็นออบเจกต์ประเภท **Thenable** ที่ implement ฟังก์ชัน `.then(onfulfilled, onrejected)` แต่ **ไม่มีเมธอด `.catch()` ในตัว** เหมือน Promise มาตรฐาน การต่อ `.catch(...)` โดยตรงจึงทำให้เกิด TypeError ทันที
+
+**Resolution & Standard Implementation:**  
+1. **กรณี Fire-and-forget (ไม่ต้องรอผลลัพธ์ แต่ต้องการดัก error ไม่ให้ unhandled):**
+   ให้ใช้ `.then(null, (err) => ...)` แทน `.catch(...)`
+   ```javascript
+   // ❌ ผิด:
+   supabase.from("analytics").insert(data).catch(() => {});
+
+   // ✅ ถูกต้อง:
+   supabase.from("analytics").insert(data).then(null, (err) => {
+     console.error("Insert failed:", err?.message);
+   });
+   ```
+2. **กรณีทั่วไป (Async/Await):**
+   ให้ใช้ `try / catch` หรืออ่าน `{ data, error }` ตามแบบแผนมาตรฐานของ Supabase:
+   ```javascript
+   const { data, error } = await supabase.from("analytics").insert(data);
+   if (error) console.error("Insert error:", error.message);
+   ```
+
+**Related Files:**  
+- [`src/features/dailyQuest/index.js`](file:///d:/bearcafe-bot/src/features/dailyQuest/index.js)
+- [`src/features/dailyQuest/questEngine.js`](file:///d:/bearcafe-bot/src/features/dailyQuest/questEngine.js)
+- [`src/main/features/dailyQuest/index.js`](file:///d:/bearcafe-bot/src/main/features/dailyQuest/index.js)
+
+---
+
+### 10. Dual-Directory Directory Depth & Safe Root Imports
+**Date:** 2026-09-21  
+**Domain:** Architecture / Clean Code / Node.js Module Resolution  
+**Description of Issue:**  
+การ Mirror โค้ดระหว่าง `src/features/<feature>/` และ `src/main/features/<feature>/` เกิดข้อผิดพลาด `Error: Cannot find module` เมื่อเรียกใช้โมดูลส่วนกลาง เช่น `utils/discordSafety.js`
+
+**Root Cause:**  
+ความลึกของโฟลเดอร์ (Directory Depth) ในโครงสร้างทั้งสองฝั่งไม่เท่ากัน:
+- `src/features/<feature>/index.js` อยู่ลึก 3 ระดับจาก Root (`../../../utils/discordSafety`)
+- `src/main/features/<feature>/index.js` อยู่ลึก 4 ระดับจาก Root (`../../../../utils/discordSafety`)
+
+**Resolution & Standard Implementation:**  
+1. เมื่อเขียน Relative Path ต้องตรวจสอบระดับความลึกให้ตรงกับตำแหน่งโฟลเดอร์จริง
+2. หรือใช้แนวทาง **Universal Root Path** โดยใช้ `path.join(process.cwd(), ...)` ซึ่งปลอดภัย 100% ไม่ว่าจะรันจากระดับโฟลเดอร์ใด:
+   ```javascript
+   const path = require("path");
+   const { safeRespond, safeDeferReply } = require(path.join(process.cwd(), "utils/discordSafety"));
+   ```
+
+**Related Files:**  
+- [`src/features/dailyQuest/index.js`](file:///d:/bearcafe-bot/src/features/dailyQuest/index.js)
+- [`src/main/features/dailyQuest/index.js`](file:///d:/bearcafe-bot/src/main/features/dailyQuest/index.js)
+- [`src/main/commands/moveMembers.js`](file:///d:/bearcafe-bot/src/main/commands/moveMembers.js)
+
+---
+
+### 11. Discord Anti-Spam & Quarantine-Safe Voice Operations
+**Date:** 2026-09-21  
+**Domain:** Discord API / Voice Operations / Rate Limits  
+**Description of Issue:**  
+การย้ายสมาชิกห้องเสียงจำนวนมากพร้อมกัน (Bulk Move) เสี่ยงต่อการโดน Discord Rate Limit (HTTP 429) หรือถูกระบบตรวจจับสแปมอัตโนมัติระงับสิทธิ์ชั่วคราว (Quarantine / Error Code 20026)
+
+**Resolution & Standard Implementation:**  
+1. **ย้ายทีละคนแบบ Sequential:** ห้ามใช้ `Promise.all()` สำหรับการย้ายสมาชิกจำนวนมากเด็ดขาด
+2. **Safe Delay Interval:** เว้นระยะหน่วงเวลาปลอดภัยอย่างน้อย **1.0 - 1.2 วินาทีต่อคน** (`await sleep(1200)`)
+3. **Rate Limit Backoff:** ดักจับข้อผิดพลาด `err.status === 429 || err.retry_after` และสั่ง `sleep(retryAfterMs)` อัตโนมัติก่อนลองใหม่
+4. **Live Progress Reporting:** ทำงานแบบ Ephemeral และอัปเดตข้อความรายงานเปอร์เซ็นต์ความคืบหน้าให้ผู้สั่งการทราบอย่างสม่ำเสมอ
+
+**Related Files:**  
+- [`src/commands/moveMembers.js`](file:///d:/bearcafe-bot/src/commands/moveMembers.js)
+- [`src/main/commands/moveMembers.js`](file:///d:/bearcafe-bot/src/main/commands/moveMembers.js)
+
+---
+
+### 12. Discord Components V2 Text Markdown vs Channel Mentions
+**Date:** 2026-09-21  
+**Domain:** Discord UI / Components V2 / Markdown  
+**Description of Issue:**  
+เมื่อระบุแท็กห้อง `<#channel_id>` ภายใน Code Block (`` ``` ``) ของ Discord Component V2 (`type: 10`) ตัว Discord จะแสดงเป็นข้อความธรรมดา ไม่แปลงเป็นปุ่มลิงก์ห้อง `#ชื่อห้อง` ที่กดคลิกได้
+
+**Root Cause:**  
+Code Block ใน Markdown ของ Discord ถูกออกแบบมาเพื่อปิดกั้นการทำงานของ Mention Parser
+
+**Resolution & Standard Implementation:**  
+เปลี่ยนจากการครอบด้วย Code Block (`` ``` ``) มาใช้ **Blockquote (`> `)** หรือตัวหนา (`**`) แทน:
+```javascript
+// ❌ ผิด (Discord ไม่แปลง Mention):
+content: `### ${title}\n\`\`\`ทำเควสที่ <#1524124012492619847>\`\`\``
+
+// ✅ ถูกต้อง (Discord แปลงเป็นปุ่ม #ชื่อห้อง ทันที):
+content: `### ${title}\n> ทำเควสที่ <#1524124012492619847>`
+```
+
+**Related Files:**  
+- [`src/features/dailyQuest/questPayloads.js`](file:///d:/bearcafe-bot/src/features/dailyQuest/questPayloads.js)
+- [`src/main/features/dailyQuest/questPayloads.js`](file:///d:/bearcafe-bot/src/main/features/dailyQuest/questPayloads.js)
+- [`supabase/functions/send-daily-quest-announcement/index.ts`](file:///d:/bear-cafe-web/supabase/functions/send-daily-quest-announcement/index.ts)
+

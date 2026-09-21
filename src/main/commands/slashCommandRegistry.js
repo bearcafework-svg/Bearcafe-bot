@@ -413,6 +413,57 @@ const GUILD_SLASH_COMMANDS = [
       },
     ],
   },
+
+  // 22. /ภารกิจประจำวัน (Daily Quest)
+  {
+    name: "ภารกิจประจำวัน",
+    description: "ดูภารกิจประจำวันและตรวจสอบความคืบหน้าของตนเอง",
+    options: [],
+  },
+
+  // 23. /อนุมัติเควส (Approve Daily Quest - Staff Only)
+  {
+    name: "อนุมัติเควส",
+    description: "อนุมัติเควสถ่ายรูป (IRL) ให้กับสมาชิกและมอบแต้มรางวัล (เฉพาะทีมงาน)",
+    options: [
+      {
+        name: "user",
+        description: "เลือกสมาชิกที่ต้องการอนุมัติเควสให้",
+        type: ApplicationCommandOptionType.User,
+        required: true,
+      },
+      {
+        name: "quest",
+        description: "เลือกเควสถ่ายรูป IRL ประจำวัน",
+        type: ApplicationCommandOptionType.String,
+        required: true,
+        autocomplete: true,
+      },
+    ],
+  },
+
+  // 24. /ย้ายคน (Move Voice Members - Owner Only)
+  {
+    name: "ย้ายคน",
+    description: "ย้ายสมาชิกทุกคนจากห้องเสียงหนึ่งไปยังอีกห้องหนึ่ง (เฉพาะ Owner)",
+    defaultMemberPermissions: PermissionFlagsBits.Administrator,
+    options: [
+      {
+        name: "ห้องต้นทาง",
+        description: "เลือกห้องเสียงต้นทางที่จะย้ายสมาชิกออกมา",
+        type: ApplicationCommandOptionType.Channel,
+        channelTypes: [ChannelType.GuildVoice, ChannelType.GuildStageVoice],
+        required: true,
+      },
+      {
+        name: "ห้องปลายทาง",
+        description: "เลือกห้องเสียงปลายทางที่จะย้ายสมาชิกเข้าไป",
+        type: ApplicationCommandOptionType.Channel,
+        channelTypes: [ChannelType.GuildVoice, ChannelType.GuildStageVoice],
+        required: true,
+      },
+    ],
+  },
 ];
 
 /**

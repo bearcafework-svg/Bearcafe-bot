@@ -97,45 +97,19 @@ function setupQuestTriggers(client, supabase) {
   });
 
   // ─── 3. ดักจับการใช้งาน Voice Channel (Voice Duration & Join) ───────
-  const activeVoiceUsers = new Map(); // userId -> { channelId, joinedAt }
 
-  // 3.1 ตรวจจับเมื่อผู้ใช้เข้า/ออก/ย้ายห้องเสียง
+  // 3.1 ตรวจจับเมื่อผู้ใช้เข้าห้องเสียงใหม่ (voice_join)
   client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
     try {
       const member = newState.member || oldState.member;
       if (!member || member.user?.bot) return;
 
-      const userId = member.user.id;
       const isJoined = !oldState.channelId && Boolean(newState.channelId);
-      const isLeft = Boolean(oldState.channelId) && !newState.channelId;
-      const isMoved =
-        Boolean(oldState.channelId) &&
-        Boolean(newState.channelId) &&
-        oldState.channelId !== newState.channelId;
-
-      // เมื่อเข้าห้องเสียงใหม่
       if (isJoined) {
-        activeVoiceUsers.set(userId, {
-          channelId: newState.channelId,
-          joinedAt: Date.now()
-        });
-
         // ทริกเกอร์เควสแวะห้องเสียง (voice_join)
         await processTriggerEvent(client, supabase, member.user, "voice_join", {
           channelId: newState.channelId
         });
-      }
-
-      // เมื่อย้ายห้องหรือออกจากห้องเสียง
-      if (isLeft || isMoved) {
-        activeVoiceUsers.delete(userId);
-
-        if (isMoved) {
-          activeVoiceUsers.set(userId, {
-            channelId: newState.channelId,
-            joinedAt: Date.now()
-          });
-        }
       }
     } catch (err) {
       console.error("[dailyQuest] VoiceStateUpdate trigger error:", err.message);
@@ -143,39 +117,46 @@ function setupQuestTriggers(client, supabase) {
   });
 
   // 3.2 Loop ตรวจและสะสมเวลานาทีเสียงทุก ๆ 1 นาที (Minute Tick)
-  // ช่วยให้สมาชิกเห็นเวลาอัปเดตแบบเรียลไทม์โดยไม่ต้องออกจากห้องเสียงก่อน
+  // ตรวจจับจาก guild.voiceStates.cache โดยตรง เพื่อให้รองรับสมาชิกที่อยู่ในห้องเสียงอยู่แล้วก่อนบอทเริ่มทำงาน
   setInterval(async () => {
     try {
-      for (const [userId, session] of activeVoiceUsers.entries()) {
-        const guild = client.guilds.cache.first();
-        if (!guild) continue;
+      if (!client.isReady()) return;
 
-        const vs = guild.voiceStates.cache.get(userId);
-        if (!vs || !vs.channelId) {
-          activeVoiceUsers.delete(userId);
-          continue;
+      for (const guild of client.guilds.cache.values()) {
+        // ข้ามเซิร์ฟเวอร์ฮิลใจ
+        if (guild.id === "1536199707922141254") continue;
+
+        for (const [userId, vs] of guild.voiceStates.cache) {
+          if (!vs.channelId || vs.member?.user?.bot) continue;
+
+          // ข้ามห้อง AFK หรือ Category ที่ยกเว้น
+          const channel = vs.channel || guild.channels.cache.get(vs.channelId);
+          const parentId = channel?.parentId || null;
+          if (
+            vs.channelId === AFK_CATEGORY_OR_CHANNEL_ID ||
+            parentId === AFK_CATEGORY_OR_CHANNEL_ID
+          ) {
+            continue;
+          }
+
+          // ตรวจสอบจำนวนสมาชิกที่ไม่ใช่บอทในห้องเสียงเดียวกัน
+          const memberCount = guild.voiceStates.cache.filter(
+            (otherVs) => otherVs.channelId === vs.channelId && !otherVs.member?.user?.bot
+          ).size;
+
+          const user = vs.member?.user || (await client.users.fetch(userId).catch(() => null));
+          if (!user) continue;
+
+          // บันทึกสะสม 1 นาที
+          await processTriggerEvent(client, supabase, user, "voice_duration", {
+            channelId: vs.channelId,
+            memberCount,
+            amount: 1
+          });
         }
-
-        // ข้ามห้อง AFK หรือ Category ที่ยกเว้น
-        if (vs.channelId === AFK_CATEGORY_OR_CHANNEL_ID || vs.channel?.parentId === AFK_CATEGORY_OR_CHANNEL_ID) {
-          continue;
-        }
-
-        // ตรวจสอบจำนวนสมาชิกในห้องเสียง
-        const memberCount = vs.channel.members.filter((m) => !m.user?.bot).size;
-
-        const user = vs.member?.user || (await client.users.fetch(userId).catch(() => null));
-        if (!user) continue;
-
-        // บันทึกสะสม 1 นาที
-        await processTriggerEvent(client, supabase, user, "voice_duration", {
-          channelId: vs.channelId,
-          memberCount,
-          amount: 1
-        });
       }
     } catch (err) {
-      console.error("[dailyQuest] Voice minute ticker error:", err.message);
+      console.error("[dailyQuest] Voice minute ticker error:", err);
     }
   }, 60 * 1000);
 }

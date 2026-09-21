@@ -194,7 +194,11 @@ async function getUserDailyProgress(supabase, userId, targetDate = getBangkokTod
     const map = {};
     if (Array.isArray(progressList)) {
       for (const row of progressList) {
-        map[row.quest_id] = row;
+        map[row.quest_id] = {
+          ...row,
+          current_progress: Number(row.current_progress || 0),
+          target_count: Number(row.target_count || 1)
+        };
       }
     }
     return map;
@@ -404,15 +408,21 @@ async function processTriggerEvent(client, supabase, user, triggerType, eventCon
     }
 
     // คำนวณความคืบหน้าใหม่
-    const delta = eventContext.amount || 1;
-    const currentProgress = (progressMap[quest.id]?.current_progress || 0) + delta;
-    const target = quest.target_count || 1;
+    const delta = Number(eventContext.amount) || 1;
+    const currentProgress = Number(progressMap[quest.id]?.current_progress || 0) + delta;
+    const target = Number(quest.target_count || 1);
 
     if (currentProgress >= target) {
       // ผ่านเควส!
+      console.log(
+        `[dailyQuest] Quest completed: user=${user.tag || user.id} quest="${quest.title}" (${quest.code}) target=${target}`
+      );
       await completeQuest(client, supabase, user, quest, today, quests);
     } else {
       // บันทึกความคืบหน้าที่เพิ่มขึ้น
+      console.log(
+        `[dailyQuest] Progress updated: user=${user.tag || user.id} quest="${quest.title}" (${quest.code}) progress=${currentProgress}/${target}`
+      );
       await supabase
         .from("daily_quest_progress")
         .upsert(

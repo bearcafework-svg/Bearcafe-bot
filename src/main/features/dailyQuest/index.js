@@ -23,7 +23,7 @@ const { setupQuestScheduler } = require("./questScheduler");
 const {
   safeRespond,
   safeDeferReply
-} = require("../../utils/discordSafety");
+} = require("../../../../utils/discordSafety");
 
 /**
  * ตรวจสอบว่าผู้ใช้มีสิทธิ์ระดับ Staff หรือไม่

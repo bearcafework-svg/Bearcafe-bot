@@ -98,6 +98,9 @@ async function setRoomEmpty(channelId, emptyAt) {
   if (!room) return;
 
   room.emptyAt = emptyAt;
+  if (emptyAt && room.zoneId === "vip") {
+    room.needsOwnerPanel = true;
+  }
   roomsCache[channelId] = room;
   try {
     const r = getRedis();

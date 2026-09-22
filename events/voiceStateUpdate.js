@@ -5,9 +5,10 @@
 const { resolveZoneFromLobby } = require("../utils/zoneResolver");
 const { createRoom } = require("../handlers/roomCreator");
 const { markRoomActive, destroyRoom, clearVipRoomCountdown } = require("../handlers/roomDestroyer");
-const { getAllRooms, deleteRoom } = require("../state/redisClient");
+const { getAllRooms, deleteRoom, updateRoom } = require("../state/redisClient");
 const { sendRoomLog } = require("../utils/roomLogger");
 const { sendRentHousePanel, isRentHouseOwner, RENT_HOUSE_CATEGORY_ID } = require("../handlers/rentHousePanel");
+const { resendVipRoomPanel } = require("../handlers/roomPanel");
 const { logVoiceEvent } = require("../utils/voiceLogger");
 
 module.exports = {
@@ -60,15 +61,35 @@ module.exports = {
       }
 
       // ถ้าเข้าห้องที่บอทสร้าง → mark ว่ามีคนอยู่ (ยกเลิกนับถอยหลังลบ)
-      if (rooms[joinedChannel]) {
+      const targetRoom = rooms[joinedChannel];
+      const joinedCh = guild.channels.cache.get(joinedChannel)
+        || (guild.channels.fetch ? await guild.channels.fetch(joinedChannel).catch(() => null) : null);
+
+      if (targetRoom) {
         await markRoomActive(joinedChannel);
-        if (rooms[joinedChannel].zoneId === "vip") {
-          await clearVipRoomCountdown(guild, joinedChannel);
+
+        if (targetRoom.zoneId === "vip") {
+          const wasCountingDown = Boolean(targetRoom.emptyAt);
+          const needsPanel = Boolean(targetRoom.needsOwnerPanel || wasCountingDown);
+          const isOwner = targetRoom.ownerId === member.id;
+
+          if (wasCountingDown) {
+            await clearVipRoomCountdown(guild, joinedChannel);
+          }
+
+          if (isOwner) {
+            if (needsPanel && joinedCh) {
+              console.log(`👑 [VIP] เจ้าของห้อง "${member.user.tag}" เข้าห้อง VIP (${joinedCh.name}) — ส่งแผงควบคุมใหม่อัตโนมัติ`);
+              await resendVipRoomPanel(joinedCh, member, targetRoom).catch(console.error);
+            }
+          } else if (wasCountingDown) {
+            // สมาชิกที่ไม่ใช่เจ้าของเข้ามาก่อน -> เคลียร์เวลานับถอยหลังแล้ว แต่คง flag needsOwnerPanel ไว้เพื่อส่งให้เจ้าของเมื่อเข้ามา
+            await updateRoom(joinedChannel, { needsOwnerPanel: true });
+          }
         }
       }
 
       // ── 1.1 เจ้าของห้องบ้านเช่า เข้าห้องบ้านเช่าของตัวเอง → ส่งแผงควบคุม Rent House Panel ทันที ──
-      const joinedCh = guild.channels.cache.get(joinedChannel);
       if (joinedCh) {
         if (joinedCh.parentId === RENT_HOUSE_CATEGORY_ID) {
           const isOwner = await isRentHouseOwner(joinedCh, member.id);

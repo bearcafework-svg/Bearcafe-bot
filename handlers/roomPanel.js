@@ -267,6 +267,64 @@ async function sendRoomPanel(channel, ownerMember, room) {
   }
 }
 
+/**
+ * ค้นหาและลบเฉพาะข้อความแผงควบคุม (Panel) เดิมของบอทในช่องเสียง
+ * โดยไม่ลบข้อความแชทอื่นของสมาชิกในห้อง
+ */
+async function deleteExistingRoomPanels(channel) {
+  if (!channel || !channel.messages?.fetch) return 0;
+
+  try {
+    const messages = await channel.messages.fetch({ limit: 20 }).catch(() => null);
+    if (!messages || messages.size === 0) return 0;
+
+    const botId = channel.client?.user?.id;
+    const msgArray = Array.from(messages.values ? messages.values() : (Array.isArray(messages) ? messages : []));
+    const panelMessages = msgArray.filter((m) => {
+      if (m.author?.id !== botId) return false;
+      const isComponentV2 = Boolean(m.flags?.has ? m.flags.has(32768) : (m.flags?.bitfield === 32768));
+      const hasPanelComponent = m.components?.some((row) =>
+        row.components?.some((c) =>
+          c.customId === CUSTOM_IDS.panelSelect ||
+          c.customId?.startsWith("p_") ||
+          c.customId?.startsWith("vip_") ||
+          c.customId?.startsWith("room_panel_")
+        )
+      );
+      return isComponentV2 || hasPanelComponent;
+    });
+
+    let deletedCount = 0;
+    for (const msg of panelMessages) {
+      await msg.delete().catch(() => {});
+      deletedCount++;
+    }
+    return deletedCount;
+  } catch (err) {
+    console.warn(`[roomPanel] deleteExistingRoomPanels failed in ${channel.id}:`, err.message);
+    return 0;
+  }
+}
+
+/**
+ * ลบแผงควบคุมเดิมและส่งแผงควบคุม VIP ใหม่ พร้อมเคลียร์ flag needsOwnerPanel
+ */
+async function resendVipRoomPanel(channel, ownerMember, room) {
+  if (!channel || !ownerMember || !room) return false;
+  if (room.zoneId !== PANEL_ZONE_ID) return false;
+
+  // 1. ลบแผงควบคุมเดิมออกก่อน
+  await deleteExistingRoomPanels(channel);
+
+  // 2. ส่งแผงควบคุมใหม่ลงมาด้านล่างสุด
+  await sendRoomPanel(channel, ownerMember, room);
+
+  // 3. เคลียร์ flag needsOwnerPanel ใน Redis
+  await updateRoom(channel.id, { needsOwnerPanel: false });
+  console.log(`✨ [VIP] ส่งแผงควบคุมใหม่ให้เจ้าของ "${ownerMember.user?.tag || ownerMember.id}" ในห้อง "${channel.name}" สำเร็จ`);
+  return true;
+}
+
 async function buildUpdatedVipPanelPayload(member, room, channel, forcedImageUrl = null) {
   if (!room && channel) {
     room = await getRoom(channel.id);
@@ -1627,4 +1685,6 @@ module.exports = {
   handleRoomPanel,
   handleRoomPanelInteraction,
   sendRoomPanel,
+  resendVipRoomPanel,
+  deleteExistingRoomPanels,
 };

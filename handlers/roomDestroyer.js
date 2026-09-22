@@ -197,9 +197,22 @@ async function checkVipRoomsExpiry(client) {
 
       // ถ้ามีคนเข้าห้อง -> หยุดนับถอยหลังและเคลียร์สถานะ พร้อมย้ายกลับหมวดหมู่ใช้งาน
       if (nonBotCount > 0) {
+        const wasInactive = Boolean(room.emptyAt || channel.parentId !== VIP_ACTIVE_CATEGORY_ID || room.needsOwnerPanel);
         if (room.emptyAt || channel.parentId !== VIP_ACTIVE_CATEGORY_ID) {
           console.log(`👥 มีสมาชิกเข้าห้อง VIP "${channel.name}" — รีเซ็ตและย้ายกลับหมวดหมู่ใช้งาน`);
           await clearVipRoomCountdown(guild, channelId);
+        }
+
+        if (wasInactive) {
+          const isOwnerInside = Boolean(channel.members?.has(room.ownerId));
+          if (isOwnerInside) {
+            const ownerMember = channel.members.get(room.ownerId);
+            const { resendVipRoomPanel } = require("./roomPanel");
+            await resendVipRoomPanel(channel, ownerMember, room).catch(console.error);
+          } else {
+            const { updateRoom } = require("../state/redisClient");
+            await updateRoom(channelId, { needsOwnerPanel: true });
+          }
         }
         continue;
       }

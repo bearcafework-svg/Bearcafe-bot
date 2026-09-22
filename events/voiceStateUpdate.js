@@ -4,7 +4,7 @@
 
 const { resolveZoneFromLobby } = require("../utils/zoneResolver");
 const { createRoom } = require("../handlers/roomCreator");
-const { markRoomActive, destroyRoom, clearVipRoomCountdown } = require("../handlers/roomDestroyer");
+const { markRoomActive, destroyRoom, clearVipRoomCountdown, VIP_INACTIVE_CATEGORY_ID } = require("../handlers/roomDestroyer");
 const { getAllRooms, deleteRoom, updateRoom } = require("../state/redisClient");
 const { sendRoomLog } = require("../utils/roomLogger");
 const { sendRentHousePanel, isRentHouseOwner, RENT_HOUSE_CATEGORY_ID } = require("../handlers/rentHousePanel");
@@ -66,12 +66,13 @@ module.exports = {
         || (guild.channels.fetch ? await guild.channels.fetch(joinedChannel).catch(() => null) : null);
 
       if (targetRoom) {
-        await markRoomActive(joinedChannel);
-
         if (targetRoom.zoneId === "vip") {
-          const wasCountingDown = Boolean(targetRoom.emptyAt);
+          const isInactiveCategory = Boolean(joinedCh && joinedCh.parentId === VIP_INACTIVE_CATEGORY_ID);
+          const wasCountingDown = Boolean(targetRoom.emptyAt || isInactiveCategory);
           const needsPanel = Boolean(targetRoom.needsOwnerPanel || wasCountingDown);
           const isOwner = targetRoom.ownerId === member.id;
+
+          await markRoomActive(joinedChannel);
 
           if (wasCountingDown) {
             await clearVipRoomCountdown(guild, joinedChannel);
@@ -86,6 +87,8 @@ module.exports = {
             // สมาชิกที่ไม่ใช่เจ้าของเข้ามาก่อน -> เคลียร์เวลานับถอยหลังแล้ว แต่คง flag needsOwnerPanel ไว้เพื่อส่งให้เจ้าของเมื่อเข้ามา
             await updateRoom(joinedChannel, { needsOwnerPanel: true });
           }
+        } else {
+          await markRoomActive(joinedChannel);
         }
       }
 

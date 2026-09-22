@@ -3,9 +3,10 @@
 
 const { Events, PermissionFlagsBits } = require("discord.js");
 const { createClient } = require("@supabase/supabase-js");
+const sharedSettings = require("../../sharedSettings.json");
 const {
   CUSTOM_ID_PROGRESS,
-  TEST_ONLY_DISCORD_ID
+  APPROVE_ROLE_ID
 } = require("./questConstants");
 const {
   getBangkokTodayDate,
@@ -23,7 +24,7 @@ const { setupQuestScheduler } = require("./questScheduler");
 const {
   safeRespond,
   safeDeferReply
-} = require("../../../../utils/discordSafety");
+} = require("../../../utils/discordSafety");
 
 /**
  * ตรวจสอบว่าผู้ใช้มีสิทธิ์ระดับ Staff หรือไม่
@@ -40,6 +41,29 @@ function checkIsStaff(interaction) {
     interaction.guild?.ownerId === interaction.user?.id ||
     interaction.user?.id === process.env.OWNER_ID
   );
+}
+
+/**
+ * ตรวจสอบว่าผู้ใช้มีสิทธิ์ใช้คำสั่ง /อนุมัติเควส หรือไม่
+ * (แอดมิน, เจ้าของเซิร์ฟเวอร์, Staff roles, หรือ Role 1205512963058962482)
+ * @param {import('discord.js').Interaction} interaction
+ * @returns {boolean}
+ */
+function checkCanApproveQuest(interaction) {
+  const memberRoles = interaction.member?.roles;
+  const hasRole = (roleId) =>
+    Array.isArray(memberRoles) ? memberRoles.includes(roleId) : Boolean(memberRoles?.cache?.has?.(roleId));
+
+  if (hasRole(APPROVE_ROLE_ID) || hasRole("1205512963058962482")) {
+    return true;
+  }
+
+  const staffRoles = sharedSettings.staff_roles || [];
+  if (staffRoles.some(hasRole)) {
+    return true;
+  }
+
+  return checkIsStaff(interaction);
 }
 
 /**
@@ -66,8 +90,28 @@ function setupDailyQuest(client, supabaseClient) {
   client.on(Events.InteractionCreate, async (interaction) => {
     try {
       // ── 3.1 ปุ่ม "︲ดูความคืบหน้า" (daily_quest_progress) ──
-      if (interaction.isButton() && interaction.customId === CUSTOM_ID_PROGRESS) {
+      const isProgressBtn =
+        interaction.isButton() &&
+        (interaction.customId === CUSTOM_ID_PROGRESS ||
+          interaction.customId === "daily_quest_progress" ||
+          interaction.customId.startsWith("p_349546966612447233"));
+
+      if (isProgressBtn) {
         const userId = interaction.user.id;
+        const memberRoles = interaction.member?.roles;
+        const hasRole = (roleId) =>
+          Array.isArray(memberRoles) ? memberRoles.includes(roleId) : Boolean(memberRoles?.cache?.has?.(roleId));
+
+        // ตรวจสอบ Blacklist จาก sharedSettings.json
+        const blacklistRoles = sharedSettings.role_blacklist || [];
+        const isBlacklisted = blacklistRoles.some(hasRole);
+        if (isBlacklisted) {
+          return safeRespond(interaction, {
+            content: "⚠️ ขออภัยค่ะ คุณอยู่ในกลุ่มที่ไม่สามารถใช้งานระบบเควสได้",
+            flags: 64
+          });
+        }
+
         const today = getBangkokTodayDate();
 
         // บันทึกสถิติการคลิกปุ่มดู Progress (Fire and forget)
@@ -80,10 +124,6 @@ function setupDailyQuest(client, supabaseClient) {
           })
           .then(null, () => {});
 
-        // ตรวจสอบ Whitelist ในช่วง Beta Testing
-        if (TEST_ONLY_DISCORD_ID && userId !== TEST_ONLY_DISCORD_ID) {
-          return safeRespond(interaction, buildBetaNoticePayload());
-        }
 
         const { quests } = await getOrInitDailyQuestSet(supabase, today);
         const progressMap = await getUserDailyProgress(supabase, userId, today);
@@ -101,9 +141,9 @@ function setupDailyQuest(client, supabaseClient) {
       }
 
 
-      // ── 3.3 คำสั่ง Slash Command: /อนุมัติเควส (Staff Only) ──
+      // ── 3.3 คำสั่ง Slash Command: /อนุมัติเควส (Staff Only / Role 1205512963058962482) ──
       if (interaction.isChatInputCommand() && interaction.commandName === "อนุมัติเควส") {
-        if (!checkIsStaff(interaction)) {
+        if (!checkCanApproveQuest(interaction)) {
           return safeRespond(interaction, {
             content: "⚠️ คำสั่งนี้สงวนสิทธิ์สำหรับ Staff ผู้ดูแลระบบเท่านั้นค่ะ",
             flags: 64
@@ -128,6 +168,10 @@ function setupDailyQuest(client, supabaseClient) {
 
       // ── 3.4 Autocomplete สำหรับคำสั่ง /อนุมัติเควส (แสดงเฉพาะเควส IRL ของวันนี้) ──
       if (interaction.isAutocomplete() && interaction.commandName === "อนุมัติเควส") {
+        if (!checkCanApproveQuest(interaction)) {
+          return interaction.respond([]).catch(() => {});
+        }
+
         const focused = interaction.options.getFocused(true);
         if (focused.name === "quest") {
           const today = getBangkokTodayDate();

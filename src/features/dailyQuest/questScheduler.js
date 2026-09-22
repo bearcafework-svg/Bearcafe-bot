@@ -1,13 +1,13 @@
 // src/features/dailyQuest/questScheduler.js
 // ระบบตั้งเวลา Reset 00:00 น. และประกาศเควสประจำวัน 08:00 น. (Asia/Bangkok)
 
-const { ANNOUNCE_CHANNEL_ID } = require("./questConstants");
+const { ANNOUNCE_CHANNEL_ID, ANNOUNCE_PING_ROLE_ID } = require("./questConstants");
 const {
   getBangkokTodayDate,
   getNextMidnightTimestamp,
   getOrInitDailyQuestSet
 } = require("./questEngine");
-const { buildDailyQuestAnnouncementPayload } = require("./questPayloads");
+const { buildDailyQuestAnnouncementPayload, formatThaiDate } = require("./questPayloads");
 
 /**
  * คำนวณจำนวนมิลลิวินาทีจนถึงเวลาเป้าหมายถัดไปตามเวลาไทย (Asia/Bangkok)
@@ -55,6 +55,12 @@ async function postDailyAnnouncement(client, supabase, targetDate = getBangkokTo
       return;
     }
 
+    // 1. ส่งข้อความแจ้งเตือนและแท็กบทบาทก่อน
+    const thaiDate = formatThaiDate(targetDate);
+    const mentionMsg = `<a:3602exclamationmarkbubble:1372837492205555812> เควสประจำวัน ${thaiDate} มาแล้ว! <@&${ANNOUNCE_PING_ROLE_ID}>`;
+    await channel.send({ content: mentionMsg });
+
+    // 2. ส่ง Component V2 Card ตามหลัง
     const nextMidnightTs = getNextMidnightTimestamp();
     const payload = buildDailyQuestAnnouncementPayload(targetDate, quests, nextMidnightTs);
 

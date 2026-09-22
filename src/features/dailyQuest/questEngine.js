@@ -1,11 +1,11 @@
 // src/features/dailyQuest/questEngine.js
 // ตัวประมวลผลหลักของระบบ Daily Quest (จัดการข้อมูล เควสประจำวัน สถิติ และการแจกแต้ม)
 
+const sharedSettings = require("../../sharedSettings.json");
 const {
   ANNOUNCE_CHANNEL_ID,
   NOTIFY_CHANNEL_ID,
-  FULL_COMPLETION_BONUS_POINTS,
-  TEST_ONLY_DISCORD_ID
+  FULL_COMPLETION_BONUS_POINTS
 } = require("./questConstants");
 const {
   buildQuestCompletedNotificationPayload,
@@ -271,7 +271,27 @@ async function checkAndAwardFullBonus(client, supabase, user, targetDate, quests
       (await client.channels.fetch(NOTIFY_CHANNEL_ID).catch(() => null));
 
     if (notifyCh && notifyCh.isTextBased()) {
-      const bonusPayload = buildAllQuestsBonusNotificationPayload(user, FULL_COMPLETION_BONUS_POINTS);
+      let healingMsg = "วันนี้เก่งมากแล้ว พักผ่อนเยอะๆ นะคะ 🐻✨";
+      try {
+        const { data } = await supabase
+          .from("healing_messages")
+          .select("message")
+          .eq("status", "approved");
+        if (data && data.length > 0) {
+          const randItem = data[Math.floor(Math.random() * data.length)];
+          if (randItem?.message) {
+            healingMsg = randItem.message;
+          }
+        }
+      } catch (err) {
+        console.warn("[dailyQuest] Failed to fetch random healing message:", err.message);
+      }
+
+      const bonusPayload = buildAllQuestsBonusNotificationPayload(
+        user,
+        FULL_COMPLETION_BONUS_POINTS,
+        healingMsg
+      );
       await notifyCh.send(bonusPayload).catch((err) => {
         console.error("[dailyQuest] Failed to send bonus notification:", err.message);
       });
@@ -370,9 +390,14 @@ async function completeQuest(client, supabase, user, quest, targetDate, dailyQue
  * @param {object} eventContext { keywords, channelId, count, ... }
  */
 async function processTriggerEvent(client, supabase, user, triggerType, eventContext = {}) {
-  // กรอง Whitelist ในช่วงทดสอบระบบ Beta
-  if (TEST_ONLY_DISCORD_ID && user.id !== TEST_ONLY_DISCORD_ID) {
-    return;
+  // ตรวจสอบ Blacklist จาก sharedSettings.json
+  const blacklistRoles = sharedSettings.role_blacklist || [];
+  if (eventContext.member) {
+    const memberRoles = eventContext.member.roles;
+    const isBlacklisted = blacklistRoles.some((roleId) =>
+      Array.isArray(memberRoles) ? memberRoles.includes(roleId) : Boolean(memberRoles?.cache?.has?.(roleId))
+    );
+    if (isBlacklisted) return;
   }
 
   const today = getBangkokTodayDate();

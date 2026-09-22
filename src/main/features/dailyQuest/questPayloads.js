@@ -3,6 +3,7 @@
 
 const {
   BANNER_IMAGE_URL,
+  SPECIAL_REWARD_ICON_URL,
   POINT_ICON_STR,
   FULL_COMPLETION_BONUS_POINTS,
   PROGRESS_BAR_EMOJIS,
@@ -70,7 +71,11 @@ function buildDailyQuestAnnouncementPayload(questDate, quests, nextResetTs) {
   for (const q of quests) {
     questComponents.push({
       type: 10,
-      content: `### ${q.title} (${POINT_ICON_STR} +${q.reward_points})\n> ${q.description}`
+      content: `## ${q.title}\n- __\`วิธีทำเควส\`__ : ${q.description}\n- __\`รางวัล\`__ : ${POINT_ICON_STR} **+${q.reward_points}**`
+    });
+    questComponents.push({
+      type: 14,
+      spacing: 2
     });
   }
 
@@ -91,51 +96,45 @@ function buildDailyQuestAnnouncementPayload(questDate, quests, nextResetTs) {
             ]
           },
           {
-            type: 14,
-            divider: true,
-            spacing: 1
+            type: 9,
+            components: [
+              {
+                type: 10,
+                content:
+                  `## <:bee20000:1256669436350562355>︲__\` เควสประจำวันที่ ${thaiDate} 𓂃 \`__\n` +
+                  `> (<a:7596clock:1160230591892029510>)⠀รีเซ็ตเควสในอีก: <t:${nextResetTs}:R>`
+              }
+            ],
+            accessory: {
+              style: 3,
+              type: 2,
+              flow: {
+                actions: []
+              },
+              custom_id: CUSTOM_ID_PROGRESS,
+              label: "ดูความคืบหน้าเควส"
+            }
           },
           {
-            type: 10,
-            content:
-              `## <a:60400daisy:1429009311178297388>︲__\` เควสประจำวันที่ ${thaiDate} 𓂃 \`__\n` +
-              `> (<a:3602exclamationmarkbubble:1372837492205555812>)⠀วันนี้มีเควสทั้งหมด **${quests.length} เควส** ยังไงก็สู้ ๆ นะคะ *!*\n` +
-              `> (<a:7596clock:1160230591892029510>)⠀รีเซ็ตเควสในอีก: <t:${nextResetTs}:R>`
-          },
-          {
             type: 14,
-            divider: false,
-            spacing: 1
+            spacing: 1,
+            divider: false
           },
           ...questComponents,
           {
-            type: 14,
-            divider: false
-          },
-          {
-            type: 10,
-            content: `## <:68492gift:1276130500410605609>︲รับโบนัสเมื่อทำเควสครบ / ${POINT_ICON_STR} +${FULL_COMPLETION_BONUS_POINTS}`
-          },
-          {
-            type: 14,
-            spacing: 2
-          },
-          {
-            type: 1,
+            type: 9,
             components: [
               {
-                style: 1,
-                type: 2,
-                label: "︲ดูความคืบหน้า",
-                emoji: {
-                  name: "🗒️"
-                },
-                custom_id: CUSTOM_ID_PROGRESS,
-                flow: {
-                  actions: []
-                }
+                type: 10,
+                content: `# > รับข้อความพิเศษเมื่อทำเควสครบทั้งหมด ${POINT_ICON_STR} +${FULL_COMPLETION_BONUS_POINTS}`
               }
-            ]
+            ],
+            accessory: {
+              type: 11,
+              media: {
+                url: SPECIAL_REWARD_ICON_URL
+              }
+            }
           }
         ]
       }
@@ -178,36 +177,35 @@ function buildDailyQuestProgressPayload(user, questDate, quests, userProgressMap
     let accessoryComponent;
     if (isCompleted) {
       accessoryComponent = {
-        style: 1,
+        style: 2,
         type: 2,
-        emoji: CHECKMARK_EMOJI,
+        flow: { actions: [] },
         custom_id: `daily_quest_done_${idx}`,
         disabled: true,
-        flow: { actions: [] }
+        emoji: CHECKMARK_EMOJI
       };
     } else if (current > 0) {
-      // แสดงข้อความขาดอีกเท่าไหร่
       let labelText = `${current}/${target}`;
       if (q.category === "voice") {
         const leftMins = Math.max(0, target - current);
         labelText = `ขาด ${leftMins} นาที`;
       }
       accessoryComponent = {
-        style: 1,
+        style: 2,
         type: 2,
-        label: labelText,
+        flow: { actions: [] },
         custom_id: `daily_quest_status_${idx}`,
         disabled: true,
-        flow: { actions: [] }
+        label: labelText
       };
     } else {
       accessoryComponent = {
-        style: 1,
+        style: 2,
         type: 2,
-        label: "...",
+        flow: { actions: [] },
         custom_id: `daily_quest_none_${idx}`,
         disabled: true,
-        flow: { actions: [] }
+        label: "รอการทำเควส"
       };
     }
 
@@ -216,31 +214,17 @@ function buildDailyQuestProgressPayload(user, questDate, quests, userProgressMap
       components: [
         {
           type: 10,
-          content: `### ${q.title} (${POINT_ICON_STR} +${q.reward_points})\n# ${barStr}`
+          content: `## ${q.title}\n- __\`ความคืบหน้า\`__ : ${barStr}\n- __\`รางวัล\`__ : ${POINT_ICON_STR} **+${q.reward_points}**`
         }
       ],
       accessory: accessoryComponent
     });
-  }
 
-  const allCompleted = completedCount === quests.length && quests.length > 0;
-  const bonusAccessory = allCompleted
-    ? {
-        style: 1,
-        type: 2,
-        emoji: CHECKMARK_EMOJI,
-        custom_id: "daily_quest_bonus_claimed",
-        disabled: true,
-        flow: { actions: [] }
-      }
-    : {
-        style: 1,
-        type: 2,
-        label: "...",
-        custom_id: "daily_quest_bonus_pending",
-        disabled: true,
-        flow: { actions: [] }
-      };
+    questRows.push({
+      type: 14,
+      spacing: 2
+    });
+  }
 
   return {
     flags: 32768 | 64, // Ephemeral V2
@@ -260,8 +244,8 @@ function buildDailyQuestProgressPayload(user, questDate, quests, userProgressMap
           },
           {
             type: 14,
-            divider: true,
-            spacing: 1
+            spacing: 1,
+            divider: false
           },
           {
             type: 9,
@@ -269,8 +253,7 @@ function buildDailyQuestProgressPayload(user, questDate, quests, userProgressMap
               {
                 type: 10,
                 content:
-                  `## <a:60400daisy:1429009311178297388>︲__\` เควสประจำวันที่ ${thaiDate} 𓂃 \`__\n` +
-                  `> (<a:3602exclamationmarkbubble:1372837492205555812>)⠀วันนี้มีเควสทั้งหมด **${quests.length} เควส** ยังไงก็สู้ ๆ นะคะ *!*\n` +
+                  `## <:bee20000:1256669436350562355>︲__\` เควสประจำวันที่ ${thaiDate} 𓂃 \`__\n` +
                   `> (<a:7596clock:1160230591892029510>)⠀รีเซ็ตเควสในอีก: <t:${nextResetTs}:R>`
               }
             ],
@@ -283,27 +266,37 @@ function buildDailyQuestProgressPayload(user, questDate, quests, userProgressMap
           },
           {
             type: 14,
-            divider: false,
-            spacing: 1
-          },
-          ...questRows,
-          {
-            type: 14,
+            spacing: 1,
             divider: false
           },
+          ...questRows,
           {
             type: 9,
             components: [
               {
                 type: 10,
-                content: `## <:68492gift:1276130500410605609>︲รับโบนัสเมื่อทำเควสครบ / ${POINT_ICON_STR} +${FULL_COMPLETION_BONUS_POINTS}`
+                content: `# > รับข้อความพิเศษเมื่อทำเควสครบทั้งหมด ${POINT_ICON_STR} +${FULL_COMPLETION_BONUS_POINTS}`
               }
             ],
-            accessory: bonusAccessory
+            accessory: {
+              type: 11,
+              media: {
+                url: SPECIAL_REWARD_ICON_URL
+              }
+            }
           },
           {
-            type: 14,
-            spacing: 2
+            type: 1,
+            components: [
+              {
+                style: 2,
+                type: 2,
+                flow: { actions: [] },
+                custom_id: "daily_quest_total_progress",
+                disabled: true,
+                label: `${completedCount}/${quests.length}`
+              }
+            ]
           }
         ]
       }
@@ -393,9 +386,14 @@ function buildQuestCompletedNotificationPayload(user, quest, remainingCount) {
  * สร้างการ์ดแจ้งเตือนพิเศษเมื่อทำครบทั้ง 3 เควสและได้รับโบนัส +50 แต้ม
  * @param {import('discord.js').User} user
  * @param {number} bonusPoints
+ * @param {string} healingMessage ข้อความให้กำลังใจสุ่มจาก healing_messages
  * @returns {object}
  */
-function buildAllQuestsBonusNotificationPayload(user, bonusPoints = FULL_COMPLETION_BONUS_POINTS) {
+function buildAllQuestsBonusNotificationPayload(
+  user,
+  bonusPoints = FULL_COMPLETION_BONUS_POINTS,
+  healingMessage = "วันนี้เก่งมากแล้ว พักผ่อนเยอะๆ นะคะ 🐻✨"
+) {
   const avatarUrl =
     user.displayAvatarURL({ extension: "png", size: 256, forceStatic: true }) ||
     user.defaultAvatarURL;
@@ -412,8 +410,9 @@ function buildAllQuestsBonusNotificationPayload(user, bonusPoints = FULL_COMPLET
               {
                 type: 10,
                 content:
-                  `## 🎉︲__\` 𝖣𝖺𝗂𝗅𝗒 𝖬𝖺𝗌𝗍𝖾𝗋 ₊ พิชิตครบ 3 เควสประจำวัน! 𓂃 \`__\n` +
-                  `- ขอแสดงความยินดีกับ <@${user.id}> ทำเควสประจำวันครบทั้ง 3 ข้อสำเร็จ ได้รับโบนัสพิเศษ ${POINT_ICON_STR} **+${bonusPoints}**`
+                  `## <a:tada_animated:1152137490992484373>︲__\` 𝖣𝖺𝗂𝗅𝗒 𝖬𝖺𝗌𝗍𝖾𝗋 ₊ พิชิตครบ 3 เควสประจำวัน! 𓂃 \`__\n` +
+                  `- ขอแสดงความยินดีกับ <@${user.id}> ทำเควสประจำวันครบทั้ง 3 ข้อสำเร็จ ได้รับโบนัสพิเศษ ${POINT_ICON_STR} **+${bonusPoints}**\n` +
+                  `### \`ถึงเธอ\` : ${healingMessage}`
               }
             ],
             accessory: {
@@ -433,8 +432,8 @@ function buildAllQuestsBonusNotificationPayload(user, bonusPoints = FULL_COMPLET
               {
                 type: 2,
                 style: 5,
-                url: "https://discord.com/channels/1144251788493602848/1524123727724417276",
                 label: "︲เช็กแต้มของคุณ",
+                url: "https://discord.com/channels/1144251788493602848/1524123727724417276",
                 emoji: {
                   id: "1522154708200849449",
                   name: "bagpack_icon",

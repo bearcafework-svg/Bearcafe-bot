@@ -1,6 +1,4 @@
-// src/main/features/healJai/healJaiPayloads.js
-// ตัวสร้าง Component v2 Payloads สำหรับระบบ Bear Cafe ฮีลใจ (Heal Jai System)
-
+const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require("discord.js");
 const templates = require('./discohook_templates.json');
 
 const FLAG_V2 = 32768; // MessageFlags.IsComponentsV2
@@ -279,12 +277,71 @@ function buildPublicReviewShowcasePayload(reviewData) {
   };
 }
 
+/**
+ * 9. สร้าง Modal สำหรับกรอกรีวิวและให้คะแนนความพึงพอใจ
+ * @param {number|string} defaultRating
+ */
+function buildReviewModal(defaultRating = 5) {
+  const modal = new ModalBuilder()
+    .setCustomId("heal_jai_modal_review")
+    .setTitle("🌟 บันทึกความประทับใจ Bear Cafe");
+
+  const ratingInput = new TextInputBuilder()
+    .setCustomId("review_rating")
+    .setLabel("คะแนนความพึงพอใจ (ตัวเลข 1 - 5 ดาว)")
+    .setStyle(TextInputStyle.Short)
+    .setMinLength(1)
+    .setMaxLength(1)
+    .setValue(String(defaultRating || 5))
+    .setPlaceholder("5")
+    .setRequired(true);
+
+  const commentInput = new TextInputBuilder()
+    .setCustomId("review_comment")
+    .setLabel("ความรู้สึก / ข้อความถึงผู้รับฟัง 🐻")
+    .setStyle(TextInputStyle.Paragraph)
+    .setMinLength(2)
+    .setMaxLength(1000)
+    .setPlaceholder("เล่าความประทับใจ หรือข้อความที่อยากบอกบาริสต้า...")
+    .setRequired(true);
+
+  const anonInput = new TextInputBuilder()
+    .setCustomId("review_anonymous")
+    .setLabel("การระบุชื่อ (พิมพ์ 'นิรนาม' หรือ 'แสดงชื่อ')")
+    .setStyle(TextInputStyle.Short)
+    .setMaxLength(20)
+    .setValue("แสดงชื่อ")
+    .setPlaceholder("แสดงชื่อ หรือ นิรนาม")
+    .setRequired(false);
+
+  modal.addComponents(
+    new ActionRowBuilder().addComponents(ratingInput),
+    new ActionRowBuilder().addComponents(commentInput),
+    new ActionRowBuilder().addComponents(anonInput)
+  );
+
+  return modal;
+}
+
 // ── ข้อมูลเมนูเครื่องดื่มและท็อปปิ้งสำหรับระบบ Interactive Selection ──────
+const SERVICE_MODES = {
+  chat: {
+    id: "chat",
+    name: "พิมพ์แชท",
+    emoji: "💬"
+  },
+  voice: {
+    id: "voice",
+    name: "คอลเสียง",
+    emoji: "🎙️"
+  }
+};
+
 const DRINK_OPTIONS = {
   tea_39: {
     id: "tea_39",
-    name: "ชาเขียวอุ่นใจ",
-    label: "ชาเขียวอุ่นใจ — 39 บาท / 15 นาที",
+    name: "ชาเขียวเย็นใจ",
+    label: "ชาเขียวเย็นใจ — 39 บาท",
     price: 39,
     duration: 15,
     tier: "S",
@@ -294,7 +351,7 @@ const DRINK_OPTIONS = {
   cocoa_69: {
     id: "cocoa_69",
     name: "โกโก้พักใจ",
-    label: "โกโก้พักใจ — 69 บาท / 30 นาที",
+    label: "โกโก้พักใจ — 69 บาท",
     price: 69,
     duration: 30,
     tier: "M",
@@ -304,7 +361,7 @@ const DRINK_OPTIONS = {
   coffee_129: {
     id: "coffee_129",
     name: "กาแฟคุยยาว",
-    label: "กาแฟคุยยาว — 129 บาท / 1 ชั่วโมง",
+    label: "กาแฟคุยยาว — 129 บาท",
     price: 129,
     duration: 60,
     tier: "L",
@@ -314,25 +371,40 @@ const DRINK_OPTIONS = {
 };
 
 const TOPPING_OPTIONS = {
-  silent_15: {
-    id: "silent_15",
+  silent_19: {
+    id: "silent_19",
     name: "นั่งเงียบเป็นเพื่อน",
-    label: "นั่งเงียบเป็นเพื่อน — 15 บาท",
-    price: 15,
+    label: "นั่งเงียบเป็นเพื่อน — 19 บาท",
+    price: 19,
     emoji: "🍯",
     description: "ไม่อยากคุยก็ไม่เป็นไร แค่อยากมีใครอยู่ด้วยเงียบ ๆ"
   },
-  specific_30: {
-    id: "specific_30",
-    name: "ระบุตัวผู้รับฟัง",
-    label: "ระบุตัวผู้รับฟัง — 30 บาท",
-    price: 30,
+  specific_39: {
+    id: "specific_39",
+    name: "เลือกคนที่อยากคุยด้วย",
+    label: "เลือกคนที่อยากคุยด้วย — 39 บาท",
+    price: 39,
     emoji: "🍒",
     description: "เลือกผู้รับฟังที่ต้องการได้"
+  },
+  none: {
+    id: "none",
+    name: "ไม่ใส่ท็อปปิ้ง",
+    label: "ไม่ใส่ท็อปปิ้ง",
+    price: 0,
+    emoji: "❌",
+    description: "ไม่ต้องการเพิ่มท็อปปิ้ง"
   }
 };
 
 const MOCK_COUNSELORS = {
+  counselor_ciew: {
+    id: "counselor_ciew",
+    name: "คุณซีบิว",
+    label: "คุณซีบิว — อายุ 20",
+    description: "ใจดี อบอุ่น รับฟังทุกเรื่องได้อย่างสบายใจ",
+    emoji: "🍀"
+  },
   counselor_sugar: {
     id: "counselor_sugar",
     name: "น้องหมีชูการ์ 🐻",
@@ -364,174 +436,514 @@ const MOCK_COUNSELORS = {
 };
 
 /**
- * สร้างการ์ดเลือกเมนูเครื่องดื่มและท็อปปิ้ง (Interactive Component v2)
+ * สร้างการ์ดเลือกเมนูเครื่องดื่มแบบ 3-Step Wizard Component v2
+ * @param {object} params - { step, mode, drinkId, toppingId, counselorId, counselorName, userAvatarUrl, counselorOptions }
  */
-function buildInteractiveMenuPayload({ selectedDrink = null, selectedTopping = null, selectedCounselor = null } = {}) {
-  const drink = selectedDrink ? DRINK_OPTIONS[selectedDrink] : null;
-  const topping = selectedTopping ? TOPPING_OPTIONS[selectedTopping] : null;
-  const counselor = (selectedTopping === "specific_30" && selectedCounselor) ? MOCK_COUNSELORS[selectedCounselor] : null;
+function buildInteractiveOrderPayload({
+  step = 1,
+  mode = null,
+  drinkId = null,
+  toppingId = null,
+  counselorId = null,
+  counselorName = null,
+  userAvatarUrl = "https://cdn.discordapp.com/embed/avatars/0.png",
+  counselorOptions = null
+} = {}) {
+  const avatarUrl = userAvatarUrl || "https://cdn.discordapp.com/embed/avatars/0.png";
+  const modeName = mode === "voice" ? "คอลเสียง" : (mode === "chat" ? "พิมพ์แชท" : null);
+  const drink = drinkId ? DRINK_OPTIONS[drinkId] : null;
 
-  const drinkPrice = drink ? drink.price : 0;
-  const toppingPrice = topping ? topping.price : 0;
-  const totalPrice = drinkPrice + toppingPrice;
-
-  let orderContent = "## 📝︲__` 𝖮𝗋𝖽𝖾𝗋 𝗇𝗈𝗐 ₊ ออเดอร์ตอนนี้ 𓂃 `__\n### คุณสามารถสั่งเมนูได้จากปุ่มข้างล่างนี้ค่ะ !";
-  if (drink) {
-    const lines = [`## 📝︲__\` 𝖮𝗋𝖽𝖾𝗋 𝗇𝗈𝗐 ₊ ออเดอร์ตอนนี้ 𓂃 \`__`, `1. **${drink.label}**`];
-    if (selectedTopping === "specific_30") {
-      if (counselor) {
-        lines.push(`2. **ระบุตัวผู้รับฟัง: ${counselor.name} (+30 บาท)**`);
-      } else {
-        lines.push(`2. **ระบุตัวผู้รับฟัง — 30 บาท** *(โปรดคลิกเลือกผู้รับฟังด้านล่าง)*`);
-      }
-    } else if (topping) {
-      lines.push(`2. **${topping.label}**`);
-    }
-    orderContent = lines.join("\n");
+  // ── STEP 1: คลิกปุ่มเลือกบริการ (1/3) ───────────────────────────
+  if (step === 1 || !mode) {
+    return {
+      content: null,
+      flags: FLAG_V2,
+      components: [
+        {
+          type: 17,
+          components: [
+            {
+              type: 9,
+              components: [
+                {
+                  type: 10,
+                  content: "## 📝︲__` รายละเอียดเครื่องดื่ม `__\n### ..."
+                }
+              ],
+              accessory: {
+                type: 11,
+                media: {
+                  url: avatarUrl
+                }
+              }
+            },
+            {
+              type: 14,
+              divider: true,
+              spacing: 2
+            },
+            {
+              type: 1,
+              components: [
+                {
+                  style: 4,
+                  type: 2,
+                  label: "︲ยกเลิกออเดอร์",
+                  emoji: {
+                    id: "1358584606911369226",
+                    name: "68440x",
+                    animated: false
+                  },
+                  custom_id: "btn_cancel_order"
+                },
+                {
+                  style: 5,
+                  type: 2,
+                  label: "︲คลิกหากพบปัญหา",
+                  emoji: { name: "🚨" },
+                  url: "https://discord.com/channels/1536199707922141254/1536207517120466964"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          type: 17,
+          components: [
+            {
+              type: 10,
+              content: "## <a:hj_kittypaw:1552270687295643709>︲__` คลิกปุ่มเลือกบริการ (1/3) `__"
+            },
+            {
+              type: 14,
+              divider: false,
+              spacing: 1
+            },
+            {
+              type: 12,
+              items: [
+                {
+                  media: {
+                    url: "https://cdn.discordapp.com/attachments/1536267579843280987/1552287096226582528/Serve.png?ex=6ab50f83&is=6ab3be03&hm=e91c601361b5760cea05a881e8e9d4cff1fe3852f60945a671dbc8ee601e1ce8&"
+                  }
+                }
+              ]
+            },
+            {
+              type: 14,
+              divider: false,
+              spacing: 1
+            },
+            {
+              type: 1,
+              components: [
+                {
+                  style: 2,
+                  type: 2,
+                  label: "︲พิมพ์แชท",
+                  emoji: { name: "💬" },
+                  custom_id: "heal_jai_mode_chat"
+                },
+                {
+                  style: 2,
+                  type: 2,
+                  label: "︲คอลเสียง",
+                  emoji: { name: "🎙️" },
+                  custom_id: "heal_jai_mode_voice"
+                }
+              ]
+            },
+            {
+              type: 14,
+              divider: true,
+              spacing: 2
+            }
+          ]
+        }
+      ]
+    };
   }
 
-  const drinkSelectOptions = Object.values(DRINK_OPTIONS).map((d) => ({
-    label: d.label,
-    value: d.id,
-    emoji: { name: d.emoji },
-    description: d.description,
-    default: selectedDrink === d.id
-  }));
-
-  const isDrinkChosen = Boolean(selectedDrink);
-
-  const toppingSelectOptions = Object.values(TOPPING_OPTIONS).map((t) => ({
-    label: t.label,
-    value: t.id,
-    emoji: { name: t.emoji },
-    description: t.description,
-    default: selectedTopping === t.id
-  }));
-
-  const cardComponents = [
-    {
-      type: 10,
-      content: "## <:cupofmatcha:1536694010780065863>︲__` 𝖲𝖾𝗅𝖾𝖼𝗍 your 𝖽𝗋𝗂𝗇𝗄 ₊ สั่งเครื่องดื่ม 𓂃 `__\n-# <:lowwarning:1548772721679278180> **โปรดอ่านก่อนสั่งซื้อ:** ระบบนี้เป็นระบบ **ชำระเงินอัตโนมัติ** เมื่อชำระเงินสำเร็จ ระบบจะดำเนินการ **เรียกคิวและจ่ายงานให้ผู้รับฟังทันที**\n\n-# ดังนั้น ก่อนกดสั่งซื้อเครื่องดื่ม กรุณาตรวจสอบแพ็กเกจและรายละเอียดให้เรียบร้อย และ **ตัดสินใจให้แน่ใจก่อนยืนยันการสั่งซื้อ** เนื่องจากระบบจะเริ่มดำเนินการทันทีหลังชำระเงินค่ะ"
-    },
-    {
-      type: 12,
-      items: [
-        {
-          media: {
-            url: "https://cdn.discordapp.com/attachments/1536267579843280987/1547153668409655357/HealJai_2026_ZEAB1U_._All_Rights_Reserved._4.png?ex=6aab9d23&is=6aaa4ba3&hm=c4a3b94e601bb5dc928c5b85994068f6366c0aa1842c886a298e41f4a0d4a1b9&"
-          }
-        }
-      ]
-    },
-    {
-      type: 10,
-      content: orderContent
-    },
-    {
-      type: 14,
-      spacing: 2
-    },
-    {
-      type: 1,
+  // ── STEP 2: คลิกปุ่มเลือกเครื่องดื่ม (2/3) ───────────────────────────
+  if (step === 2 || !drinkId) {
+    return {
+      content: null,
+      flags: FLAG_V2,
       components: [
         {
-          type: 3,
-          custom_id: "heal_jai_select_drink",
-          placeholder: "🗒️︲คลิกเลือกเครื่องดื่ม",
-          min_values: 1,
-          max_values: 1,
-          disabled: false,
-          options: drinkSelectOptions
-        }
-      ]
-    },
-    {
-      type: 1,
-      components: [
+          type: 17,
+          components: [
+            {
+              type: 9,
+              components: [
+                {
+                  type: 10,
+                  content: `## 📝︲__\` รายละเอียดเครื่องดื่ม \`__\n### 1. ${modeName}`
+                }
+              ],
+              accessory: {
+                type: 11,
+                media: {
+                  url: avatarUrl
+                }
+              }
+            },
+            {
+              type: 14,
+              divider: true,
+              spacing: 2
+            },
+            {
+              type: 1,
+              components: [
+                {
+                  style: 2,
+                  type: 2,
+                  label: "︲สั่งใหม่",
+                  emoji: { name: "🔁" },
+                  custom_id: "heal_jai_reset_order"
+                },
+                {
+                  style: 4,
+                  type: 2,
+                  label: "︲ยกเลิกออเดอร์",
+                  emoji: {
+                    id: "1358584606911369226",
+                    name: "68440x",
+                    animated: false
+                  },
+                  custom_id: "btn_cancel_order"
+                },
+                {
+                  style: 5,
+                  type: 2,
+                  label: "︲คลิกหากพบปัญหา",
+                  emoji: { name: "🚨" },
+                  url: "https://discord.com/channels/1536199707922141254/1536207517120466964"
+                }
+              ]
+            }
+          ]
+        },
         {
-          type: 3,
-          custom_id: "heal_jai_select_topping",
-          placeholder: isDrinkChosen ? "🌱︲คลิกเลือกท็อปปิ้ง" : "คุณต้องเลือกเครื่องดื่มก่อน...",
-          min_values: 1,
-          max_values: 1,
-          disabled: !isDrinkChosen,
-          options: toppingSelectOptions
+          type: 17,
+          components: [
+            {
+              type: 10,
+              content: "## <a:hj_kittypaw:1552270687295643709>︲__` คลิกปุ่มเลือกเครื่องดื่ม (2/3) `__"
+            },
+            {
+              type: 14,
+              divider: false,
+              spacing: 1
+            },
+            {
+              type: 12,
+              items: [
+                {
+                  media: {
+                    url: "https://cdn.discordapp.com/attachments/1536267579843280987/1552268120541106176/HealJai_-_menu.png?ex=6ab4fdd7&is=6ab3ac57&hm=02339333aaf0c451dc6eda1aa1bcf7384ac8d5bcc3fc70107a37ccf0b3de3197&"
+                  }
+                }
+              ]
+            },
+            {
+              type: 14,
+              divider: false,
+              spacing: 1
+            },
+            {
+              type: 1,
+              components: [
+                {
+                  style: 2,
+                  type: 2,
+                  label: "︲ชาเขียวเย็นใจ",
+                  emoji: { name: "🍵" },
+                  custom_id: "heal_jai_drink_tea_39"
+                },
+                {
+                  style: 2,
+                  type: 2,
+                  label: "︲โกโก้พักใจ",
+                  emoji: { name: "🍫" },
+                  custom_id: "heal_jai_drink_cocoa_69"
+                },
+                {
+                  style: 2,
+                  type: 2,
+                  label: "︲กาแฟคุยยาว",
+                  emoji: { name: "☕" },
+                  custom_id: "heal_jai_drink_coffee_129"
+                }
+              ]
+            },
+            {
+              type: 14,
+              divider: true,
+              spacing: 2
+            }
+          ]
         }
       ]
-    }
-  ];
+    };
+  }
 
-  // หากเลือกระบุตัวผู้รับฟัง ให้แสดง Select Menu เลือกผู้รับฟัง (Mock Counselors)
-  if (selectedTopping === "specific_30") {
-    const counselorSelectOptions = Object.values(MOCK_COUNSELORS).map((c) => ({
-      label: c.label,
+  // ── STEP 3b: คลิกเลือกผู้รับฟังจาก Dropdown (3/3) ─────────────────
+  if (step === 3.5 || (toppingId === "specific_39" && !counselorId && step !== 4)) {
+    const defaultCounselorOptions = counselorOptions || Object.values(MOCK_COUNSELORS).map((c) => ({
+      label: c.label || c.name,
       value: c.id,
-      emoji: { name: c.emoji },
-      description: c.description,
-      default: selectedCounselor === c.id
+      emoji: { name: c.emoji || "🍀" }
     }));
 
-    cardComponents.push({
-      type: 1,
+    return {
+      content: null,
+      flags: FLAG_V2,
       components: [
         {
-          type: 3,
-          custom_id: "heal_jai_select_counselor",
-          placeholder: "🎯︲คลิกเลือกผู้รับฟังที่คุณต้องการ",
-          min_values: 1,
-          max_values: 1,
-          disabled: false,
-          options: counselorSelectOptions
+          type: 17,
+          components: [
+            {
+              type: 9,
+              components: [
+                {
+                  type: 10,
+                  content: `## 📝︲__\` รายละเอียดเครื่องดื่ม \`__\n### 1. ${modeName}\n### 2. ${drink.name} — ${drink.price} บาท`
+                }
+              ],
+              accessory: {
+                type: 11,
+                media: {
+                  url: avatarUrl
+                }
+              }
+            },
+            {
+              type: 14,
+              divider: true,
+              spacing: 2
+            },
+            {
+              type: 1,
+              components: [
+                {
+                  style: 2,
+                  type: 2,
+                  label: "︲สั่งใหม่",
+                  emoji: { name: "🔁" },
+                  custom_id: "heal_jai_reset_order"
+                },
+                {
+                  style: 4,
+                  type: 2,
+                  label: "︲ยกเลิกออเดอร์",
+                  emoji: {
+                    id: "1358584606911369226",
+                    name: "68440x",
+                    animated: false
+                  },
+                  custom_id: "btn_cancel_order"
+                },
+                {
+                  style: 5,
+                  type: 2,
+                  label: "︲คลิกหากพบปัญหา",
+                  emoji: { name: "🚨" },
+                  url: "https://discord.com/channels/1536199707922141254/1536207517120466964"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          type: 17,
+          components: [
+            {
+              type: 10,
+              content: "## <a:hj_kittypaw:1552270687295643709>︲__` คลิกปุ่มเลือกท็อปปิ้ง (3/3) `__"
+            },
+            {
+              type: 14,
+              divider: false,
+              spacing: 1
+            },
+            {
+              type: 12,
+              items: [
+                {
+                  media: {
+                    url: "https://cdn.discordapp.com/attachments/1536267579843280987/1552267438459195532/Topping.png?ex=6ab4fd35&is=6ab3abb5&hm=528e11fbb76b50e29dbf57d7482499fd42d8b93aa9b8dfbad2e86afaf7d027fb&"
+                  }
+                }
+              ]
+            },
+            {
+              type: 14,
+              divider: false,
+              spacing: 1
+            },
+            {
+              type: 1,
+              components: [
+                {
+                  type: 3,
+                  custom_id: "heal_jai_select_counselor",
+                  placeholder: "🟢︲คลิกเลือกผู้รับฟัง",
+                  min_values: 1,
+                  max_values: 1,
+                  options: defaultCounselorOptions.slice(0, 25)
+                }
+              ]
+            },
+            {
+              type: 14,
+              divider: true,
+              spacing: 2
+            }
+          ]
         }
       ]
-    });
+    };
   }
 
-  const isSpecificAndNotChosen = (selectedTopping === "specific_30" && !selectedCounselor);
-  const isPayDisabled = !isDrinkChosen || isSpecificAndNotChosen;
-
-  cardComponents.push(
-    {
-      type: 14,
-      divider: false
-    },
-    {
-      type: 1,
+  // ── STEP 3: คลิกปุ่มเลือกท็อปปิ้ง (3/3) ───────────────────────────
+  if (step === 3 || (!toppingId && step !== 4)) {
+    return {
+      content: null,
+      flags: FLAG_V2,
       components: [
         {
-          style: 1,
-          type: 2,
-          label: `ยอดรวม: ${totalPrice} บาท`,
-          custom_id: "heal_jai_total_display",
-          disabled: true
+          type: 17,
+          components: [
+            {
+              type: 9,
+              components: [
+                {
+                  type: 10,
+                  content: `## 📝︲__\` รายละเอียดเครื่องดื่ม \`__\n### 1. ${modeName}\n### 2. ${drink.name} — ${drink.price} บาท`
+                }
+              ],
+              accessory: {
+                type: 11,
+                media: {
+                  url: avatarUrl
+                }
+              }
+            },
+            {
+              type: 14,
+              divider: true,
+              spacing: 2
+            },
+            {
+              type: 1,
+              components: [
+                {
+                  style: 2,
+                  type: 2,
+                  label: "︲สั่งใหม่",
+                  emoji: { name: "🔁" },
+                  custom_id: "heal_jai_reset_order"
+                },
+                {
+                  style: 4,
+                  type: 2,
+                  label: "︲ยกเลิกออเดอร์",
+                  emoji: {
+                    id: "1358584606911369226",
+                    name: "68440x",
+                    animated: false
+                  },
+                  custom_id: "btn_cancel_order"
+                },
+                {
+                  style: 5,
+                  type: 2,
+                  label: "︲คลิกหากพบปัญหา",
+                  emoji: { name: "🚨" },
+                  url: "https://discord.com/channels/1536199707922141254/1536207517120466964"
+                }
+              ]
+            }
+          ]
         },
         {
-          style: 3,
-          type: 2,
-          label: "จ่ายเงิน",
-          custom_id: "heal_jai_btn_pay",
-          disabled: isPayDisabled
-        },
-        {
-          style: 4,
-          type: 2,
-          label: "ยกเลิก",
-          custom_id: "heal_jai_btn_cancel_prompt"
-        },
-        {
-          type: 2,
-          style: 5,
-          url: "https://discord.com/channels/1536199707922141254/1537023263845126205",
-          label: "︲พบปัญหา",
-          emoji: {
-            id: "1548772721679278180",
-            name: "lowwarning",
-            animated: false
-          }
+          type: 17,
+          components: [
+            {
+              type: 10,
+              content: "## <a:hj_kittypaw:1552270687295643709>︲__` คลิกปุ่มเลือกท็อปปิ้ง (3/3) `__\n### <:honey_healjai:1536700545174077491> — นั่งเงียบเป็นเพื่อน (+19 บาท)\n> โหมดนั่งเป็นเพื่อน ไม่เน้นการพูดคุย ไม่ต้องเกร็ง เหมาะกับการนั่งทำงาน อ่านหนังสือ หรือเปิดฟังเสียงพิมพ์งาน/ASMR คลอเบาๆ สไตล์ Co-working\n\n> *(แนะนำสำหรับแพ็กเกจ โกโก้พักใจ และ กาแฟคุยยาว เพื่อความผ่อนคลายอย่างต่อเนื่อง)*\n### <:cherry_healjai:1536700586001694850> — เลือกคนที่อยากคุยด้วย (+39 บาท)\n> เลือกระบุตัวผู้รับฟังที่คุณชื่นชอบหรือสบายใจได้ โดยคุณสามารถเช็กได้ที่ <#1536207447956398171> (ต้องมีสถานะ 🟢 ว่าง ในขณะนั้น)\n\n> หากเลือกคู่กับโหมด \"นั่งเงียบเป็นเพื่อน\" (+58 บาท) ระบบจะเลือกเฉพาะผู้รับฟังที่มีแท็ก <@&1549650189474598984> ให้เท่านั้น"
+            },
+            {
+              type: 14,
+              divider: false,
+              spacing: 1
+            },
+            {
+              type: 12,
+              items: [
+                {
+                  media: {
+                    url: "https://cdn.discordapp.com/attachments/1536267579843280987/1552267438459195532/Topping.png?ex=6ab4fd35&is=6ab3abb5&hm=528e11fbb76b50e29dbf57d7482499fd42d8b93aa9b8dfbad2e86afaf7d027fb&"
+                  }
+                }
+              ]
+            },
+            {
+              type: 14,
+              divider: false,
+              spacing: 1
+            },
+            {
+              type: 1,
+              components: [
+                {
+                  style: 2,
+                  type: 2,
+                  label: "︲นั่งเงียบเป็นเพื่อน",
+                  emoji: { name: "🍯" },
+                  custom_id: "heal_jai_topping_silent"
+                },
+                {
+                  style: 2,
+                  type: 2,
+                  label: "︲เลือกคนที่อยากคุยด้วย",
+                  emoji: { name: "🍒" },
+                  custom_id: "heal_jai_topping_specific"
+                },
+                {
+                  style: 4,
+                  type: 2,
+                  label: "ไม่ใส่ท็อปปิ้ง",
+                  custom_id: "heal_jai_topping_none"
+                }
+              ]
+            },
+            {
+              type: 14,
+              divider: true,
+              spacing: 2
+            }
+          ]
         }
       ]
-    }
-  );
+    };
+  }
+
+  // ── STEP 4: ทวนรายการเครื่องดื่มของท่าน (Summary / Checkout) ────────
+  let toppingLine = "### 3. ไม่ใส่ท็อปปิ้ง";
+  let toppingPrice = 0;
+  if (toppingId === "silent_19") {
+    toppingLine = "### 3. นั่งเงียบเป็นเพื่อน — 19 บาท";
+    toppingPrice = 19;
+  } else if (toppingId === "specific_39") {
+    toppingPrice = 39;
+    const counselorDisplayName = counselorName || (MOCK_COUNSELORS[counselorId]?.name) || (counselorId ? (counselorId.startsWith("counselor_") ? MOCK_COUNSELORS[counselorId]?.name : `<@${counselorId}>`) : "ผู้รับฟังที่ระบุ");
+    toppingLine = `### 3. เลือก ${counselorDisplayName} — 39 บาท`;
+  }
+
+  const totalPrice = (drink ? drink.price : 0) + toppingPrice;
 
   return {
     content: null,
@@ -539,10 +951,77 @@ function buildInteractiveMenuPayload({ selectedDrink = null, selectedTopping = n
     components: [
       {
         type: 17,
-        components: cardComponents
+        components: [
+          {
+            type: 9,
+            components: [
+              {
+                type: 10,
+                content: `## 📝︲__\` ทวนรายการเครื่องดื่มของท่าน \`__\n### 1. ${modeName}\n### 2. ${drink ? drink.name : "เครื่องดื่ม"} — ${drink ? drink.price : 0} บาท\n${toppingLine}\n# ยอดรวม: 💸 ${totalPrice} บาท`
+              }
+            ],
+            accessory: {
+              type: 11,
+              media: {
+                url: avatarUrl
+              }
+            }
+          },
+          {
+            type: 14,
+            divider: true,
+            spacing: 2
+          },
+          {
+            type: 1,
+            components: [
+              {
+                style: 3,
+                type: 2,
+                label: "︲ยืนยันคำสั่งซื้อ",
+                emoji: {
+                  id: "1358584609087946867",
+                  name: "50121checkmark",
+                  animated: false
+                },
+                custom_id: "heal_jai_btn_pay"
+              },
+              {
+                style: 2,
+                type: 2,
+                label: "︲สั่งใหม่",
+                emoji: { name: "🔁" },
+                custom_id: "heal_jai_reset_order"
+              },
+              {
+                style: 4,
+                type: 2,
+                label: "︲ยกเลิกออเดอร์",
+                emoji: {
+                  id: "1358584606911369226",
+                  name: "68440x",
+                  animated: false
+                },
+                custom_id: "btn_cancel_order"
+              },
+              {
+                style: 5,
+                type: 2,
+                label: "︲คลิกหากพบปัญหา",
+                emoji: { name: "🚨" },
+                url: "https://discord.com/channels/1536199707922141254/1536207517120466964"
+              }
+            ]
+          }
+        ]
       }
     ]
   };
+}
+
+// ── ฟังก์ชันคงไว้สำหรับความเข้ากันได้ ─────────────────────────────────
+function buildInteractiveMenuPayload(params) {
+  return buildInteractiveOrderPayload(params);
 }
 
 /**
@@ -556,8 +1035,7 @@ function buildScanToPayPayload(orderInfo = {}) {
     orderInfo.counselorName ? `* 🎯⠀**ระบุตัวผู้รับฟัง:** ${orderInfo.counselorName}` : null,
     orderInfo.isBooster ? `* <:boosthand:1536707497174507620>⠀**สิทธิพิเศษ:** Server Booster (+5 นาทีฟรี)` : null,
     `# ยอดชำระสุทธิ: ${orderInfo.totalPrice || 0} บาท`,
-    ``,
-    `**ช่องทางชำระเงิน (พร้อมเพย์):** \`09x-xxx-xxxx\` (ธ.กสิกรไทย / พร้อมเพย์ - ระบบจำลอง)\n-# เมื่อโอนเงินเรียบร้อยแล้ว ให้ใช้คำสั่ง **\`/ยืนยันการโอน\`** หรือ **\`/ยืนยันสลิป\`** ในห้องนี้เพื่อตรวจสอบสลิปอัตโนมัติได้เลยค่ะ`
+    `> เมื่อโอนเงินเรียบร้อยแล้ว ให้ใช้คำสั่ง **/ยืนยันสลิป** ในห้องนี้เพื่อตรวจสอบสลิปอัตโนมัติได้เลยค่ะ`
   ].filter(Boolean).join('\n');
 
   return {
@@ -583,7 +1061,7 @@ function buildScanToPayPayload(orderInfo = {}) {
           },
           {
             type: 10,
-            content: "## <a:fourleafclover:1536711677699952680>︲__` 𝖲𝖼𝖺𝗇 𝗍𝗈 𝗉𝖺𝗒 ₊ ชำระเงิน 𓂃 `__\n- **อ่านก่อนชำระเงิน:** กรุณาตรวจสอบข้อมูลและยอดเงินให้ถูกต้องก่อนทำรายการ หากโอนเงินผิดหรือโอนเกิน ทางเซิร์ฟเวอร์ขอสงวนสิทธิ์ไม่รับผิดชอบในทุกกรณี\n- **กรณีโอนเงินเกินจำนวน (Overpayment):**\n  - หากพบว่ามียอดโอนเกิน บอทจะยังไม่อนุมัติสถานะการชำระเงินอัตโนมัติ เพื่อป้องกันความผิดพลาดทางบัญชี\n  - ระบบจะดึงห้อง Ticket นี้ให้แจ้งเตือนแอดมินเข้ามาตรวจสอบยอดเงินส่วนต่างด้วยตนเอง\n  - การจัดการ: แอดมินจะติดต่อกลับในห้อง Ticket เพื่อตรวจสอบหลักฐาน หากเป็นยอดส่วนต่างจำนวนน้อย จะถูกบันทึกเป็นเครดิตสะสม/ทิปตามความสมัครใจ แต่หากเป็นยอดเงินเกินจำนวนมาก ทีมงานจะดำเนินการโอนส่วนที่เกินคืนเข้าบัญชีต้นทางของลูกค้า (โดยหักค่าธรรมเนียมการโอนตามจริงถ้ามี)"
+            content: "## <:hj_clover:1552227021122314250>︲__` 𝖲𝖼𝖺𝗇 𝗍𝗈 𝗉𝖺𝗒 ₊ ชำระเงิน 𓂃 `__\n### อ่านก่อนชำระเงิน:\n> กรุณาตรวจสอบข้อมูลและยอดเงินให้ถูกต้องก่อนทำรายการ หากโอนเงินผิดหรือโอนเกิน ทางเซิร์ฟเวอร์ขอสงวนสิทธิ์ไม่รับผิดชอบในทุกกรณี\n### กรณีโอนเงินเกินจำนวน (Overpayment):\n> หากพบว่ามียอดโอนเกิน บอทจะยังไม่อนุมัติสถานะการชำระเงินอัตโนมัติ เพื่อป้องกันความผิดพลาดทางบัญชี\n\n> ระบบจะดึงห้อง Ticket นี้ให้แจ้งเตือนแอดมินเข้ามาตรวจสอบยอดเงินส่วนต่างด้วยตนเอง\n\n> การจัดการ: แอดมินจะติดต่อกลับในห้อง Ticket เพื่อตรวจสอบหลักฐาน หากเป็นยอดส่วนต่างจำนวนน้อย จะถูกบันทึกเป็นเครดิตสะสม/ทิปตามความสมัครใจ แต่หากเป็นยอดเงินเกินจำนวนมาก ทีมงานจะดำเนินการโอนส่วนที่เกินคืนเข้าบัญชีต้นทางของลูกค้า (โดยหักค่าธรรมเนียมการโอนตามจริงถ้ามี)"
           },
           {
             type: 14,
@@ -614,13 +1092,13 @@ function buildScanToPayPayload(orderInfo = {}) {
                 custom_id: "btn_cancel_order"
               },
               {
-                style: 2,
+                style: 5,
                 type: 2,
-                label: "︲ติดต่อทีมงาน",
+                label: "︲คลิกหากพบปัญหา",
                 emoji: {
                   name: "🚨"
                 },
-                custom_id: "btn_call_admin"
+                url: "https://discord.com/channels/1536199707922141254/1536207517120466964"
               }
             ]
           }
@@ -633,6 +1111,7 @@ function buildScanToPayPayload(orderInfo = {}) {
 module.exports = {
   FLAG_V2,
   FLAG_EPHEMERAL,
+  SERVICE_MODES,
   DRINK_OPTIONS,
   TOPPING_OPTIONS,
   MOCK_COUNSELORS,
@@ -641,9 +1120,11 @@ module.exports = {
   buildShiftPanelPayload,
   buildCheckoutTicketPayload,
   buildInteractiveMenuPayload,
+  buildInteractiveOrderPayload,
   buildScanToPayPayload,
   buildDispatchAlertPayload,
   buildSessionDashboardPayload,
   buildFeedbackPromptPayload,
-  buildPublicReviewShowcasePayload
+  buildPublicReviewShowcasePayload,
+  buildReviewModal
 };

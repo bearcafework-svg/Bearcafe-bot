@@ -213,7 +213,11 @@ client.once("clientReady", async () => {
   setInterval(() => updateBotPresence(client), 10 * 60 * 1000);
 
   // 2. ซิงค์ Voice Status สำหรับห้องเสียงในหมวดหมู่ Point x2 ทันที
-  syncPointX2VoiceStatus(client);
+  if (!isLocalFastStart) {
+    syncPointX2VoiceStatus(client);
+  } else {
+    console.log("[local] ⏭️ Skipping syncPointX2VoiceStatus in Local/Dev mode.");
+  }
 
   // 3. ลงทะเบียน Slash Commands รวมแบบ Bulk Set (เร็วขึ้น 15x) สำหรับทุกกิลด์ที่อนุญาต
   const allowedGuildIds = getAllowedGuildIds ? getAllowedGuildIds() : [guild?.id].filter(Boolean);
@@ -244,11 +248,15 @@ client.once("clientReady", async () => {
   }
 
   // 4.5 กู้คืนข้อมูลห้อง VIP จาก Supabase Table เข้าสู่ Redis (Disaster Recovery เผื่อกรณี Redis รีสตาร์ต/แคชหลุด)
-  try {
-    const { restoreVipRoomsFromDatabaseToRedis } = require("./src/services/vipRoomService");
-    await restoreVipRoomsFromDatabaseToRedis();
-  } catch (e) {
-    console.warn("[VIP] ไม่สามารถกู้คืนห้อง VIP จาก Supabase ได้:", e.message);
+  if (!isLocalFastStart) {
+    try {
+      const { restoreVipRoomsFromDatabaseToRedis } = require("./src/services/vipRoomService");
+      await restoreVipRoomsFromDatabaseToRedis();
+    } catch (e) {
+      console.warn("[VIP] ไม่สามารถกู้คืนห้อง VIP จาก Supabase ได้:", e.message);
+    }
+  } else {
+    console.log("[local] ⏭️ Skipping restoreVipRoomsFromDatabaseToRedis in Local/Dev mode.");
   }
 
   // 5. Startup Cleanup — ลบห้องค้างจากก่อนบอทดับ & สร้างห้องให้สมาชิกที่ค้างใน Lobby
@@ -280,9 +288,13 @@ client.once("clientReady", async () => {
   }
 
   // 8. เริ่มต้นระบบตรวจนับถอยหลังและหมดอายุห้อง VIP 24 ชั่วโมง (รันตรวจทุก 1 นาที)
-  const { checkVipRoomsExpiry } = require("./handlers/roomDestroyer");
-  checkVipRoomsExpiry(client);
-  setInterval(() => checkVipRoomsExpiry(client), 60 * 1000);
+  if (!isLocalFastStart && process.env.DISABLE_VIP_MONITOR !== "true") {
+    const { checkVipRoomsExpiry } = require("./handlers/roomDestroyer");
+    checkVipRoomsExpiry(client);
+    setInterval(() => checkVipRoomsExpiry(client), 60 * 1000);
+  } else {
+    console.log("[local] ⏭️ Skipping VIP room expiry monitor loop in Local/Dev mode.");
+  }
 });
 
 // ── Startup Cleanup ────────────────────────────────────────────────

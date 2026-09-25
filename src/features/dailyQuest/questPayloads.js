@@ -214,7 +214,7 @@ function buildDailyQuestProgressPayload(user, questDate, quests, userProgressMap
       components: [
         {
           type: 10,
-          content: `## ${q.title}\n- __\`ความคืบหน้า\`__ : ${barStr}\n- __\`รางวัล\`__ : ${POINT_ICON_STR} **+${q.reward_points}**`
+          content: `## ${q.title}\n- __\`ความคืบหน้า\`__ : ${barStr}\n- __\`วิธีทำเควส\`__ : ${q.description || "-"}\n- __\`รางวัล\`__ : ${POINT_ICON_STR} **+${q.reward_points}**`
         }
       ],
       accessory: accessoryComponent

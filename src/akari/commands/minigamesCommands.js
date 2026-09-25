@@ -17,6 +17,7 @@ const {
   spawnQuestion,
   invalidateSettingsCache,
   clearActiveTenantSession,
+  getActiveTenantSession,
   getTenantPlan,
   invalidateTenantPlanCache,
   validateGameAccess,
@@ -263,6 +264,14 @@ const AKARI_SLASH_COMMANDS = [
     ],
   },
   ...POINTS_SLASH_COMMANDS,
+  {
+    name: "reveal-answer",
+    description: "🔍 ดูเฉลยของมินิเกมที่กำลังเปิดเล่นอยู่ในห้องนี้ (คำสั่งชั่วคราว)",
+  },
+  {
+    name: "ans",
+    description: "🔍 ดูเฉลยของมินิเกมที่กำลังเปิดเล่นอยู่ในห้องนี้ (คำสั่งชั่วคราว)",
+  },
   // ...STORE_SLASH_COMMANDS, // ปิดระบบร้านค้าชั่วคราวตามคำสั่ง
 ];
 
@@ -1868,6 +1877,105 @@ async function handleAkariAdmin(interaction, supabase, client) {
   }
 }
 
+/**
+ * จัดการคำสั่ง /reveal-answer หรือ /ans (คำสั่งชั่วคราวสำหรับดูเฉลยของมินิเกมที่กำลังเปิดเล่นอยู่ในห้อง)
+ */
+async function handleRevealAnswer(interaction, supabase) {
+  const { guildId, channelId } = interaction;
+
+  if (!guildId || !channelId) {
+    return interaction.reply({
+      content: "❌ คำสั่งนี้สามารถใช้ได้เฉพาะในห้องข้อความของเซิร์ฟเวอร์เท่านั้น",
+      flags: MessageFlags.Ephemeral,
+    });
+  }
+
+  let session = getActiveTenantSession(guildId, channelId);
+
+  // Fallback: ดึงจาก Supabase DB หากเพิ่งรีสตาร์ตหรือไม่ได้อยู่ใน RAM
+  if (!session && supabase) {
+    try {
+      const { data } = await supabase
+        .from("tenant_minigame_active_sessions")
+        .select("session_data")
+        .eq("guild_id", guildId)
+        .eq("channel_id", channelId)
+        .maybeSingle();
+
+      if (data && data.session_data) {
+        session = data.session_data;
+      }
+    } catch (_) {}
+  }
+
+  if (!session) {
+    return interaction.reply({
+      flags: FLAG_V2 | MessageFlags.Ephemeral,
+      components: [
+        {
+          type: 17,
+          components: [
+            {
+              type: 10,
+              content:
+                "## <:lowwarning:1548772721679278180>︲__` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ ไม่พบมินิเกมที่กำลังเล่น 𓂃 `__\n" +
+                `> ห้องนี้ (<#${channelId}>) ยังไม่มีมินิเกมที่เปิดเล่นอยู่ในขณะนี้ค่ะ\n` +
+                "> 💡 คุณสามารถเปิดมินิเกมได้ด้วยคำสั่ง `/set-game` หรือ `/setup-games`",
+            },
+          ],
+        },
+      ],
+    });
+  }
+
+  const gameId = session.gameId;
+  const gameName = AKARI_GAME_NAMES[gameId] || `เกมที่ ${gameId}`;
+  const displayAnswer = session.displayAnswer || session.answer || "-";
+  const questionText = session.questionData?.wordOrQuestion || "-";
+  const category = session.questionData?.category || session.questionObj?.category || "ทั่วไป";
+
+  let extraLines = "";
+  if (gameId === 1 || gameId === 2) {
+    extraLines = `\n> 🔤 **โจทย์ที่กำลังแสดง (Mask):** \`${questionText}\``;
+  } else if (gameId === 4) {
+    const hints = session.questionData?.hints || session.questionObj?.hints;
+    if (hints && Array.isArray(hints)) {
+      extraLines = `\n> 💡 **คำใบ้:**\n> 1. ${hints[0] || '-'}\n> 2. ${hints[1] || '-'}\n> 3. ${hints[2] || '-'}`;
+    }
+  } else if (gameId === 8 || gameId === 9 || gameId === 10) {
+    const options = session.questionData?.options || session.questionObj?.options;
+    if (options && Array.isArray(options)) {
+      extraLines = `\n> 🔘 **ตัวเลือก:** ${options.join(', ')}`;
+    }
+  } else if (gameId === 12) {
+    extraLines = `\n> ⚖️ **โจทย์:** ${questionText}\n> 🎯 **เฉลย:** ${displayAnswer === 'จริง' || displayAnswer === 'true' ? '✅ จริง (True)' : '❌ เท็จ (False)'}`;
+  } else if (gameId === 13) {
+    const template = session.questionData?.englishTemplate || session.questionObj?.englishTemplate || '-';
+    extraLines = `\n> 🧩 **โจทย์ภาษาไทย:** ${questionText}\n> 📝 **ประโยคที่ถูกต้อง:** \`${template}\``;
+  }
+
+  return interaction.reply({
+    flags: FLAG_V2 | MessageFlags.Ephemeral,
+    components: [
+      {
+        type: 17,
+        components: [
+          {
+            type: 10,
+            content:
+              `## 🔍︲__\` 𝖲𝗉𝗈𝗂𝗅𝖾𝗋 ₊ เฉลยมินิเกมประจำห้อง 𓂃 \`__\n` +
+              `> 🎮 **มินิเกม:** **${gameName}**\n` +
+              `> 🏷️ **หมวดหมู่:** \`${category}\`\n` +
+              `> 🎯 **คำตอบที่ถูกต้อง (เฉลย):**\n` +
+              `\`\`\`text\n${displayAnswer}\n\`\`\`${extraLines}\n` +
+              `> 🤫 *ข้อความนี้แสดงเฉพาะคุณ (Ephemeral) ไม่รบกวนหรือสปอยล์ผู้เล่นคนอื่นในห้องค่ะ*`,
+          },
+        ],
+      },
+    ],
+  });
+}
+
 module.exports = {
   registerAkariCommands,
   handleSetupGames,
@@ -1879,6 +1987,7 @@ module.exports = {
   handleRemoveGame,
   handleAkariAdmin,
   isAkariAdmin,
+  handleRevealAnswer,
   handleSettingStore,
   handleOpenStore,
   handleStoreButtonInteraction,

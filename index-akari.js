@@ -19,6 +19,7 @@ const {
   handleSetGame,
   handleRemoveGame,
   handleAkariAdmin,
+  handleRevealAnswer,
   handleSettingStore,
   handleOpenStore,
   handleStoreButtonInteraction,
@@ -119,6 +120,9 @@ client.on("interactionCreate", async (interaction) => {
       }
       if (interaction.commandName === "leaderboard") {
         return await handleLeaderboardCommand(interaction, akariSupabase);
+      }
+      if (interaction.commandName === "reveal-answer" || interaction.commandName === "ans") {
+        return await handleRevealAnswer(interaction, akariSupabase);
       }
       // ระบบร้านค้าปิดชั่วคราวตามคำสั่ง
       // if (interaction.commandName === "setting-store") {

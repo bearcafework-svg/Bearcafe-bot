@@ -416,6 +416,16 @@ async function processTriggerEvent(client, supabase, user, triggerType, eventCon
     // ตรวจสอบเงื่อนไขย่อย (Trigger Config)
     const cfg = quest.trigger_config || {};
 
+    // ฟังก์ชันตรวจสอบ Channel และ Forum/Thread Parent Channel
+    const isChannelMatch = () => {
+      const allowed = cfg.channel_ids || (cfg.channel_id ? [cfg.channel_id] : null);
+      if (!allowed || allowed.length === 0) return true;
+      const targetIds = [eventContext.channelId, eventContext.parentId].filter(Boolean);
+      return targetIds.some((id) => allowed.includes(id));
+    };
+
+    if (!isChannelMatch()) continue;
+
     if (triggerType === "keyword") {
       const kwList = cfg.keywords || [];
       const text = (eventContext.text || "").toLowerCase().trim();
@@ -423,16 +433,12 @@ async function processTriggerEvent(client, supabase, user, triggerType, eventCon
       if (!match) continue;
     } else if (triggerType === "command_usage") {
       if (cfg.command && eventContext.commandName !== cfg.command) continue;
-      if (cfg.channel_id && eventContext.channelId !== cfg.channel_id) continue;
     } else if (triggerType === "chat_any" || triggerType === "voice_duration" || triggerType === "voice_join") {
-      if (cfg.channel_id && eventContext.channelId !== cfg.channel_id) continue;
       if (cfg.min_members && (eventContext.memberCount || 0) < cfg.min_members) continue;
     } else if (triggerType === "chat_media") {
       if (cfg.media_type && eventContext.mediaType !== cfg.media_type) continue;
-      if (cfg.channel_id && eventContext.channelId !== cfg.channel_id) continue;
     } else if (triggerType === "reaction_add") {
       if (cfg.message_url && eventContext.messageUrl !== cfg.message_url) continue;
-      if (cfg.channel_id && eventContext.channelId !== cfg.channel_id) continue;
     }
 
     // คำนวณความคืบหน้าใหม่

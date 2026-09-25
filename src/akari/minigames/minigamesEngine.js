@@ -1279,7 +1279,9 @@ function setupAkariMinigames(client, supabase) {
         if (isPremium) {
           const pointsPerWin = session.questionData?.rewardPoints || 3;
           bufferTenantPoints(guildId, message.author.id, pointsPerWin, 1);
-          await flushTenantPoints(supabase, guildId, message.author.id, 0, 0);
+          flushTenantPoints(supabase, guildId, message.author.id, 0, 0).catch((err) =>
+            console.error('[akari-minigames] flushTenantPoints error:', err.message)
+          );
         }
 
         // 2. สำหรับเกมฟังเสียง (เกม 5 และ 11): ลบการ์ด Component V2 ทิ้ง (เหลือข้อความไฟล์เสียง MP3 ไว้) แบบเดียวกับบอทหลัก
@@ -1299,7 +1301,7 @@ function setupAkariMinigames(client, supabase) {
           ).catch(() => {});
         }
 
-        await new Promise((r) => setTimeout(r, 2000));
+        await new Promise((r) => setTimeout(r, 700));
         await spawnQuestion(client, message.channel, session.gameId, guildId, supabase);
       } finally {
         clearTimeout(safetyTimeout);
@@ -1593,7 +1595,9 @@ function setupAkariMinigames(client, supabase) {
         const pointsPerWin = questionData.rewardPoints || 3;
         if (isPremium) {
           bufferTenantPoints(guildId, user.id, pointsPerWin, 1);
-          await flushTenantPoints(supabase, guildId, user.id, 0, 0);
+          flushTenantPoints(supabase, guildId, user.id, 0, 0).catch((err) =>
+            console.error('[akari-minigames] flushTenantPoints error:', err.message)
+          );
         }
 
         const winnerDisplayName = interaction.member?.displayName || user.username;
@@ -1637,7 +1641,7 @@ function setupAkariMinigames(client, supabase) {
           ).catch(() => {});
         }
 
-        await new Promise((r) => setTimeout(r, 1500));
+        await new Promise((r) => setTimeout(r, 700));
         await spawnQuestion(client, channel, targetGameId, guildId, supabase);
       } finally {
         clearTimeout(safetyTimeout);
@@ -1728,7 +1732,9 @@ function setupAkariMinigames(client, supabase) {
         const pointsPerWin = session.questionData?.rewardPoints || 3;
         if (isPremium) {
           bufferTenantPoints(guildId, user.id, pointsPerWin, 1);
-          await flushTenantPoints(supabase, guildId, user.id, 0, 0);
+          flushTenantPoints(supabase, guildId, user.id, 0, 0).catch((err) =>
+            console.error('[akari-minigames] flushTenantPoints error:', err.message)
+          );
         }
 
         const winnerDisplayName = interaction.member?.displayName || user.username;
@@ -1753,7 +1759,7 @@ function setupAkariMinigames(client, supabase) {
           ).catch(() => {});
         }
 
-        await new Promise((r) => setTimeout(r, 1500));
+        await new Promise((r) => setTimeout(r, 700));
         await spawnQuestion(client, channel, session.gameId, guildId, supabase);
       } finally {
         clearTimeout(safetyTimeout);
@@ -1793,14 +1799,14 @@ function setupAkariMinigames(client, supabase) {
     // ── ปุ่ม Skip ──────────────────────────────────────────────
     if (customId.startsWith('akari_mg_skip')) {
       await safeDeferReply(interaction);
-      await flushTenantPoints(supabase, guildId, user.id, 0, 0);
+      flushTenantPoints(supabase, guildId, user.id, 0, 0).catch(() => {});
 
       await safeRespond(interaction, {
         content: `⏭️ <@${user.id}> กดข้ามข้อนี้! คำตอบที่ถูกต้องคือ: **${session.displayAnswer}**`,
       });
 
       activeTenantSessions.delete(sessionKey);
-      await new Promise((r) => setTimeout(r, 1500));
+      await new Promise((r) => setTimeout(r, 700));
       await spawnQuestion(client, channel, session.gameId, guildId, supabase);
     }
   });
@@ -1825,6 +1831,11 @@ function clearActiveTenantSession(guildId, channelId) {
   activeTenantSessions.delete(sessionKey);
 }
 
+function getActiveTenantSession(guildId, channelId) {
+  const sessionKey = `${guildId}:${channelId}`;
+  return activeTenantSessions.get(sessionKey) || null;
+}
+
 module.exports = {
   setupAkariMinigames,
   spawnQuestion,
@@ -1838,6 +1849,7 @@ module.exports = {
   getBufferedPoints,
   clearBufferedPoints,
   clearActiveTenantSession,
+  getActiveTenantSession,
   bufferTenantPoints,
   flushTenantPoints,
   buildAkariGamePayload,

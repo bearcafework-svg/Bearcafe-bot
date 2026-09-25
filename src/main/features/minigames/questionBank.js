@@ -69,49 +69,264 @@ function generateMathProblem() {
   };
 }
 
+// Common affixes with high/medium ambiguity in Thai Fill-in-the-Blank
+const HIGH_AMBIGUITY_PREFIXES = ['ความ', 'การ', 'นัก', 'ผู้', 'โรง', 'ทาง', 'สถานี', 'ร้าน', 'เครื่อง', 'ของ', 'ที่', 'ใจ', 'คน', 'วัน', 'น้ำ', 'ช่าง', 'ฝ่าย'];
+const HIGH_AMBIGUITY_SUFFIXES = ['แล้ว', 'ใส', 'ใหม่', 'คิด', 'หมาย', 'ชี', 'ชา', 'ผ่อน', 'สละ', 'สด', 'แข่ง', 'น้ำ', 'เรือ', 'ไฟ', 'รถ', 'ใจ', 'งาน', 'คน', 'ตา', 'ตัว', 'วัน', 'ทำ', 'ดี', 'ไป', 'มา'];
+const MEDIUM_AMBIGUITY_PREFIXES = ['ขนม', 'ผล', 'ยารักษา', 'วิทยา', 'ประชา', 'กัปตัน', 'หัวหน้า', 'ปริญญา', 'หอ', 'สระ'];
+const MEDIUM_AMBIGUITY_SUFFIXES = ['ธรรม', 'สัตว์', 'แพทย์', 'ศึกษา', 'ยนต์', 'ทัศน์', 'บาล', 'โลก', 'เกิด', 'หวาน'];
+
+const HIGH_AMBIGUITY_ANCHORS = [
+  'ปัญญา',
+  'ภาพ',
+  'กรรม',
+  'ศาสตร์',
+  'วิทยา',
+  'ศึกษา',
+  'ศิลป์',
+  'ศิลปะ',
+  'ภัณฑ์',
+  'การณ์',
+  'ลักษณ์',
+  'นิยม',
+  'สถาน'
+];
+
+/**
+ * Validation guard: checks that revealed parts of masked string are orthographically safe
+ * (no orphan combining vowels/tone marks at start, no orphan leading vowels at end, at least 1 consonant).
+ */
+function isValidOrthographicMask(maskedStr, answer) {
+  if (!maskedStr || maskedStr === '_' || maskedStr === answer) return false;
+  const parts = maskedStr.split('_').map(p => p.trim()).filter(Boolean);
+  if (parts.length === 0) return false;
+
+  const INVALID_STARTS = /^[ะัาำิีึืฺุู็่้๊๋์ๆฯ\u0E30-\u0E39\u0E47-\u0E4E]/;
+  const INVALID_ENDS = /[เแโใไ]$/;
+
+  for (const part of parts) {
+    if (!/[ก-ฮ]/.test(part)) return false;
+    if (INVALID_STARTS.test(part)) return false;
+    if (INVALID_ENDS.test(part)) return false;
+  }
+  return true;
+}
+
+/**
+ * Evaluates candidate masks for a Thai word and selects the best candidate (Best Candidate Selection).
+ * Priority:
+ * 1. Low Ambiguity (clear context)
+ * 2. Complete Safe Units
+ * 3. Filter out trivially easy sandwich masks (e.g. สระ _ น้ำ)
+ * 4. Tie-breaker random among equal top candidates
+ */
+function selectBestThaiMask(word) {
+  if (!word || typeof word !== 'string') return { maskedStr: '', initialRevealedIndices: [] };
+  const clean = word.trim();
+  if (!clean) return { maskedStr: '', initialRevealedIndices: [] };
+
+  const units = getThaiSafeMaskingUnits(clean);
+  if (units.length < 2) {
+    return { maskedStr: '_', initialRevealedIndices: [] };
+  }
+
+  // Generate candidates
+  const candidates = [];
+
+  if (units.length === 2) {
+    const u0 = units[0];
+    const u1 = units[1];
+
+    // Candidate 0: Mask suffix (reveal prefix: u0 + ' _')
+    let amb0 = 'LOW';
+    if (HIGH_AMBIGUITY_PREFIXES.includes(u0)) amb0 = 'HIGH';
+    else if (MEDIUM_AMBIGUITY_PREFIXES.includes(u0) || u0.length <= 2) amb0 = 'MEDIUM';
+
+    candidates.push({
+      maskedUnits: [u0, '_'],
+      maskStr: `${u0} _`,
+      revealedIndices: [0],
+      ambiguity: amb0,
+      hidden: u1,
+      revealed: u0,
+      hiddenLen: u1.length,
+      revealedLen: u0.length
+    });
+
+    // Candidate 1: Mask prefix (reveal suffix: '_ ' + u1)
+    let amb1 = 'LOW';
+    if (HIGH_AMBIGUITY_SUFFIXES.includes(u1)) amb1 = 'HIGH';
+    else if (MEDIUM_AMBIGUITY_SUFFIXES.includes(u1) || u1.length <= 2) amb1 = 'MEDIUM';
+
+    candidates.push({
+      maskedUnits: ['_', u1],
+      maskStr: `_ ${u1}`,
+      revealedIndices: [1],
+      ambiguity: amb1,
+      hidden: u0,
+      revealed: u1,
+      hiddenLen: u0.length,
+      revealedLen: u1.length
+    });
+  } else {
+    // 3 or more units: mask 1 unit (or 2 if 5+ units)
+    for (let i = 0; i < units.length; i++) {
+      const hidden = units[i];
+      const revealed = units.filter((_, idx) => idx !== i);
+      const maskedUnits = units.map((u, idx) => (idx === i ? '_' : u));
+      const maskStr = maskedUnits.join(' ');
+
+      let amb = 'LOW';
+      // Detect trivially easy 3-unit sandwich (e.g. สระ _ น้ำ)
+      if (i === 1 && units.length === 3 && units[0].length >= 3 && units[2].length >= 3) {
+        amb = 'TRIVIALLY_EASY';
+      } else if (revealed.some(r => HIGH_AMBIGUITY_PREFIXES.includes(r) || HIGH_AMBIGUITY_SUFFIXES.includes(r))) {
+        amb = 'MEDIUM';
+      }
+
+      candidates.push({
+        maskedUnits,
+        maskStr,
+        revealedIndices: units.map((_, idx) => idx).filter(idx => idx !== i),
+        ambiguity: amb,
+        hidden,
+        revealed: revealed.join(''),
+        hiddenLen: hidden.length,
+        revealedLen: revealed.join('').length
+      });
+    }
+  }
+
+  // Filter with orthographic safety guard
+  let validCandidates = candidates.filter(c => isValidOrthographicMask(c.maskStr, clean));
+  if (validCandidates.length === 0) validCandidates = candidates;
+
+  let nonTrivial = validCandidates.filter(c => c.ambiguity !== 'TRIVIALLY_EASY');
+  if (nonTrivial.length > 0) validCandidates = nonTrivial;
+
+  let nonHigh = validCandidates.filter(c => c.ambiguity !== 'HIGH');
+  if (nonHigh.length > 0) validCandidates = nonHigh;
+
+  // Condition: Masked unit length must NOT exceed 35% of total word length (character count)
+  // AND the revealed part must NOT contain any anchor in HIGH_AMBIGUITY_ANCHORS
+  const totalLen = clean.length;
+  const ratioLimit = 0.35;
+  const max35Candidates = validCandidates.filter(c => {
+    // 1. Length must be <= 35%
+    if ((c.hiddenLen / totalLen) > ratioLimit) return false;
+    // 2. Revealed part must NOT contain any HIGH_AMBIGUITY_ANCHORS
+    const revealedStr = c.revealed || (c.maskedUnits ? c.maskedUnits.filter(u => u !== '_').join('') : '');
+    if (HIGH_AMBIGUITY_ANCHORS.some(anchor => revealedStr.includes(anchor))) return false;
+    return true;
+  });
+
+  let bestPool = [];
+
+  if (max35Candidates.length > 0) {
+    const lowList = max35Candidates.filter(c => c.ambiguity === 'LOW');
+    const medList = max35Candidates.filter(c => c.ambiguity === 'MEDIUM');
+    bestPool = lowList.length > 0 ? lowList : (medList.length > 0 ? medList : max35Candidates);
+  } else {
+    // Fallback using Safe Syllable Units (firstUnit or lastUnit whole cluster)
+    const fallbackCandidates = [];
+
+    if (units.length >= 2) {
+      // Fallback 1: Mask lastUnit (หน่วยท้ายทั้งก้อน)
+      const lastUnit = units[units.length - 1];
+      const prefixUnits = units.slice(0, -1);
+      const prefixStr = prefixUnits.join('');
+      const maskStrLast = `${prefixUnits.join(' ')} _`;
+      const hasLastAnchor = HIGH_AMBIGUITY_ANCHORS.some(a => prefixStr.includes(a));
+
+      if (isValidOrthographicMask(maskStrLast, clean)) {
+        fallbackCandidates.push({
+          maskedUnits: [...prefixUnits, '_'],
+          maskStr: maskStrLast,
+          revealedIndices: prefixUnits.map((_, idx) => idx),
+          ambiguity: hasLastAnchor ? 'MEDIUM' : 'LOW',
+          hidden: lastUnit,
+          revealed: prefixStr,
+          hiddenLen: lastUnit.length,
+          revealedLen: prefixStr.length,
+        });
+      }
+
+      // Fallback 2: Mask firstUnit (หน่วยแรกทั้งก้อน)
+      const firstUnit = units[0];
+      const suffixUnits = units.slice(1);
+      const suffixStr = suffixUnits.join('');
+      const maskStrFirst = `_ ${suffixUnits.join(' ')}`;
+      const hasFirstAnchor = HIGH_AMBIGUITY_ANCHORS.some(a => suffixStr.includes(a));
+
+      if (isValidOrthographicMask(maskStrFirst, clean)) {
+        fallbackCandidates.push({
+          maskedUnits: ['_', ...suffixUnits],
+          maskStr: maskStrFirst,
+          revealedIndices: suffixUnits.map((_, idx) => idx + 1),
+          ambiguity: hasFirstAnchor ? 'MEDIUM' : 'LOW',
+          hidden: firstUnit,
+          revealed: suffixStr,
+          hiddenLen: firstUnit.length,
+          revealedLen: suffixStr.length,
+        });
+      }
+    }
+
+    const lowFallback = fallbackCandidates.filter(c => c.ambiguity === 'LOW');
+    bestPool = lowFallback.length > 0 ? lowFallback : (fallbackCandidates.length > 0 ? fallbackCandidates : validCandidates);
+  }
+
+  // Safety filter for bestPool
+  const safePool = bestPool.filter(c => isValidOrthographicMask(c.maskStr, clean));
+  const finalPool = safePool.length > 0 ? safePool : bestPool;
+
+  // Tie-breaker: random among best candidates
+  const selected = finalPool[Math.floor(Math.random() * finalPool.length)];
+
+  return {
+    maskedStr: selected ? selected.maskStr : '_',
+    initialRevealedIndices: selected ? selected.revealedIndices : []
+  };
+}
+
 // Generate missing letters for Thai (Game 1) or English (Game 2)
 function maskWord(word, isThai = true) {
   if (!word) return { maskedStr: "" };
 
-  const units = isThai ? getGraphemeClusters(word) : Array.from(word);
-  if (units.length <= 2) {
-    return { maskedStr: units.join(" ") };
+  if (isThai) {
+    return selectBestThaiMask(word);
   }
 
-  // Strictly mask 2 to 3 characters max regardless of word length
-  let countToMask = 2;
-  if (units.length >= 7) {
-    countToMask = 3;
+  const units = Array.from(word);
+  if (units.length <= 1) {
+    return { maskedStr: "_", initialRevealedIndices: [] };
+  }
+
+  let countToMask = 1;
+  if (units.length >= 5) {
+    countToMask = 2;
   }
 
   let maskIndices = new Set();
-  let attempts = 0;
+  const availableIndices = Array.from({ length: units.length }, (_, i) => i);
+  const shuffled = shuffleArray(availableIndices);
 
-  do {
-    maskIndices = new Set();
-    const availableIndices = Array.from({ length: units.length }, (_, i) => i);
-    const shuffled = shuffleArray(availableIndices);
-
-    for (const idx of shuffled) {
-      if (maskIndices.size >= countToMask) break;
-      if (units.length >= countToMask * 2) {
-        if (maskIndices.has(idx - 1) || maskIndices.has(idx + 1)) continue;
-      }
-      maskIndices.add(idx);
+  for (const idx of shuffled) {
+    if (maskIndices.size >= countToMask) break;
+    if (units.length >= countToMask * 2) {
+      if (maskIndices.has(idx - 1) || maskIndices.has(idx + 1)) continue;
     }
+    maskIndices.add(idx);
+  }
 
-    while (maskIndices.size < countToMask) {
-      const idx = Math.floor(Math.random() * units.length);
-      maskIndices.add(idx);
-    }
-
-    attempts++;
-  } while (maskIndices.size === 0 && attempts < 10);
+  while (maskIndices.size < countToMask) {
+    const idx = Math.floor(Math.random() * units.length);
+    maskIndices.add(idx);
+  }
 
   const maskedUnits = units.map((u, i) => (maskIndices.has(i) ? "_" : u));
   const initialRevealedIndices = Array.from({ length: units.length }, (_, i) => i).filter(i => !maskIndices.has(i));
-  
-  // Clean compact display formatting: attach adjacent letters, space around '_'
+
+  // Clean compact display formatting for English: attach adjacent letters, space around '_'
   let formattedDisplay = '';
   for (let i = 0; i < maskedUnits.length; i++) {
     const curr = maskedUnits[i];
@@ -130,13 +345,128 @@ function maskWord(word, isThai = true) {
 }
 
 /**
+ * Splits a Thai word into Safe Masking Units (SMUs) for Game 1 Fill-in-the-Blank.
+ * Ensures syllables, compound words, and sub-syllabic roots are never split across
+ * vowels, tone marks, or orphan diacritics.
+ */
+function getThaiSafeMaskingUnits(word) {
+  if (!word || typeof word !== 'string') return [];
+  const clean = word.trim();
+  if (!clean) return [];
+
+  // 1. Natural space-separated words
+  if (clean.includes(' ')) {
+    return clean.split(/\s+/).filter(Boolean);
+  }
+
+  // 2. Dictionary / Compound word segmentation (Intl.Segmenter 'word')
+  if (typeof Intl !== 'undefined' && Intl.Segmenter) {
+    try {
+      const wordSegmenter = new Intl.Segmenter('th', { granularity: 'word' });
+      const dictTokens = Array.from(wordSegmenter.segment(clean), s => s.segment).filter(s => s.trim().length > 0);
+      if (dictTokens.length >= 2) {
+        return dictTokens;
+      }
+    } catch {
+      // fallback to syllable regex if Intl fails
+    }
+  }
+
+  // 3. Orthographic Syllable Segmenter
+  const C = '[ก-ฮ]';
+  const CL = '(?:ห[งญนมยรลว]|[กขคตปพทสศจบด]ร|[กขคปผพ]ล|[กขค]ว|[ก-ฮ])';
+  const T = '[่้๊๋]';
+  const V_ABOVE = '[ิีึืั็]';
+  const V_BELOW = '[ุู]';
+  const K = '(?:' + V_ABOVE + '|' + V_BELOW + ')?' + '[์]';
+  const NO_FOLLOW = '(?!' + T + '|' + V_ABOVE + '|' + V_BELOW + '|ะ|า|[รลว](?:[ิีึืั็ุูะา]))';
+
+  const SYLLABLE_PATTERNS = [
+    'เ' + CL + 'ื' + T + '?อ' + C + NO_FOLLOW,
+    'เ' + CL + 'ื' + T + '?อ',
+    'เ' + CL + 'ี' + T + '?ย' + C + NO_FOLLOW,
+    'เ' + CL + 'ี' + T + '?ย',
+    'เ' + CL + T + '?าะ',
+    'เ' + CL + T + '?อะ',
+    'เ' + CL + T + '?า',
+    'เ' + CL + T + '?อ' + C + NO_FOLLOW,
+    'เ' + CL + T + '?อ',
+    '[แโ]' + CL + T + '?ะ',
+    '[เแ]' + CL + '[็]' + C + NO_FOLLOW,
+    CL + T + '?ำ',
+    CL + '(?:ั|' + T + ')?' + T + '?ว' + C + NO_FOLLOW,
+    CL + 'ั' + T + '?ว',
+    CL + 'รร' + '(?:' + C + '?' + K + ')?',
+    CL + 'รร' + NO_FOLLOW,
+    '[เแโใไ]?' + CL + '(?:' + V_ABOVE + '|' + V_BELOW + ')?' + T + '?' + C + '?' + C + '?' + K,
+    CL + T + '?อ' + C + NO_FOLLOW,
+    '[เแโใไ]?' + CL + T + '?า' + C + NO_FOLLOW,
+    '[เแโใไ]?' + CL + T + '?า',
+    '[เแโใไ]?' + CL + '(?:' + V_ABOVE + '|' + V_BELOW + ')?' + T + '?ะ',
+    'เ' + C + C + T + '?' + NO_FOLLOW,
+    '[เแโใไ]?' + CL + '(?:' + V_ABOVE + '|' + V_BELOW + ')?' + T + '?' + C + NO_FOLLOW,
+    '[เแโใไ]?' + CL + '(?:' + V_ABOVE + '|' + V_BELOW + ')?' + T + '?',
+    C + '[ิีึืุูั็่้๊๋์]*',
+    '[^\\u0E00-\\u0E7F]+'
+  ];
+
+  const fullRegex = new RegExp(SYLLABLE_PATTERNS.join('|'), 'g');
+  const matches = clean.match(fullRegex);
+  if (matches && matches.join('') === clean && matches.length >= 2) {
+    const merged = [];
+    for (let i = 0; i < matches.length; i++) {
+      const u = matches[i];
+      if (merged.length > 0 && /^[ก-ฮ]{1,2}$/.test(u)) {
+        merged[merged.length - 1] += u;
+      } else {
+        merged.push(u);
+      }
+    }
+    return merged;
+  }
+
+  // 4. Short single syllables with initial consonant + vowel cluster and final consonant (e.g. แมว -> [แม, ว], กิน -> [กิ, น])
+  const singleWordPattern = /^([เแโใไ]?[ก-ฮ](?:[ิีึืุูั็่้๊๋]*))([ก-ฮ])$/;
+  const subMatch = clean.match(singleWordPattern);
+  if (subMatch) {
+    return [subMatch[1], subMatch[2]];
+  }
+
+  return (matches && matches.join('') === clean) ? matches : [clean];
+}
+
+/**
  * Splits a Thai word into Unicode Grapheme Clusters (user-perceived characters).
- * Uses Intl.Segmenter if available, with grapheme-splitter / regex fallbacks.
+ * Uses comprehensive Thai orthographic pattern supporting compound vowels,
+ * consonant clusters, and combining tone marks.
  */
 function getGraphemeClusters(word) {
   if (!word) return [];
-  // Match Thai syllable units: optional leading vowel (เ แ โ ใ ไ) + base consonant + optional combining marks
-  const thaiMatches = word.match(/[\u0E40-\u0E44]?[\u0E00-\u0E7F][\u0E31\u0E34-\u0E3A\u0E47-\u0E4E]*/g);
+
+  // Valid Thai initial consonant clusters (อักษรควบ):
+  const CLUSTER = '(?:[กขคตปพทสศจบด]ร|[กขคปผพ]ล|[กขค]ว|[ก-ฮ])';
+
+  // Comprehensive Thai orthographic regex supporting compound vowels and full visual characters
+  const pattern = new RegExp(
+    '(?:' +
+      'เ' + CLUSTER + '[ื][่้๊๋]?อ' +      // สระเอือ (เช่น เชื้อ, เสื้อ)
+      '|เ' + CLUSTER + '[ี][่้๊๋]?ย' +     // สระเอีย (เช่น เรีย, เสีย)
+      '|เ' + CLUSTER + '[่้๊๋]?าะ' +       // สระเอาะ (เช่น เกาะ, เพาะ)
+      '|เ' + CLUSTER + '[่้๊๋]?อะ' +       // สระเออะ (เช่น เยอะ, เลอะ)
+      '|เ' + CLUSTER + '[่้๊๋]?า' +        // สระเอา (เช่น เก้า, เรา)
+      '|เ' + CLUSTER + '[่้๊๋]?อ' +        // สระเออ (เช่น เธอ, เจอ)
+      '|แ' + CLUSTER + '[่้๊๋]?ะ' +        // สระแอะ (เช่น แกะ, แพะ)
+      '|โ' + CLUSTER + '[่้๊๋]?ะ' +        // สระโอะ (เช่น โต๊ะ, โป๊ะ)
+      '|' + CLUSTER + '[่้๊๋]?ำ' +         // สระอำ (เช่น น้ำ, ทำ, ขำ)
+      '|' + CLUSTER + '[ั][่้๊๋]?ว' +      // สระอัว (เช่น ตัว, ครัว)
+      '|[เแโใไ]?' + CLUSTER + '[ิีึืุูั็่้๊๋์]*(?:ะ|า)?' + // สระเดี่ยว / รูปทั่วไป
+      '|[ก-ฮ][ิีึืุูั็่้๊๋์]*' +          // ตัวสะกด / พยัญชนะโดด
+      '|[^\\u0E00-\\u0E7F]+' +             // Non-Thai characters (spaces, punctuation, English)
+    ')',
+    'g'
+  );
+
+  const thaiMatches = word.match(pattern);
   if (thaiMatches && thaiMatches.join('') === word) {
     return thaiMatches;
   }
@@ -219,8 +549,10 @@ async function getNextQuestion(supabase, gameId, gameSettings = null, queryOptio
   if (supabase) {
     // Determine target game_id filters for standalone & shared vocabulary pools
     let targetGameIds = [gameId];
-    if (gameId === 1 || gameId === 6) targetGameIds = [1, 6];
-    if (gameId === 2 || gameId === 7) targetGameIds = [2, 7];
+    if (gameId === 1) targetGameIds = [1];   // Standalone Game 1 (Fill-in-the-Blank Thai)
+    if (gameId === 6) targetGameIds = [6];   // Standalone Game 6 (Fast Typing Thai)
+    if (gameId === 2) targetGameIds = [2];   // Standalone Game 2 (Fill-in-the-Blank English)
+    if (gameId === 7) targetGameIds = [7];   // Standalone Game 7 (Fast Typing English)
     if (gameId === 5) targetGameIds = [5];   // Standalone Game 5 (Audio English)
     if (gameId === 11) targetGameIds = [11]; // Standalone Game 11 (Audio Thai)
     if (gameId === 8 || gameId === 9) targetGameIds = [8, 9];
@@ -280,8 +612,26 @@ async function getNextQuestion(supabase, gameId, gameSettings = null, queryOptio
 
   // Filter candidates per game logic
   let candidates = [];
-  if (gameId === 1 || gameId === 6) {
-    // Thai games: extract words that are Thai and have NO '_' in raw text
+  if (gameId === 1) {
+    // Game 1 (Thai Fill-in-the-Blank): runtime safety validation using selectBestThaiMask
+    candidates = questionsPool.map(q => {
+      let word = null;
+      if (q.answer && !q.answer.includes('_') && /[\u0E00-\u0E7F]/.test(q.answer)) {
+        word = q.answer;
+      } else if (q.word_or_question && !q.word_or_question.includes('_') && /[\u0E00-\u0E7F]/.test(q.word_or_question)) {
+        word = q.word_or_question;
+      }
+      if (!word) return null;
+
+      const cleanW = word.replace(/\s+/g, '').trim();
+      const best = selectBestThaiMask(cleanW);
+      if (!best || !best.maskedStr || !best.maskedStr.includes('_')) return null;
+
+      return { id: q.id, word_or_question: cleanW, answer: cleanW, category: q.category || 'คำทั่วไป' };
+    }).filter(Boolean);
+    if (candidates.length === 0) return null;
+  } else if (gameId === 6) {
+    // Game 6 (Fast Typing Thai)
     candidates = questionsPool.map(q => {
       let word = null;
       if (q.answer && !q.answer.includes('_') && /[\u0E00-\u0E7F]/.test(q.answer)) {
@@ -561,9 +911,12 @@ async function getNextQuestion(supabase, gameId, gameSettings = null, queryOptio
  */
 function generateHint(gameId, questionData, hintLevel, previousHintData = null) {
   const fullAnswer = String(questionData.answer || '').trim();
-  const isThai = gameId === 1 || gameId === 11;
-  const clusters = isThai ? getGraphemeClusters(fullAnswer) : Array.from(fullAnswer);
-  const totalLength = clusters.length;
+  const isThaiGame1 = gameId === 1;
+  const isThai = isThaiGame1 || gameId === 11;
+  const units = isThaiGame1 
+    ? getThaiSafeMaskingUnits(fullAnswer) 
+    : (isThai ? getGraphemeClusters(fullAnswer) : Array.from(fullAnswer));
+  const totalLength = units.length;
 
   if (gameId === 1 || gameId === 2 || gameId === 5) {
     // Fill-in-the-blank / Audio hint (เติมคำ / เสียง)
@@ -571,9 +924,9 @@ function generateHint(gameId, questionData, hintLevel, previousHintData = null) 
     const questionStr = (gameId === 5) ? '_'.repeat(totalLength) : String(questionData.wordOrQuestion || '').trim();
     let currentUnits = questionStr.includes(' ') ? questionStr.split(/\s+/) : (isThai ? getGraphemeClusters(questionStr) : Array.from(questionStr));
     
-    // Ensure unit array length matches full answer clusters length
+    // Ensure unit array length matches full answer units length
     if (currentUnits.length !== totalLength) {
-      currentUnits = clusters.map((c, i) => (previousHintData?.revealedIndices?.includes(i) ? c : '_'));
+      currentUnits = units.map((c, i) => (previousHintData?.revealedIndices?.includes(i) ? c : '_'));
     }
 
     let revealedIndices = new Set(previousHintData?.revealedIndices || []);
@@ -603,16 +956,20 @@ function generateHint(gameId, questionData, hintLevel, previousHintData = null) 
     const newlyRevealed = shuffledUnrevealed.slice(0, countToReveal);
     newlyRevealed.forEach(idx => revealedIndices.add(idx));
 
-    const finalUnits = clusters.map((char, i) => (revealedIndices.has(i) ? char : '_'));
+    const finalUnits = units.map((char, i) => (revealedIndices.has(i) ? char : '_'));
     
     let compactDisplay = '';
-    for (let i = 0; i < finalUnits.length; i++) {
-      const curr = finalUnits[i];
-      const prev = finalUnits[i - 1];
-      if (curr === '_') {
-        compactDisplay += (prev && prev !== '_' ? ' _ ' : '_ ');
-      } else {
-        compactDisplay += curr;
+    if (isThaiGame1) {
+      compactDisplay = finalUnits.join(' ');
+    } else {
+      for (let i = 0; i < finalUnits.length; i++) {
+        const curr = finalUnits[i];
+        const prev = finalUnits[i - 1];
+        if (curr === '_') {
+          compactDisplay += (prev && prev !== '_' ? ' _ ' : '_ ');
+        } else {
+          compactDisplay += curr;
+        }
       }
     }
 
@@ -632,7 +989,9 @@ module.exports = {
   getNextQuestion,
   generateMathProblem,
   maskWord,
+  selectBestThaiMask,
   scrambleWord,
+  getThaiSafeMaskingUnits,
   getGraphemeClusters,
   generateHint,
   invalidateQuestionCache,

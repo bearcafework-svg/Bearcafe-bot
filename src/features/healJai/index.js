@@ -8,6 +8,7 @@ const { registerCommand } = require("../../interactions/router");
 const {
   FLAG_V2,
   FLAG_EPHEMERAL,
+  SERVICE_MODES,
   DRINK_OPTIONS,
   TOPPING_OPTIONS,
   MOCK_COUNSELORS,
@@ -16,20 +17,29 @@ const {
   buildShiftPanelPayload,
   buildCheckoutTicketPayload,
   buildInteractiveMenuPayload,
+  buildInteractiveOrderPayload,
   buildScanToPayPayload,
   buildDispatchAlertPayload,
   buildSessionDashboardPayload,
   buildFeedbackPromptPayload,
-  buildPublicReviewShowcasePayload
+  buildPublicReviewShowcasePayload,
+  buildReviewModal
 } = require("./healJaiPayloads");
 
 const CUSTOM_IDS = {
   VIEW_FULL_TERMS: "heal_jai_view_full_terms",
   ACCEPT_TERMS: "heal_jai_accept_terms",
   OPEN_MENU: "heal_jai_open_menu",
-  SELECT_DRINK: "heal_jai_select_drink",
-  SELECT_TOPPING: "heal_jai_select_topping",
+  MODE_CHAT: "heal_jai_mode_chat",
+  MODE_VOICE: "heal_jai_mode_voice",
+  DRINK_TEA_39: "heal_jai_drink_tea_39",
+  DRINK_COCOA_69: "heal_jai_drink_cocoa_69",
+  DRINK_COFFEE_129: "heal_jai_drink_coffee_129",
+  TOPPING_SILENT: "heal_jai_topping_silent",
+  TOPPING_SPECIFIC: "heal_jai_topping_specific",
+  TOPPING_NONE: "heal_jai_topping_none",
   SELECT_COUNSELOR: "heal_jai_select_counselor",
+  RESET_ORDER: "heal_jai_reset_order",
   BTN_PAY: "heal_jai_btn_pay",
   BTN_CANCEL_PROMPT: "heal_jai_btn_cancel_prompt",
   CONFIRM_CANCEL_TICKET: "heal_jai_confirm_cancel_ticket",
@@ -406,7 +416,13 @@ function setupHealJai(client) {
     }
 
     try {
-      await targetChannel.send(payload);
+      if (Array.isArray(payload)) {
+        for (const msgPayload of payload) {
+          await targetChannel.send(msgPayload);
+        }
+      } else {
+        await targetChannel.send(payload);
+      }
       return interaction.reply({
         content: `✅ ส่ง **${componentName}** ไปยังห้อง <#${targetChannel.id}> สำเร็จเรียบร้อยแล้วค่ะ! 🍵`,
         flags: FLAG_EPHEMERAL
@@ -596,96 +612,116 @@ function setupHealJai(client) {
 
   // ── 2. Interaction Buttons Handler ─────────────────────────────────
   client.on("interactionCreate", async (interaction) => {
-    if (!interaction.isButton() && !interaction.isStringSelectMenu()) return;
+    if (!interaction.isButton() && !interaction.isStringSelectMenu() && !interaction.isModalSubmit()) return;
 
     const { customId, guild, member, user, channel } = interaction;
     const supabase = getSupabase();
 
-    // ── 2.0 จัดการ Select Menus สำหรับเลือกเมนูและท็อปปิ้ง ────────────
+    // ── 2.0 จัดการ Select Menu สำหรับเลือกผู้รับฟัง ──────────────────
     if (interaction.isStringSelectMenu()) {
-      let state = ticketSelections.get(channel.id);
-      if (!state && supabase) {
-        try {
-          const { data: ord } = await supabase
-            .from("heal_jai_orders_sessions")
-            .select("*")
-            .eq("ticket_channel_id", channel.id)
-            .maybeSingle();
-          if (ord) {
-            const drinkEntry = Object.values(DRINK_OPTIONS).find((d) => d.name === ord.package_name || d.tier === ord.package_tier);
-            let toppingId = null;
-            if (ord.is_silent) toppingId = "silent_15";
-            else if (ord.is_specific_counselor) toppingId = "specific_30";
-            state = {
-              selectedDrink: drinkEntry ? drinkEntry.id : null,
-              selectedTopping: toppingId
-            };
-            ticketSelections.set(channel.id, state);
-          }
-        } catch (e) {}
-      }
-      if (!state) {
-        state = { selectedDrink: null, selectedTopping: null, selectedCounselor: null };
-      }
-
-      if (customId === "heal_jai_select_drink" || customId === CUSTOM_IDS.SELECT_DRINK) {
-        const chosenDrinkId = interaction.values[0];
-        state.selectedDrink = chosenDrinkId;
-        ticketSelections.set(channel.id, state);
-
-        const updatedPayload = buildInteractiveMenuPayload({
-          selectedDrink: state.selectedDrink,
-          selectedTopping: state.selectedTopping,
-          selectedCounselor: state.selectedCounselor
-        });
-
-        return interaction.update(updatedPayload).catch((e) => {
-          console.error("[HealJai] Failed to update drink select menu:", e.message);
-        });
-      }
-
-      if (customId === "heal_jai_select_topping" || customId === CUSTOM_IDS.SELECT_TOPPING) {
-        const chosenToppingId = interaction.values[0];
-
-        // Toggle behavior: If clicked the one already selected, deselect (remove topping)
-        if (state.selectedTopping === chosenToppingId) {
-          state.selectedTopping = null;
-          state.selectedCounselor = null;
-        } else {
-          state.selectedTopping = chosenToppingId;
-          if (chosenToppingId !== "specific_30") {
-            state.selectedCounselor = null;
-          }
-        }
-        ticketSelections.set(channel.id, state);
-
-        const updatedPayload = buildInteractiveMenuPayload({
-          selectedDrink: state.selectedDrink,
-          selectedTopping: state.selectedTopping,
-          selectedCounselor: state.selectedCounselor
-        });
-
-        return interaction.update(updatedPayload).catch((e) => {
-          console.error("[HealJai] Failed to update topping select menu:", e.message);
-        });
-      }
-
-      if (customId === "heal_jai_select_counselor" || customId === CUSTOM_IDS.SELECT_COUNSELOR) {
+      if (customId === "heal_jai_select_counselor" || customId === CUSTOM_IDS.SELECT_COUNSELOR || customId === "p_349898994257760257") {
+        let state = ticketSelections.get(channel.id) || { step: 3.5, mode: "chat", drinkId: "tea_39", toppingId: "specific_39" };
         const chosenCounselorId = interaction.values[0];
-        state.selectedCounselor = chosenCounselorId;
+        state.counselorId = chosenCounselorId;
+        const counselorObj = MOCK_COUNSELORS[chosenCounselorId];
+        state.counselorName = counselorObj ? counselorObj.name : chosenCounselorId;
+        state.step = 4;
+        state.userAvatarUrl = user.displayAvatarURL({ extension: "png", size: 512 });
         ticketSelections.set(channel.id, state);
 
-        const updatedPayload = buildInteractiveMenuPayload({
-          selectedDrink: state.selectedDrink,
-          selectedTopping: state.selectedTopping,
-          selectedCounselor: state.selectedCounselor
-        });
-
-        return interaction.update(updatedPayload).catch((e) => {
+        return interaction.update(buildInteractiveOrderPayload(state)).catch((e) => {
           console.error("[HealJai] Failed to update counselor select menu:", e.message);
         });
       }
       return;
+    }
+
+    // ── 2.0.1 ปุ่มเลือกรูปแบบบริการ (Step 1 -> Step 2) ────────────────
+    if (
+      customId === CUSTOM_IDS.MODE_CHAT ||
+      customId === CUSTOM_IDS.MODE_VOICE ||
+      customId === "p_349868508034633730" ||
+      customId === "p_349868816987066371"
+    ) {
+      const state = ticketSelections.get(channel.id) || { step: 1 };
+      const isVoice = (customId === CUSTOM_IDS.MODE_VOICE || customId === "p_349868816987066371");
+      state.mode = isVoice ? "voice" : "chat";
+      state.step = 2;
+      state.userAvatarUrl = user.displayAvatarURL({ extension: "png", size: 512 });
+      ticketSelections.set(channel.id, state);
+
+      return interaction.update(buildInteractiveOrderPayload(state)).catch((e) => {
+        console.error("[HealJai] Failed to update service mode:", e.message);
+      });
+    }
+
+    // ── 2.0.2 ปุ่มเลือกเครื่องดื่ม (Step 2 -> Step 3) ─────────────────
+    if (
+      [CUSTOM_IDS.DRINK_TEA_39, CUSTOM_IDS.DRINK_COCOA_69, CUSTOM_IDS.DRINK_COFFEE_129, "p_349868922385731588"].includes(customId)
+    ) {
+      const state = ticketSelections.get(channel.id) || { step: 2, mode: "chat" };
+      if (customId === CUSTOM_IDS.DRINK_TEA_39 || customId === "heal_jai_drink_tea_39") state.drinkId = "tea_39";
+      else if (customId === CUSTOM_IDS.DRINK_COCOA_69 || customId === "heal_jai_drink_cocoa_69") state.drinkId = "cocoa_69";
+      else if (customId === CUSTOM_IDS.DRINK_COFFEE_129 || customId === "heal_jai_drink_coffee_129" || customId === "p_349868922385731588") state.drinkId = "coffee_129";
+      else state.drinkId = "tea_39";
+
+      state.step = 3;
+      state.userAvatarUrl = user.displayAvatarURL({ extension: "png", size: 512 });
+      ticketSelections.set(channel.id, state);
+
+      return interaction.update(buildInteractiveOrderPayload(state)).catch((e) => {
+        console.error("[HealJai] Failed to update drink selection:", e.message);
+      });
+    }
+
+    // ── 2.0.3 ปุ่มเลือกท็อปปิ้ง (Step 3 -> Step 3b หรือ Step 4) ────────
+    if (
+      [CUSTOM_IDS.TOPPING_SILENT, CUSTOM_IDS.TOPPING_SPECIFIC, CUSTOM_IDS.TOPPING_NONE, "p_349881684222545926"].includes(customId)
+    ) {
+      const state = ticketSelections.get(channel.id) || { step: 3, mode: "chat", drinkId: "tea_39" };
+      state.userAvatarUrl = user.displayAvatarURL({ extension: "png", size: 512 });
+
+      if (customId === CUSTOM_IDS.TOPPING_SILENT) {
+        state.toppingId = "silent_19";
+        state.counselorId = null;
+        state.counselorName = null;
+        state.step = 4;
+      } else if (customId === CUSTOM_IDS.TOPPING_NONE || customId === "p_349881684222545926") {
+        state.toppingId = "none";
+        state.counselorId = null;
+        state.counselorName = null;
+        state.step = 4;
+      } else if (customId === CUSTOM_IDS.TOPPING_SPECIFIC) {
+        state.toppingId = "specific_39";
+        state.step = 3.5;
+      }
+      ticketSelections.set(channel.id, state);
+
+      return interaction.update(buildInteractiveOrderPayload(state)).catch((e) => {
+        console.error("[HealJai] Failed to update topping selection:", e.message);
+      });
+    }
+
+    // ── 2.0.4 ปุ่มสั่งใหม่ (Reset Wizard) ──────────────────────────────
+    if (
+      customId === CUSTOM_IDS.RESET_ORDER ||
+      customId === "heal_jai_reset_order" ||
+      customId === "p_349886014707208200"
+    ) {
+      const state = {
+        step: 1,
+        mode: null,
+        drinkId: null,
+        toppingId: null,
+        counselorId: null,
+        counselorName: null,
+        userAvatarUrl: user.displayAvatarURL({ extension: "png", size: 512 })
+      };
+      ticketSelections.set(channel.id, state);
+
+      return interaction.update(buildInteractiveOrderPayload(state)).catch((e) => {
+        console.error("[HealJai] Failed to reset order wizard:", e.message);
+      });
     }
 
     // ── 2.1 กดปุ่ม "อ่านข้อตกลงฉบับเต็ม" ──────────────────────────────
@@ -758,8 +794,18 @@ function setupHealJai(client) {
                 type: 17,
                 components: [
                   {
+                    type: 14,
+                    spacing: 1,
+                    divider: false
+                  },
+                  {
                     type: 10,
-                    content: `### <a:heartoutlines:1536268541144076369>︲__\` ยินยอมข้อตกลงเรียบร้อยแล้วค่ะ \`__\nคุณได้รับสิทธิ์เข้าสู่พื้นที่ปลอดภัย Bear Cafe ฮีลใจ เรียบร้อยแล้วนะคะ สามารถไปที่ห้อง <#${MENU_CHANNEL_ID}> เพื่อเลือกเมนูเครื่องดื่มและเวลาสนทนาได้เลยค่ะ 🍵`
+                    content: `## <:hj_clover:1552227021122314250>︲__\` ยินยอมข้อตกลงเรียบร้อยแล้วค่ะ \`__\n-# ระบบได้ทำการบันทึกข้อมูลและประทับเวลาการยินยอมนี้ไว้ในระบบฐานข้อมูลอย่างปลอดภัย เพื่อเป็นหลักฐานการใช้บริการตามนโยบายความเป็นส่วนตัว\n\n- เริ่มใช้บริการ: <#${MENU_CHANNEL_ID}>\n- พบปัญหา: <#1536207517120466964>`
+                  },
+                  {
+                    type: 14,
+                    spacing: 1,
+                    divider: false
                   }
                 ]
               }
@@ -889,9 +935,21 @@ function setupHealJai(client) {
         // 1. ส่งข้อความแท็กผู้กด 1 ครั้ง แยกจากการ์ด Component v2
         await newChannel.send({ content: `<@${user.id}>` }).catch(() => {});
 
-        // 2. ส่งการ์ดเลือกเมนูเครื่องดื่มและท็อปปิ้ง (Interactive Component v2)
-        ticketSelections.set(newChannel.id, { selectedDrink: null, selectedTopping: null, selectedCounselor: null });
-        const menuPayload = buildInteractiveMenuPayload({ selectedDrink: null, selectedTopping: null, selectedCounselor: null });
+        // 2. ส่งการ์ดเลือกบริการและเมนูเครื่องดื่ม (Step 1 Interactive Component v2)
+        const userAvatarUrl = user.displayAvatarURL({ extension: "png", size: 512 });
+        ticketSelections.set(newChannel.id, {
+          step: 1,
+          mode: null,
+          drinkId: null,
+          toppingId: null,
+          counselorId: null,
+          counselorName: null,
+          userAvatarUrl
+        });
+        const menuPayload = buildInteractiveOrderPayload({
+          step: 1,
+          userAvatarUrl
+        });
         const checkoutMsg = await newChannel.send(menuPayload);
 
         const orderCode = `HJ-${Date.now().toString(36).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
@@ -962,33 +1020,26 @@ function setupHealJai(client) {
       return;
     }
 
-    // ── 2.4.1 กดปุ่ม "จ่ายเงิน" (Pay Button ใน Interactive Menu) ───────
+    // ── 2.4.1 กดปุ่ม "ยืนยันคำสั่งซื้อ" (Pay Button ใน Interactive Menu) ───────
     if (customId === "heal_jai_btn_pay" || customId === CUSTOM_IDS.BTN_PAY) {
-      const state = ticketSelections.get(channel.id) || { selectedDrink: null, selectedTopping: null, selectedCounselor: null };
-      if (!state.selectedDrink || !DRINK_OPTIONS[state.selectedDrink]) {
-        return interaction.reply({
-          content: "⚠️ กรุณาเลือกเครื่องดื่มก่อนกดชำระเงินนะคะ",
-          flags: FLAG_EPHEMERAL
-        });
-      }
+      const state = ticketSelections.get(channel.id) || { drinkId: "tea_39", mode: "chat" };
+      const drinkKey = state.drinkId || state.selectedDrink || "tea_39";
+      const drink = DRINK_OPTIONS[drinkKey] || DRINK_OPTIONS.tea_39;
 
-      const isSpecific = state.selectedTopping === "specific_30";
-      if (isSpecific && !state.selectedCounselor) {
-        return interaction.reply({
-          content: "⚠️ กรุณาคลิกเลือกผู้รับฟังที่คุณต้องการก่อนกดชำระเงินนะคะ 🎯",
-          flags: FLAG_EPHEMERAL
-        });
-      }
+      let toppingKey = state.toppingId || state.selectedTopping;
+      let topping = (toppingKey && toppingKey !== "none") ? TOPPING_OPTIONS[toppingKey] : null;
 
-      const drink = DRINK_OPTIONS[state.selectedDrink];
-      const topping = state.selectedTopping ? TOPPING_OPTIONS[state.selectedTopping] : null;
-      const counselorObj = (isSpecific && state.selectedCounselor) ? MOCK_COUNSELORS[state.selectedCounselor] : null;
-      const counselorName = counselorObj ? counselorObj.label : null;
+      const isSpecific = toppingKey === "specific_39" || toppingKey === "specific_30";
+      const isSilent = toppingKey === "silent_19" || toppingKey === "silent_15";
 
-      const totalPrice = drink.price + (topping ? topping.price : 0);
+      const counselorId = state.counselorId || state.selectedCounselor;
+      const counselorObj = counselorId ? MOCK_COUNSELORS[counselorId] : null;
+      const counselorName = counselorObj ? counselorObj.name : (counselorId ? (counselorId.startsWith("counselor_") ? counselorId : `<@${counselorId}>`) : null);
+
+      const toppingPrice = topping ? topping.price : 0;
+      const totalPrice = drink.price + toppingPrice;
       const counselorShare = Number((totalPrice * 0.70).toFixed(2));
       const platformShare = Number((totalPrice * 0.30).toFixed(2));
-      const isSilent = state.selectedTopping === "silent_15";
       const isBooster = Boolean(member?.premiumSince);
 
       let orderCode = `HJ-${channel.id.slice(-6)}`;
@@ -1002,6 +1053,7 @@ function setupHealJai(client) {
             duration_minutes: drink.duration,
             is_silent: isSilent,
             is_specific_counselor: isSpecific,
+            counselor_id: (counselorId && !counselorId.startsWith("counselor_")) ? counselorId : null,
             is_booster: isBooster,
             total_price: totalPrice,
             counselor_share: counselorShare,
@@ -1029,6 +1081,17 @@ function setupHealJai(client) {
       await interaction.update(scanToPayPayload).catch((e) => {
         console.error("[HealJai] Failed to edit to scan-to-pay card:", e.message);
       });
+
+      // ปลดล็อก Permission ให้ user สามารถพิมพ์และส่งข้อความในห้องนี้ได้
+      if (channel && channel.permissionOverwrites) {
+        await channel.permissionOverwrites.edit(user.id, {
+          ViewChannel: true,
+          SendMessages: true,
+          ReadMessageHistory: true
+        }).catch((e) => {
+          console.error("[HealJai] Failed to unlock SendMessages for user on btn_pay:", e.message);
+        });
+      }
 
       // ส่งประวัติ AWAITING_PAYMENT ไปยังห้อง 1549710698702184539
       sendOrderHistoryLog(guild, {
@@ -1515,21 +1578,214 @@ function setupHealJai(client) {
       });
     }
 
-    // ── 2.7 ระบบประเมินและให้คะแนนดาว (Feedback Ratings) ────────────
-    if ([CUSTOM_IDS.RATE_1, CUSTOM_IDS.RATE_2, CUSTOM_IDS.RATE_3, CUSTOM_IDS.RATE_4, CUSTOM_IDS.RATE_5].includes(customId)) {
+    // ── 2.7 ระบบประเมินและให้คะแนนดาว & Modal Review ────────────
+    if (interaction.isModalSubmit()) {
+      if (customId === "heal_jai_modal_review") {
+        await interaction.deferReply({ flags: FLAG_EPHEMERAL });
+
+        const ratingRaw = interaction.fields.getTextInputValue("review_rating");
+        const comment = (interaction.fields.getTextInputValue("review_comment") || "").trim();
+        const anonRaw = (interaction.fields.getTextInputValue("review_anonymous") || "").trim().toLowerCase();
+
+        let rating = parseInt(ratingRaw, 10);
+        if (isNaN(rating) || rating < 1) rating = 1;
+        if (rating > 5) rating = 5;
+
+        const isAnonymous = anonRaw === "นิรนาม" || anonRaw === "anonymous" || anonRaw === "yes" || anonRaw === "true" || anonRaw.includes("นิรนาม");
+
+        if (!supabase) {
+          return interaction.editReply({
+            content: "❌ ไม่สามารถเชื่อมต่อฐานข้อมูลได้ในขณะนี้ กรุณาลองใหม่อีกครั้งในภายหลังค่ะ"
+          });
+        }
+
+        // ตรวจสอบ Order ของห้องนี้
+        const { data: order, error: orderErr } = await supabase
+          .from("heal_jai_orders_sessions")
+          .select("*")
+          .eq("ticket_channel_id", channel.id)
+          .order("id", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (orderErr || !order) {
+          return interaction.editReply({
+            content: "❌ ไม่พบข้อมูลออเดอร์สำหรับห้องนี้ค่ะ"
+          });
+        }
+
+        if (order.customer_id !== user.id) {
+          return interaction.editReply({
+            content: "⚠️ ขออภัยค่ะ เฉพาะลูกค้าผู้สั่งซื้อเท่านั้นที่สามารถส่งรีวิวได้นะคะ 🍵"
+          });
+        }
+
+        // ตรวจสอบว่าเคยรีวิวไปแล้วหรือยัง
+        const { data: existingReview } = await supabase
+          .from("heal_jai_reviews")
+          .select("id")
+          .eq("order_id", order.id)
+          .maybeSingle();
+
+        if (existingReview) {
+          return interaction.editReply({
+            content: "🐻 คุณได้ส่งรีวิวและให้คะแนนสำหรับคำสั่งซื้อนี้เรียบร้อยแล้วค่ะ ขอบคุณมากนะคะ ✨"
+          });
+        }
+
+        const counselorId = order.counselor_id || user.id;
+
+        // 1. บันทึกลง heal_jai_reviews
+        const { data: insertedReview, error: insertErr } = await supabase
+          .from("heal_jai_reviews")
+          .insert({
+            guild_id: guild.id,
+            order_id: order.id,
+            customer_id: user.id,
+            counselor_id: counselorId,
+            rating: rating,
+            comment: comment,
+            is_anonymous: isAnonymous,
+            created_at: new Date().toISOString()
+          })
+          .select()
+          .single();
+
+        if (insertErr) {
+          console.error("[HealJai] Insert review error:", insertErr.message);
+          return interaction.editReply({
+            content: `❌ เกิดข้อผิดพลาดในการบันทึกรีวิว: ${insertErr.message}`
+          });
+        }
+
+        // 2. คำนวณ average_rating & total_reviews ของ Counselor
+        if (counselorId) {
+          const { data: allReviews } = await supabase
+            .from("heal_jai_reviews")
+            .select("rating")
+            .eq("counselor_id", counselorId);
+
+          if (allReviews && allReviews.length > 0) {
+            const totalRev = allReviews.length;
+            const sumRating = allReviews.reduce((acc, r) => acc + (r.rating || 5), 0);
+            const avgRating = parseFloat((sumRating / totalRev).toFixed(2));
+
+            await supabase
+              .from("heal_jai_counselors")
+              .update({
+                average_rating: avgRating,
+                total_reviews: totalRev,
+                updated_at: new Date().toISOString()
+              })
+              .eq("user_id", counselorId);
+          }
+        }
+
+        // 3. ส่ง Showcase การ์ดลงห้องสาธารณะ (🌟︰กล่องความประทับใจ)
+        const publicChannel = guild.channels.cache.get(PUBLIC_REVIEW_CHANNEL) ||
+                              await guild.channels.fetch(PUBLIC_REVIEW_CHANNEL).catch(() => null);
+        if (publicChannel) {
+          const showcasePayload = buildPublicReviewShowcasePayload({
+            counselorId: counselorId,
+            customerId: user.id,
+            rating: rating,
+            comment: comment,
+            packageName: order.package_name || "โกโก้พักใจ 30 นาที",
+            isAnonymous: isAnonymous,
+            sessionNumber: order.order_code ? order.order_code.slice(-4) : null,
+            dateStr: new Date().toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" })
+          });
+
+          const pubMsg = await publicChannel.send(showcasePayload).catch((err) => {
+            console.error("[HealJai] Failed to send public review showcase:", err.message);
+            return null;
+          });
+
+          if (pubMsg && insertedReview) {
+            await supabase
+              .from("heal_jai_reviews")
+              .update({ public_message_id: pubMsg.id })
+              .eq("id", insertedReview.id);
+          }
+        }
+
+        // 4. ส่งข้อความขอบคุณลูกค้า
+        const starsEmoji = "⭐".repeat(rating);
+        return interaction.editReply({
+          content: `## <:chalkcrown:1536708801481412689>︲__\` บันทึกความประทับใจเรียบร้อยแล้ว \`__\n` +
+                   `* ⭐ **คะแนนความพึงพอใจ:** ${starsEmoji} (${rating}/5 ดาว)\n` +
+                   `* 💬 **ข้อความรีวิว:** "${comment}"\n` +
+                   `* 👤 **ผู้เขียน:** ${isAnonymous ? "คุณหมีนิรนาม 🐻" : `<@${user.id}>`}\n\n` +
+                   `> 💌 ระบบได้ส่งมอบความรู้สึกดีๆ ของคุณให้บาริสต้าผู้ดูแลและแสดงผลในห้อง <#${PUBLIC_REVIEW_CHANNEL}> เรียบร้อยแล้วค่ะ ขอบคุณที่มาร่วมสร้างพื้นที่ปลอดภัยกับ Bear Cafe นะคะ 🍵`
+        });
+      }
+      return;
+    }
+
+    if ([CUSTOM_IDS.RATE_1, CUSTOM_IDS.RATE_2, CUSTOM_IDS.RATE_3, CUSTOM_IDS.RATE_4, CUSTOM_IDS.RATE_5, CUSTOM_IDS.WRITE_REVIEW].includes(customId)) {
+      if (!supabase) {
+        return interaction.reply({
+          content: "❌ ระบบฐานข้อมูลไม่พร้อมใช้งานในขณะนี้ค่ะ",
+          flags: FLAG_EPHEMERAL
+        });
+      }
+
+      // ตรวจสอบ Order ของห้องนี้
+      const { data: order } = await supabase
+        .from("heal_jai_orders_sessions")
+        .select("*")
+        .eq("ticket_channel_id", channel.id)
+        .order("id", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!order) {
+        return interaction.reply({
+          content: "❌ ไม่พบข้อมูลออเดอร์สำหรับห้องนี้ค่ะ",
+          flags: FLAG_EPHEMERAL
+        });
+      }
+
+      if (order.customer_id !== user.id) {
+        return interaction.reply({
+          content: "⚠️ ขออภัยค่ะ เฉพาะลูกค้าผู้สั่งซื้อเท่านั้นที่สามารถส่งรีวิวหรือประเมินคะแนนได้นะคะ 🍵",
+          flags: FLAG_EPHEMERAL
+        });
+      }
+
+      if (order.session_status !== "COMPLETED") {
+        return interaction.reply({
+          content: "⏳ เซสชันนี้ยังไม่สิ้นสุดลงค่ะ จะสามารถส่งรีวิวได้หลังจากเซสชันเสร็จสมบูรณ์นะคะ",
+          flags: FLAG_EPHEMERAL
+        });
+      }
+
+      // เช็กว่าเคยส่งรีวิวแล้วหรือยัง
+      const { data: existingReview } = await supabase
+        .from("heal_jai_reviews")
+        .select("id")
+        .eq("order_id", order.id)
+        .maybeSingle();
+
+      if (existingReview) {
+        return interaction.reply({
+          content: "🐻 คุณได้ส่งรีวิวสำหรับคำสั่งซื้อนี้เรียบร้อยแล้วค่ะ ขอบคุณมากนะคะ ✨",
+          flags: FLAG_EPHEMERAL
+        });
+      }
+
       const scoreMap = {
         [CUSTOM_IDS.RATE_1]: 1,
         [CUSTOM_IDS.RATE_2]: 2,
         [CUSTOM_IDS.RATE_3]: 3,
         [CUSTOM_IDS.RATE_4]: 4,
         [CUSTOM_IDS.RATE_5]: 5,
+        [CUSTOM_IDS.WRITE_REVIEW]: 5
       };
-      const score = scoreMap[customId] || 5;
+      const defaultScore = scoreMap[customId] || 5;
 
-      return interaction.reply({
-        content: `## <:chalkcrown:1536708801481412689>︲บันทึกคะแนน ${score} ดาวเรียบร้อยแล้วค่ะ!\nขอบคุณสำหรับคะแนนความประทับใจและกำลังใจที่มอบให้บาริสต้าหมีนะคะ 🍵`,
-        flags: FLAG_EPHEMERAL
-      });
+      const modal = buildReviewModal(defaultScore);
+      return interaction.showModal(modal);
     }
   });
 

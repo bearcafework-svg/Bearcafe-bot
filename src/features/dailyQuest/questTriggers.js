@@ -15,28 +15,38 @@ function setupQuestTriggers(client, supabase) {
       const user = message.author;
       const content = message.content || "";
       const channelId = message.channel.id;
+      const parentId = message.channel.parentId || null;
+      const member = message.member;
 
       // 1.1 ตรวจสอบ Keyword (เช่น Morning Bear)
       await processTriggerEvent(client, supabase, user, "keyword", {
         text: content,
-        channelId
+        channelId,
+        parentId,
+        member
       });
 
       // 1.2 เควสส่งข้อความแวะมาคุย (chat_any)
       await processTriggerEvent(client, supabase, user, "chat_any", {
-        channelId
+        channelId,
+        parentId,
+        member
       });
 
       // 1.3 เควสคุยต่ออีกนิด (chat_count)
       await processTriggerEvent(client, supabase, user, "chat_count", {
         channelId,
+        parentId,
+        member,
         amount: 1
       });
 
       // 1.4 เควส Reply ข้อความเพื่อน (chat_reply)
       if (message.reference && message.reference.messageId) {
         await processTriggerEvent(client, supabase, user, "chat_reply", {
-          channelId
+          channelId,
+          parentId,
+          member
         });
       }
 
@@ -45,7 +55,9 @@ function setupQuestTriggers(client, supabase) {
         const mentionsOther = message.mentions.users.some((u) => u.id !== user.id && !u.bot);
         if (mentionsOther) {
           await processTriggerEvent(client, supabase, user, "chat_mention", {
-            channelId
+            channelId,
+            parentId,
+            member
           });
         }
       }
@@ -64,6 +76,8 @@ function setupQuestTriggers(client, supabase) {
       if (isStickerOrGif) {
         await processTriggerEvent(client, supabase, user, "chat_media", {
           channelId,
+          parentId,
+          member,
           mediaType: "sticker_or_gif"
         });
       }
@@ -71,6 +85,8 @@ function setupQuestTriggers(client, supabase) {
       if (hasMusicLink) {
         await processTriggerEvent(client, supabase, user, "chat_media", {
           channelId,
+          parentId,
+          member,
           mediaType: "music_link"
         });
       }
@@ -79,11 +95,50 @@ function setupQuestTriggers(client, supabase) {
       const hasCustomEmoji = /<a?:[a-zA-Z0-9_]+:[0-9]+>/.test(content);
       if (hasCustomEmoji) {
         await processTriggerEvent(client, supabase, user, "chat_emoji", {
-          channelId
+          channelId,
+          parentId,
+          member
         });
       }
     } catch (err) {
       console.error("[dailyQuest] messageCreate trigger error:", err.message);
+    }
+  });
+
+  // ─── 1.8 ดักจับการสร้างกระทู้ในฟอรั่ม (threadCreate) ─────────────────
+  client.on(Events.ThreadCreate, async (thread, newlyCreated) => {
+    try {
+      if (!thread || !thread.guild) return;
+
+      // รอสักครู่เพื่อให้ข้อความแรกของกระทู้ถูกสร้างเสร็จ
+      setTimeout(async () => {
+        try {
+          const starterMessage = await thread.fetchStarterMessage().catch(() => null);
+          if (!starterMessage || starterMessage.author?.bot) return;
+
+          const user = starterMessage.author;
+          const content = starterMessage.content || "";
+          const channelId = thread.id;
+          const parentId = thread.parentId || null;
+          const member = starterMessage.member;
+
+          const hasMusicLink =
+            /https?:\/\/(youtube|youtu\.be|spotify|soundcloud|music\.apple)\./i.test(content);
+
+          if (hasMusicLink) {
+            await processTriggerEvent(client, supabase, user, "chat_media", {
+              channelId,
+              parentId,
+              member,
+              mediaType: "music_link"
+            });
+          }
+        } catch (innerErr) {
+          // ignore starter message fetch error
+        }
+      }, 1000);
+    } catch (err) {
+      console.error("[dailyQuest] threadCreate trigger error:", err.message);
     }
   });
 

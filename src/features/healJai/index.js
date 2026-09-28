@@ -415,6 +415,9 @@ function setupHealJai(client) {
         });
     }
 
+    // ⚡ Defer reply ทันที เพื่อป้องกัน 10062 Unknown Interaction (เพราะส่ง Component v2 อาจใช้เวลาเกิน 3 วินาที)
+    await interaction.deferReply({ flags: FLAG_EPHEMERAL }).catch(() => {});
+
     try {
       if (Array.isArray(payload)) {
         for (const msgPayload of payload) {
@@ -423,15 +426,14 @@ function setupHealJai(client) {
       } else {
         await targetChannel.send(payload);
       }
-      return interaction.reply({
+      return interaction.editReply({
         content: `✅ ส่ง **${componentName}** ไปยังห้อง <#${targetChannel.id}> สำเร็จเรียบร้อยแล้วค่ะ! 🍵`,
-        flags: FLAG_EPHEMERAL
       });
     } catch (err) {
       console.error("[HealJai] Error sending component via slash command:", err);
-      return interaction.reply({
-        content: `❌ เกิดข้อผิดพลาดในการส่งการ์ด: ${err.message}`,
-        flags: FLAG_EPHEMERAL
+      const errorDetail = err.rawError?.message || err.message;
+      return interaction.editReply({
+        content: `❌ เกิดข้อผิดพลาดในการส่งการ์ด: \`${errorDetail}\`\n-# หากเป็นปัญหาเรื่องรูปแบบ Component โปรดตรวจสอบว่าไม่มีกล่อง Media ว่าง (items: []) หรือฟิลด์ flow ที่ไม่รองรับ`,
       });
     }
   });
@@ -895,12 +897,25 @@ function setupHealJai(client) {
         const overwrites = [
           {
             id: guild.roles.everyone.id,
-            deny: [PermissionFlagsBits.ViewChannel],
+            deny: [
+              PermissionFlagsBits.ViewChannel,
+              PermissionFlagsBits.SendMessages,
+            ],
           },
           {
             id: user.id,
-            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
-            deny: [PermissionFlagsBits.SendMessages],
+            allow: [
+              PermissionFlagsBits.ViewChannel,
+              PermissionFlagsBits.ReadMessageHistory,
+            ],
+            deny: [
+              PermissionFlagsBits.SendMessages,
+              PermissionFlagsBits.SendMessagesInThreads,
+              PermissionFlagsBits.CreatePublicThreads,
+              PermissionFlagsBits.CreatePrivateThreads,
+              PermissionFlagsBits.AttachFiles,
+              PermissionFlagsBits.AddReactions,
+            ],
           },
           {
             id: client.user.id,
@@ -909,6 +924,8 @@ function setupHealJai(client) {
               PermissionFlagsBits.SendMessages,
               PermissionFlagsBits.ReadMessageHistory,
               PermissionFlagsBits.ManageChannels,
+              PermissionFlagsBits.EmbedLinks,
+              PermissionFlagsBits.AttachFiles,
             ],
           },
         ];
@@ -1082,12 +1099,15 @@ function setupHealJai(client) {
         console.error("[HealJai] Failed to edit to scan-to-pay card:", e.message);
       });
 
-      // ปลดล็อก Permission ให้ user สามารถพิมพ์และส่งข้อความในห้องนี้ได้
+      // ปลดล็อก Permission ให้ user สามารถพิมพ์และส่งข้อความ/แนบรูปสลิปในห้องนี้ได้
       if (channel && channel.permissionOverwrites) {
         await channel.permissionOverwrites.edit(user.id, {
           ViewChannel: true,
+          ReadMessageHistory: true,
           SendMessages: true,
-          ReadMessageHistory: true
+          AttachFiles: true,
+          EmbedLinks: true,
+          AddReactions: true,
         }).catch((e) => {
           console.error("[HealJai] Failed to unlock SendMessages for user on btn_pay:", e.message);
         });

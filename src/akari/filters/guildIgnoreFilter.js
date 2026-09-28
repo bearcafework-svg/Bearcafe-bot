@@ -1,6 +1,6 @@
 // ===================================================
 // src/akari/filters/guildIgnoreFilter.js
-// ตัวกรองความปลอดภัยสำหรับ Akari Bot (Public Multi-Tenant Engine)
+// ตัวกรองความปลอดภัยสำหรับ Kuma Bot (Public Multi-Tenant Engine)
 // ทำหน้าที่ตรวจสอบและปฏิเสธการตอบสนองทุกชนิดต่อ GUILD_ID ของ Bear Cafe (และ Guilds ใน Excluded list)
 // ===================================================
 
@@ -83,14 +83,14 @@ function setupAkariGuildFilter(client) {
   client.emit = function (eventName, ...args) {
     const guildId = extractGuildId(args);
     if (guildId && isExcludedGuild(guildId)) {
-      // 🛑 Ignore 100% — ปฏิเสธการทำงานและไม่ส่ง Event ต่อไปให้ Feature อื่นของ Akari Bot
+      // 🛑 Ignore 100% — ปฏิเสธการทำงานและไม่ส่ง Event ต่อไปให้ Feature อื่นของ Kuma Bot
       return false;
     }
     return originalEmit.apply(this, [eventName, ...args]);
   };
 
   const listStr = Array.from(excludedGuildIds).join(", ");
-  console.log(`🛡️ [AkariGuildFilter] ระบบกรองยิงผ่านเฉพาะ Public Guilds — เมินเฉย Guilds: [${listStr}]`);
+  console.log(`🛡️ [KumaGuildFilter] ระบบกรองยิงผ่านเฉพาะ Public Guilds — เมินเฉย Guilds: [${listStr}]`);
 }
 
 module.exports = {

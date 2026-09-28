@@ -1,0 +1,9 @@
+{
+  "watch": [
+    ".reload-trigger",
+    ".reload-kuma",
+    ".reload-akari"
+  ],
+  "ext": "*",
+  "delay": "200"
+}

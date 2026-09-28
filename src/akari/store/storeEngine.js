@@ -252,7 +252,7 @@ async function checkUserRedemptionEligibility(supabase, guildId, userId, slot, i
   if (!item || !item.is_active || !item.is_configured) {
     return {
       eligible: false,
-      reason: "ขออภัยด้วยนะคะ ของรางวัลชิ้นนี้ยังไม่เปิดให้แลกในขณะนี้ค่ะ",
+      reason: "ขออภัยด้วยนะครับ ของรางวัลชิ้นนี้ยังไม่เปิดให้แลกในขณะนี้ครับ",
     };
   }
 
@@ -260,7 +260,7 @@ async function checkUserRedemptionEligibility(supabase, guildId, userId, slot, i
   if (typeof item.stock === "number" && item.stock === 0) {
     return {
       eligible: false,
-      reason: "ขออภัยด้วยนะคะ ของรางวัลชิ้นนี้สินค้าหมดสต็อกแล้วค่ะ (Out of Stock)",
+      reason: "ขออภัยด้วยนะครับ ของรางวัลชิ้นนี้สินค้าหมดสต็อกแล้วครับ (Out of Stock)",
     };
   }
 
@@ -270,7 +270,7 @@ async function checkUserRedemptionEligibility(supabase, guildId, userId, slot, i
     const diff = item.points_cost - userScore.points;
     return {
       eligible: false,
-      reason: `แต้มของคุณไม่เพียงพอสำหรับการแลกของรางวัลนี้ค่ะ (ขาดอีก **${diff.toLocaleString()} แต้ม**)`,
+      reason: `แต้มของคุณไม่เพียงพอสำหรับการแลกของรางวัลนี้ครับ (ขาดอีก **${diff.toLocaleString()} แต้ม**)`,
       currentPoints: userScore.points,
       currentWins: userScore.wins,
     };
@@ -281,7 +281,7 @@ async function checkUserRedemptionEligibility(supabase, guildId, userId, slot, i
     const diffWins = item.wins_required - userScore.wins;
     return {
       eligible: false,
-      reason: `จำนวนการชนะของคุณยังไม่ถึงเกณฑ์ค่ะ (ต้องการการชนะอีก **${diffWins.toLocaleString()} ครั้ง**)`,
+      reason: `จำนวนการชนะของคุณยังไม่ถึงเกณฑ์ครับ (ต้องการการชนะอีก **${diffWins.toLocaleString()} ครั้ง**)`,
       currentPoints: userScore.points,
       currentWins: userScore.wins,
     };
@@ -292,7 +292,7 @@ async function checkUserRedemptionEligibility(supabase, guildId, userId, slot, i
     if (member && member.roles && member.roles.cache && member.roles.cache.has(item.role_id)) {
       return {
         eligible: false,
-        reason: `คุณมีบทบาท/ยศ <@&${item.role_id}> อยู่ในครอบครองเรียบร้อยแล้วค่ะ จึงไม่สามารถแลกรับซ้ำได้`,
+        reason: `คุณมีบทบาท/ยศ <@&${item.role_id}> อยู่ในครอบครองเรียบร้อยแล้วครับ จึงไม่สามารถแลกรับซ้ำได้`,
         currentPoints: userScore.points,
         currentWins: userScore.wins,
       };
@@ -305,7 +305,7 @@ async function checkUserRedemptionEligibility(supabase, guildId, userId, slot, i
     if (userRedemptionsCache.has(cacheKey)) {
       return {
         eligible: false,
-        reason: "คุณเคยแลกรับของรางวัลชิ้นนี้ไปแล้วค่ะ (ของรางวัลนี้จำกัดสิทธิ์ 1 ครั้งต่อคน)",
+        reason: "คุณเคยแลกรับของรางวัลชิ้นนี้ไปแล้วครับ (ของรางวัลนี้จำกัดสิทธิ์ 1 ครั้งต่อคน)",
         currentPoints: userScore.points,
         currentWins: userScore.wins,
       };
@@ -325,7 +325,7 @@ async function checkUserRedemptionEligibility(supabase, guildId, userId, slot, i
           userRedemptionsCache.set(cacheKey, true);
           return {
             eligible: false,
-            reason: "คุณเคยแลกรับของรางวัลชิ้นนี้ไปแล้วค่ะ (ของรางวัลนี้จำกัดสิทธิ์ 1 ครั้งต่อคน)",
+            reason: "คุณเคยแลกรับของรางวัลชิ้นนี้ไปแล้วครับ (ของรางวัลนี้จำกัดสิทธิ์ 1 ครั้งต่อคน)",
             currentPoints: userScore.points,
             currentWins: userScore.wins,
           };
@@ -375,7 +375,7 @@ async function executeRedemption(client, supabase, guild, member, slot, item) {
       }
     } catch (err) {
       console.error(`[akari-store] Point deduction failed for ${userId}:`, err.message);
-      return { success: false, error: "เกิดข้อผิดพลาดในการตัดแต้ม กรุณาลองใหม่อีกครั้งค่ะ" };
+      return { success: false, error: "เกิดข้อผิดพลาดในการตัดแต้ม กรุณาลองใหม่อีกครั้งครับ" };
     }
   }
 
@@ -391,7 +391,7 @@ async function executeRedemption(client, supabase, guild, member, slot, item) {
     try {
       const role = guild.roles.cache.get(item.role_id) || (await guild.roles.fetch(item.role_id).catch(() => null));
       if (role) {
-        await member.roles.add(role, `แลกของรางวัลมินิเกม Akari: ${item.name}`);
+        await member.roles.add(role, `แลกของรางวัลมินิเกมบอท Kuma: ${item.name}`);
         roleAdded = true;
       } else {
         roleError = "ไม่พบบทบาทในเซิร์ฟเวอร์ (อาจถูกลบไปแล้ว)";
@@ -417,7 +417,7 @@ async function executeRedemption(client, supabase, guild, member, slot, item) {
       userRedemptionsCache.delete(cacheKey);
       return {
         success: false,
-        error: `ไม่สามารถมอบยศได้: ${roleError}\n> 💡 **ระบบได้ทำการคืนแต้ม (${item.points_cost.toLocaleString()} แต้ม) ให้คุณเรียบร้อยแล้วค่ะ**`,
+        error: `ไม่สามารถมอบยศได้: ${roleError}\n> 💡 **ระบบได้ทำการคืนแต้ม (${item.points_cost.toLocaleString()} แต้ม) ให้คุณเรียบร้อยแล้วครับ**`,
       };
     }
   }

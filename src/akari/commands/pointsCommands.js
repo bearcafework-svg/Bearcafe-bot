@@ -101,16 +101,6 @@ function buildUserPointsPayload(targetUser, scoreData, currencyEmoji) {
                   name: "🏆",
                 },
               },
-              {
-                type: 2,
-                style: 2,
-                custom_id: "akari_view_store",
-                label: "︲ร้านค้าแลกรางวัล (กำลังพัฒนา)",
-                emoji: {
-                  name: "🛒",
-                },
-                disabled: true,
-              },
             ],
           },
         ],
@@ -126,6 +116,9 @@ function buildLeaderboardPayload(guild, leaderboardList, sortBy = "points", curr
   const isWinsMode = sortBy === "wins";
   const sortModeText = isWinsMode ? "จำนวนชนะสูงสุด" : "แต้มสะสมสูงสุด";
 
+  // ดึงรูปโปรไฟล์เซิร์ฟเวอร์ (Guild Icon URL) หากไม่มีให้ใช้ default Discord avatar
+  const serverIconUrl = guild?.iconURL({ dynamic: true, size: 256 }) || "https://cdn.discordapp.com/embed/avatars/0.png";
+
   let listContent = "";
   if (!leaderboardList || leaderboardList.length === 0) {
     listContent = "> *ยังไม่มีข้อมูลคะแนนในเซิร์ฟเวอร์นี้ มาร่วมเล่นมินิเกมสะสมแต้มเป็นคนแรกกันเถอะ! ✨*";
@@ -137,9 +130,9 @@ function buildLeaderboardPayload(guild, leaderboardList, sortBy = "points", curr
       const wins = Number(row.wins || 0).toLocaleString();
 
       if (isWinsMode) {
-        return `${emoji}⠀<@${row.user_id}> — **${wins}** ครั้ง • \`${pts} แต้ม\``;
+        return `${emoji}⠀<@${row.user_id}> — **${wins}** ครั้ง / \`${pts} แต้ม\``;
       }
-      return `${emoji}⠀<@${row.user_id}> — **${pts}** ${currencyEmoji} • \`${wins} ชนะ\``;
+      return `${emoji}⠀<@${row.user_id}> — **${pts}** ${currencyEmoji} / \`${wins} ชนะ\``;
     });
     listContent = lines.join("\n");
   }
@@ -151,14 +144,26 @@ function buildLeaderboardPayload(guild, leaderboardList, sortBy = "points", curr
         type: 17,
         components: [
           {
-            type: 10,
-            content:
-              `## ${BEE_HEADER_EMOJI}︲__\` 𝖫𝖾𝖺𝖽𝖾𝗋𝖻𝗈𝖺𝗋𝖽 ₊ กระดานจัดอันดับมินิเกม 𓂃 \`__\n` +
-              `-# จัดอันดับประจำเซิร์ฟเวอร์ • โหมด: **${sortModeText}**`,
+            type: 9,
+            components: [
+              {
+                type: 10,
+                content:
+                  `## ${BEE_HEADER_EMOJI}︲__\` 𝖫𝖾𝖺𝖽𝖾𝗋𝖻𝗈𝖺𝗋𝖽 ₊ กระดานจัดอันดับมินิเกม 𓂃 \`__\n` +
+                  `-# จัดอันดับประจำเซิร์ฟเวอร์ • โหมด: **${sortModeText}**`,
+              },
+            ],
+            accessory: {
+              type: 11,
+              media: {
+                url: serverIconUrl,
+              },
+            },
           },
           {
             type: 14,
             spacing: 1,
+            divider: false,
           },
           {
             type: 10,

@@ -95,7 +95,9 @@ function initInteractionRouter(client) {
     try {
       if (isDevMode && devAllowedChannels.length > 0) {
         const chId = interaction.channelId || interaction.channel?.id;
-        if (chId && !devAllowedChannels.includes(chId)) {
+        const guildId = interaction.guildId || interaction.guild?.id;
+        const isHealJaiGuild = guildId && (guildId === process.env.HEALJAI_GUILD_ID || guildId === "1536199707922141254");
+        if (chId && !devAllowedChannels.includes(chId) && !isHealJaiGuild) {
           return;
         }
       }

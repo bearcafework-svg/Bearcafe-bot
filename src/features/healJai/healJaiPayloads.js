@@ -19,10 +19,41 @@ function buildMainMenuPayload() {
 }
 
 /**
+ * Helper ปรับแต่ง Component v2 Payload ให้ปลอดภัย:
+ * - ตัด Media Gallery ที่มี items ว่างออก (ป้องกัน Discord 400 Bad Request)
+ * - ตัด flow metadata ของ Discohook ออกจาก Buttons
+ */
+function sanitizeComponentV2(payload) {
+  if (!payload || !payload.components) return payload;
+  const clone = JSON.parse(JSON.stringify(payload));
+  if (Array.isArray(clone.components)) {
+    for (const topComp of clone.components) {
+      if (topComp && Array.isArray(topComp.components)) {
+        topComp.components = topComp.components.filter((c) => {
+          if (!c) return false;
+          if (c.type === 12 && (!c.items || c.items.length === 0)) return false;
+          return true;
+        });
+        for (const subComp of topComp.components) {
+          if (subComp && subComp.type === 1 && Array.isArray(subComp.components)) {
+            for (const btn of subComp.components) {
+              if (btn && btn.flow) {
+                delete btn.flow;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  return clone;
+}
+
+/**
  * 3. แผงตอกบัตรเข้ากะของทีมงาน (Shift Panel)
  */
 function buildShiftPanelPayload() {
-  return JSON.parse(JSON.stringify(templates.board_3_shift_panel));
+  return sanitizeComponentV2(JSON.parse(JSON.stringify(templates.board_3_shift_panel)));
 }
 
 /**

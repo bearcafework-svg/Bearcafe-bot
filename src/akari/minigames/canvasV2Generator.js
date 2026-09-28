@@ -101,11 +101,11 @@ function wrapText(ctx, text, maxWidth) {
  * @returns {Promise<Buffer>}
  */
 async function createAkariMinigameV2Buffer({
-  gameTitle = '🎮 AKARI MINIGAME',
+  gameTitle = '🎮 KUMA MINIGAME',
   questionText = '',
   subText = 'พิมพ์ตอบในช่องข้อความได้เลย!',
   themeName = 'cyber',
-  serverName = 'AKARI BOT',
+  serverName = 'KUMA BOT',
   iconUrl = null,
 }) {
   const width = 900;

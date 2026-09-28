@@ -10,10 +10,12 @@ const rootDir = path.resolve(__dirname, "..");
 const timestamp = Date.now().toString();
 
 try {
-  if (target === "akari") {
-    const filePath = path.join(rootDir, ".reload-akari");
-    fs.writeFileSync(filePath, timestamp, "utf8");
-    console.log("🔄 [Reload] ส่งสัญญาณรีสตาร์ท Akari Bot (.reload-akari) เรียบร้อยแล้ว!");
+  if (target === "kuma" || target === "akari") {
+    const filePathKuma = path.join(rootDir, ".reload-kuma");
+    const filePathAkari = path.join(rootDir, ".reload-akari");
+    fs.writeFileSync(filePathKuma, timestamp, "utf8");
+    fs.writeFileSync(filePathAkari, timestamp, "utf8");
+    console.log("🔄 [Reload] ส่งสัญญาณรีสตาร์ท Kuma Bot (.reload-kuma) เรียบร้อยแล้ว!");
   } else if (target === "main") {
     const filePath = path.join(rootDir, ".reload-main");
     fs.writeFileSync(filePath, timestamp, "utf8");
@@ -22,7 +24,7 @@ try {
     // Both bots watch .reload-trigger
     const filePath = path.join(rootDir, ".reload-trigger");
     fs.writeFileSync(filePath, timestamp, "utf8");
-    console.log("🔄 [Reload] ส่งสัญญาณรีสตาร์ททั้ง Akari Bot และ Main Bot (.reload-trigger) เรียบร้อยแล้ว!");
+    console.log("🔄 [Reload] ส่งสัญญาณรีสตาร์ททั้ง Kuma Bot และ Main Bot (.reload-trigger) เรียบร้อยแล้ว!");
   }
 } catch (err) {
   console.error("❌ [Reload Error] ไม่สามารถเขียน Trigger File ได้:", err.message);

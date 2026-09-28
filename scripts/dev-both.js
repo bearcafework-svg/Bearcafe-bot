@@ -13,8 +13,8 @@ const mainBot = spawn("npx", ["nodemon", "--config", "nodemon.main.json", "index
   env: { ...process.env },
 });
 
-// 2. รัน Akari Public Bot (index-akari.js)
-const akariBot = spawn("npx", ["nodemon", "--config", "nodemon.akari.json", "index-akari.js"], {
+// 2. รัน Kuma Public Bot (index-akari.js)
+const kumaBot = spawn("npx", ["nodemon", "--config", "nodemon.kuma.json", "index-akari.js"], {
   stdio: "inherit",
   shell: true,
   env: { ...process.env },
@@ -24,13 +24,13 @@ mainBot.on("close", (code) => {
   console.log(`🐻 [MainBot] Process exited with code ${code}`);
 });
 
-akariBot.on("close", (code) => {
-  console.log(`🏮 [AkariBot] Process exited with code ${code}`);
+kumaBot.on("close", (code) => {
+  console.log(`🐻 [KumaBot] Process exited with code ${code}`);
 });
 
 process.on("SIGINT", () => {
   console.log("\n🛑 [DevAll] กำลังปิดการทำงานของบอททั้ง 2 ตัว...");
   mainBot.kill();
-  akariBot.kill();
+  kumaBot.kill();
   process.exit();
 });

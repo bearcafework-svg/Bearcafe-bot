@@ -536,6 +536,11 @@ async function sendNextGameQuestion(client, supabase, channelOrId, gameId, retri
     }
 
     const gameSettings = GAME_CHANNELS[gameId];
+    if (gameSettings && gameSettings.isEnabled === false) {
+      console.log(`[minigames] ⏸️ Game ${gameId} (${gameSettings.name}) is temporarily disabled. Skipping question spawn.`);
+      return;
+    }
+
     const questionData = await getNextQuestion(supabase, gameId, gameSettings).catch(() => null);
 
     if (!questionData) {
@@ -618,7 +623,7 @@ async function syncGameSettings(supabase) {
   try {
     const { data, error } = await supabase
       .from('minigame_settings')
-      .select('game_id, game_name, channel_id, min_points, max_points');
+      .select('game_id, game_name, channel_id, is_enabled, min_points, max_points');
 
     if (error) {
       console.error('[minigames] Failed to sync minigame_settings from DB:', error.message);
@@ -631,6 +636,7 @@ async function syncGameSettings(supabase) {
           GAME_CHANNELS[row.game_id] = {
             id: String(row.channel_id).trim(),
             name: row.game_name ? String(row.game_name).trim() : (GAME_CHANNELS[row.game_id]?.name || `เกมที่ ${row.game_id}`),
+            isEnabled: row.is_enabled !== false,
             minPoints: row.min_points ?? 3,
             maxPoints: row.max_points ?? 6
           };
@@ -1229,8 +1235,11 @@ function setupMinigames(client) {
 
     const session = activeSessions.get(message.channelId);
     if (!session || session.gameId !== matchedGameId) {
-      // Auto-Heal: หากเซสชันหลุดไป ให้เปิดเกมและส่งโจทย์ข้อใหม่เข้าช่องนี้ให้อัตโนมัติทันที
-      sendNextGameQuestion(client, supabase, message.channelId, matchedGameId).catch(() => { });
+      const gInfo = GAME_CHANNELS[matchedGameId];
+      if (gInfo && gInfo.isEnabled !== false) {
+        // Auto-Heal: หากเซสชันหลุดไป และเกมเปิดใช้งานอยู่ ให้เปิดเกมและส่งโจทย์ข้อใหม่เข้าช่องนี้ให้อัตโนมัติทันที
+        sendNextGameQuestion(client, supabase, message.channelId, matchedGameId).catch(() => { });
+      }
       return;
     }
 

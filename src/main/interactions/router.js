@@ -85,8 +85,22 @@ function initInteractionRouter(client) {
   if (isInitialized) return;
   isInitialized = true;
 
+  const isDevMode = process.env.DEV_MODE === "true";
+  const devAllowedChannels = (process.env.DEV_CHANNEL_IDS || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
   client.on(Events.InteractionCreate, async (interaction) => {
     try {
+      if (isDevMode && devAllowedChannels.length > 0) {
+        const chId = interaction.channelId || interaction.channel?.id;
+        const guildId = interaction.guildId || interaction.guild?.id;
+        const isHealJaiGuild = guildId && (guildId === process.env.HEALJAI_GUILD_ID || guildId === "1536199707922141254");
+        if (chId && !devAllowedChannels.includes(chId) && !isHealJaiGuild) {
+          return;
+        }
+      }
       if (typeof interaction.isChatInputCommand === "function" && interaction.isChatInputCommand()) {
         const handler = chatCommands.get(interaction.commandName);
         if (handler) {

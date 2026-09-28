@@ -44,34 +44,46 @@ const {
   handleLeaderboardCommand,
   handlePointsButtonInteraction,
 } = require("./pointsCommands");
+const {
+  HELP_SLASH_COMMANDS,
+  handleHelpCommand,
+} = require("./helpCommands");
+const {
+  PREVIEW_SLASH_COMMANDS,
+  handlePreviewCommand,
+  handlePreviewButtonInteraction,
+} = require("./previewCommands");
 
 const FLAG_V2 = MessageFlags.IsComponentsV2 || 32768;
 
 const DEFAULT_ACCESSORY = {
   type: 2,
   style: 5,
-  label: "Bear Cafe",
+  label: "︲เชิญบอทฟรี",
   emoji: {
-    id: "1548976664090779650",
-    name: "strawberryv2",
+    id: "1276130500410605609",
+    name: "68492gift",
     animated: false,
   },
-  url: "https://discord.com",
+  url: "https://discord.com/oauth2/authorize?client_id=1538896195253178409",
 };
+
+const DEV_STAR_EMOJI_ID = "1212856675053346897";
+const DEVELOPER_CONTACT_URL = "https://discord.gg/EHHybsbHxD";
 
 const SUPPORT_ACCESSORY = {
   type: 2,
   style: 5,
   label: "︲ติดต่อผู้พัฒนา",
   emoji: {
-    id: "1372837492205555812",
-    name: "3602exclamationmarkbubble",
-    animated: true,
+    id: DEV_STAR_EMOJI_ID,
+    name: "bearcafe_star",
+    animated: false,
   },
-  url: "https://discord.gg/NBrQBtGRMD",
+  url: DEVELOPER_CONTACT_URL,
 };
 
-function buildNoPermissionPayload(customText = "คุณต้องมีสิทธิ์ **ผู้ดูแลระบบ (Administrator)** เพื่อใช้คำสั่งนี้นะคะ!") {
+function buildNoPermissionPayload(customText = "คุณต้องมีสิทธิ์ **ผู้ดูแลระบบ (Administrator)** เพื่อใช้คำสั่งนี้นะครับ!") {
   return {
     flags: FLAG_V2,
     components: [
@@ -132,7 +144,7 @@ const AKARI_SLASH_COMMANDS = [
         type: 3, // STRING
         required: true,
         choices: [
-          { name: "🏆 ทุกมินิเกม (เปิดครบทั้ง 13 เกม)", value: "all" },
+          { name: "🏆 ทุกมินิเกม (เปิดครบทั้ง 11 เกม)", value: "all" },
           { name: "🔥 มินิเกมยอดฮิต (Top 5 Games)", value: "popular" },
           { name: "🔤 เกมเน้นภาษาและความรู้ (Language & Quiz)", value: "language" },
         ],
@@ -158,7 +170,7 @@ const AKARI_SLASH_COMMANDS = [
   },
   {
     name: "clear",
-    description: "ลบช่องทุกประเภทภายในหมวดหมู่ที่กำหนด (เฉพาะนักพัฒนาบอท Akari)",
+    description: "ลบช่องทุกประเภทภายในหมวดหมู่ที่กำหนด (เฉพาะนักพัฒนาบอท Kuma)",
     default_member_permissions: "0",
     options: [
       {
@@ -213,7 +225,7 @@ const AKARI_SLASH_COMMANDS = [
   },
   {
     name: "akari-admin",
-    description: "ระบบจัดการสถานะสมาชิกและพรีเมียม (เฉพาะนักพัฒนาบอท Akari)",
+    description: "ระบบจัดการสถานะสมาชิกและพรีเมียม (เฉพาะนักพัฒนาบอท Kuma)",
     default_member_permissions: "0",
     options: [
       {
@@ -264,6 +276,8 @@ const AKARI_SLASH_COMMANDS = [
     ],
   },
   ...POINTS_SLASH_COMMANDS,
+  ...HELP_SLASH_COMMANDS,
+  ...PREVIEW_SLASH_COMMANDS,
   {
     name: "reveal-answer",
     description: "🔍 ดูเฉลยของมินิเกมที่กำลังเปิดเล่นอยู่ในห้องนี้ (คำสั่งชั่วคราว)",
@@ -338,67 +352,155 @@ async function handleSetupGames(interaction, supabase, client) {
   const preset = options.getString("preset");
   const targetCategoryOption = options.getChannel("category");
 
-  let targetCategory = targetCategoryOption;
-
-  if (!targetCategory) {
-    try {
-      targetCategory = await guild.channels.create({
-        name: "🎮 𝖠𝖪𝖠𝖱𝖨 𝖬𝖨𝖭𝖨𝖦𝖠𝖬𝖤𝖲",
-        type: ChannelType.GuildCategory,
-        reason: "Akari Bot Auto Setup Games Category",
-      });
-    } catch (e) {
-      return interaction.editReply({
-        flags: FLAG_V2,
-        components: [
-          {
-            type: 17,
-            components: [
-              {
-                type: 10,
-                content:
-                  "## <:lowwarning:1548772721679278180>︲__` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ ไม่สามารถสร้างหมวดหมู่/ช่องมินิเกม 𓂃 `__\n" +
-                  "> บอทไม่มีสิทธิ์ **จัดการช่อง (Manage Channels)** หรือตำแหน่งบทบาทของบอทอยู่ต่ำเกินไปค่ะ",
-              },
-            ],
-          },
-        ],
-      });
-    }
-  }
+  // ดึงแคชช่องทั้งหมดในเซิร์ฟเวอร์
+  await guild.channels.fetch().catch(() => {});
 
   let selectedGameIds = [];
   if (preset === "all") {
-    selectedGameIds = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
+    // เกม 1 และ 2 ปิดปรับปรุงชั่วคราว -> เริ่มต้นด้วย [3, 4, 8, 9, 10, 12] สำหรับเกมทั่วไป
+    selectedGameIds = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
   } else if (preset === "popular") {
-    selectedGameIds = [1, 2, 3, 4, 10];
+    selectedGameIds = [3, 4, 8, 9, 10];
   } else if (preset === "language") {
-    selectedGameIds = [1, 2, 5, 8, 9, 11, 13];
+    selectedGameIds = [8, 9, 10, 12, 5, 11, 13];
+  } else {
+    selectedGameIds = [3, 4, 8, 9, 10];
   }
 
   const planInfo = await getTenantPlan(guild.id, supabase);
   let quotaNotice = "";
   if (!planInfo.isPremium) {
     selectedGameIds = selectedGameIds
-      .filter((gid) => LIGHTWEIGHT_GAMES.includes(gid))
+      .filter((gid) => LIGHTWEIGHT_GAMES.includes(gid) && gid !== 1 && gid !== 2)
       .slice(0, FREE_QUOTA_LIMIT);
 
-    quotaNotice = `\n> ⚠️ **หมายเหตุ (แผนฟรี):** เปิดเล่นพร้อมกันได้สูงสุด **${FREE_QUOTA_LIMIT} เกม** (เฉพาะมินิเกมทั่วไปแบบพิมพ์ตอบหรือกดช้อยส์)\n> หากต้องการปลดล็อกครบทั้ง 13 เกม รวมถึงเกมรูปภาพและเกมฟังเสียง กรุณาอัปเกรดเป็น **Premium** ✨\n`;
+    quotaNotice = `\n> ⚠️ **หมายเหตุ (แผนฟรี):** เปิดเล่นพร้อมกันได้สูงสุด **${FREE_QUOTA_LIMIT} เกม** (เฉพาะมินิเกมทั่วไปแบบพิมพ์ตอบหรือกดช้อยส์)\n> *หมายเหตุ: มินิเกมเติมคำศัพท์ (เกม 1 และ 2) ปิดปรับปรุงชั่วคราว*\n> หากต้องการปลดล็อกครบทุกเกม รวมถึงเกมรูปภาพและเกมฟังเสียง กรุณาติดต่อผู้พัฒนาเพื่ออัปเกรดเป็น **Premium** ✨\n`;
+  } else {
+    selectedGameIds = selectedGameIds.filter((gid) => gid !== 1 && gid !== 2);
+  }
+
+  // 1. ตรวจสอบประวัติห้องที่เคยผูกไว้แล้วในฐานข้อมูล
+  const existingBindingsMap = new Map(); // gameId -> channelId
+  if (supabase) {
+    const { data: boundRows } = await supabase
+      .from("tenant_minigame_channels")
+      .select("game_id, channel_id")
+      .eq("guild_id", guild.id);
+
+    if (boundRows && Array.isArray(boundRows)) {
+      boundRows.forEach((r) => existingBindingsMap.set(r.game_id, r.channel_id));
+    }
+  }
+
+  const existingActiveGames = [];
+  const gamesToCreate = [];
+
+  for (const gameId of selectedGameIds) {
+    const boundChId = existingBindingsMap.get(gameId);
+    const chObj = boundChId ? guild.channels.cache.get(boundChId) : null;
+    if (chObj) {
+      existingActiveGames.push({ gameId, channel: chObj });
+    } else {
+      gamesToCreate.push(gameId);
+    }
+  }
+
+  // 2. Duplicate Guard: หากทุกเกมในชุดที่เลือกมีห้องที่ใช้งานได้อยู่แล้ว และไม่ได้ระบุ Category ใหม่มา
+  if (gamesToCreate.length === 0 && !targetCategoryOption) {
+    const aliveList = existingActiveGames
+      .map((item) => `- **${AKARI_GAME_NAMES[item.gameId] || `เกม #${item.gameId}`}** — <#${item.channel.id}>`)
+      .join("\n");
+
+    const contentText =
+      `## <:50121checkmark:1358584609087946867>︲__\` 𝖨𝗇𝖿𝗈𝗋𝗆𝖺𝗍𝗂𝗈𝗇 ₊ ตรวจพบการติดตั้งมินิเกมอยู่แล้ว 𓂃 \`__\n` +
+      `# เซิร์ฟเวอร์ของคุณมีช่องมินิเกมเปิดใช้งานอยู่แล้ว (**${existingActiveGames.length}** ช่อง)\n\n` +
+      `${aliveList}\n\n` +
+      `> 💡 **วิธีจัดการ:** หากต้องการเปิด/ปิดเกม หรือรีเซ็ตโจทย์ใหม่ สามารถพิมพ์คำสั่ง \`/setting-games\` ได้เลยครับ\n` +
+      `> 🔄 **ต้องการเปลี่ยนห้อง:** สามารถใช้คำสั่ง \`/set-game\` เพื่อผูกห้องใหม่เฉพาะเกมที่ต้องการ`;
+
+    return interaction.editReply({
+      flags: FLAG_V2,
+      components: [
+        {
+          type: 17,
+          components: [
+            {
+              type: 10,
+              content: contentText,
+            },
+          ],
+        },
+      ],
+    });
+  }
+
+  // 3. จัดการหมวดหมู่ (Smart Category Selection/Creation)
+  let targetCategory = targetCategoryOption;
+
+  if (!targetCategory) {
+    // ลองค้นหา Category ของห้องที่มีอยู่เดิมก่อน
+    if (existingActiveGames.length > 0) {
+      const firstParent = existingActiveGames[0].channel.parent;
+      if (firstParent && firstParent.type === ChannelType.GuildCategory) {
+        targetCategory = firstParent;
+      }
+    }
+
+    // ลองค้นหา Category ที่ชื่อ KUMA MINIGAMES หรือ AKARI MINIGAMES
+    if (!targetCategory) {
+      targetCategory = guild.channels.cache.find(
+        (c) =>
+          c.type === ChannelType.GuildCategory &&
+          (c.name.includes("𝖪𝖴𝖬𝖠 𝖬𝖨𝖭𝖨𝖦𝖠𝖬𝖤𝖲") ||
+           c.name.includes("𝖠𝖪𝖠𝖱𝖨 𝖬𝖨𝖭𝖨𝖦𝖠𝖬𝖤𝖲") ||
+           c.name.toLowerCase().includes("kuma minigames") ||
+           c.name.toLowerCase().includes("akari minigames"))
+      );
+    }
+
+    // ถ้าไม่มีเลย จึงค่อยสร้าง Category ใหม่
+    if (!targetCategory) {
+      try {
+        targetCategory = await guild.channels.create({
+          name: "🎮 𝖪𝖴𝖬𝖠 𝖬𝖨𝖭𝖨𝖦𝖠𝖬𝖤𝖲",
+          type: ChannelType.GuildCategory,
+          reason: "Kuma Bot Auto Setup Games Category",
+        });
+      } catch (e) {
+        return interaction.editReply({
+          flags: FLAG_V2,
+          components: [
+            {
+              type: 17,
+              components: [
+                {
+                  type: 10,
+                  content:
+                    "## <:lowwarning:1548772721679278180>︲__` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ ไม่สามารถสร้างหมวดหมู่/ช่องมินิเกม 𓂃 `__\n" +
+                    "> บอทไม่มีสิทธิ์ **จัดการช่อง (Manage Channels)** หรือตำแหน่งบทบาทของบอทอยู่ต่ำเกินไปครับ",
+                },
+              ],
+            },
+          ],
+        });
+      }
+    }
   }
 
   const createdChannelsInfo = [];
 
-  for (const gameId of selectedGameIds) {
+  // 4. สร้างเฉพาะช่องเกมที่ยังไม่มี (Smart Reuse)
+  for (const gameId of gamesToCreate) {
     const channelName = AKARI_GAME_NAMES[gameId] || `🎮︲มินิเกม-${gameId}`;
-    const topic = GAME_DESCRIPTIONS[gameId] || "มินิเกม Akari Bot";
+    const topic = GAME_DESCRIPTIONS[gameId] || "มินิเกม Kuma Bot";
 
     try {
       const newChannel = await guild.channels.create({
         name: channelName,
         type: ChannelType.GuildText,
         parent: targetCategory.id,
-        topic: `🎮 ${topic} | ขับเคลื่อนโดย Akari Bot 🏮`,
-        reason: `Akari Setup Minigame #${gameId}`,
+        topic: `🎮 ${topic} | ขับเคลื่อนโดย บอทคุมะ 🐻`,
+        reason: `Kuma Setup Minigame #${gameId}`,
       });
 
       if (supabase) {
@@ -438,21 +540,24 @@ async function handleSetupGames(interaction, supabase, client) {
       }
 
       await spawnQuestion(client, newChannel, gameId, guild.id, supabase);
-      createdChannelsInfo.push(`- **${channelName}** — <#${newChannel.id}>`);
+      createdChannelsInfo.push(`- **${channelName}** — <#${newChannel.id}> *(สร้างใหม่)*`);
     } catch (e) {
       console.error(`❌ [SetupGames] Error creating channel for game #${gameId}:`, e.message);
     }
   }
 
-  const quotaNoticeText = quotaNotice
-    ? `> <:lowwarning:1548772721679278180>⠀**หมายเหตุสำหรับแผนฟรี:** เปิดเล่นพร้อมกันได้สูงสุด **${FREE_QUOTA_LIMIT} เกม** เฉพาะเกมทั่วไปที่เล่นด้วยการพิมพ์ตอบหรือกดตัวเลือก หากต้องการเปิดใช้งานครบทั้ง **13 เกม** รวมเกมรูปภาพและเกมฟังเสียง กรุณาอัปเกรดเป็น **Premium**`
-    : "";
+  // รวมรายการห้องที่มีอยู่เดิม (ถ้ามี)
+  const reusedChannelsInfo = existingActiveGames.map(
+    (item) => `- **${AKARI_GAME_NAMES[item.gameId] || `เกม #${item.gameId}`}** — <#${item.channel.id}> *(คงห้องเดิมไว้)*`
+  );
+
+  const allChannelsDisplay = [...createdChannelsInfo, ...reusedChannelsInfo];
 
   const contentText =
     `## <:50121checkmark:1358584609087946867>︲__\` 𝖨𝗇𝗌𝗍𝖺𝗅𝗅𝖺𝗍𝗂𝗈𝗇 𝖼𝗈𝗆𝗉𝗅𝖾𝗍𝖾 ₊ ติดตั้งระบบมินิเกมเรียบร้อยแล้ว 𓂃 \`__\n` +
-    `-# ติดตั้งเกมที่หมวดหมู่: **${targetCategory.name}**\n` +
-    `-# สร้างและเปิดใช้งานแล้ว: **${createdChannelsInfo.length} ช่องมินิเกม**\n\n` +
-    `${createdChannelsInfo.join("\n")}` +
+    `-# หมวดหมู่: **${targetCategory.name}**\n` +
+    `-# สร้างใหม่: **${createdChannelsInfo.length} ช่อง** ︲ คงห้องเดิม: **${existingActiveGames.length} ช่อง**\n\n` +
+    `${allChannelsDisplay.join("\n")}` +
     `${quotaNoticeText ? `\n\n${quotaNoticeText}` : ""}`;
 
   const payload = {
@@ -762,8 +867,8 @@ async function handleSettingCurrencyModalSubmit(interaction, supabase) {
             {
               type: 10,
               content: `## <:lowwarning:1548772721679278180>︲__\` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ รูปแบบอิโมจิไม่ถูกต้อง 𓂃 \`__\n` +
-                `> กรุณาระบุ **อิโมจิทั่วไป** (เช่น 🍓, 🪙, 💎) หรือ **Discord Custom Emoji** (เช่น \`<:strawberryv2:1548976664090779650>\`) นะคะ!\n\n` +
-                `-# 💡 *คำแนะนำ: หากใช้อิโมจิของเซิร์ฟเวอร์ ให้พิมพ์ \\:ชื่ออิโมจิ: ในช่องแชทเพื่อคัดลอกรหัสแบบเต็มได้ค่ะ* <:cuteplant:1152834055528783872>`,
+                `> กรุณาระบุ **อิโมจิทั่วไป** (เช่น 🍓, 🪙, 💎) หรือ **Discord Custom Emoji** (เช่น \`<:strawberryv2:1548976664090779650>\`) นะครับ!\n\n` +
+                `-# 💡 *คำแนะนำ: หากใช้อิโมจิของเซิร์ฟเวอร์ ให้พิมพ์ \\:ชื่ออิโมจิ: ในช่องแชทเพื่อคัดลอกรหัสแบบเต็มได้ครับ* <:cuteplant:1152834055528783872>`,
             },
           ],
         },
@@ -787,8 +892,8 @@ async function handleSettingCurrencyModalSubmit(interaction, supabase) {
             {
               type: 10,
               content: `## <:50121checkmark:1358584609087946867>︲__\` 𝖲𝗎𝖼𝖼𝖾𝗌𝗌 ₊ เปลี่ยนสกุลเงินแต้มสำเร็จ 𓂃 \`__\n` +
-                `> สกุลเงินแต้มของเซิร์ฟเวอร์ถูกเปลี่ยนเป็น **${input}** เรียบร้อยแล้วค่ะ! ✨\n\n` +
-                `-# หน้าต่างการตั้งค่าได้รับการอัปเดตเรียบร้อยแล้วค่ะ <:cuteplant:1152834055528783872>`,
+                `> สกุลเงินแต้มของเซิร์ฟเวอร์ถูกเปลี่ยนเป็น **${input}** เรียบร้อยแล้วครับ! ✨\n\n` +
+                `-# หน้าต่างการตั้งค่าได้รับการอัปเดตเรียบร้อยแล้วครับ <:cuteplant:1152834055528783872>`,
             },
           ],
         },
@@ -823,8 +928,8 @@ async function handleSettingCurrencyModalSubmit(interaction, supabase) {
           {
             type: 10,
             content: `## <:50121checkmark:1358584609087946867>︲__\` 𝖲𝗎𝖼𝖼𝖾𝗌𝗌 ₊ เปลี่ยนสกุลเงินแต้มสำเร็จ 𓂃 \`__\n` +
-              `> สกุลเงินแต้มของเซิร์ฟเวอร์ถูกเปลี่ยนเป็น **${input}** เรียบร้อยแล้วค่ะ! ✨\n\n` +
-              `-# หน้าต่างการตั้งค่าได้รับการอัปเดตเรียบร้อยแล้วค่ะ <:cuteplant:1152834055528783872>`,
+              `> สกุลเงินแต้มของเซิร์ฟเวอร์ถูกเปลี่ยนเป็น **${input}** เรียบร้อยแล้วครับ! ✨\n\n` +
+              `-# หน้าต่างการตั้งค่าได้รับการอัปเดตเรียบร้อยแล้วครับ <:cuteplant:1152834055528783872>`,
           },
         ],
       },
@@ -891,27 +996,9 @@ async function handleSettingToggle(interaction, supabase) {
     clearActiveTenantSession(guildId, boundChannelId);
     invalidateSettingsCache(guildId);
 
-    const clearedText =
-      `## <:50121checkmark:1358584609087946867>︲__\` 𝖲𝖾𝗍𝗍𝗂𝗇𝗀 𝗋𝖾𝗌𝖾𝗍 ₊ รีเซ็ตการตั้งค่า 𓂃 \`__\n` +
-      `# 🧹 ตรวจพบห้องเดิมถูกลบ — เคลียร์ข้อมูลเกม **${gameName}** เรียบร้อยแล้ว!\n` +
-      `> ♻️⠀**คืนโควตามินิเกมฟรีให้เซิร์ฟเวอร์ทันที** (ปรับสถานะเป็น <:conektionbad:1548760143192260689> ปิดอยู่)\n` +
-      `> 📌⠀**ไอดีห้องเดิมที่หาย:** \`${boundChannelId}\`\n\n` +
-      `-# <<< หากต้องการนำกลับมาเปิดเล่นใหม่ สามารถใช้คำสั่ง \`/set-game\` เพื่อผูกห้องใหม่ได้ทุกเมื่อค่ะ >>>`;
-
-    return interaction.reply({
-      flags: FLAG_V2,
-      components: [
-        {
-          type: 17,
-          components: [
-            {
-              type: 10,
-              content: clearedText,
-            },
-          ],
-        },
-      ],
-    });
+    // อัปเดตแดชบอร์ดหลักทันทีแบบ In-Place
+    const updatedPayload = await buildSettingGamesPayload(interaction.guild, supabase);
+    return await interaction.update(updatedPayload);
   }
 
   let currentEnabled = true;
@@ -929,16 +1016,16 @@ async function handleSettingToggle(interaction, supabase) {
 
     const nextEnabled = !currentEnabled;
 
-    // กรณี 2: พยายามเปิดใช้งาน แต่ยังไม่ได้ผูกห้องใดๆ
+    // กรณี 2: พยายามเปิดใช้งาน แต่ยังไม่ได้ผูกห้องใดๆ -> แจ้งเตือนแบบ Ephemeral ไม่งงและไม่ทำลายแดชบอร์ด
     if (!boundChannelId && nextEnabled) {
       const noChannelText =
         `## <:lowwarning:1548772721679278180>︲__\` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ ยังไม่ได้ผูกห้องมินิเกม 𓂃 \`__\n` +
         `# มินิเกม **${gameName}** ยังไม่มีห้องสำหรับเล่นในเซิร์ฟเวอร์\n` +
-        `> 💡⠀**วิธีเปิดใช้งาน:** กรุณาใช้คำสั่ง \`/set-game game:${gameName} channel:<เลือกห้อง>\` หรือคำสั่ง \`/setup-games\` เพื่อสร้างห้องและเริ่มเล่นทันทีค่ะ\n\n` +
-        `-# <<< สามารถใช้คำสั่ง \`/set-game\` เพื่อผูกห้องใหม่ได้ทุกเมื่อค่ะ >>>`;
+        `> 💡⠀**วิธีเปิดใช้งาน:** กรุณาใช้คำสั่ง \`/set-game game:${gameName} channel:<เลือกห้อง>\` หรือคำสั่ง \`/setup-games\` เพื่อสร้างห้องและเริ่มเล่นทันทีครับ\n\n` +
+        `-# <<< สามารถใช้คำสั่ง \`/set-game\` เพื่อผูกห้องใหม่ได้ทุกเมื่อครับ >>>`;
 
       return interaction.reply({
-        flags: FLAG_V2,
+        flags: FLAG_V2 | MessageFlags.Ephemeral,
         components: [
           {
             type: 17,
@@ -970,10 +1057,10 @@ async function handleSettingToggle(interaction, supabase) {
         const lockedText =
           `## <:lowwarning:1548772721679278180>︲__\` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ ไม่สามารถเปิดใช้งานเกมนี้ได้ 𓂃 \`__\n` +
           `# ${access.message || 'มินิเกมนี้เป็นเกมพิเศษ (มีรูปภาพการ์ด/ไฟล์เสียง) สำหรับสมาชิก Premium เท่านั้น'}\n` +
-          `-# <<< หากต้องการปลดล็อกทุกมินิเกมไม่จำกัด กรุณาติดต่อผู้พัฒนาเพื่ออัปเกรดเป็น Premium ค่ะ >>>`;
+          `-# <<< หากต้องการปลดล็อกทุกมินิเกมไม่จำกัด กรุณาติดต่อผู้พัฒนาเพื่ออัปเกรดเป็น Premium ครับ >>>`;
 
         return interaction.reply({
-          flags: FLAG_V2,
+          flags: FLAG_V2 | MessageFlags.Ephemeral,
           components: [
             {
               type: 17,
@@ -1001,48 +1088,12 @@ async function handleSettingToggle(interaction, supabase) {
 
     invalidateSettingsCache(guildId);
 
-    const statusStr = nextEnabled ? "🟢 เปิดใช้งาน (Enabled)" : "🔴 ปิดใช้งาน (Disabled)";
-
-    const contentText =
-      `### <:50121checkmark:1358584609087946867>︲__\` 𝖲𝖤𝖳𝖳𝖨𝖭𝖦 𝖴𝖯𝖣𝖠𝖳𝖤𝖣 𓂃 \`__\n` +
-      `# สลับสถานะมินิเกม **${gameName}** ➔ **${statusStr}** เรียบร้อยแล้ว!\n` +
-      `-# อัปเดตการตั้งค่าใน Database และล้าง In-Memory Cache เรียบร้อยแล้ว <:cuteplant:1152834055528783872>`;
-
-    return interaction.reply({
-      flags: FLAG_V2,
-      components: [
-        {
-          type: 17,
-          components: [
-            {
-              type: 9,
-              components: [{ type: 10, content: contentText }],
-              accessory: DEFAULT_ACCESSORY,
-            }
-          ]
-        }
-      ]
-    });
+    // อัปเดตหน้า Dashboard เดิมทันที (In-Place Update) แบบ Realtime
+    const updatedPayload = await buildSettingGamesPayload(interaction.guild, supabase);
+    return await interaction.update(updatedPayload);
   } else {
-    const contentText =
-      `### <:68440x:1358584606911369226>︲__\` RAM FALLBACK MODE 𓂃 \`__\n` +
-      `# ทำงานในโหมด RAM Fallback ไม่สามารถบันทึกตั้งค่าลง Database ได้`;
-
-    return interaction.reply({
-      flags: FLAG_V2,
-      components: [
-        {
-          type: 17,
-          components: [
-            {
-              type: 9,
-              components: [{ type: 10, content: contentText }],
-              accessory: DEFAULT_ACCESSORY,
-            }
-          ]
-        }
-      ]
-    });
+    const updatedPayload = await buildSettingGamesPayload(interaction.guild, supabase);
+    return await interaction.update(updatedPayload);
   }
 }
 
@@ -1064,7 +1115,7 @@ async function handleClearCategory(interaction, supabase) {
               type: 10,
               content:
                 "## <:lowwarning:1548772721679278180>︲__` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ การเข้าถึงถูกปฏิเสธ 𓂃 `__\n" +
-                "> คำสั่งนี้สงวนสิทธิ์เฉพาะ **นักพัฒนาหลัก (Developer)** ของ Akari Bot เท่านั้นค่ะ!",
+                "> คำสั่งนี้สงวนสิทธิ์เฉพาะ **นักพัฒนาหลัก (Developer)** ของบอท Kuma เท่านั้นครับ!",
             },
           ],
         },
@@ -1260,8 +1311,7 @@ async function handleSettingReset(interaction, supabase, client) {
 
     const contentText =
       `## <:50121checkmark:1358584609087946867>︲__\` 𝖲𝖾𝗍𝗍𝗂𝗇𝗀 𝗋𝖾𝗌𝖾𝗍 ₊ รีเซ็ตโจทย์สำเร็จ 𓂃 \`__\n` +
-      `# รีเซ็ตและส่งการ์ดโจทย์ใหม่ลงทุกช่องมินิเกมสำเร็จ! (**${resetCount}** ช่อง)\n` +
-      `-# ผู้เล่นสามารถเริ่มเล่นและตอบคำถามข้อใหม่ในทุกช่องได้ทันที <:cuteplant:1152834055528783872>`;
+      `# รีเซ็ตและส่งการ์ดโจทย์ใหม่ลงทุกช่องมินิเกมสำเร็จ! (**${resetCount}** ช่อง)`;
 
     return interaction.editReply({
       flags: FLAG_V2,
@@ -1270,13 +1320,12 @@ async function handleSettingReset(interaction, supabase, client) {
           type: 17,
           components: [
             {
-              type: 9,
-              components: [{ type: 10, content: contentText }],
-              accessory: DEFAULT_ACCESSORY,
-            }
-          ]
-        }
-      ]
+              type: 10,
+              content: contentText,
+            },
+          ],
+        },
+      ],
     });
   } else {
     const gameId = parseInt(selectedValue.replace("reset_", ""));
@@ -1302,8 +1351,7 @@ async function handleSettingReset(interaction, supabase, client) {
 
     const contentText = success
       ? `## <:50121checkmark:1358584609087946867>︲__\` 𝖦𝖺𝗆𝖾 𝗋𝖾𝗌𝖾𝗍 ₊ รีเซ็ตโจทย์สำเร็จ 𓂃 \`__\n` +
-      `# รีเซ็ตและส่งการ์ดโจทย์ใหม่สำหรับ **${gameName}** สำเร็จ!\n` +
-      `-# ส่งข้อความโจทย์ข้อใหม่ลงในช่องมินิเกมเรียบร้อยแล้ว <:cuteplant:1152834055528783872>`
+      `# รีเซ็ตและส่งการ์ดโจทย์ใหม่สำหรับ **${gameName}** สำเร็จ!`
       : `## <:68440x:1358584606911369226>︲__\` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ ไม่พบช่องมินิเกม 𓂃 \`__\n` +
       `# ไม่พบช่องทางสำหรับ **${gameName}** ในเซิร์ฟเวอร์นี้ (กรุณารัน /setup-games ก่อน)`;
 
@@ -1314,13 +1362,12 @@ async function handleSettingReset(interaction, supabase, client) {
           type: 17,
           components: [
             {
-              type: 9,
-              components: [{ type: 10, content: contentText }],
-              accessory: DEFAULT_ACCESSORY,
-            }
-          ]
-        }
-      ]
+              type: 10,
+              content: contentText,
+            },
+          ],
+        },
+      ],
     });
   }
 }
@@ -1347,7 +1394,7 @@ async function handleSetGame(interaction, supabase, client) {
     const deniedText =
       `## <:lowwarning:1548772721679278180>︲__\` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ ไม่สามารถเปิดใช้งานเกมนี้ได้ 𓂃 \`__\n` +
       `# ${access.message || 'มินิเกมนี้เป็นเกมพิเศษ (มีรูปภาพการ์ด/ไฟล์เสียง) สำหรับสมาชิก Premium เท่านั้น'}\n` +
-      `-# <<< หากต้องการปลดล็อกทุกมินิเกมไม่จำกัด กรุณาติดต่อผู้พัฒนาเพื่ออัปเกรดเป็น Premium ค่ะ >>>`;
+      `-# <<< หากต้องการปลดล็อกทุกมินิเกมไม่จำกัด กรุณาติดต่อผู้พัฒนาเพื่ออัปเกรดเป็น Premium ครับ >>>`;
 
     return interaction.editReply({
       flags: FLAG_V2,
@@ -1533,7 +1580,7 @@ async function handleRemoveGame(interaction, supabase) {
     const contentText =
       `## <:50121checkmark:1358584609087946867>︲__\` 𝖴𝗇𝗅𝗂𝗇𝗄 𝗀𝖺𝗆𝖾 𝖼𝗁𝖺𝗇𝗇𝖾𝗅 ₊ ยกเลิกการผูกเกมเรียบร้อยแล้ว 𓂃 \`__\n` +
       `# ยกเลิกการผูกเกม **${gameName}** ${channelDesc} เรียบร้อยแล้ว!\n` +
-      `-# <<< หากต้องการนำกลับมาเปิดเล่นใหม่ สามารถใช้คำสั่ง \`/set-game\` หรือ \`/setup-games\` ได้ทุกเมื่อค่ะ >>>`;
+      `-# <<< หากต้องการนำกลับมาเปิดเล่นใหม่ สามารถใช้คำสั่ง \`/set-game\` หรือ \`/setup-games\` ได้ทุกเมื่อครับ >>>`;
 
     return interaction.editReply({
       flags: FLAG_V2,
@@ -1689,7 +1736,7 @@ async function handleAkariAdmin(interaction, supabase, client) {
         `> 💎 **แผนสมาชิก:** **Premium** (ปลดล็อก 13 มินิเกม ไม่จำกัดโควตา)\n` +
         `> ⏳ **ระยะเวลาที่เพิ่ม:** +**${days}** วัน\n` +
         `> 📅 **ใช้งานได้ถึง:** **${formattedExpires}**\n\n` +
-        `-# แคชระบบได้รับการอัปเดตทันที สมาชิกในเซิร์ฟเวอร์ดังกล่าวสามารถเปิดมินิเกมได้ไม่จำกัดแล้วค่ะ <:cuteplant:1152834055528783872>`;
+        `-# แคชระบบได้รับการอัปเดตทันที สมาชิกในเซิร์ฟเวอร์ดังกล่าวสามารถเปิดมินิเกมได้ไม่จำกัดแล้วครับ <:cuteplant:1152834055528783872>`;
 
       return interaction.editReply({
         flags: FLAG_V2,
@@ -1919,7 +1966,7 @@ async function handleRevealAnswer(interaction, supabase) {
               type: 10,
               content:
                 "## <:lowwarning:1548772721679278180>︲__` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ ไม่พบมินิเกมที่กำลังเล่น 𓂃 `__\n" +
-                `> ห้องนี้ (<#${channelId}>) ยังไม่มีมินิเกมที่เปิดเล่นอยู่ในขณะนี้ค่ะ\n` +
+                `> ห้องนี้ (<#${channelId}>) ยังไม่มีมินิเกมที่เปิดเล่นอยู่ในขณะนี้ครับ\n` +
                 "> 💡 คุณสามารถเปิดมินิเกมได้ด้วยคำสั่ง `/set-game` หรือ `/setup-games`",
             },
           ],
@@ -1968,7 +2015,7 @@ async function handleRevealAnswer(interaction, supabase) {
               `> 🏷️ **หมวดหมู่:** \`${category}\`\n` +
               `> 🎯 **คำตอบที่ถูกต้อง (เฉลย):**\n` +
               `\`\`\`text\n${displayAnswer}\n\`\`\`${extraLines}\n` +
-              `> 🤫 *ข้อความนี้แสดงเฉพาะคุณ (Ephemeral) ไม่รบกวนหรือสปอยล์ผู้เล่นคนอื่นในห้องค่ะ*`,
+              `> 🤫 *ข้อความนี้แสดงเฉพาะคุณ (Ephemeral) ไม่รบกวนหรือสปอยล์ผู้เล่นคนอื่นในห้องครับ*`,
           },
         ],
       },
@@ -1998,6 +2045,11 @@ module.exports = {
   handlePointsCommand,
   handleLeaderboardCommand,
   handlePointsButtonInteraction,
+  handleHelpCommand,
+  handlePreviewCommand,
+  handlePreviewButtonInteraction,
+  HELP_SLASH_COMMANDS,
+  PREVIEW_SLASH_COMMANDS,
   POINTS_SLASH_COMMANDS,
   STORE_SLASH_COMMANDS,
   AKARI_GAME_NAMES,

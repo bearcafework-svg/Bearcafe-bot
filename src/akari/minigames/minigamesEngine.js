@@ -484,18 +484,10 @@ function bufferTenantPoints(guildId, userId, pointsToAdd = 10, winsToAdd = 1) {
 
 /**
  * Flush คะแนนที่สะสมใน memory ลง Akari DB
- * (บังคับตรวจสอบสิทธิ์ Premium: เฉพาะเซิร์ฟเวอร์ที่เป็น Premium เท่านั้น)
+ * (รองรับทุกเซิร์ฟเวอร์ทั้งแผน Standard และ Premium)
  */
 async function flushTenantPoints(supabase, guildId, userId, pointsToAdd = 0, winsToAdd = 0) {
   if (!supabase || !guildId || !userId) return;
-
-  // ตรวจสอบสิทธิ์ Premium ให้แน่ใจว่าเซิร์ฟเวอร์มีสถานะ Premium และยังไม่หมดอายุ
-  const planInfo = await getTenantPlan(guildId, supabase);
-  if (!planInfo.isPremium) {
-    const bufferKey = `${guildId}:${userId}`;
-    guildScoreBuffer.delete(bufferKey);
-    return;
-  }
 
   const bufferKey = `${guildId}:${userId}`;
   const buffered = guildScoreBuffer.get(bufferKey) || { points_accumulated: 0, wins_accumulated: 0 };
@@ -611,7 +603,7 @@ function buildAkariGamePayload(gameId, questionData, rewardPoints = 3, isPremium
     style: 5,
     label: '︲เชิญบอทฟรี',
     emoji: GIFT_EMOJI,
-    url: 'https://discord.gg/bearcafe',
+    url: 'https://discord.com/oauth2/authorize?client_id=1538896195253178409',
   };
 
   let contentText = '';
@@ -748,9 +740,7 @@ function buildAkariGamePayload(gameId, questionData, rewardPoints = 3, isPremium
           custom_id: `akari_mg_opt_${gameId}_${idx}_${Date.now()}`,
         };
       });
-      if (isPremium) {
-        buttonComponents.push(leaderboardButton);
-      }
+      buttonComponents.push(leaderboardButton);
       containerComponents.push({
         type: 1,
         components: buttonComponents,
@@ -771,12 +761,10 @@ function buildAkariGamePayload(gameId, questionData, rewardPoints = 3, isPremium
           components: allButtons.slice(i, i + 5),
         });
       }
-      if (isPremium) {
-        containerComponents.push({
-          type: 1,
-          components: [leaderboardButton],
-        });
-      }
+      containerComponents.push({
+        type: 1,
+        components: [leaderboardButton],
+      });
     } else {
       const choiceStyles = [1, 4, 3, 2];
       buttonComponents = questionData.options.map((optionLabel, idx) => ({
@@ -785,16 +773,14 @@ function buildAkariGamePayload(gameId, questionData, rewardPoints = 3, isPremium
         label: optionLabel,
         custom_id: `akari_mg_opt_${gameId}_${idx}_${Date.now()}`,
       }));
-      if (isPremium) {
-        buttonComponents.push(leaderboardButton);
-      }
+      buttonComponents.push(leaderboardButton);
       containerComponents.push({
         type: 1,
         components: buttonComponents,
       });
     }
-  } else if (isPremium) {
-    // เกมแบบพิมพ์ตอบ: แสดงปุ่มตารางคะแนนเฉพาะเมื่อเป็น Premium
+  } else {
+    // เกมแบบพิมพ์ตอบ: แสดงปุ่มตารางคะแนนสำหรับทุกระดับสมาชิก
     containerComponents.push({ type: 14, spacing: 2 });
     containerComponents.push({
       type: 1,
@@ -821,7 +807,7 @@ function buildAkariWinnerPayload(gameId, questionData, winnerDisplayName, reward
     style: 5,
     label: '︲เชิญบอทฟรี',
     emoji: GIFT_EMOJI,
-    url: 'https://discord.gg/bearcafe',
+    url: 'https://discord.com/oauth2/authorize?client_id=1538896195253178409',
   };
 
   const titleMap = {
@@ -864,9 +850,7 @@ function buildAkariWinnerPayload(gameId, questionData, winnerDisplayName, reward
       `# ${questionData.wordOrQuestion || ''} = ${questionData.answer}`;
   }
 
-  const winnerBtnLabel = isPremium
-    ? `@${winnerDisplayName} ตอบถูก (+${rewardPoints} แต้ม)`
-    : `@${winnerDisplayName} ตอบถูก`;
+  const winnerBtnLabel = `@${winnerDisplayName} ตอบถูก (+${rewardPoints} แต้ม)`;
 
   return {
     flags: FLAG_V2,
@@ -916,8 +900,8 @@ async function spawnQuestion(client, channel, gameId, guildId, supabase) {
                   "## <:lowwarning:1548772721679278180>︲__` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀  ₊ พักการส่งโจทย์ชั่วคราว 𓂃 `__\n" +
                   "# เซิร์ฟเวอร์นี้ใช้งานเกินโควตาฟรี หรือเกมนี้สำหรับ Premium เท่านั้น\n" +
                   `> 📦⠀**แผนปัจจุบัน:** Standard (ฟรี - สูงสุด ${FREE_QUOTA_LIMIT} เกมทั่วไป)\n` +
-                  "> 💡⠀**วิธีดำเนินการ:** แอดมินสามารถใช้ `/setting-games` เพื่อปรับเปลี่ยนเกม หรือติดต่อผู้พัฒนาเพื่ออัปเกรด Premium ค่ะ\n\n" +
-                  "-# <<< ข้อมูลคะแนนและประวัติห้องยังคงปลอดภัยครบถ้วนค่ะ >>>",
+                  "> 💡⠀**วิธีดำเนินการ:** แอดมินสามารถใช้ `/setting-games` เพื่อปรับเปลี่ยนเกม หรือติดต่อผู้พัฒนาเพื่ออัปเกรด Premium ครับ\n\n" +
+                  "-# <<< ข้อมูลคะแนนและประวัติห้องยังคงปลอดภัยครบถ้วนครับ >>>",
               },
               {
                 type: 14,
@@ -931,11 +915,11 @@ async function spawnQuestion(client, channel, gameId, guildId, supabase) {
                     style: 5,
                     label: "︲ติดต่อผู้พัฒนา",
                     emoji: {
-                      id: "1372837492205555812",
-                      name: "3602exclamationmarkbubble",
-                      animated: true,
+                      id: "1212856675053346897",
+                      name: "bearcafe_star",
+                      animated: false,
                     },
-                    url: "https://discord.gg/NBrQBtGRMD",
+                    url: "https://discord.gg/EHHybsbHxD",
                   },
                 ],
               },
@@ -966,8 +950,12 @@ async function spawnQuestion(client, channel, gameId, guildId, supabase) {
   let ttsBuffer = null;
 
   if (gameId === 1 || gameId === 2) {
-    const maskedObj = maskWord(rawAnswer, gameId === 1);
-    wordOrQuestion = typeof maskedObj === 'object' ? maskedObj.maskedStr : String(maskedObj);
+    if (gameId === 1 && questionObj.pre_validated_mask) {
+      wordOrQuestion = questionObj.pre_validated_mask;
+    } else {
+      const maskedObj = maskWord(rawAnswer, gameId === 1);
+      wordOrQuestion = typeof maskedObj === 'object' ? maskedObj.maskedStr : String(maskedObj);
+    }
   } else if (gameId === 5) {
     ttsBuffer = await getTTSAudioBuffer(rawAnswer, 'en');
   } else if (gameId === 11) {
@@ -1246,13 +1234,13 @@ function setupAkariMinigames(client, supabase) {
         flushTenantPoints(supabase, guildId, userId, 0, 0).catch(() => {});
 
         message.channel.send({
-          content: `${message.author} ❌ ตอบผิดค่ะ! ถูกหักแต้ม **${penalty} แต้ม** 🔻`
+          content: `${message.author} ❌ ตอบผิดครับ! ถูกหักแต้ม **${penalty} แต้ม** 🔻`
         }).then((penaltyMsg) => {
           setTimeout(() => penaltyMsg.delete().catch(() => {}), 5000);
         }).catch(() => {});
       } else {
         message.channel.send({
-          content: `${message.author} ❌ ตอบผิดค่ะ!`
+          content: `${message.author} ❌ ตอบผิดครับ!`
         }).then((penaltyMsg) => {
           setTimeout(() => penaltyMsg.delete().catch(() => {}), 4000);
         }).catch(() => {});
@@ -1276,13 +1264,11 @@ function setupAkariMinigames(client, supabase) {
           return message.react('✅').catch(() => {});
         });
 
-        if (isPremium) {
-          const pointsPerWin = session.questionData?.rewardPoints || 3;
-          bufferTenantPoints(guildId, message.author.id, pointsPerWin, 1);
-          flushTenantPoints(supabase, guildId, message.author.id, 0, 0).catch((err) =>
-            console.error('[akari-minigames] flushTenantPoints error:', err.message)
-          );
-        }
+        const pointsPerWin = session.questionData?.rewardPoints || 3;
+        bufferTenantPoints(guildId, message.author.id, pointsPerWin, 1);
+        flushTenantPoints(supabase, guildId, message.author.id, 0, 0).catch((err) =>
+          console.error('[akari-minigames] flushTenantPoints error:', err.message)
+        );
 
         // 2. สำหรับเกมฟังเสียง (เกม 5 และ 11): ลบการ์ด Component V2 ทิ้ง (เหลือข้อความไฟล์เสียง MP3 ไว้) แบบเดียวกับบอทหลัก
         if ((session.gameId === 5 || session.gameId === 11) && session.messageId) {
@@ -1324,42 +1310,33 @@ function setupAkariMinigames(client, supabase) {
 
     // ── ปุ่ม Leaderboard ──────────────────────────────────────
     if (customId.startsWith('akari_mg_top')) {
-      const planInfo = await getTenantPlan(guildId, supabase);
-      if (!planInfo.isPremium) {
+      await safeDeferReply(interaction, { flags: MessageFlags.Ephemeral | FLAG_V2 });
+
+      try {
+        const { buildLeaderboardPayload } = require('../commands/pointsCommands');
+        const { getTenantStoreConfig } = require('../store/storeEngine');
+
+        const [leaderboardList, storeConfig] = await Promise.all([
+          getTenantLeaderboard(supabase, guildId, 10, false, 'points'),
+          getTenantStoreConfig(supabase, guildId).catch(() => null),
+        ]);
+
+        const currencyEmoji = storeConfig?.currency_emoji || '<:strawberryv2:1548976664090779650>';
+        const payload = buildLeaderboardPayload(guild, leaderboardList, 'points', currencyEmoji);
+
+        return safeRespond(interaction, payload);
+      } catch (err) {
+        console.error('[akari-minigames] Error showing leaderboard from game button:', err.message);
         return safeRespond(interaction, {
-          content: '🔒 **ฟีเจอร์นี้สำหรับสมาชิก Premium เท่านั้น** 👑\n> ระบบบันทึกแต้มและตารางคะแนน (Leaderboard) จะเปิดใช้งานเมื่อเซิร์ฟเวอร์อัปเกรดเป็น Premium ค่ะ',
+          content: `⚠️ เกิดข้อผิดพลาดในการดึงกระดานจัดอันดับ: ${err.message}`,
           flags: MessageFlags.Ephemeral,
         });
       }
-      await safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
-      const leaderboard = await getTenantLeaderboard(supabase, guildId, 10);
-
-      if (leaderboard.length === 0) {
-        return safeRespond(interaction, {
-          content: '📊 ยังไม่มีคะแนนมินิเกมในเซิร์ฟเวอร์นี้ เริ่มเล่นเป็นคนแรกได้เลย!',
-          flags: MessageFlags.Ephemeral,
-        });
-      }
-
-      const desc = leaderboard
-        .map((row, idx) =>
-          `**#${idx + 1}** <@${row.user_id}> — **${(Number(row.points) || 0).toLocaleString()}** คะแนน (${(Number(row.wins) || 0).toLocaleString()} ชนะ)`
-        )
-        .join('\n');
-
-      const embed = new EmbedBuilder()
-        .setTitle(`🏆 ตารางคะแนนมินิเกม — ${guild.name}`)
-        .setColor(0xffb703)
-        .setDescription(desc)
-        .setTimestamp()
-        .setFooter({ text: 'Bear Cafe Minigames | Akari Engine' });
-
-      return safeRespond(interaction, { embeds: [embed], flags: MessageFlags.Ephemeral });
     }
 
     if (!session) {
       return safeRespond(interaction, {
-        content: '⚠️ ไม่พบเซสชันมินิเกมที่กำลังเล่นอยู่ในช่องนี้ หรือโจทย์จบไปแล้วค่ะ',
+        content: '⚠️ ไม่พบเซสชันมินิเกมที่กำลังเล่นอยู่ในช่องนี้ หรือโจทย์จบไปแล้วครับ',
         flags: MessageFlags.Ephemeral,
       });
     }
@@ -1375,14 +1352,14 @@ function setupAkariMinigames(client, supabase) {
 
       if (session.gameId !== targetGameId) {
         return safeRespond(interaction, {
-          content: '⚠️ ข้อความนี้เป็นโจทย์ข้อเก่าแล้วนะคะ 🎮',
+          content: '⚠️ ข้อความนี้เป็นโจทย์ข้อเก่าแล้วนะครับ 🎮',
           flags: MessageFlags.Ephemeral,
         });
       }
 
       if (processingChannels.has(sessionKey)) {
         return safeRespond(interaction, {
-          content: 'กำลังเปลี่ยนโจทย์ข้อใหม่ค่ะ กรุณารอสักครู่นะคะ',
+          content: 'กำลังเปลี่ยนโจทย์ข้อใหม่ครับ กรุณารอสักครู่นะครับ',
           flags: MessageFlags.Ephemeral,
         });
       }
@@ -1392,12 +1369,12 @@ function setupAkariMinigames(client, supabase) {
       if (!feasibility.allowed) {
         if (feasibility.reason === 'IN_FLIGHT_CONFLICT') {
           return safeRespond(interaction, {
-            content: '⚠️ กำลังประมวลผลคำตอบจากเกมอื่นอยู่ กรุณารอสักครู่นะคะ 🐻',
+            content: '⚠️ กำลังประมวลผลคำตอบจากเกมอื่นอยู่ กรุณารอสักครู่นะครับ 🐻',
             flags: MessageFlags.Ephemeral,
           });
         }
         return safeRespond(interaction, {
-          content: '⚠️ ตรวจพบการเล่นหลายเกมพร้อมกัน กรุณารอสักครู่แล้วลองใหม่อีกครั้งนะคะ (เล่นทีละเกมนะคะ 🐻)',
+          content: '⚠️ ตรวจพบการเล่นหลายเกมพร้อมกัน กรุณารอสักครู่แล้วลองใหม่อีกครั้งนะครับ (เล่นทีละเกมนะครับ 🐻)',
           flags: MessageFlags.Ephemeral,
         });
       }
@@ -1431,7 +1408,7 @@ function setupAkariMinigames(client, supabase) {
         }
 
         const resetPayload = {
-          content: `🔄 **รีเซ็ตประโยคเรียบร้อยแล้วค่ะ!**\n> 📝 โจทย์: **${questionData.wordOrQuestion}**\n> 🔤 กำลังต่อ: ${maskedPreview}\n\n👉 เลือกคำแรกด้านล่างได้เลยค่ะ:`,
+          content: `🔄 **รีเซ็ตประโยคเรียบร้อยแล้วครับ!**\n> 📝 โจทย์: **${questionData.wordOrQuestion}**\n> 🔤 กำลังต่อ: ${maskedPreview}\n\n👉 เลือกคำแรกด้านล่างได้เลยครับ:`,
           components: btnRows,
           flags: MessageFlags.Ephemeral,
         };
@@ -1453,7 +1430,7 @@ function setupAkariMinigames(client, supabase) {
 
       if (progress.pickedIndices.includes(choiceIndex)) {
         return safeRespond(interaction, {
-          content: `คุณได้เลือกคำว่า **"${clickedWord}"** ไปแล้วค่ะ กรุณาเลือกคำถัดไปนะคะ!`,
+          content: `คุณได้เลือกคำว่า **"${clickedWord}"** ไปแล้วครับ กรุณาเลือกคำถัดไปนะครับ!`,
           flags: MessageFlags.Ephemeral,
         });
       }
@@ -1484,7 +1461,7 @@ function setupAkariMinigames(client, supabase) {
         }
 
         const wrongPayload = {
-          content: `❌ คำว่า **"${clickedWord}"** ยังไม่ถูกต้องสำหรับช่องนี้ค่ะ!\n🔄 ระบบรีเซ็ตให้ใหม่แล้ว ลองกดเริ่มใหม่อีกครั้งนะคะ ✨\n> 📝 โจทย์: **${questionData.wordOrQuestion}**\n> 🔤 ประโยค: ${maskedPreview}`,
+          content: `❌ คำว่า **"${clickedWord}"** ยังไม่ถูกต้องสำหรับช่องนี้ครับ!\n🔄 ระบบรีเซ็ตให้ใหม่แล้ว ลองกดเริ่มใหม่อีกครั้งนะครับ ✨\n> 📝 โจทย์: **${questionData.wordOrQuestion}**\n> 🔤 ประโยค: ${maskedPreview}`,
           components: btnRows,
           flags: MessageFlags.Ephemeral,
         };
@@ -1547,7 +1524,7 @@ function setupAkariMinigames(client, supabase) {
         }
 
         const stepPayload = {
-          content: `✅ ถูกต้อง! ต่อคำถัดไปได้เลยค่ะ (เหลืออีก **${correctWords.length - progress.pickedWords.length}** คำ)\n> 📝 โจทย์: **${questionData.wordOrQuestion}**\n> 🔤 กำลังต่อ: ${previewStr}`,
+          content: `✅ ถูกต้อง! ต่อคำถัดไปได้เลยครับ (เหลืออีก **${correctWords.length - progress.pickedWords.length}** คำ)\n> 📝 โจทย์: **${questionData.wordOrQuestion}**\n> 🔤 กำลังต่อ: ${previewStr}`,
           components: btnRows,
           flags: MessageFlags.Ephemeral,
         };
@@ -1569,7 +1546,7 @@ function setupAkariMinigames(client, supabase) {
 
       if (processingChannels.has(sessionKey) || userInFlightProcessing.has(userId)) {
         const lateMsg = {
-          content: 'คุณต่อคำได้ถูกต้องแล้วค่ะ แต่มีผู้เล่นคนอื่นตอบเสร็จก่อนหน้าไปเสี้ยววินาที! 🎮',
+          content: 'คุณต่อคำได้ถูกต้องแล้วครับ แต่มีผู้เล่นคนอื่นตอบเสร็จก่อนหน้าไปเสี้ยววินาที! 🎮',
           components: [],
           flags: MessageFlags.Ephemeral,
         };
@@ -1593,12 +1570,10 @@ function setupAkariMinigames(client, supabase) {
         const planInfo = await getTenantPlan(guildId, supabase);
         const isPremium = planInfo.isPremium;
         const pointsPerWin = questionData.rewardPoints || 3;
-        if (isPremium) {
-          bufferTenantPoints(guildId, user.id, pointsPerWin, 1);
-          flushTenantPoints(supabase, guildId, user.id, 0, 0).catch((err) =>
-            console.error('[akari-minigames] flushTenantPoints error:', err.message)
-          );
-        }
+        bufferTenantPoints(guildId, user.id, pointsPerWin, 1);
+        flushTenantPoints(supabase, guildId, user.id, 0, 0).catch((err) =>
+          console.error('[akari-minigames] flushTenantPoints error:', err.message)
+        );
 
         const winnerDisplayName = interaction.member?.displayName || user.username;
         const winnerPayload = buildAkariWinnerPayload(
@@ -1612,7 +1587,7 @@ function setupAkariMinigames(client, supabase) {
         const isEphemeral = interaction.message && (interaction.message.flags?.has(MessageFlags.Ephemeral) || Boolean(interaction.message.flags?.bitfield & 64));
         if (isEphemeral) {
           await interaction.update({
-            content: '🎉 **ยินดีด้วยค่ะ! คุณเรียงประโยคสำเร็จเป็นคนแรก!** 🏆',
+            content: '🎉 **ยินดีด้วยครับ! คุณเรียงประโยคสำเร็จเป็นคนแรก!** 🏆',
             components: [],
             flags: MessageFlags.Ephemeral,
           }).catch(() => {});
@@ -1659,14 +1634,14 @@ function setupAkariMinigames(client, supabase) {
 
       if (session.gameId !== gameId) {
         return safeRespond(interaction, {
-          content: '⚠️ ข้อความนี้เป็นโจทย์ข้อเก่าแล้วนะคะ 🎮',
+          content: '⚠️ ข้อความนี้เป็นโจทย์ข้อเก่าแล้วนะครับ 🎮',
           flags: MessageFlags.Ephemeral,
         });
       }
 
       if (session.messageId && interaction.message?.id !== session.messageId) {
         return safeRespond(interaction, {
-          content: '⚠️ ข้อความนี้เป็นโจทย์ข้อเก่าแล้วนะคะ กรุณาตอบที่ข้อความล่าสุดในช่องค่ะ 🎮',
+          content: '⚠️ ข้อความนี้เป็นโจทย์ข้อเก่าแล้วนะครับ กรุณาตอบที่ข้อความล่าสุดในช่องครับ 🎮',
           flags: MessageFlags.Ephemeral,
         });
       }
@@ -1680,13 +1655,13 @@ function setupAkariMinigames(client, supabase) {
       if (!feasibility.allowed) {
         if (feasibility.reason === 'IN_FLIGHT_CONFLICT') {
           return safeRespond(interaction, {
-            content: '⚠️ กำลังประมวลผลคำตอบจากเกมอื่นอยู่ กรุณารอสักครู่นะคะ 🐻',
+            content: '⚠️ กำลังประมวลผลคำตอบจากเกมอื่นอยู่ กรุณารอสักครู่นะครับ 🐻',
             flags: MessageFlags.Ephemeral,
           });
         }
         console.log(`[akari-minigames] 🛡️ Blocked concurrent attempt by User: ${user.tag || user.username} (${userId}) (from Game ${feasibility.fromGameId} to Game ${feasibility.toGameId} in ${feasibility.elapsed}ms, required >= ${feasibility.requiredMs}ms)`);
         return safeRespond(interaction, {
-          content: '⚠️ ตรวจพบการเล่นหลายเกมพร้อมกัน กรุณารอสักครู่แล้วลองใหม่อีกครั้งนะคะ (เล่นทีละเกมนะคะ 🐻)',
+          content: '⚠️ ตรวจพบการเล่นหลายเกมพร้อมกัน กรุณารอสักครู่แล้วลองใหม่อีกครั้งนะครับ (เล่นทีละเกมนะครับ 🐻)',
           flags: MessageFlags.Ephemeral,
         });
       }
@@ -1702,12 +1677,12 @@ function setupAkariMinigames(client, supabase) {
           bufferTenantPoints(guildId, user.id, -penalty, 0);
           flushTenantPoints(supabase, guildId, user.id, 0, 0).catch(() => {});
           return safeRespond(interaction, {
-            content: `❌ คำตอบไม่ถูกต้องค่ะ! ถูกหักแต้ม **${penalty} แต้ม** 🔻`,
+            content: `❌ คำตอบไม่ถูกต้องครับ! ถูกหักแต้ม **${penalty} แต้ม** 🔻`,
             flags: MessageFlags.Ephemeral,
           });
         } else {
           return safeRespond(interaction, {
-            content: `❌ คำตอบไม่ถูกต้องค่ะ!`,
+            content: `❌ คำตอบไม่ถูกต้องครับ!`,
             flags: MessageFlags.Ephemeral,
           });
         }
@@ -1715,7 +1690,7 @@ function setupAkariMinigames(client, supabase) {
 
       if (processingChannels.has(sessionKey)) {
         return safeRespond(interaction, {
-          content: 'กำลังเปลี่ยนโจทย์ข้อใหม่ค่ะ กรุณารอสักครู่นะคะ',
+          content: 'กำลังเปลี่ยนโจทย์ข้อใหม่ครับ กรุณารอสักครู่นะครับ',
           flags: MessageFlags.Ephemeral,
         });
       }
@@ -1730,12 +1705,10 @@ function setupAkariMinigames(client, supabase) {
 
       try {
         const pointsPerWin = session.questionData?.rewardPoints || 3;
-        if (isPremium) {
-          bufferTenantPoints(guildId, user.id, pointsPerWin, 1);
-          flushTenantPoints(supabase, guildId, user.id, 0, 0).catch((err) =>
-            console.error('[akari-minigames] flushTenantPoints error:', err.message)
-          );
-        }
+        bufferTenantPoints(guildId, user.id, pointsPerWin, 1);
+        flushTenantPoints(supabase, guildId, user.id, 0, 0).catch((err) =>
+          console.error('[akari-minigames] flushTenantPoints error:', err.message)
+        );
 
         const winnerDisplayName = interaction.member?.displayName || user.username;
         const winnerPayload = buildAkariWinnerPayload(
@@ -1854,6 +1827,7 @@ module.exports = {
   flushTenantPoints,
   buildAkariGamePayload,
   buildAkariWinnerPayload,
+  getTTSAudioBuffer,
   checkCrossChannelFeasibility,
   recordUserAction,
   getTenantPlan,

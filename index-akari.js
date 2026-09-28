@@ -1,5 +1,5 @@
 // ===================================================
-// index-akari.js — จุดเริ่มต้นสำหรับ Akari Bot (Public Multi-Tenant Engine)
+// index-akari.js — จุดเริ่มต้นสำหรับ Kuma Bot (Public Multi-Tenant Engine)
 // ===================================================
 
 require("dotenv").config();
@@ -9,6 +9,7 @@ const { createClient } = require("@supabase/supabase-js");
 const { setupAkariGuildFilter } = require("./src/akari/filters/guildIgnoreFilter");
 const { setupAkariMinigames, flushAllTenantPoints } = require("./src/akari/minigames/minigamesEngine");
 const { setupServerActivitySync } = require("./src/akari/services/serverActivitySync");
+const { setupWelcomeService } = require("./src/akari/services/welcomeService");
 const {
   registerAkariCommands,
   handleSetupGames,
@@ -30,16 +31,19 @@ const {
   handlePointsCommand,
   handleLeaderboardCommand,
   handlePointsButtonInteraction,
+  handleHelpCommand,
+  handlePreviewCommand,
+  handlePreviewButtonInteraction,
 } = require("./src/akari/commands/minigamesCommands");
 
 const botToken = process.env.AKARI_BOT_TOKEN;
 
 if (!botToken) {
-  console.error("❌ [AkariBot] AKARI_BOT_TOKEN is missing in .env. Refusing to start Akari Bot.");
+  console.error("❌ [KumaBot] AKARI_BOT_TOKEN is missing in .env. Refusing to start Kuma Bot.");
   process.exit(1);
 }
 
-// 1. สร้าง Supabase Client สำหรับ Akari Database และ Main Database
+// 1. สร้าง Supabase Client สำหรับ Kuma Database และ Main Database
 let akariSupabase = null;
 if (process.env.AKARI_SUPABASE_URL && process.env.AKARI_SUPABASE_SERVICE_ROLE_KEY) {
   akariSupabase = createClient(
@@ -49,9 +53,9 @@ if (process.env.AKARI_SUPABASE_URL && process.env.AKARI_SUPABASE_SERVICE_ROLE_KE
       auth: { persistSession: false },
     }
   );
-  console.log("⚡ [AkariBot] เชื่อมต่อ Akari Supabase Database สำเร็จแล้ว!");
+  console.log("⚡ [KumaBot] เชื่อมต่อ Kuma Supabase Database สำเร็จแล้ว!");
 } else {
-  console.warn("⚠️ [AkariBot] AKARI_SUPABASE_URL หรือ AKARI_SUPABASE_SERVICE_ROLE_KEY ยังไม่ได้กรอก (ทำงานแบบ RAM Fallback Mode)");
+  console.warn("⚠️ [KumaBot] AKARI_SUPABASE_URL หรือ AKARI_SUPABASE_SERVICE_ROLE_KEY ยังไม่ได้กรอก (ทำงานแบบ RAM Fallback Mode)");
 }
 
 let mainSupabase = null;
@@ -63,10 +67,10 @@ if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
       auth: { persistSession: false },
     }
   );
-  console.log("⚡ [AkariBot] เชื่อมต่อ Main Supabase Database (สำหรับ Activity Sync) สำเร็จแล้ว!");
+  console.log("⚡ [KumaBot] เชื่อมต่อ Main Supabase Database (สำหรับ Activity Sync) สำเร็จแล้ว!");
 }
 
-// 2. สร้าง Discord Client สำหรับ Akari Bot (เพิ่ม GuildVoiceStates เพื่อตรวจนับห้องเสียง)
+// 2. สร้าง Discord Client สำหรับ Kuma Bot (เพิ่ม GuildVoiceStates เพื่อตรวจนับห้องเสียง)
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -90,10 +94,13 @@ setupAkariGuildFilter(client);
 // 4. ติดตั้งระบบมินิเกม Multi-Tenant
 setupAkariMinigames(client, akariSupabase);
 
-// 5. ติดตั้งและลงทะเบียน Slash Commands สำหรับ Akari Bot
+// 5. ติดตั้งระบบต้อนรับเมื่อบอทเข้าสู่เซิร์ฟเวอร์ใหม่ (guildCreate)
+setupWelcomeService(client);
+
+// 6. ติดตั้งและลงทะเบียน Slash Commands สำหรับ Kuma Bot
 registerAkariCommands(client);
 
-// 6. ดักฟัง Slash Commands และ Select Menus
+// 7. ดักฟัง Slash Commands และ Select Menus
 client.on("interactionCreate", async (interaction) => {
   try {
     if (interaction.isChatInputCommand()) {
@@ -124,6 +131,12 @@ client.on("interactionCreate", async (interaction) => {
       if (interaction.commandName === "reveal-answer" || interaction.commandName === "ans") {
         return await handleRevealAnswer(interaction, akariSupabase);
       }
+      if (interaction.commandName === "help") {
+        return await handleHelpCommand(interaction, client);
+      }
+      if (interaction.commandName === "preview") {
+        return await handlePreviewCommand(interaction, akariSupabase);
+      }
       // ระบบร้านค้าปิดชั่วคราวตามคำสั่ง
       // if (interaction.commandName === "setting-store") {
       //   return await handleSettingStore(interaction, akariSupabase);
@@ -143,6 +156,9 @@ client.on("interactionCreate", async (interaction) => {
       }
       if (interaction.customId === "akari_setting_currency_btn") {
         return await handleSettingCurrencyButton(interaction, akariSupabase);
+      }
+      if (interaction.customId.startsWith("akari_preview_btn")) {
+        return await handlePreviewButtonInteraction(interaction);
       }
       if (interaction.customId.startsWith("akari_store_") || interaction.customId.startsWith("store_")) {
         return await handleStoreButtonInteraction(interaction, akariSupabase, client);
@@ -185,7 +201,7 @@ client.on("interactionCreate", async (interaction) => {
     if ([10008, 10062, 10003, 40060].includes(error?.code) || [10008, 10062, 10003, 40060].includes(error?.rawError?.code)) {
       return;
     }
-    console.error("❌ [AkariBot] Interaction Handling Error:", error.message);
+    console.error("❌ [KumaBot] Interaction Handling Error:", error.message);
     const replyPayload = {
       content: `❌ เกิดข้อผิดพลาดในการทำคำสั่ง: ${error.message}`,
       flags: MessageFlags.Ephemeral,
@@ -200,14 +216,14 @@ client.on("interactionCreate", async (interaction) => {
 
 // 7. clientReady Event & Custom User Status
 client.once("clientReady", () => {
-  console.log(`🏮 Akari Public Bot "${client.user.tag}" พร้อมใช้งานแล้ว! (ID: ${client.user.id})`);
+  console.log(`🐻 Kuma Public Bot "${client.user.tag}" พร้อมใช้งานแล้ว! (ID: ${client.user.id})`);
 
   client.user.setPresence({
     activities: [
       {
         name: "custom",
         type: ActivityType.Custom,
-        state: "🎮 บอทมินิเกมอันดับ #1 — เพราะฉันสร้างคนเดียวจ้า",
+        state: "🎮 บอทมินิเกมอันดับ #1 — พัฒนาโดย Bear Cafe ครับ",
       },
     ],
     status: "online",
@@ -221,7 +237,7 @@ client.once("clientReady", () => {
 
 // 8. Login เข้า Discord Gateway
 client.login(botToken).catch((err) => {
-  console.error("❌ [AkariBot] Login failed:", err.message);
+  console.error("❌ [KumaBot] Login failed:", err.message);
 });
 
 // 9. Graceful Shutdown (บันทึกคะแนนค้างท่อลง DB และตัด Gateway สวยงามเมื่อรีสตาร์ต)
@@ -229,19 +245,19 @@ let isShuttingDown = false;
 async function gracefulShutdown(signal) {
   if (isShuttingDown) return;
   isShuttingDown = true;
-  console.log(`\n🛑 [AkariBot] ได้รับสัญญาณ ${signal} กำลังบันทึกข้อมูลและปิดระบบอย่างปลอดภัย...`);
+  console.log(`\n🛑 [KumaBot] ได้รับสัญญาณ ${signal} กำลังบันทึกข้อมูลและปิดระบบอย่างปลอดภัย...`);
 
   try {
     if (akariSupabase) {
-      console.log("💾 [AkariBot] กำลัง Flush คะแนนที่ค้างใน RAM ทั้งหมดลง Supabase...");
+      console.log("💾 [KumaBot] กำลัง Flush คะแนนที่ค้างใน RAM ทั้งหมดลง Supabase...");
       await flushAllTenantPoints(akariSupabase);
-      console.log("✅ [AkariBot] Flush คะแนนสำเร็จเรียบร้อย");
+      console.log("✅ [KumaBot] Flush คะแนนสำเร็จเรียบร้อย");
     }
-    console.log("🔌 [AkariBot] กำลังตัดการเชื่อมต่อ Discord Client...");
+    console.log("🔌 [KumaBot] กำลังตัดการเชื่อมต่อ Discord Client...");
     await client.destroy();
-    console.log("👋 [AkariBot] ปิดโปรเซสอย่างสมบูรณ์ ข้อมูลไม่สูญหาย");
+    console.log("👋 [KumaBot] ปิดโปรเซสอย่างสมบูรณ์ ข้อมูลไม่สูญหาย");
   } catch (err) {
-    console.error("❌ [AkariBot] Shutdown error:", err.message);
+    console.error("❌ [KumaBot] Shutdown error:", err.message);
   } finally {
     process.exit(0);
   }

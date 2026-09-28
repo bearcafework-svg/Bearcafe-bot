@@ -11,7 +11,7 @@ const SYNC_INTERVAL_MS = 5 * 60 * 1000; // ทุก 5 นาที
  */
 function setupServerActivitySync(client, mainSupabase) {
   if (!mainSupabase) {
-    console.warn("⚠️ [AkariBot:ActivitySync] ขาด Main Supabase Client ระบบ Activity Sync จะไม่ทำงาน");
+    console.warn("⚠️ [KumaBot:ActivitySync] ขาด Main Supabase Client ระบบ Activity Sync จะไม่ทำงาน");
     return;
   }
 
@@ -29,7 +29,7 @@ function setupServerActivitySync(client, mainSupabase) {
         .eq("status", "approved");
 
       if (error) {
-        console.error("❌ [AkariBot:ActivitySync] ดึงข้อมูลเซิร์ฟเวอร์ไม่สำเร็จ:", error.message);
+        console.error("❌ [KumaBot:ActivitySync] ดึงข้อมูลเซิร์ฟเวอร์ไม่สำเร็จ:", error.message);
         return;
       }
 
@@ -86,15 +86,15 @@ function setupServerActivitySync(client, mainSupabase) {
 
           updatedCount++;
         } catch (serverErr) {
-          console.warn(`⚠️ [AkariBot:ActivitySync] ซิงค์กิลด์ ${server.discord_id} ผิดพลาด:`, serverErr.message);
+          console.warn(`⚠️ [KumaBot:ActivitySync] ซิงค์กิลด์ ${server.discord_id} ผิดพลาด:`, serverErr.message);
         }
       }
 
       if (updatedCount > 0) {
-        console.log(`📡 [AkariBot:ActivitySync] ซิงค์ Activity เซิร์ฟเวอร์สำเร็จ (${updatedCount} เซิร์ฟเวอร์)`);
+        console.log(`📡 [KumaBot:ActivitySync] ซิงค์ Activity เซิร์ฟเวอร์สำเร็จ (${updatedCount} เซิร์ฟเวอร์)`);
       }
     } catch (err) {
-      console.error("❌ [AkariBot:ActivitySync] เกิดข้อผิดพลาดในรอบการซิงค์:", err.message);
+      console.error("❌ [KumaBot:ActivitySync] เกิดข้อผิดพลาดในรอบการซิงค์:", err.message);
     } finally {
       isSyncing = false;
     }
@@ -106,7 +106,7 @@ function setupServerActivitySync(client, mainSupabase) {
   // ตั้ง Interval รันทุก 5 นาที
   const intervalId = setInterval(performSync, SYNC_INTERVAL_MS);
 
-  console.log("⚡ [AkariBot] ติดตั้งระบบ Activity Sync เรียบร้อยแล้ว (รันทุก 5 นาที)");
+  console.log("⚡ [KumaBot] ติดตั้งระบบ Activity Sync เรียบร้อยแล้ว (รันทุก 5 นาที)");
 
   return () => clearInterval(intervalId);
 }

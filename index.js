@@ -208,9 +208,17 @@ client.once("clientReady", async () => {
 
   const guild = getValidGuild(client);
 
-  // 1. ตั้งค่าสถานะบอทเริ่มต้นทันที และตั้งเวลาอัปเดตทุก 10 นาที
-  updateBotPresence(client);
-  setInterval(() => updateBotPresence(client), 10 * 60 * 1000);
+  // 1. ตั้งค่าสถานะบอทเริ่มต้นทันที และตั้งเวลาอัปเดตทุก 10 นาที (บอท Dev ใช้ออนไลน์ปกติ ไม่โหลดสถานะสตรีมมิ่ง)
+  if (isDevMode) {
+    client.user.setPresence({
+      status: "online",
+      activities: [],
+    });
+    console.log(`[presence] 🛠️ Dev bot presence set to normal online.`);
+  } else {
+    updateBotPresence(client);
+    setInterval(() => updateBotPresence(client), 10 * 60 * 1000);
+  }
 
   // 2. ซิงค์ Voice Status สำหรับห้องเสียงในหมวดหมู่ Point x2 ทันที
   if (!isLocalFastStart) {
@@ -371,6 +379,7 @@ client.on("channelDelete", async (channel) => {
 
 // ── อัปเดตสถานะเมื่อสมาชิกเข้า/ออกจาก Guild ───────────────────────
 client.on("guildMemberAdd", (member) => {
+  if (isDevMode) return;
   const guildId = process.env.GUILD_ID || "1144251788493602848";
   if (member.guild.id === guildId) {
     updateBotPresence(client);
@@ -378,6 +387,7 @@ client.on("guildMemberAdd", (member) => {
 });
 
 client.on("guildMemberRemove", (member) => {
+  if (isDevMode) return;
   const guildId = process.env.GUILD_ID || "1144251788493602848";
   if (member.guild.id === guildId) {
     updateBotPresence(client);
@@ -441,6 +451,13 @@ healthServer.listen(Number(port), "0.0.0.0", () => {
 
 // ── อัปเดตสถานะบอท Streaming ──────────────────────────────────────────
 async function updateBotPresence(client) {
+  if (isDevMode) {
+    client.user.setPresence({
+      status: "online",
+      activities: [],
+    });
+    return;
+  }
   try {
     const guild = getValidGuild(client);
 

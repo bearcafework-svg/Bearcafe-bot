@@ -129,7 +129,6 @@ setupFeature("tagWarn", "./src/features/tagWarn", "setupTagWarn", supabaseEnvKey
 setupFeature("copyCategoryPerms", "./src/commands/copyCategoryPerms", "setupCopyCategoryPerms");
 setupFeature("beeGacha", "./src/features/beeGacha", "setupBeeGacha", supabaseEnvKeys);
 setupFeature("voiceBoard", "./src/features/voiceBoard", "setupVoiceBoard"); // Live Voice & Friend Finder Board
-setupFeature("aiAssistant", "./src/features/ai", "setupAI");
 setupFeature("dailyQuest", "./src/features/dailyQuest", "setupDailyQuest", supabaseEnvKeys);
 setupFeature("moveMembers", "./src/commands/moveMembers", "setupMoveMembers");
 

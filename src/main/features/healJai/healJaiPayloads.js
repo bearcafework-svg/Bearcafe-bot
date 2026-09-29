@@ -71,7 +71,7 @@ function buildCheckoutTicketPayload(orderInfo = {}) {
       orderInfo.isBooster ? `* <:boosthand:1536707497174507620>⠀**สิทธิพิเศษ:** Server Booster (+5 นาทีฟรี)` : null,
       `# ยอดชำระสุทธิ: ${orderInfo.totalPrice || 0} บาท`,
       ``,
-      `**ช่องทางชำระเงิน (พร้อมเพย์):** \`09x-xxx-xxxx\` (ธ.กสิกรไทย / พร้อมเพย์)\n-# เมื่อโอนเงินเรียบร้อยแล้ว ให้ใช้คำสั่ง **\`/ยืนยันการโอน\`** ในห้องนี้เพื่อตรวจสอบสลิปอัตโนมัติได้เลยค่ะ`
+      `**ช่องทางชำระเงิน (พร้อมเพย์):** \`09x-xxx-xxxx\` (ธ.กสิกรไทย / พร้อมเพย์)\n-# เมื่อโอนเงินเรียบร้อยแล้ว ให้แนบและส่งรูปภาพสลิปในห้องนี้ได้เลยค่ะ ระบบจะทำการตรวจสอบสลิปอัตโนมัติ 🍵`
     ].filter(Boolean).join('\n');
 
     // แทรกสรุปออเดอร์เข้าไปใน Text Display ก่อนข้อตกลง
@@ -100,13 +100,35 @@ function buildDispatchAlertPayload(dispatchInfo) {
     ? `<@&1536208070420733982> 🔔 มีเคสใหม่ส่งถึงคุณ <@${dispatchInfo.counselorId}>`
     : `<@&1536208070420733982> 🔔 มีเคสใหม่เปิดรับคำขอ ผู้ที่พร้อมดูแลสามารถกดรับได้เลยค่ะ!`;
 
-  const packageName = dispatchInfo.packageName || 'โกโก้พักใจ 30 นาที';
-  const silentText = dispatchInfo.isSilent ? 'นั่งเงียบเป็นเพื่อน (+15 บาท)' : 'ทั่วไป (พูดคุย/รับฟัง)';
-  const boosterText = dispatchInfo.isBooster ? 'Server Booster (+5 นาทีฟรี)' : 'ไม่มี';
-  const totalMinutes = dispatchInfo.totalMinutes || 30;
-  const totalPrice = dispatchInfo.totalPrice || 69;
+  const customerMention = dispatchInfo.customerId ? `<@${dispatchInfo.customerId}>` : null;
+  const serviceModeText = (dispatchInfo.serviceMode === 'voice' || dispatchInfo.service_mode === 'voice') ? '🎙️ คอลเสียง' : '💬 พิมพ์คุย';
+  const packageName = dispatchInfo.packageName || 'ชาเขียวเย็นใจ';
+  const duration = dispatchInfo.duration || dispatchInfo.totalMinutes || 15;
+  const totalPrice = dispatchInfo.totalPrice || 39;
   const expireTimestamp = dispatchInfo.expireTimestamp || Math.floor((Date.now() + 3 * 60 * 1000) / 1000);
   const targetId = dispatchInfo.orderCode || dispatchInfo.orderId || 'general';
+
+  // ตรวจสอบท็อปปิ้ง (ถ้าไม่มี ไม่แสดง)
+  let toppingText = null;
+  if (dispatchInfo.toppingName && dispatchInfo.toppingName !== 'none' && dispatchInfo.toppingName !== 'ไม่มี') {
+    toppingText = dispatchInfo.toppingName;
+  } else if (dispatchInfo.isSilent) {
+    toppingText = 'นั่งเงียบเป็นเพื่อน (+19 บาท)';
+  } else if (dispatchInfo.isSpecific) {
+    toppingText = 'ระบุตัวผู้รับฟัง (+39 บาท)';
+  }
+
+  // ตรวจสอบสิทธิพิเศษ (ถ้าไม่มี ไม่แสดง)
+  const boosterText = dispatchInfo.isBooster ? 'Server Booster (+5 นาทีฟรี)' : null;
+
+  // หาภาพของเครื่องดื่มจาก DRINK_OPTIONS (menuData.json)
+  let menuImageUrl = dispatchInfo.imageUrl;
+  if (!menuImageUrl) {
+    const matchedDrink = Object.values(DRINK_OPTIONS).find(
+      (d) => d.id === dispatchInfo.drinkId || d.tier === dispatchInfo.packageTier || d.name === packageName || (packageName && packageName.includes(d.name))
+    );
+    menuImageUrl = matchedDrink?.imageUrl || 'https://cdn.discordapp.com/attachments/1536267579843280987/1547550913474854942/New_premium_13.png';
+  }
 
   return {
     content: null,
@@ -125,21 +147,22 @@ function buildDispatchAlertPayload(dispatchInfo) {
                   `## <a:bellpress:1547361650552737914>︲__\` 𝖭𝗈𝗍𝗂𝖼𝖾 ₊ มีเคสใหม่ส่งตรงถึงคุณ 𓂃 \`__`,
                   `-# ${headerNote}\n`,
                   `* 🎯⠀**ที่ปรึกษาที่ได้รับเลือก:** ${counselorMention}`,
-                  `* 🍵⠀**แพ็กเกจ:** ${packageName}`,
-                  `* 🌙⠀**ท็อปปิ้ง:** ${silentText}`,
-                  `* 🌟⠀**สิทธิพิเศษ:** ${boosterText}`,
+                  customerMention ? `* 👤⠀**ลูกค้า:** ${customerMention}` : null,
+                  `* 📱⠀**ประเภทบริการ:** ${serviceModeText}`,
+                  `* 🍵⠀**แพ็กเกจ:** ${packageName} (${duration} นาที)`,
+                  toppingText ? `* 🌙⠀**ท็อปปิ้ง:** ${toppingText}` : null,
+                  boosterText ? `* 🌟⠀**สิทธิพิเศษ:** ${boosterText}` : null,
                   `* ⏳⠀**เวลานับถอยหลัง:** หมดเวลาใน **<t:${expireTimestamp}:R>** (3 นาที)`,
                   `# ยอดรวม: ${totalPrice} บาท (ยังไม่หัก %)`,
                   `> ⚠️⠀*โปรดกดรับเคสภายใน 3 นาที หากไม่สะดวกสามารถกด **"สละสิทธิ์"** เพื่อให้ระบบสุ่มส่งต่อให้ท่านถัดไปได้ทันทีค่ะ*`
-                ].join('\n')
+                ].filter(Boolean).join('\n')
               }
             ],
             accessory: {
               type: 11,
               media: {
-                url: 'https://cdn.discordapp.com/attachments/1536267579843280987/1547362521919529081/New_premium_11.png'
-              },
-              spoiler: true
+                url: menuImageUrl
+              }
             }
           },
           {
@@ -179,13 +202,16 @@ function buildDispatchAlertPayload(dispatchInfo) {
 
 /**
  * 6. แผงควบคุมในห้องสนทนาส่วนตัว (Session Dashboard)
- * @param {object} sessionInfo - { customerId, counselorId, totalMinutes, isBooster, packageName }
+ * @param {object} sessionInfo - { customerId, counselorId, totalMinutes, isBooster, packageName, serviceMode, voiceChannelId }
  */
 function buildSessionDashboardPayload(sessionInfo = {}) {
   const customerMention = `<@${sessionInfo.customerId}>`;
   const counselorMention = `<@${sessionInfo.counselorId}>`;
   const totalMinutes = sessionInfo.totalMinutes || 30;
   const boosterNote = sessionInfo.isBooster ? ' (รวมโบนัส Booster +5 นาที)' : '';
+  const voiceNote = (sessionInfo.serviceMode === 'voice' && sessionInfo.voiceChannelId)
+    ? `\n* 🎙️⠀**ห้องเสียง:** <#${sessionInfo.voiceChannelId}>`
+    : '';
 
   return {
     content: null,
@@ -201,8 +227,8 @@ function buildSessionDashboardPayload(sessionInfo = {}) {
               `-# พื้นที่ปลอดภัยของคุณเปิดให้บริการแล้ว ขอให้เป็นช่วงเวลาที่อบอุ่นและผ่อนคลายนะคะ\n`,
               `* 👤⠀**ลูกค้า:** ${customerMention}`,
               `* 🍵⠀**ผู้รับฟัง:** ${counselorMention}`,
-              `* ⏱️⠀**เวลาให้บริการ:** ${totalMinutes} นาที${boosterNote}\n`,
-              `> 💡 *เมื่อทั้งสองฝ่ายทักทายและพร้อมแล้ว ให้ที่ปรึกษากดปุ่ม **"▶️ เริ่มเซสชัน"** ด้านล่างเพื่อเริ่มจับเวลา บอทจะแจ้งเตือนเมื่อเหลือ 5 นาทีสุดท้ายค่ะ*`
+              `* ⏱️⠀**เวลาให้บริการ:** ${totalMinutes} นาที${boosterNote}${voiceNote}\n`,
+              `> 💡 *เมื่อทั้งสองฝ่ายพร้อม ให้ที่ปรึกษากดปุ่ม **"▶️ เริ่มเซสชัน"** ด้านล่างเพื่อเริ่มจับเวลา ระบบจะแจ้งเตือนเมื่อเหลือ 5 นาที / 1 นาที และปิดห้องอัตโนมัติเมื่อครบเวลาค่ะ*`
             ].join('\n')
           },
           {
@@ -225,7 +251,7 @@ function buildSessionDashboardPayload(sessionInfo = {}) {
               {
                 style: 4,
                 type: 2,
-                label: '︲สิ้นสุดเซสชัน',
+                label: '︲จบบริการ (ก่อนเวลา)',
                 emoji: {
                   name: '⏹️'
                 },
@@ -354,79 +380,11 @@ function buildReviewModal(defaultRating = 5) {
   return modal;
 }
 
-// ── ข้อมูลเมนูเครื่องดื่มและท็อปปิ้งสำหรับระบบ Interactive Selection ──────
-const SERVICE_MODES = {
-  chat: {
-    id: "chat",
-    name: "พิมพ์แชท",
-    emoji: "💬"
-  },
-  voice: {
-    id: "voice",
-    name: "คอลเสียง",
-    emoji: "🎙️"
-  }
-};
-
-const DRINK_OPTIONS = {
-  tea_39: {
-    id: "tea_39",
-    name: "ชาเขียวเย็นใจ",
-    label: "ชาเขียวเย็นใจ — 39 บาท",
-    price: 39,
-    duration: 15,
-    tier: "S",
-    emoji: "🍵",
-    description: "แวะมานั่งคุยกันสั้น ๆ เล่าได้เต็มที่ ไม่ต้องเกรงใจ"
-  },
-  cocoa_69: {
-    id: "cocoa_69",
-    name: "โกโก้พักใจ",
-    label: "โกโก้พักใจ — 69 บาท",
-    price: 69,
-    duration: 30,
-    tier: "M",
-    emoji: "🍫",
-    description: "ครึ่งชั่วโมงสำหรับเรื่องที่เธออยากเล่า"
-  },
-  coffee_129: {
-    id: "coffee_129",
-    name: "กาแฟคุยยาว",
-    label: "กาแฟคุยยาว — 129 บาท",
-    price: 129,
-    duration: 60,
-    tier: "L",
-    emoji: "☕",
-    description: "ค่อย ๆ เล่า ค่อย ๆ คุย ไม่ต้องรีบ เรามีเวลาให้คุณเต็ม 1 ชั่วโมง"
-  }
-};
-
-const TOPPING_OPTIONS = {
-  silent_19: {
-    id: "silent_19",
-    name: "นั่งเงียบเป็นเพื่อน",
-    label: "นั่งเงียบเป็นเพื่อน — 19 บาท",
-    price: 19,
-    emoji: "🍯",
-    description: "ไม่อยากคุยก็ไม่เป็นไร แค่อยากมีใครอยู่ด้วยเงียบ ๆ"
-  },
-  specific_39: {
-    id: "specific_39",
-    name: "เลือกคนที่อยากคุยด้วย",
-    label: "เลือกคนที่อยากคุยด้วย — 39 บาท",
-    price: 39,
-    emoji: "🍒",
-    description: "เลือกผู้รับฟังที่ต้องการได้"
-  },
-  none: {
-    id: "none",
-    name: "ไม่ใส่ท็อปปิ้ง",
-    label: "ไม่ใส่ท็อปปิ้ง",
-    price: 0,
-    emoji: "❌",
-    description: "ไม่ต้องการเพิ่มท็อปปิ้ง"
-  }
-};
+// ── ข้อมูลเมนูเครื่องดื่มและท็อปปิ้งสำหรับระบบ Interactive Selection (โหลดจาก menuData.json) ──────
+const menuData = require("./menuData.json");
+const SERVICE_MODES = menuData.serviceModes || {};
+const DRINK_OPTIONS = menuData.drinkOptions || {};
+const TOPPING_OPTIONS = menuData.toppingOptions || {};
 
 const MOCK_COUNSELORS = {
   counselor_ciew: {
@@ -1066,7 +1024,7 @@ function buildScanToPayPayload(orderInfo = {}) {
     orderInfo.counselorName ? `* 🎯⠀**ระบุตัวผู้รับฟัง:** ${orderInfo.counselorName}` : null,
     orderInfo.isBooster ? `* <:boosthand:1536707497174507620>⠀**สิทธิพิเศษ:** Server Booster (+5 นาทีฟรี)` : null,
     `# ยอดชำระสุทธิ: ${orderInfo.totalPrice || 0} บาท`,
-    `> เมื่อโอนเงินเรียบร้อยแล้ว ให้ใช้คำสั่ง **/ยืนยันสลิป** ในห้องนี้เพื่อตรวจสอบสลิปอัตโนมัติได้เลยค่ะ`
+    `> เมื่อโอนเงินเรียบร้อยแล้ว ให้แนบและส่งรูปภาพสลิปในห้องนี้ได้เลยค่ะ ระบบจะทำการตรวจสอบสลิปอัตโนมัติ 🍵`
   ].filter(Boolean).join('\n');
 
   return {
@@ -1139,6 +1097,125 @@ function buildScanToPayPayload(orderInfo = {}) {
   };
 }
 
+const ALL_SPECIALTIES = [
+  "ปัญหาการเรียน หรือ ชีวิตวัยรุ่น",
+  "ปัญหาความรัก หรือ ความสัมพันธ์",
+  "ปัญหาการทำงาน หรือ เพื่อนร่วมงาน",
+  "การพัฒนาตัวเอง หรือ ให้กำลังใจ",
+  "ไม่เจาะจง ขอแค่เป็นพื้นที่ปลอดภัยให้ระบายความในใจ"
+];
+
+/**
+ * 12. บัตรประจำตัวผู้รับฟัง / พนักงาน (Counselor Card Component V2)
+ * @param {object} counselorData - ข้อมูลพนักงานจาก Supabase
+ * @param {import("discord.js").GuildMember} member - Discord Guild Member
+ */
+function buildCounselorCardPayload(counselorData = {}, member = null) {
+  const status = counselorData.status || "OFFLINE";
+  let statusText = "⚪ พักรับงาน";
+  if (status === "ONLINE") {
+    statusText = "🟢 พร้อมรับงาน";
+  } else if (status === "BUSY") {
+    statusText = "🟡 กำลังให้บริการ";
+  }
+
+  const displayName = counselorData.display_name || member?.displayName || member?.user?.username || "ผู้รับฟังประจำร้าน";
+  const userId = counselorData.user_id || member?.id || "0";
+  const bio = counselorData.bio || "ยินดีต้อนรับสู่พื้นที่พักใจ พร้อมรับฟังและอยู่เคียงข้างคุณเสมอค่ะ";
+  const avatarUrl = counselorData.image_url || member?.displayAvatarURL?.({ extension: "png", size: 512 }) || "https://cdn.discordapp.com/attachments/1536267579843280987/1547362521919529081/New_premium_11.png";
+  const totalSessions = counselorData.total_sessions || 0;
+  const rating = Number(counselorData.average_rating || 5.0).toFixed(2);
+  const totalReviews = counselorData.total_reviews || 0;
+
+  const selectedSpecialties = Array.isArray(counselorData.specialty_tags) && counselorData.specialty_tags.length > 0
+    ? counselorData.specialty_tags
+    : ALL_SPECIALTIES;
+
+  const specialtiesList = selectedSpecialties.map(s => `(<:50121checkmark:1358584609087946867>)⠀${s}`);
+
+  const specialtiesContent = [
+    "### ความถนัดเฉพาะ:",
+    ...(specialtiesList.length > 0 ? specialtiesList : ["*(ยังไม่ได้ระบุความถนัด)*"])
+  ].join("\n");
+
+  const topContent = [
+    `## <:idolgreensuki:1554499554575913041>︲<@${userId}> ${displayName}`,
+    `" ${bio} "\n`,
+    `> สถานะการทำงาน: \`${statusText}\``,
+    `> บริการ: \`[🔊 คอลเสียง]\` \`[💬 พิมพ์คุย]\` \`[🍃 โหมดนั่งเงียบเป็นเพื่อน]\``,
+    `> คะแนนเฉลี่ย: ${rating} / 5.00 (${totalReviews} รีวิว)`,
+    `> บริการสำเร็จ: ${totalSessions} คน`
+  ].join("\n");
+
+  return {
+    content: null,
+    flags: FLAG_V2,
+    components: [
+      {
+        type: 17,
+        components: [
+          {
+            type: 9,
+            components: [
+              {
+                type: 10,
+                content: topContent
+              }
+            ],
+            accessory: {
+              type: 11,
+              media: {
+                url: avatarUrl
+              }
+            }
+          },
+          {
+            type: 10,
+            content: specialtiesContent
+          },
+          {
+            type: 14,
+            spacing: 2
+          }
+        ]
+      }
+    ]
+  };
+}
+
+/**
+ * 13. Modal แก้ไขข้อมูลส่วนตัวของผู้รับฟัง (Bio & Image URL)
+ */
+function buildEditProfileModal(currentBio = "", currentImageUrl = "") {
+  const modal = new ModalBuilder()
+    .setCustomId("heal_jai_modal_edit_profile")
+    .setTitle("แก้ไขข้อมูลส่วนตัวผู้รับฟัง");
+
+  const bioInput = new TextInputBuilder()
+    .setCustomId("profile_bio")
+    .setLabel("ข้อความแนะนำตัว (Bio)")
+    .setStyle(TextInputStyle.Paragraph)
+    .setPlaceholder("ยินดีต้อนรับสู่พื้นที่พักใจ พร้อมรับฟังและอยู่เคียงข้างคุณเสมอค่ะ 🍵")
+    .setValue(currentBio ? String(currentBio).slice(0, 500) : "")
+    .setMaxLength(500)
+    .setRequired(false);
+
+  const imageInput = new TextInputBuilder()
+    .setCustomId("profile_image_url")
+    .setLabel("ลิงก์ภาพประจำตัว / รูปโปรไฟล์ (Image URL)")
+    .setStyle(TextInputStyle.Short)
+    .setPlaceholder("https://example.com/image.png (เว้นว่างเพื่อใช้รูป Discord)")
+    .setValue(currentImageUrl ? String(currentImageUrl).slice(0, 300) : "")
+    .setMaxLength(300)
+    .setRequired(false);
+
+  const row1 = new ActionRowBuilder().addComponents(bioInput);
+  const row2 = new ActionRowBuilder().addComponents(imageInput);
+
+  modal.addComponents(row1, row2);
+  return modal;
+}
+
 module.exports = {
   FLAG_V2,
   FLAG_EPHEMERAL,
@@ -1157,5 +1234,9 @@ module.exports = {
   buildSessionDashboardPayload,
   buildFeedbackPromptPayload,
   buildPublicReviewShowcasePayload,
-  buildReviewModal
+  buildReviewModal,
+  buildCounselorCardPayload,
+  buildEditProfileModal,
+  ALL_SPECIALTIES
 };
+

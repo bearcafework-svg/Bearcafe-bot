@@ -239,4 +239,8 @@ function setupTagWarn(client) {
   });
 }
 
-module.exports = { setupTagWarn };
+module.exports = {
+  setupTagWarn,
+  buildMainPanelPayload,
+  buildLatestWarnPayload,
+};

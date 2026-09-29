@@ -369,7 +369,167 @@ function setupVerification(client) {
   client.on(Events.MessageCreate, async (message) => {
     if (message.author.bot || !message.guild) return;
 
-    if (message.content.trim() === "b!reset-verify") {
+/**
+ * Payload สำหรับบอร์ดลงทะเบียนสมาชิกใหม่
+ */
+function buildRegistrationPanelPayload() {
+  return {
+    content: "",
+    embeds: [],
+    attachments: [],
+    flags: 32768, // Component v2
+    components: [
+      {
+        type: 17,
+        components: [
+          {
+            type: 14,
+            spacing: 2
+          },
+          {
+            type: 10,
+            content: "## <:bee20000:1256669436350562355>︲__` 𝖦𝖾𝗍 𝗋𝖾𝗀𝗂𝗌𝗍𝖾𝗋 ₊ ลงทะเบียนค้าบ 𓂃 `__"
+          },
+          {
+            type: 12,
+            items: [
+              {
+                media: {
+                  url: REGISTRATION_PANEL_IMAGE_URL
+                }
+              }
+            ]
+          },
+          {
+            type: 14,
+            spacing: 2
+          },
+          {
+            type: 1,
+            components: [
+              {
+                style: 3, // Success/Green
+                type: 2,
+                label: "︲ลงทะเบียน",
+                emoji: { id: "1212856675053346897", name: "bearcafe_star", animated: false },
+                custom_id: "p_323843380868026369"
+              },
+              {
+                type: 2,
+                style: 5, // Link
+                label: "︲ไม่ทำก่อนลงทะเบียน พลาด!",
+                emoji: { id: "1396434906057281596", name: "imsupersurprised", animated: false },
+                url: "https://discord.com/channels/1144251788493602848/1524122867178930237"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  };
+}
+
+/**
+ * Payload สำหรับแผงเลือกรับการแจ้งเตือน
+ */
+function buildNotificationsPanelPayload() {
+  return {
+    content: "",
+    embeds: [],
+    attachments: [],
+    flags: 32768, // Component v2
+    components: [
+      {
+        type: 17,
+        components: [
+          {
+            type: 12,
+            items: [
+              {
+                media: {
+                  url: "https://cdn.discordapp.com/attachments/1524742861223100416/1526862634417393767/NewsBoard_-_bearcafe_10.png?ex=6a589123&is=6a573fa3&hm=95f43cf66f3190947e1f4d4ea6315c4a574637e673c0d7ee3f9107d45510f6fb&"
+                }
+              }
+            ]
+          },
+          { type: 14, spacing: 2 },
+          {
+            type: 10,
+            content: "## <:bee20000:1256669436350562355>︲__` 𝖭𝗈𝗍𝗂𝖿𝗂𝖼𝖺𝗍𝗂𝗈𝗇𝗌 ₊ เลือกการแจ้งเตือนที่ต้องการ 𓂃 `__\n-# เลือกรับการแจ้งเตือนเฉพาะหัวข้อที่คุณสนใจ เพื่อไม่ให้พลาดข่าวสารสำคัญและลดการแจ้งเตือนที่ไม่จำเป็น <:cuteplant:1152834055528783872>\n\n(🎉)⠀**__กิจกรรม__** — ลุ้นของรางวัล อีเวนต์ และกิจกรรมพิเศษ\n(📢)⠀**__ประกาศสำคัญ__** — ข่าวสำคัญที่อาจส่งผลต่อการใช้งานเซิร์ฟเวอร์\n(📰)⠀**__ข่าวสารทั่วไป__** — อัปเดตฟีเจอร์และความเคลื่อนไหวของ Bear Cafe\n(🎁)⠀**__สิทธิพิเศษและโปรโมชัน__** — โปรโมชัน และสิทธิพิเศษสำหรับสมาชิก\n"
+          },
+          { type: 14, spacing: 2 },
+          {
+            type: 1,
+            components: [
+              {
+                style: 3,
+                type: 2,
+                label: "คลิกเพื่อเลือกรับการแจ้งเตือน",
+                flow: { actions: [] },
+                custom_id: "p_324458660380020737"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  };
+}
+
+/**
+ * Payload สำหรับแผงตั้งค่าข้อความต้อนรับของทีมงาน
+ */
+function buildStaffWelcomePanelPayload() {
+  return {
+    flags: 32768,
+    components: [
+      {
+        type: 17,
+        components: [
+          {
+            type: 12,
+            items: [
+              {
+                media: {
+                  url: "https://media.discordapp.net/attachments/1524704267015819274/1531288461514899637/NewsBoard_-_bearcafe_15.png?ex=6a68ab03&is=6a675983&hm=6d63d26048c723f924163c4194ec811b26d169897840392fdf606ef9b209126d&=&format=webp&quality=lossless"
+                }
+              }
+            ]
+          },
+          {
+            type: 14,
+            spacing: 2
+          },
+          {
+            type: 10,
+            content: "## <:bee20000:1256669436350562355>︲__` 𝖲𝖾𝗍 𝗆𝖾𝗌𝗌𝖺𝗀𝖾 ₊ ตั้งค่าข้อความต้อนรับ 𓂃 `__"
+          },
+          {
+            type: 1,
+            components: [
+              {
+                style: 3,
+                type: 2,
+                label: "︲แก้ไขข้อความของคุณ",
+                emoji: {
+                  id: "1372837492205555812",
+                  name: "3602exclamationmarkbubble",
+                  animated: true
+                },
+                flow: {
+                  actions: []
+                },
+                custom_id: "p_328884649147240449"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  };
+}
+
+      if (message.content.trim() === "b!reset-verify") {
       // Check if Owner or Administrator
       const isOwner = message.author.id === message.guild.ownerId;
       const isAdmin = message.member && message.member.permissions.has(PermissionFlagsBits.Administrator);
@@ -381,61 +541,7 @@ function setupVerification(client) {
       }
 
       try {
-        const payload = {
-          content: "",
-          embeds: [],
-          attachments: [],
-          flags: 32768, // Component v2
-          components: [
-            {
-              type: 17,
-              components: [
-                {
-                  type: 14,
-                  spacing: 2
-                },
-                {
-                  type: 10,
-                  content: "## <:bee20000:1256669436350562355>︲__` 𝖦𝖾𝗍 𝗋𝖾𝗀𝗂𝗌𝗍𝖾𝗋 ₊ ลงทะเบียนค้าบ 𓂃 `__"
-                },
-                {
-                  type: 12,
-                  items: [
-                    {
-                      media: {
-                        url: REGISTRATION_PANEL_IMAGE_URL
-                      }
-                    }
-                  ]
-                },
-                {
-                  type: 14,
-                  spacing: 2
-                },
-                {
-                  type: 1,
-                  components: [
-                    {
-                      style: 3, // Success/Green
-                      type: 2,
-                      label: "︲ลงทะเบียน",
-                      emoji: { id: "1212856675053346897", name: "bearcafe_star", animated: false },
-                      custom_id: "p_323843380868026369"
-                    },
-                    {
-                      type: 2,
-                      style: 5, // Link
-                      label: "︲ไม่ทำก่อนลงทะเบียน พลาด!",
-                      emoji: { id: "1396434906057281596", name: "imsupersurprised", animated: false },
-                      url: "https://discord.com/channels/1144251788493602848/1524122867178930237"
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        };
-
+        const payload = buildRegistrationPanelPayload();
         await message.channel.send(payload);
         // Delete setup command
         try {
@@ -459,48 +565,7 @@ function setupVerification(client) {
       }
 
       try {
-        const payload = {
-          content: "",
-          embeds: [],
-          attachments: [],
-          flags: 32768, // Component v2
-          components: [
-            {
-              type: 17,
-              components: [
-                {
-                  type: 12,
-                  items: [
-                    {
-                      media: {
-                        url: "https://cdn.discordapp.com/attachments/1524742861223100416/1526862634417393767/NewsBoard_-_bearcafe_10.png?ex=6a589123&is=6a573fa3&hm=95f43cf66f3190947e1f4d4ea6315c4a574637e673c0d7ee3f9107d45510f6fb&"
-                      }
-                    }
-                  ]
-                },
-                { type: 14, spacing: 2 },
-                {
-                  type: 10,
-                  content: "## <:bee20000:1256669436350562355>︲__` 𝖭𝗈𝗍𝗂𝖿𝗂𝖼𝖺𝗍𝗂𝗈𝗇𝗌 ₊ เลือกการแจ้งเตือนที่ต้องการ 𓂃 `__\n-# เลือกรับการแจ้งเตือนเฉพาะหัวข้อที่คุณสนใจ เพื่อไม่ให้พลาดข่าวสารสำคัญและลดการแจ้งเตือนที่ไม่จำเป็น <:cuteplant:1152834055528783872>\n\n(🎉)⠀**__กิจกรรม__** — ลุ้นของรางวัล อีเวนต์ และกิจกรรมพิเศษ\n(📢)⠀**__ประกาศสำคัญ__** — ข่าวสำคัญที่อาจส่งผลต่อการใช้งานเซิร์ฟเวอร์\n(📰)⠀**__ข่าวสารทั่วไป__** — อัปเดตฟีเจอร์และความเคลื่อนไหวของ Bear Cafe\n(🎁)⠀**__สิทธิพิเศษและโปรโมชัน__** — โปรโมชัน และสิทธิพิเศษสำหรับสมาชิก\n"
-                },
-                { type: 14, spacing: 2 },
-                {
-                  type: 1,
-                  components: [
-                    {
-                      style: 3,
-                      type: 2,
-                      label: "คลิกเพื่อเลือกรับการแจ้งเตือน",
-                      flow: { actions: [] },
-                      custom_id: "p_324458660380020737"
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        };
-
+        const payload = buildNotificationsPanelPayload();
         await message.channel.send(payload);
         try {
           await message.delete();
@@ -521,54 +586,7 @@ function setupVerification(client) {
       }
 
       try {
-        const payload = {
-          flags: 32768,
-          components: [
-            {
-              type: 17,
-              components: [
-                {
-                  type: 12,
-                  items: [
-                    {
-                      media: {
-                        url: "https://media.discordapp.net/attachments/1524704267015819274/1531288461514899637/NewsBoard_-_bearcafe_15.png?ex=6a68ab03&is=6a675983&hm=6d63d26048c723f924163c4194ec811b26d169897840392fdf606ef9b209126d&=&format=webp&quality=lossless"
-                      }
-                    }
-                  ]
-                },
-                {
-                  type: 14,
-                  spacing: 2
-                },
-                {
-                  type: 10,
-                  content: "## <:bee20000:1256669436350562355>︲__` 𝖲𝖾𝗍 𝗆𝖾𝗌𝗌𝖺𝗀𝖾 ₊ ตั้งค่าข้อความต้อนรับ 𓂃 `__"
-                },
-                {
-                  type: 1,
-                  components: [
-                    {
-                      style: 3,
-                      type: 2,
-                      label: "︲แก้ไขข้อความของคุณ",
-                      emoji: {
-                        id: "1372837492205555812",
-                        name: "3602exclamationmarkbubble",
-                        animated: true
-                      },
-                      flow: {
-                        actions: []
-                      },
-                      custom_id: "p_328884649147240449"
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        };
-
+        const payload = buildStaffWelcomePanelPayload();
         await message.channel.send(payload);
         try {
           await message.delete();
@@ -1214,18 +1232,23 @@ function buildNoticeSelectorPayload(userId, activeOptions) {
   const emojiActive = "<:50121checkmark:1358584609087946867>";
   const emojiInactive = "<:68440x:1358584606911369226>";
 
-  const hasGit = activeOptions.includes("49B40A9yBS") ? emojiActive : emojiInactive;
-  const hasNotice = activeOptions.includes("JNySCX80ja") ? emojiActive : emojiInactive;
-  const hasGeneral = activeOptions.includes("DsMHlVrjze") ? emojiActive : emojiInactive;
-  const hasPromo = activeOptions.includes("6io1xnaMWJ") ? emojiActive : emojiInactive;
+  const isGit = activeOptions.includes("49B40A9yBS");
+  const isNotice = activeOptions.includes("JNySCX80ja");
+  const isGeneral = activeOptions.includes("DsMHlVrjze");
+  const isPromo = activeOptions.includes("6io1xnaMWJ");
+
+  const hasGit = isGit ? emojiActive : emojiInactive;
+  const hasNotice = isNotice ? emojiActive : emojiInactive;
+  const hasGeneral = isGeneral ? emojiActive : emojiInactive;
+  const hasPromo = isPromo ? emojiActive : emojiInactive;
 
   const contentText = `## <:bee20000:1256669436350562355>︲__\` 𝖭𝗈𝗍𝗂𝖿𝗂𝖼𝖺𝗍𝗂𝗈𝗇𝗌 ₊ เลือกการแจ้งเตือนที่ต้องการ 𓂃 \`__\n` +
     `-# เลือกรับการแจ้งเตือนเฉพาะหัวข้อที่คุณสนใจ เพื่อไม่ให้พลาดข่าวสารสำคัญและลดการแจ้งเตือนที่ไม่จำเป็น <:cuteplant:1152834055528783872>\n\n` +
     `**สถานะการรับของคุณ:** <@${userId}>\n\n` +
-    `>>> ${hasGit}⠀**__กิจกรรม__** — ลุ้นของรางวัล อีเวนต์ และกิจกรรมพิเศษ\n` +
-    `${hasNotice}⠀**__ประกาศสำคัญ__** — ข่าวสำคัญที่อาจส่งผลต่อการใช้งานเซิร์ฟเวอร์\n` +
-    `${hasGeneral}⠀**__ข่าวสารทั่วไป__** — อัปเดตฟีเจอร์และความเคลื่อนไหวของ Bear Cafe\n` +
-    `${hasPromo}⠀**__สิทธิพิเศษและโปรโมชัน__** — โปรโมชัน และสิทธิพิเศษสำหรับสมาชิก\n`;
+    `> • ${hasGit}⠀**__กิจกรรม__** \`${isGit ? "[เปิดรับอยู่]" : "[ปิดรับ]"}\` — ลุ้นของรางวัล อีเวนต์ และกิจกรรมพิเศษ\n` +
+    `> • ${hasNotice}⠀**__ประกาศสำคัญ__** \`${isNotice ? "[เปิดรับอยู่]" : "[ปิดรับ]"}\` — ข่าวสำคัญที่อาจส่งผลต่อการใช้งานเซิร์ฟเวอร์\n` +
+    `> • ${hasGeneral}⠀**__ข่าวสารทั่วไป__** \`${isGeneral ? "[เปิดรับอยู่]" : "[ปิดรับ]"}\` — อัปเดตฟีเจอร์และความเคลื่อนไหวของ Bear Cafe\n` +
+    `> • ${hasPromo}⠀**__สิทธิพิเศษและโปรโมชัน__** \`${isPromo ? "[เปิดรับอยู่]" : "[ปิดรับ]"}\` — โปรโมชัน และสิทธิพิเศษสำหรับสมาชิก\n`;
 
   return {
     flags: 32768 | 64, // Ephemeral V2
@@ -1259,30 +1282,30 @@ function buildNoticeSelectorPayload(userId, activeOptions) {
                   {
                     label: "กิจกรรม",
                     value: "49B40A9yBS",
-                    description: "ลุ้นของรางวัล อีเวนต์ และกิจกรรมพิเศษ",
-                    emoji: { name: "🎉" },
-                    default: activeOptions.includes("49B40A9yBS")
+                    description: isGit ? "🟢 [เปิดรับอยู่] ลุ้นของรางวัล อีเวนต์ และกิจกรรมพิเศษ" : "⚪ [ปิดรับ] ลุ้นของรางวัล อีเวนต์ และกิจกรรมพิเศษ",
+                    emoji: isGit ? { name: "✅" } : { name: "⚪" },
+                    default: isGit
                   },
                   {
                     label: "ประกาศสำคัญ",
                     value: "JNySCX80ja",
-                    description: "ข่าวสำคัญที่อาจส่งผลต่อการใช้งานเซิร์ฟเวอร์",
-                    emoji: { name: "📢" },
-                    default: activeOptions.includes("JNySCX80ja")
+                    description: isNotice ? "🟢 [เปิดรับอยู่] ข่าวสำคัญที่อาจส่งผลต่อการใช้งานเซิร์ฟเวอร์" : "⚪ [ปิดรับ] ข่าวสำคัญที่อาจส่งผลต่อการใช้งานเซิร์ฟเวอร์",
+                    emoji: isNotice ? { name: "✅" } : { name: "⚪" },
+                    default: isNotice
                   },
                   {
                     label: "ข่าวสารทั่วไป",
                     value: "DsMHlVrjze",
-                    description: "อัปเดตฟีเจอร์และความเคลื่อนไหวของ Bear Cafe",
-                    emoji: { name: "📑" },
-                    default: activeOptions.includes("DsMHlVrjze")
+                    description: isGeneral ? "🟢 [เปิดรับอยู่] อัปเดตฟีเจอร์และความเคลื่อนไหวของ Bear Cafe" : "⚪ [ปิดรับ] อัปเดตฟีเจอร์และความเคลื่อนไหวของ Bear Cafe",
+                    emoji: isGeneral ? { name: "✅" } : { name: "⚪" },
+                    default: isGeneral
                   },
                   {
                     label: "โปรโมชันและโฆษณา",
                     value: "6io1xnaMWJ",
-                    description: "โปรโมชัน และสิทธิพิเศษสำหรับสมาชิก",
-                    emoji: { name: "🎁" },
-                    default: activeOptions.includes("6io1xnaMWJ")
+                    description: isPromo ? "🟢 [เปิดรับอยู่] โปรโมชัน และสิทธิพิเศษสำหรับสมาชิก" : "⚪ [ปิดรับ] โปรโมชัน และสิทธิพิเศษสำหรับสมาชิก",
+                    emoji: isPromo ? { name: "✅" } : { name: "⚪" },
+                    default: isPromo
                   }
                 ],
                 placeholder: "🐻︲เลือกการแจ้งเตือนที่ต้องการ",
@@ -1298,4 +1321,9 @@ function buildNoticeSelectorPayload(userId, activeOptions) {
   };
 }
 
-module.exports = { setupVerification };
+module.exports = {
+  setupVerification,
+  buildRegistrationPanelPayload,
+  buildNotificationsPanelPayload,
+  buildStaffWelcomePanelPayload
+};

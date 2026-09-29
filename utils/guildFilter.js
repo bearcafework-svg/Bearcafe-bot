@@ -171,6 +171,11 @@ function getValidGuild(client, targetGuildId) {
 function isHealJaiEvent(eventName, args) {
   if (!args || args.length === 0) return false;
 
+  const guildId = extractGuildIdFromArgs(args);
+  if (guildId && String(guildId).trim() === HEALJAI_GUILD_ID) {
+    return true;
+  }
+
   if (eventName === "interactionCreate") {
     const interaction = args[0];
     if (!interaction) return false;
@@ -188,7 +193,14 @@ function isHealJaiEvent(eventName, args) {
     // 2. ตรวจสอบ Slash Commands ของ HealJai
     if (typeof interaction.isChatInputCommand === "function" && interaction.isChatInputCommand()) {
       const name = interaction.commandName ? interaction.commandName.toLowerCase() : "";
-      if (name.startsWith("heal") || name.startsWith("ฮิลใจ") || name === "ยืนยันการโอน" || name === "ยืนยันสลิป") {
+      if (name.startsWith("heal") || name.startsWith("ฮิลใจ") || name === "ยืนยันการโอน" || name === "ยืนยันสลิป" || name === "บัตรพนักงาน") {
+        return true;
+      }
+    }
+    // 3. ตรวจสอบ Autocomplete ของ HealJai
+    if (typeof interaction.isAutocomplete === "function" && interaction.isAutocomplete()) {
+      const name = interaction.commandName ? interaction.commandName.toLowerCase() : "";
+      if (name === "บัตรพนักงาน" || name.startsWith("heal") || name.startsWith("ฮิลใจ")) {
         return true;
       }
     }
@@ -196,6 +208,10 @@ function isHealJaiEvent(eventName, args) {
 
   if (eventName === "messageCreate") {
     const message = args[0];
+    const chName = message?.channel?.name || "";
+    if (chName.includes("พักใจ") || chName.startsWith("☕") || (message?.attachments && message.attachments.size > 0)) {
+      return true;
+    }
     if (message && typeof message.content === "string") {
       const text = message.content.trim().toLowerCase();
       // คำสั่ง Prefix ประจำโปรเจกต์ฮิลใจ
@@ -245,13 +261,38 @@ function setupGuildFilter(client) {
         if (!cleanGuildId || cleanGuildId === BEARCAFE_GUILD_ID) {
           const channelId = extractChannelIdFromArgs(args);
           if (channelId && !devChannels.includes(channelId)) {
+            // ข้อยกเว้นสำหรับข้อความในห้องพักใจ Ticket (ดักจับรูปภาพสลิป)
+            if (eventName === "messageCreate") {
+              const message = args[0];
+              const chName = message?.channel?.name || "";
+              if (
+                chName.startsWith("☕・พักใจ-") ||
+                chName.startsWith("☕-พักใจ-") ||
+                chName.startsWith("☕・") ||
+                isHealJaiEvent(eventName, args)
+              ) {
+                return originalEmit.apply(this, [eventName, ...args]);
+              }
+            }
+
             // ข้อยกเว้นสำหรับ Interaction ในโหมด DEV:
             if (eventName === "interactionCreate") {
               const interaction = args[0];
 
+              // 0. Interaction ในห้องพักใจ Ticket ของ HealJai
+              const chName = interaction?.channel?.name || "";
+              if (
+                chName.startsWith("☕・พักใจ-") ||
+                chName.startsWith("☕-พักใจ-") ||
+                chName.startsWith("☕・") ||
+                isHealJaiEvent(eventName, args)
+              ) {
+                return originalEmit.apply(this, [eventName, ...args]);
+              }
+
               // 1. คำสั่งทดสอบ เช่น /test_bee, /send-component อนุญาตให้ทำงานได้ในทุกห้อง
               if (interaction && typeof interaction.isChatInputCommand === "function" && interaction.isChatInputCommand()) {
-                const allowedDevCommands = (process.env.DEV_SLASH_COMMANDS || "test_bee,send-component,ยืนยันการโอน")
+                const allowedDevCommands = (process.env.DEV_SLASH_COMMANDS || "test_bee,send-component,ยืนยันการโอน,บัตรพนักงาน")
                   .split(",")
                   .map((s) => s.trim().toLowerCase())
                   .filter(Boolean);

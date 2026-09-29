@@ -311,16 +311,17 @@ function buildDailyQuestProgressPayload(user, questDate, quests, userProgressMap
  * @param {number} remainingCount จำนวนเควสที่เหลือของวันนั้น
  * @returns {object}
  */
-function buildQuestCompletedNotificationPayload(user, quest, remainingCount) {
+function buildQuestCompletedNotificationPayload(user, quest) {
   const avatarUrl =
-    user.displayAvatarURL({ extension: "png", size: 256, forceStatic: true }) ||
-    user.defaultAvatarURL;
+    (typeof user.displayAvatarURL === "function"
+      ? user.displayAvatarURL({ extension: "png", size: 256, forceStatic: true })
+      : user.avatarUrl) ||
+    user.defaultAvatarURL ||
+    "https://cdn.discordapp.com/embed/avatars/0.png";
 
-  // ตัดสัญลักษณ์หน้าชื่อออกเพื่อให้ได้ชื่อเควสสั้น เช่น "Morning Bear"
-  const cleanTitle = quest.title.replace(/^[^a-zA-Z0-9\u0E00-\u0E7F]+/g, "").trim();
-
-  const remainingLabel =
-    remainingCount > 0 ? `︲เหลืออีก ${remainingCount} เควส` : "︲ทำครบทุกเควสแล้ว 🎉";
+  const cleanTitle = (quest.title || "").replace(/^[^a-zA-Z0-9\u0E00-\u0E7F]+/g, "").trim();
+  const rewardPoints = quest.reward_points ?? quest.rewardPoints ?? 30;
+  const userId = user.id || user.userId;
 
   return {
     flags: 32768, // Component V2
@@ -335,7 +336,7 @@ function buildQuestCompletedNotificationPayload(user, quest, remainingCount) {
                 type: 10,
                 content:
                   `## <:50121checkmark:1358584609087946867>︲__\` 𝖰𝗎𝖾𝗌𝗍 𝖼𝗈𝗆𝗉𝗅𝖾𝗍𝖾𝖽 ₊ ผ่านเควสเรียบร้อย 𓂃 \`__\n` +
-                  `- <@${user.id}> ผ่านเควส **\`${cleanTitle}\`** ได้รับ ${POINT_ICON_STR} **+${quest.reward_points}**`
+                  `- <@${userId}> ผ่านเควส **\`${cleanTitle}\`** ได้รับ ${POINT_ICON_STR} **+${rewardPoints}**`
               }
             ],
             accessory: {
@@ -355,19 +356,81 @@ function buildQuestCompletedNotificationPayload(user, quest, remainingCount) {
               {
                 type: 2,
                 style: 5,
-                label: remainingLabel,
+                label: "︲เช็กเควสประจำวัน",
                 url: `https://discord.com/channels/1144251788493602848/${ANNOUNCE_CHANNEL_ID}`,
                 emoji: {
-                  id: "1539658874418896946",
-                  name: "kittywiggle",
-                  animated: true
+                  id: "1212856675053346897",
+                  name: "bearcafe_star",
+                  animated: false
                 }
               },
               {
                 type: 2,
                 style: 5,
-                url: "https://discord.com/channels/1144251788493602848/1524123727724417276",
                 label: "︲เช็กแต้มของคุณ",
+                url: "https://discord.com/channels/1144251788493602848/1524123727724417276",
+                emoji: {
+                  id: "1522154708200849449",
+                  name: "bagpack_icon",
+                  animated: false
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  };
+}
+
+/**
+ * สร้างการ์ดแจ้งเตือนเมื่อมีสมาชิกผ่านเควสเดียวกันหลายคนพร้อมกัน (Batch Users - สูงสุด 10 คน)
+ * @param {string} questTitle ชื่อเควส
+ * @param {Array<{ userId: string, rewardPoints: number }>} items รายการผู้เล่นที่ผ่านเควส
+ * @returns {object}
+ */
+function buildBatchQuestCompletedNotificationPayload(questTitle, items) {
+  const cleanTitle = (questTitle || "").replace(/^[^a-zA-Z0-9\u0E00-\u0E7F]+/g, "").trim();
+  const userLines = items
+    .map((item) => `- <@${item.userId}> ได้รับ ${POINT_ICON_STR} **+${item.rewardPoints ?? 30}**`)
+    .join("\n");
+
+  return {
+    flags: 32768, // Component V2
+    components: [
+      {
+        type: 17,
+        components: [
+          {
+            type: 10,
+            content:
+              `## <:50121checkmark:1358584609087946867>︲__\` 𝖰𝗎𝖾𝗌𝗍 𝖼𝗈𝗆𝗉𝗅𝖾𝗍𝖾𝖽 ₊ ผ่านเควสเรียบร้อย 𓂃 \`__\n` +
+              `### ผ่านเควส \`${cleanTitle}\`:\n` +
+              userLines
+          },
+          {
+            type: 14,
+            spacing: 2
+          },
+          {
+            type: 1,
+            components: [
+              {
+                type: 2,
+                style: 5,
+                label: "︲เช็กเควสประจำวัน",
+                url: `https://discord.com/channels/1144251788493602848/${ANNOUNCE_CHANNEL_ID}`,
+                emoji: {
+                  id: "1212856675053346897",
+                  name: "bearcafe_star",
+                  animated: false
+                }
+              },
+              {
+                type: 2,
+                style: 5,
+                label: "︲เช็กแต้มของคุณ",
+                url: "https://discord.com/channels/1144251788493602848/1524123727724417276",
                 emoji: {
                   id: "1522154708200849449",
                   name: "bagpack_icon",
@@ -478,6 +541,7 @@ module.exports = {
   buildDailyQuestAnnouncementPayload,
   buildDailyQuestProgressPayload,
   buildQuestCompletedNotificationPayload,
+  buildBatchQuestCompletedNotificationPayload,
   buildAllQuestsBonusNotificationPayload,
   buildBetaNoticePayload
 };

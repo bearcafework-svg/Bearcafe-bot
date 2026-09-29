@@ -15,6 +15,10 @@ CREATE TABLE IF NOT EXISTS heal_jai_counselors (
   total_reviews INTEGER DEFAULT 0,
   accumulated_earnings NUMERIC(10,2) DEFAULT 0.00,
   payout_account TEXT,
+  bio TEXT DEFAULT 'ยินดีต้อนรับสู่พื้นที่พักใจ พร้อมรับฟังและอยู่เคียงข้างคุณเสมอค่ะ 🍵',
+  image_url TEXT,
+  card_message_id TEXT,
+  card_channel_id TEXT,
   last_shift_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -45,14 +49,20 @@ CREATE TABLE IF NOT EXISTS heal_jai_orders_sessions (
   counselor_share NUMERIC(10,2) NOT NULL, -- 70%
   platform_share NUMERIC(10,2) NOT NULL,  -- 30%
   payment_status TEXT NOT NULL DEFAULT 'PENDING' CHECK (payment_status IN ('PENDING', 'PAID', 'REFUNDED', 'CANCELLED')),
-  session_status TEXT NOT NULL DEFAULT 'WAITING' CHECK (session_status IN ('WAITING', 'DISPATCHING', 'ACTIVE', 'COMPLETED', 'CANCELLED')),
+  service_mode TEXT DEFAULT 'chat' CHECK (service_mode IN ('chat', 'voice')),
+  session_status TEXT NOT NULL DEFAULT 'WAITING' CHECK (session_status IN (
+    'WAITING', 'DISPATCHING', 'ACTIVE', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED',
+    'WAITING_FOR_PROVIDER', 'WAITING_FOR_CUSTOMER', 'PROVIDER_NO_SHOW', 'CUSTOMER_NO_SHOW'
+  )),
   ticket_channel_id TEXT,
   session_channel_id TEXT,
   session_voice_id TEXT,
   slip_url TEXT,
   slip_verified_at TIMESTAMPTZ,
   started_at TIMESTAMPTZ,
+  expires_at TIMESTAMPTZ,
   ended_at TIMESTAMPTZ,
+  ended_early BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );

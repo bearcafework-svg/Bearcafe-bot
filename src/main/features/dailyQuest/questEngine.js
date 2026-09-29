@@ -9,6 +9,7 @@ const {
 } = require("./questConstants");
 const {
   buildQuestCompletedNotificationPayload,
+  buildBatchQuestCompletedNotificationPayload,
   buildAllQuestsBonusNotificationPayload
 } = require("./questPayloads");
 
@@ -352,32 +353,111 @@ async function completeQuest(client, supabase, user, quest, targetDate, dailyQue
       })
       .then(null, () => {});
 
-    // 4. คำนวณจำนวนเควสที่เหลือของวันนี้
-    const progressMap = await getUserDailyProgress(supabase, user.id, targetDate);
-    let completedCount = 0;
-    for (const q of dailyQuests) {
-      if (progressMap[q.id]?.is_completed || q.id === quest.id) {
-        completedCount++;
-      }
-    }
-    const remainingCount = Math.max(0, dailyQuests.length - completedCount);
+    // 4. ส่งเข้าคิวแจ้งเตือน (Debounce 2.5 วินาที รวมสูงสุด 10 คนต่อ message)
+    const avatarUrl =
+      (typeof user.displayAvatarURL === "function"
+        ? user.displayAvatarURL({ extension: "png", size: 256, forceStatic: true })
+        : user.avatarUrl) ||
+      user.defaultAvatarURL ||
+      "https://cdn.discordapp.com/embed/avatars/0.png";
 
-    // 5. ส่งการ์ดแจ้งเตือนไปยัง NOTIFY_CHANNEL_ID
+    queueQuestCompletionNotification(client, {
+      userId: user.id,
+      avatarUrl,
+      questId: quest.id,
+      questTitle: quest.title,
+      rewardPoints: pointsToAdd
+    });
+
+    // 5. ตรวจสอบเงื่อนไขโบนัสครบ 3 เควส
+    await checkAndAwardFullBonus(client, supabase, user, targetDate, dailyQuests);
+  } catch (err) {
+    console.error("[dailyQuest] completeQuest error:", err.message);
+  }
+}
+
+// ─── Quest Completion Notification Queue (Debounce 2.5s) ──────────────────
+const questCompletionQueue = [];
+let questCompletionDebounceTimer = null;
+const BATCH_DEBOUNCE_MS = 2500; // 2.5 วินาที
+
+/**
+ * เพิ่มรายการเควสที่สำเร็จเข้าคิว และตั้งเวลาส่งแจ้งเตือนแบบรวมกลุ่ม
+ * @param {import('discord.js').Client} client
+ * @param {object} item { userId, avatarUrl, questId, questTitle, rewardPoints }
+ */
+function queueQuestCompletionNotification(client, item) {
+  questCompletionQueue.push(item);
+
+  if (questCompletionDebounceTimer) {
+    clearTimeout(questCompletionDebounceTimer);
+  }
+
+  questCompletionDebounceTimer = setTimeout(async () => {
+    questCompletionDebounceTimer = null;
+    await flushQuestCompletionQueue(client);
+  }, BATCH_DEBOUNCE_MS);
+}
+
+/**
+ * ประมวลผลและส่งการ์ดแจ้งเตือนเควสที่สะสมไว้ในคิว (1 message สูงสุด 10 คน)
+ * @param {import('discord.js').Client} client
+ */
+async function flushQuestCompletionQueue(client) {
+  if (questCompletionQueue.length === 0) return;
+
+  const itemsToProcess = questCompletionQueue.splice(0, questCompletionQueue.length);
+
+  try {
     const notifyCh =
       client.channels.cache.get(NOTIFY_CHANNEL_ID) ||
       (await client.channels.fetch(NOTIFY_CHANNEL_ID).catch(() => null));
 
-    if (notifyCh && notifyCh.isTextBased()) {
-      const notifPayload = buildQuestCompletedNotificationPayload(user, quest, remainingCount);
-      await notifyCh.send(notifPayload).catch((err) => {
-        console.error("[dailyQuest] Failed to send quest completed notification:", err.message);
-      });
+    if (!notifyCh || !notifyCh.isTextBased()) return;
+
+    // จัดกลุ่มตาม questId (หรือ questTitle)
+    const groupedByQuest = new Map();
+    for (const item of itemsToProcess) {
+      const key = item.questId || item.questTitle;
+      if (!groupedByQuest.has(key)) {
+        groupedByQuest.set(key, { title: item.questTitle, items: [] });
+      }
+      groupedByQuest.get(key).items.push(item);
     }
 
-    // 6. ตรวจสอบเงื่อนไขโบนัสครบ 3 เควส
-    await checkAndAwardFullBonus(client, supabase, user, targetDate, dailyQuests);
+    // ส่งข้อความแยกแต่ละเควส (จำกัดสูงสุด 10 คนต่อ 1 message หากเกินให้แยกข้อความ)
+    for (const group of groupedByQuest.values()) {
+      const allItems = group.items;
+      const CHUNK_SIZE = 10;
+
+      for (let i = 0; i < allItems.length; i += CHUNK_SIZE) {
+        const chunk = allItems.slice(i, i + CHUNK_SIZE);
+        let payload;
+
+        if (chunk.length === 1) {
+          // หากมี 1 คน ส่งการ์ดแบบเดี่ยว (มีรูปโปรไฟล์ด้านขวา)
+          const single = chunk[0];
+          payload = buildQuestCompletedNotificationPayload(
+            { id: single.userId, avatarUrl: single.avatarUrl },
+            { title: group.title, reward_points: single.rewardPoints }
+          );
+        } else {
+          // หากมีหลายคน (2-10 คน) ส่งการ์ดแบบรวมกลุ่ม
+          payload = buildBatchQuestCompletedNotificationPayload(group.title, chunk);
+        }
+
+        await notifyCh.send(payload).catch((err) => {
+          console.error("[dailyQuest] Failed to send quest completed notification:", err.message);
+        });
+
+        // เว้นวรรค 200ms ป้องกัน rate limit หากมีหลายข้อความ
+        if (i + CHUNK_SIZE < allItems.length) {
+          await new Promise((r) => setTimeout(r, 200));
+        }
+      }
+    }
   } catch (err) {
-    console.error("[dailyQuest] completeQuest error:", err.message);
+    console.error("[dailyQuest] Error in flushQuestCompletionQueue:", err.message);
   }
 }
 

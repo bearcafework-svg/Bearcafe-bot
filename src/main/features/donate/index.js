@@ -435,4 +435,8 @@ function setupDonate(client) {
   });
 }
 
-module.exports = { setupDonate };
+module.exports = {
+  setupDonate,
+  buildTopDonateComponents,
+  sendOrUpdateTopDonate
+};

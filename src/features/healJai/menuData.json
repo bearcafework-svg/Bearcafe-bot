@@ -1,0 +1,75 @@
+{
+  "serviceModes": {
+    "chat": {
+      "id": "chat",
+      "name": "พิมพ์แชท",
+      "emoji": "💬"
+    },
+    "voice": {
+      "id": "voice",
+      "name": "คอลเสียง",
+      "emoji": "🎙️"
+    }
+  },
+  "drinkOptions": {
+    "tea_39": {
+      "id": "tea_39",
+      "name": "ชาเขียวเย็นใจ",
+      "label": "ชาเขียวเย็นใจ — 39 บาท",
+      "price": 39,
+      "duration": 15,
+      "tier": "S",
+      "emoji": "🍵",
+      "imageUrl": "https://cdn.discordapp.com/attachments/1536267579843280987/1547550913474854942/New_premium_13.png",
+      "description": "แวะมานั่งคุยกันสั้น ๆ เล่าได้เต็มที่ ไม่ต้องเกรงใจ"
+    },
+    "cocoa_69": {
+      "id": "cocoa_69",
+      "name": "โกโก้พักใจ",
+      "label": "โกโก้พักใจ — 69 บาท",
+      "price": 69,
+      "duration": 30,
+      "tier": "M",
+      "emoji": "🍫",
+      "imageUrl": "https://cdn.discordapp.com/attachments/1536267579843280987/1547362521919529081/New_premium_11.png",
+      "description": "ครึ่งชั่วโมงสำหรับเรื่องที่เธออยากเล่า"
+    },
+    "coffee_129": {
+      "id": "coffee_129",
+      "name": "กาแฟคุยยาว",
+      "label": "กาแฟคุยยาว — 129 บาท",
+      "price": 129,
+      "duration": 60,
+      "tier": "L",
+      "emoji": "☕",
+      "imageUrl": "https://cdn.discordapp.com/attachments/1536267579843280987/1547550913135251498/New_premium_12.png",
+      "description": "ค่อย ๆ เล่า ค่อย ๆ คุย ไม่ต้องรีบ เรามีเวลาให้คุณเต็ม 1 ชั่วโมง"
+    }
+  },
+  "toppingOptions": {
+    "silent_19": {
+      "id": "silent_19",
+      "name": "นั่งเงียบเป็นเพื่อน",
+      "label": "นั่งเงียบเป็นเพื่อน — 19 บาท",
+      "price": 19,
+      "emoji": "🍯",
+      "description": "ไม่อยากคุยก็ไม่เป็นไร แค่อยากมีใครอยู่ด้วยเงียบ ๆ"
+    },
+    "specific_39": {
+      "id": "specific_39",
+      "name": "เลือกคนที่อยากคุยด้วย",
+      "label": "เลือกคนที่อยากคุยด้วย — 39 บาท",
+      "price": 39,
+      "emoji": "🏷️",
+      "description": "เลือกคนที่อยากคุยด้วยเป็นพิเศษเพื่อความสบายใจ"
+    },
+    "none": {
+      "id": "none",
+      "name": "ไม่รับท็อปปิ้ง",
+      "label": "ไม่รับท็อปปิ้ง — 0 บาท",
+      "price": 0,
+      "emoji": "🚫",
+      "description": "ไม่มีท็อปปิ้งเพิ่มเติม"
+    }
+  }
+}

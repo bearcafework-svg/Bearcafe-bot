@@ -451,4 +451,7 @@ function setupColorRoles(client) {
   console.log("[colorRoles] ✅ ระบบเปลี่ยนยศสีผู้ใช้งานพร้อมใช้งาน");
 }
 
-module.exports = { setupColorRoles };
+module.exports = {
+  setupColorRoles,
+  buildMainPanel
+};

@@ -341,12 +341,20 @@ const GUILD_SLASH_COMMANDS = [
         type: ApplicationCommandOptionType.String,
         required: true,
         choices: [
-          { name: "บอร์ดอ่านข้อตกลงและนโยบาย (Terms)", value: "terms" },
-          { name: "บอร์ดเมนูเครื่องดื่มและสั่งบริการ (Menu)", value: "menu" },
-          { name: "แผงตอกบัตรเข้ากะของทีมงาน (Shift)", value: "shift" },
-          { name: "กระดานจัดอันดับหมีติดเกม (Minigame Leaderboard)", value: "minigame_top" },
-          { name: "กล่องความประทับใจ (Public Showcase Preview)", value: "feedback" },
-          { name: "บอร์ดห้องเสียงหาเพื่อน (Voice Board)", value: "voice_board" },
+          { name: "1️⃣ บอร์ดอ่านข้อตกลงและนโยบาย (Terms)", value: "terms" },
+          { name: "2️⃣ บอร์ดเมนูเครื่องดื่มและสั่งบริการ (Menu)", value: "menu" },
+          { name: "3️⃣ แผงตอกบัตรเข้ากะของทีมงาน (Shift)", value: "shift" },
+          { name: "4️⃣ ประวัติการทำผิดกฎ (Violation History)", value: "violation_history" },
+          { name: "5️⃣ บอร์ดลงทะเบียนสมาชิกใหม่ (Registration Panel)", value: "verify_panel" },
+          { name: "6️⃣ แผงเลือกรับการแจ้งเตือน (Notifications Select)", value: "notice_panel" },
+          { name: "7️⃣ แผงตั้งค่าข้อความต้อนรับทีมงาน (Staff Welcome Msg)", value: "staff_welcome_msg" },
+          { name: "8️⃣ กระดานยอดโดเนทสะสม (Top Donate Board)", value: "top_donate" },
+          { name: "9️⃣ บอร์ดห้องเสียงหาเพื่อน (Voice Board)", value: "voice_board" },
+          { name: "🔟 กระดานเควสประจำวัน (Daily Quest Board)", value: "daily_quest" },
+          { name: "1️⃣1️⃣ แผงเปิดรับสมัครทีมงาน (Recruitment Form)", value: "recruitment_form" },
+          { name: "1️⃣2️⃣ แผงเลือกและเปลี่ยนยศสี (Color Roles Panel)", value: "color_roles" },
+          { name: "1️⃣3️⃣ กระดานจัดอันดับหมีติดเกม (Minigame Leaderboard)", value: "minigame_top" },
+          { name: "1️⃣4️⃣ กล่องความประทับใจ (Public Showcase Preview)", value: "feedback" },
         ],
       },
       {
@@ -359,61 +367,27 @@ const GUILD_SLASH_COMMANDS = [
     ],
   },
 
-  // 19. /ai-reload (Hot-Reload AI Knowledge)
+  // 19. /บัตรพนักงาน (Heal Jai Counselor Card & ID Binding)
   {
-    name: "ai-reload",
-    description: "รีโหลดไฟล์ความรู้และบุคลิกของ AI (Hot-Reload) เข้าสู่ RAM ทันที (เฉพาะทีมงาน)",
-    default_member_permissions: String(PermissionFlagsBits.Administrator),
-  },
-
-  // 20. /ยืนยันการโอน (Heal Jai Payment Verification)
-  {
-    name: "ยืนยันการโอน",
-    description: "แนบสลิปเพื่อตรวจสอบการชำระเงินและค้นหาผู้รับฟัง",
+    name: "บัตรพนักงาน",
+    description: "[Staff Only] ส่งบัตรพนักงาน/ผู้รับฟังลงในห้อง และผูก ID สำหรับอัปเดตข้อมูลอัตโนมัติ",
     options: [
       {
-        name: "สลิป",
-        description: "รูปภาพหลักฐานการโอนเงิน (สลิป)",
-        type: ApplicationCommandOptionType.Attachment,
-        required: true,
-      },
-      {
-        name: "test_success",
-        description: "[สำหรับทดสอบ] จำลองผลการตรวจสลิป",
+        name: "พนักงาน",
+        description: "เลือกรายชื่อพนักงาน/ผู้รับฟังที่มีในระบบ",
         type: ApplicationCommandOptionType.String,
         required: true,
-        choices: [
-          { name: "✅ ตรวจสอบผ่าน (pass)", value: "pass" },
-          { name: "❌ ตรวจสอบไม่ผ่าน (fail)", value: "fail" },
-        ],
+        autocomplete: true,
+      },
+      {
+        name: "ห้อง",
+        description: "เลือกห้องที่ต้องการให้ส่งบัตรพนักงานไป (เว้นว่างเพื่อส่งในห้องปัจจุบัน)",
+        type: ApplicationCommandOptionType.Channel,
+        channelTypes: [ChannelType.GuildText],
+        required: false,
       },
     ],
   },
-
-  // 21. /ยืนยันสลิป (Alias for /ยืนยันการโอน)
-  {
-    name: "ยืนยันสลิป",
-    description: "แนบสลิปเพื่อตรวจสอบการชำระเงินและค้นหาผู้รับฟัง (ทดสอบ)",
-    options: [
-      {
-        name: "สลิป",
-        description: "รูปภาพหลักฐานการโอนเงิน (สลิป)",
-        type: ApplicationCommandOptionType.Attachment,
-        required: true,
-      },
-      {
-        name: "test_success",
-        description: "[สำหรับทดสอบ] จำลองผลการตรวจสลิป",
-        type: ApplicationCommandOptionType.String,
-        required: true,
-        choices: [
-          { name: "✅ ตรวจสอบผ่าน (pass)", value: "pass" },
-          { name: "❌ ตรวจสอบไม่ผ่าน (fail)", value: "fail" },
-        ],
-      },
-    ],
-  },
-
 
   // 23. /อนุมัติเควส (Approve Daily Quest - Staff Only)
   {
@@ -507,7 +481,7 @@ async function registerAllGuildCommands(guild) {
     let targetCommands = GUILD_SLASH_COMMANDS;
 
     if (isDevMode) {
-      const allowedDevCommands = (process.env.DEV_SLASH_COMMANDS || "test_bee,send-component,ยืนยันการโอน")
+      const allowedDevCommands = (process.env.DEV_SLASH_COMMANDS || "test_bee,send-component,บัตรพนักงาน")
         .split(",")
         .map((s) => s.trim().toLowerCase())
         .filter(Boolean);

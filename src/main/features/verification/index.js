@@ -325,51 +325,6 @@ async function completeVerification(interaction) {
 }
 
 /**
- * Feature initialization function
- * @param {Client} client 
- */
-function setupVerification(client) {
-  // Start the background DM broadcast queue processor (skip if disabled on Local/Dev)
-  const isLocalFastStart = process.env.LOCAL_FAST_START === "true" || process.env.DISABLE_BACKGROUND_SERVICES === "true" || process.env.DISABLE_DM_BROADCAST === "true";
-  if (!isLocalFastStart) {
-    startQueueProcessor(client, supabase);
-  } else {
-    console.log("[verification] ⏭️ Skipping background DM broadcast queue processor in Local/Dev mode.");
-  }
-
-  // ── 1. Event: guildMemberAdd ─────────────────────────────────────
-  client.on(Events.GuildMemberAdd, async (member) => {
-    try {
-      const channel = member.guild.channels.cache.get(VERIFY_CHANNEL_ID);
-      if (!channel) {
-        console.warn(`[verification] Verification channel ${VERIFY_CHANNEL_ID} not found.`);
-        return;
-      }
-
-      // Send join message
-      const joinMsg = await channel.send({
-        content: `# <:bear_star1:1152782839671169184>︲<@${member.user.id}> เข้ามาแล้วกดปุ่ม **ลงทะเบียน** ได้เลย *!*`
-      });
-
-      // Auto-delete after 1 minute
-      setTimeout(async () => {
-        try {
-          await joinMsg.delete();
-        } catch (err) {
-          // Ignore if message already deleted
-        }
-      }, 60 * 1000);
-
-    } catch (err) {
-      console.error("[verification] Error handling GuildMemberAdd:", err);
-    }
-  });
-
-  // ── 2. Event: messageCreate (Admin b!reset-verify) ──────────────────
-  client.on(Events.MessageCreate, async (message) => {
-    if (message.author.bot || !message.guild) return;
-
-/**
  * Payload สำหรับบอร์ดลงทะเบียนสมาชิกใหม่
  */
 function buildRegistrationPanelPayload() {
@@ -529,7 +484,52 @@ function buildStaffWelcomePanelPayload() {
   };
 }
 
-      if (message.content.trim() === "b!reset-verify") {
+/**
+ * Feature initialization function
+ * @param {Client} client 
+ */
+function setupVerification(client) {
+  // Start the background DM broadcast queue processor (skip if disabled on Local/Dev)
+  const isLocalFastStart = process.env.LOCAL_FAST_START === "true" || process.env.DISABLE_BACKGROUND_SERVICES === "true" || process.env.DISABLE_DM_BROADCAST === "true";
+  if (!isLocalFastStart) {
+    startQueueProcessor(client, supabase);
+  } else {
+    console.log("[verification] ⏭️ Skipping background DM broadcast queue processor in Local/Dev mode.");
+  }
+
+  // ── 1. Event: guildMemberAdd ─────────────────────────────────────
+  client.on(Events.GuildMemberAdd, async (member) => {
+    try {
+      const channel = member.guild.channels.cache.get(VERIFY_CHANNEL_ID);
+      if (!channel) {
+        console.warn(`[verification] Verification channel ${VERIFY_CHANNEL_ID} not found.`);
+        return;
+      }
+
+      // Send join message
+      const joinMsg = await channel.send({
+        content: `# <:bear_star1:1152782839671169184>︲<@${member.user.id}> เข้ามาแล้วกดปุ่ม **ลงทะเบียน** ได้เลย *!*`
+      });
+
+      // Auto-delete after 1 minute
+      setTimeout(async () => {
+        try {
+          await joinMsg.delete();
+        } catch (err) {
+          // Ignore if message already deleted
+        }
+      }, 60 * 1000);
+
+    } catch (err) {
+      console.error("[verification] Error handling GuildMemberAdd:", err);
+    }
+  });
+
+  // ── 2. Event: messageCreate (Admin b!reset-verify) ──────────────────
+  client.on(Events.MessageCreate, async (message) => {
+    if (message.author.bot || !message.guild) return;
+
+    if (message.content.trim() === "b!reset-verify") {
       // Check if Owner or Administrator
       const isOwner = message.author.id === message.guild.ownerId;
       const isAdmin = message.member && message.member.permissions.has(PermissionFlagsBits.Administrator);

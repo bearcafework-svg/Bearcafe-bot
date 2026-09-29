@@ -360,3 +360,22 @@ content: `### ${title}\n> ทำเควสที่ <#1524124012492619847>`
 - [`src/main/features/dailyQuest/questPayloads.js`](file:///d:/bearcafe-bot/src/main/features/dailyQuest/questPayloads.js)
 - [`supabase/functions/send-daily-quest-announcement/index.ts`](file:///d:/bear-cafe-web/supabase/functions/send-daily-quest-announcement/index.ts)
 
+---
+
+### 13. Top-Level Function Scope Requirement for Module Exports
+**Date:** 2026-09-30  
+**Domain:** Node.js CJS / Architecture / Clean Exports  
+**Description of Issue:**  
+บอท Crash ตอนบูตด้วย `ReferenceError: <function_name> is not defined at Object.<anonymous>` เมื่อพยายาม `module.exports = { <function_name> }`
+
+**Root Cause:**  
+ฟังก์ชันถูกนิยามอยู่ข้างใน Event Listener หรือ Setup Function (เช่น ภายใน `client.on("messageCreate", ...)` หรือ `setupFeature()`) ทำให้ตัวแปรอยู่นอก Scope ของ `module.exports` ที่ประเมินผลระดับ Top-level Module
+
+**Resolution & Standard Implementation:**  
+แยกฟังก์ชันสร้าง Payload และ Pure UI Helper ทั้งหมดออกมาประกาศที่ระดับบนสุดของไฟล์ (Top-level Module Scope) ก่อนส่งออกผ่าน `module.exports`
+
+**Related Files:**  
+- [`src/features/verification/index.js`](file:///d:/bearcafe-bot/src/features/verification/index.js)
+- [`src/main/features/verification/index.js`](file:///d:/bearcafe-bot/src/main/features/verification/index.js)
+- [`src/features/healJai/index.js`](file:///d:/bearcafe-bot/src/features/healJai/index.js)
+

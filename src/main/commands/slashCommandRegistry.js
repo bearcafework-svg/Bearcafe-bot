@@ -367,7 +367,34 @@ const GUILD_SLASH_COMMANDS = [
     ],
   },
 
-  // 19. /บัตรพนักงาน (Heal Jai Counselor Card & ID Binding)
+  // 19. /healjai-admin (Heal Jai Admin Control Hub)
+  {
+    name: "healjai-admin",
+    description: "[Admin/Staff] จัดการระบบหลังบ้าน ฮีลใจ (Heal Jai Control Hub)",
+    options: [
+      {
+        name: "action",
+        description: "เลือกการทำงานที่ต้องการ",
+        type: ApplicationCommandOptionType.String,
+        required: true,
+        choices: [
+          { name: "📊 แผงควบคุม & สรุปสถานะ (Dashboard)", value: "dashboard" },
+          { name: "🛠️ สลับโหมดเปิด-ปิดบริการ (Toggle Maintenance)", value: "toggle_maintenance" },
+          { name: "🧹 เคลียร์ห้องค้างตกค้างทันที (Run Cleanup Now)", value: "run_cleanup" },
+          { name: "📑 ส่งรายงานสรุปยอดวันนี้ทันที (Send Daily Report)", value: "daily_report" },
+          { name: "🔍 ตรวจสอบและจัดการเคส (Manage Case)", value: "manage_case" },
+        ],
+      },
+      {
+        name: "order_code",
+        description: "รหัสออเดอร์ (เช่น HJ-...) สำหรับคำสั่งจัดการเคส",
+        type: ApplicationCommandOptionType.String,
+        required: false,
+      },
+    ],
+  },
+
+  // 20. /บัตรพนักงาน (Heal Jai Counselor Card & ID Binding)
   {
     name: "บัตรพนักงาน",
     description: "[Staff Only] ส่งบัตรพนักงาน/ผู้รับฟังลงในห้อง และผูก ID สำหรับอัปเดตข้อมูลอัตโนมัติ",
@@ -475,13 +502,21 @@ async function registerAllGuildCommands(guild) {
     return;
   }
 
+  const isDevMode = process.env.DEV_MODE === "true";
+  const healJaiGuildId = process.env.HEALJAI_GUILD_ID || "1536199707922141254";
+
+  // 🛡️ ป้องกันไม่ให้บอทหลักลงทะเบียนคำสั่งในกิลด์ HealJai เด็ดขาด
+  if (!isDevMode && guild.id === healJaiGuildId) {
+    console.log(`[slash] 🛑 Skipping slash command registration on HealJai Guild "${guild.name}" for Main Bot.`);
+    return;
+  }
+
   try {
     const startTime = Date.now();
-    const isDevMode = process.env.DEV_MODE === "true";
     let targetCommands = GUILD_SLASH_COMMANDS;
 
     if (isDevMode) {
-      const allowedDevCommands = (process.env.DEV_SLASH_COMMANDS || "test_bee,send-component,บัตรพนักงาน")
+      const allowedDevCommands = (process.env.DEV_SLASH_COMMANDS || "test_bee,send-component,บัตรพนักงาน,healjai-admin")
         .split(",")
         .map((s) => s.trim().toLowerCase())
         .filter(Boolean);
@@ -493,8 +528,9 @@ async function registerAllGuildCommands(guild) {
         `🛠️ [slash] DEV_MODE is active: Synchronizing only [${targetCommands.map((c) => c.name).join(", ")}] on "${guild.name}"`
       );
     } else {
-      // บอทหลัก (Production Mode) — รวมคำสั่ง /send-component ให้ Staff ใช้งานได้
-      const DEV_ONLY_COMMANDS = [];
+      // บอทหลัก (Production Mode) — ไม่ลงทะเบียนคำสั่งโปรเจกต์ฮีลใจเด็ดขาด (ทำงานเฉพาะบอท Dev / Secondary Bot)
+      const HEALJAI_COMMANDS = ["healjai-admin", "บัตรพนักงาน", "ยืนยันการโอน", "ยืนยันสลิป"];
+      const DEV_ONLY_COMMANDS = [...HEALJAI_COMMANDS];
       targetCommands = GUILD_SLASH_COMMANDS.filter(
         (cmd) => !DEV_ONLY_COMMANDS.includes(cmd.name.toLowerCase())
       );

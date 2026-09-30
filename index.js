@@ -139,6 +139,12 @@ setupFeature("moveMembers", "./src/commands/moveMembers", "setupMoveMembers");
 
 
 function setupFeature(name, modulePath, setupName, requiredEnv = []) {
+  // 🛡️ ป้องกันบอทหลักโหลดระบบฮีลใจ (HealJai ทำงานเฉพาะบนบอท Dev / Secondary Bot เท่านั้น)
+  if (name === "healJai" && !isDevMode) {
+    console.log("[feature] 🛑 Skipping healJai on Main Bot (HealJai runs exclusively on Dev Bot).");
+    return;
+  }
+
   if (isDevMode && !devAllowedFeatures.includes(name)) {
     return;
   }

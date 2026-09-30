@@ -36,8 +36,9 @@ function getAllowedGuildIds() {
     }
   }
 
-  // 3. ดึงจาก HEALJAI_GUILD_ID ใน process.env
-  if (process.env.HEALJAI_GUILD_ID) {
+  // 3. ดึงจาก HEALJAI_GUILD_ID ใน process.env (อนุญาตเฉพาะเมื่อเป็น Dev Bot เท่านั้น)
+  const isDevMode = process.env.DEV_MODE === "true";
+  if (isDevMode && process.env.HEALJAI_GUILD_ID) {
     for (const id of process.env.HEALJAI_GUILD_ID.split(",")) {
       if (id.trim()) allowedSet.add(id.trim());
     }
@@ -57,9 +58,10 @@ function getAllowedGuildIds() {
     }
   }
 
-  // 6. ดึงจาก Custom Guild IDs ที่กำหนดในโค้ด
-  for (const id of CUSTOM_ALLOWED_GUILD_IDS) {
-    if (id) allowedSet.add(String(id).trim());
+  // 6. ดึงจาก Custom Guild IDs ที่กำหนดในโค้ด (HealJai เฉพาะ Dev Mode)
+  allowedSet.add(BEARCAFE_GUILD_ID);
+  if (isDevMode) {
+    allowedSet.add(HEALJAI_GUILD_ID);
   }
 
   return allowedSet;
@@ -326,13 +328,21 @@ function setupGuildFilter(client) {
       }
     }
 
+    // 🛡️ ป้องกันไม่ให้บอทหลักตอบสนองต่อ Event ใดๆ ของฮีลใจโดยเด็ดขาด
+    if (process.env.DEV_MODE !== "true" && isHealJaiEvent(eventName, args)) {
+      return false;
+    }
+
     const guildId = extractGuildIdFromArgs(args);
     if (guildId) {
       const cleanGuildId = String(guildId).trim();
 
       // ── 1. กรณีเกิดในกิลด์ HealJai (1536199707922141254) ───────────
-      // อนุญาตเฉพาะ Event ของฮิลใจ หรือคำสั่งส่งบอร์ด /send-component
       if (cleanGuildId === HEALJAI_GUILD_ID) {
+        // หากเป็นบอทหลัก (Production Mode) ห้ามตอบสนองกิลด์ HealJai โดยเด็ดขาด
+        if (process.env.DEV_MODE !== "true") {
+          return false;
+        }
         const interaction = eventName === "interactionCreate" ? args[0] : null;
         const isSendComp = interaction?.isChatInputCommand?.() && interaction.commandName?.toLowerCase() === "send-component";
         if (!isHealJaiEvent(eventName, args) && !isSendComp) {

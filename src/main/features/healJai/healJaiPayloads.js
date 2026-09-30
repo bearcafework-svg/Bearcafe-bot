@@ -1216,6 +1216,185 @@ function buildEditProfileModal(currentBio = "", currentImageUrl = "") {
   return modal;
 }
 
+/**
+ * 20. แผงควบคุมหลังบ้าน Heal Jai (Admin Control Hub Dashboard)
+ * @param {object} stats - { isMaintenance, onlineCounselors, activeSessions, completedToday, totalRevenueToday, platformShareToday, counselorShareToday }
+ */
+function buildAdminDashboardPayload(stats) {
+  const statusEmoji = stats.isMaintenance ? "🔴" : "🟢";
+  const statusText = stats.isMaintenance ? "**ปิดปรับปรุงชั่วคราว (Maintenance Mode)**" : "**เปิดให้บริการตามปกติ (Online)**";
+  const maintenanceBtnStyle = stats.isMaintenance ? 3 : 4; // Green to Open, Red to Close
+  const maintenanceBtnLabel = stats.isMaintenance ? "🟢 เปิดให้บริการระบบ" : "🔴 ปิดปรับปรุงระบบชั่วคราว";
+
+  return {
+    content: null,
+    flags: FLAG_EPHEMERAL,
+    embeds: [
+      {
+        title: "⚙️  Heal Jai — แผงควบคุมหลังบ้านสำหรับทีมงาน",
+        description: [
+          `-# ยินดีต้อนรับสู่ระบบควบคุมและตรวจสอบการทำงานของ Bear Cafe ฮีลใจ\n`,
+          `### 📡 สถานะระบบปัจจุบัน`,
+          `* ${statusEmoji}⠀**โหมดบริการ:** ${statusText}`,
+          `* 🟢⠀**ผู้รับฟังออนไลน์:** **${stats.onlineCounselors || 0}** คน`,
+          `* 🍵⠀**เคสที่กำลังดูแลอยู่:** **${stats.activeSessions || 0}** เซสชัน\n`,
+          `### 📊 สรุปยอดวันนี้ (Today's Statistics)`,
+          `* ✅⠀**เซสชันสำเร็จวันนี้:** **${stats.completedToday || 0}** เคส`,
+          `* 💰⠀**ยอดเงินสะพัดรวม:** **${stats.totalRevenueToday || 0}** บาท`,
+          `* 🏢⠀**ส่วนแบ่งคาเฟ่ (30%):** **${stats.platformShareToday || 0}** บาท`,
+          `* 👥⠀**ส่วนแบ่งที่ปรึกษา (70%):** **${stats.counselorShareToday || 0}** บาท\n`,
+          `> 💡 *คลิกปุ่มด้านล่างเพื่อจัดการและควบคุมการทำงานได้ทันที*`
+        ].join("\n"),
+        color: stats.isMaintenance ? 0xED4245 : 0x57F287,
+        footer: {
+          text: "Bear Cafe • Heal Jai Admin Control Hub"
+        },
+        timestamp: new Date().toISOString()
+      }
+    ],
+    components: [
+      {
+        type: 1,
+        components: [
+          {
+            type: 2,
+            style: maintenanceBtnStyle,
+            label: maintenanceBtnLabel,
+            custom_id: "heal_jai_admin_toggle_maintenance"
+          },
+          {
+            type: 2,
+            style: 2,
+            label: "🧹 ล้างห้องค้างทันที",
+            emoji: { name: "🧹" },
+            custom_id: "heal_jai_admin_run_cleanup"
+          },
+          {
+            type: 2,
+            style: 1,
+            label: "📑 ส่งสรุปยอดประจำวัน",
+            emoji: { name: "📊" },
+            custom_id: "heal_jai_admin_send_report"
+          },
+          {
+            type: 2,
+            style: 2,
+            label: "🔄 รีเฟรช",
+            emoji: { name: "🔄" },
+            custom_id: "heal_jai_admin_refresh_dashboard"
+          }
+        ]
+      }
+    ]
+  };
+}
+
+/**
+ * 21. แผงจัดการเคสรายตัว (Admin Manage Case Payload)
+ * @param {object} order - Order record
+ */
+function buildAdminManageCasePayload(order) {
+  if (!order) {
+    return {
+      content: "❌ ไม่พบข้อมูลออเดอร์ดังกล่าวในระบบค่ะ",
+      flags: FLAG_EPHEMERAL
+    };
+  }
+
+  const isCompleted = order.session_status === "COMPLETED";
+  const isCancelled = order.session_status === "CANCELLED";
+  const channelLink = order.session_channel_id || order.ticket_channel_id;
+
+  return {
+    content: null,
+    flags: FLAG_EPHEMERAL,
+    embeds: [
+      {
+        title: `🔍 รายละเอียดเคส #${order.order_code || order.id}`,
+        description: [
+          `* 👤⠀**ลูกค้า:** <@${order.customer_id}>`,
+          `* 🎯⠀**ผู้ให้คำปรึกษา:** ${order.counselor_id ? `<@${order.counselor_id}>` : "ยังไม่ระบุ/รอรับเคส"}`,
+          `* 📱⠀**ประเภทบริการ:** ${order.service_mode === "voice" ? "🎙️ คอลเสียง" : "💬 พิมพ์คุย"}`,
+          `* 🍵⠀**แพ็กเกจ:** ${order.package_name || "-"} (${order.duration_minutes || 0} นาที)`,
+          `* 💰⠀**ยอดเงิน:** ${order.total_price || 0} บาท (ที่ปรึกษา: ${order.counselor_share || 0} บ. | ร้าน: ${order.platform_share || 0} บ.)`,
+          `* 💳⠀**สถานะการชำระเงิน:** \`${order.payment_status || "PENDING"}\``,
+          `* 🔄⠀**สถานะเซสชัน:** \`${order.session_status || "WAITING"}\``,
+          channelLink ? `* 📍⠀**ห้องที่เกี่ยวข้อง:** <#${channelLink}>` : ""
+        ].filter(Boolean).join("\n"),
+        color: isCompleted ? 0x57F287 : (isCancelled ? 0xED4245 : 0xFEE75C),
+        footer: {
+          text: `สร้างเมื่อ: ${new Date(order.created_at).toLocaleString("th-TH", { timeZone: "Asia/Bangkok" })}`
+        }
+      }
+    ],
+    components: [
+      {
+        type: 1,
+        components: [
+          {
+            type: 2,
+            style: 3,
+            label: "อนุมัติสลิปแมนนวล",
+            emoji: { name: "✅" },
+            custom_id: `heal_jai_admin_approve_slip_${order.id}`,
+            disabled: order.payment_status === "PAID"
+          },
+          {
+            type: 2,
+            style: 4,
+            label: "บังคับจบเซสชัน",
+            emoji: { name: "⏹️" },
+            custom_id: `heal_jai_admin_force_end_${order.id}`,
+            disabled: isCompleted || isCancelled
+          },
+          {
+            type: 2,
+            style: 2,
+            label: "ลบห้องเคสนี้",
+            emoji: { name: "🗑️" },
+            custom_id: `heal_jai_admin_delete_room_${channelLink || order.id}`
+          }
+        ]
+      }
+    ]
+  };
+}
+
+/**
+ * 22. รายงานสรุปยอดประจำวัน (Daily Summary Report Payload)
+ * @param {object} reportData - { dateStr, totalOrders, totalRevenue, platformShare, counselorShare, counselorBreakdown }
+ */
+function buildDailyReportPayload(reportData) {
+  const breakdownLines = (reportData.counselorBreakdown && reportData.counselorBreakdown.length > 0)
+    ? reportData.counselorBreakdown.map((c) => `* <@${c.counselorId}> ┆ **${c.sessionCount}** เคส ┆ รวม: **${c.earnedAmount}** บาท`).join("\n")
+    : "* ไม่มีข้อมูลเคสที่ปรึกษาในวันนี้";
+
+  return {
+    content: null,
+    embeds: [
+      {
+        title: `📊  รายงานสรุปยอดประจำวัน — Bear Cafe ฮีลใจ`,
+        description: [
+          `-# ประจำวันที่ **${reportData.dateStr}** 🍵\n`,
+          `### 📈 ภาพรวมการให้บริการ`,
+          `* ✅⠀**จำนวนเคสที่สำเร็จทั้งหมด:** **${reportData.totalOrders || 0}** เคส`,
+          `* 💰⠀**ยอดเงินรวมสะพัด:** **${reportData.totalRevenue || 0}** บาท`,
+          `* 🏢⠀**ส่วนแบ่งคาเฟ่ (30%):** **${reportData.platformShare || 0}** บาท`,
+          `* 👥⠀**ส่วนแบ่งที่ปรึกษาทั้งหมด (70%):** **${reportData.counselorShare || 0}** บาท\n`,
+          `### 👥 รายได้สะสมของที่ปรึกษาประจำวัน (70%)`,
+          breakdownLines,
+          `\n> 💡 *ข้อมูลนี้ถูกสรุปและบันทึกอัตโนมัติประจำวันเพื่อความโปร่งใสของทีมงานค่ะ*`
+        ].join("\n"),
+        color: 0x57F287,
+        footer: {
+          text: "Bear Cafe • Financial & Session Daily Report"
+        },
+        timestamp: new Date().toISOString()
+      }
+    ]
+  };
+}
+
 module.exports = {
   FLAG_V2,
   FLAG_EPHEMERAL,
@@ -1237,6 +1416,9 @@ module.exports = {
   buildReviewModal,
   buildCounselorCardPayload,
   buildEditProfileModal,
+  buildAdminDashboardPayload,
+  buildAdminManageCasePayload,
+  buildDailyReportPayload,
   ALL_SPECIALTIES
 };
 

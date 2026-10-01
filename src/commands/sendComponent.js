@@ -193,6 +193,17 @@ function setupSendComponent(client) {
           componentName = "1️⃣1️⃣︰ประวัติการทำผิดกฎ (Violation History)";
           break;
         }
+        case "main_quest": {
+          const { buildMainQuestDeployPayload, bindQuestBoardMessage } = require("../features/mainQuest");
+          const { payload: questPayload, quest } = await buildMainQuestDeployPayload(targetChannel.guild, targetChannel);
+          const sentMsg = await targetChannel.send(questPayload);
+          if (quest && sentMsg) {
+            await bindQuestBoardMessage(quest.id, targetChannel.id, sentMsg.id);
+          }
+          return interaction.editReply({
+            content: `✅ ส่ง **1️⃣2️⃣︰เควสใหญ่ (Main Community Quest)** ไปยังห้อง <#${targetChannel.id}> สำเร็จเรียบร้อยแล้วค่ะ! 🐻✨`,
+          });
+        }
         default:
           return interaction.editReply({
             content: "❌ ไม่พบบอร์ดที่เลือกค่ะ",

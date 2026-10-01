@@ -352,6 +352,7 @@ const GUILD_SLASH_COMMANDS = [
           { name: "9️⃣ กระดานจัดอันดับหมีติดเกม (Minigame Leaderboard)", value: "minigame_top" },
           { name: "🔟 ตู้สุ่มกาชาปอง (Gachapon Machine)", value: "gachapon" },
           { name: "1️⃣1️⃣ ประวัติการทำผิดกฎ (Violation History)", value: "violation_history" },
+          { name: "1️⃣2️⃣ เควสใหญ่ (Main Community Quest)", value: "main_quest" },
         ],
       },
       {

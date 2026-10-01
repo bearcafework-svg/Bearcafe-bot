@@ -114,25 +114,42 @@ async function getActiveOrCreateMainQuest(supabase) {
 }
 
 /**
- * ดึงรายชื่อหมีที่เพิ่งมาช่วยสะสมเวลาล่าสุด (Recent Active Contributors)
- * เรียงตามเวลาที่มีความเคลื่อนไหวล่าสุด (last_active_at DESC) เพื่อแสดงผลการช่วยเหลือแบบเรียลไทม์
+ * ดึงรายชื่อหมีที่เพิ่งมาช่วยสะสมเวลาล่าสุด (Dynamic Recent Contributors)
+ * ดึง Pool สมาชิกที่เพิ่ง Active 25 คนล่าสุด แล้วทำการสลับหมุนเวียน (Smart Rotation & Shuffle)
+ * เพื่อให้รายชื่อบนบอร์ดหมุนเวียนโชว์สมาชิกใหม่ๆ อย่างต่อเนื่อง ไม่ซ้ำกับคนเดิมตลอดเวลา
  */
 async function getRecentContributors(supabase, questId, limit = 5) {
   if (!supabase || !questId) return [];
   try {
+    // 1. ดึง Pool ของสมาชิกที่ช่วยสะสมเวลา 25 คนล่าสุด
     const { data, error } = await supabase
       .from("main_community_quest_participants")
       .select("user_id, username, total_minutes, last_active_at")
       .eq("quest_id", questId)
       .gt("total_minutes", 0)
       .order("last_active_at", { ascending: false })
-      .limit(limit);
+      .limit(25);
 
     if (error) {
       console.error("[mainQuest] getRecentContributors error:", error.message);
       return [];
     }
-    return data || [];
+
+    if (!data || data.length === 0) return [];
+    if (data.length <= limit) return data;
+
+    // 2. ล็อค 2 อันดับแรกให้เป็นคนที่เพิ่งมีความเคลื่อนไหวล่าสุด
+    const topRecent = data.slice(0, 2);
+
+    // 3. สุ่มหมุนเวียนสมาชิกอีก 3 ตำแหน่งจาก Pool ที่เหลือ (Fisher-Yates Shuffle)
+    const remainingPool = data.slice(2);
+    for (let i = remainingPool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [remainingPool[i], remainingPool[j]] = [remainingPool[j], remainingPool[i]];
+    }
+
+    const selectedRemaining = remainingPool.slice(0, Math.max(0, limit - topRecent.length));
+    return [...topRecent, ...selectedRemaining];
   } catch (err) {
     console.error("[mainQuest] getRecentContributors exception:", err.message);
     return [];

@@ -2,6 +2,8 @@ const axios = require("axios");
 const crypto = require("crypto");
 const { getSupabaseClient } = require("../../services/supabaseClient");
 const { isSupabaseQuotaError, shouldLogThrottledError } = require("../../../utils/errorThrottler");
+const sharedSettings = require("../sharedSettings.json");
+const roleBlacklist = sharedSettings.role_blacklist || [];
 
 const EXCLUDED_CATEGORY_ID = "1524122689604816986";
 const HEARTBEAT_INTERVAL_MS = 15 * 60 * 1000;
@@ -122,8 +124,17 @@ function setupVoicePoints(client) {
   }
 
   // ── 2. แจกแต้มกิจกรรมเสียง (Direct Supabase Bypass) ──
-  async function awardVoicePoints(userId, durationSeconds, userCount, channelName, parentId) {
+  async function awardVoicePoints(userId, durationSeconds, userCount, channelName, parentId, member = null) {
     if (parentId === EXCLUDED_CATEGORY_ID) return;
+
+    // 🚫 ตรวจสอบ role_blacklist (ข้ามสมาชิกที่ติด blacklist)
+    if (member && member.roles?.cache) {
+      const isBlacklisted = member.roles.cache.some((r) => roleBlacklist.includes(r.id));
+      if (isBlacklisted) {
+        console.log(`[voice-points] ⏭️ Skipped points for ${member.user?.tag || userId} (role_blacklist)`);
+        return;
+      }
+    }
 
     if (supabase) {
       try {
@@ -449,7 +460,8 @@ function setupVoicePoints(client) {
         const userCount = getUserCountInChannel(oldState.guild, oldState.channelId) + 1;
         const channelName = oldState.channel?.name ?? session.channelName ?? "ห้องพูดคุย";
         const parentId = oldState.channel?.parentId ?? session.parentId ?? null;
-        await awardVoicePoints(userId, durationSeconds, userCount, channelName, parentId);
+        const member = oldState.member || newState.member;
+        await awardVoicePoints(userId, durationSeconds, userCount, channelName, parentId, member);
       }
       voiceJoinTimes.delete(userId);
     }

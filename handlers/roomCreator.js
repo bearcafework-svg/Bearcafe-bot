@@ -87,8 +87,17 @@ async function processQueue() {
   processQueue();
 }
 
+const sharedSettings = require("../src/sharedSettings.json");
+const roleBlacklist = sharedSettings.role_blacklist || [];
+
 function createRoom(guild, member, zone) {
   return new Promise((resolve) => {
+    // 🚫 ตรวจสอบ role_blacklist
+    if (member?.roles?.cache?.some((r) => roleBlacklist.includes(r.id))) {
+      console.log(`[roomCreator] 🚫 Blocked ${member.user.tag} from creating room (role_blacklist)`);
+      return resolve(null);
+    }
+
     const ownerKey = `${guild.id}:${member.id}`;
     const now = Date.now();
     const lastPending = pendingOwners.get(ownerKey);

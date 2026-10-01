@@ -127,6 +127,13 @@ async function rollGacha(user, member, times, supabase) {
     return { success: false, error: "ระบบไม่พร้อมใช้งานในขณะนี้ค่ะ" };
   }
 
+  // 🚫 ตรวจสอบ role_blacklist
+  const sharedSettings = require("../../sharedSettings.json");
+  const roleBlacklist = sharedSettings.role_blacklist || [];
+  if (member?.roles?.cache?.some((r) => roleBlacklist.includes(r.id))) {
+    return { success: false, error: "ขออภัยค่ะ บัญชีของคุณไม่สามารถใช้งานระบบกาชาปองได้ในขณะนี้" };
+  }
+
   const settings = await getGachaSettings(supabase);
   const items = await getActiveGachaItems(supabase);
 

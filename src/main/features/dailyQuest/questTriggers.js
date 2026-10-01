@@ -3,8 +3,10 @@
 
 const { Events } = require("discord.js");
 const { processTriggerEvent } = require("./questEngine");
+const sharedSettings = require("../../sharedSettings.json");
 
 const AFK_CATEGORY_OR_CHANNEL_ID = "1524122689604816986";
+const roleBlacklist = sharedSettings.role_blacklist || [];
 
 function setupQuestTriggers(client, supabase) {
   // ─── 1. ดักจับข้อความในแชท (messageCreate) ────────────────────────
@@ -121,11 +123,16 @@ function setupQuestTriggers(client, supabase) {
       const member = newState.member || oldState.member;
       if (!member || member.user?.bot) return;
 
+      // 🚫 ข้ามสมาชิกที่ติด role_blacklist
+      const isBlacklisted = member.roles?.cache?.some((r) => roleBlacklist.includes(r.id));
+      if (isBlacklisted) return;
+
       const isJoined = !oldState.channelId && Boolean(newState.channelId);
       if (isJoined) {
         // ทริกเกอร์เควสแวะห้องเสียง (voice_join)
         await processTriggerEvent(client, supabase, member.user, "voice_join", {
-          channelId: newState.channelId
+          channelId: newState.channelId,
+          member
         });
       }
     } catch (err) {
@@ -145,6 +152,10 @@ function setupQuestTriggers(client, supabase) {
 
         for (const [userId, vs] of guild.voiceStates.cache) {
           if (!vs.channelId || vs.member?.user?.bot) continue;
+
+          // 🚫 ข้ามสมาชิกที่ติด role_blacklist
+          const isBlacklisted = vs.member?.roles?.cache?.some((r) => roleBlacklist.includes(r.id));
+          if (isBlacklisted) continue;
 
           // ข้ามห้อง AFK หรือ Category ที่ยกเว้น
           const channel = vs.channel || guild.channels.cache.get(vs.channelId);
@@ -168,7 +179,8 @@ function setupQuestTriggers(client, supabase) {
           await processTriggerEvent(client, supabase, user, "voice_duration", {
             channelId: vs.channelId,
             memberCount,
-            amount: 1
+            amount: 1,
+            member: vs.member
           });
         }
       }

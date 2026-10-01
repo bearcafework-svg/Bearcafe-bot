@@ -6,8 +6,10 @@ const {
   recordBatchVoiceMinutes,
   updateQuestBoard
 } = require("./questEngine");
+const sharedSettings = require("../../sharedSettings.json");
 
 const AFK_CATEGORY_OR_CHANNEL_ID = "1205512963058962482"; // ID ห้องหรือหมวดหมู่ AFK
+const roleBlacklist = sharedSettings.role_blacklist || [];
 
 /**
  * ลงทะเบียนตัวตรวจจับเวลาห้องเสียงแบบอัตโนมัติ
@@ -42,6 +44,10 @@ function setupMainQuestTriggers(client, supabase) {
 
         for (const [userId, vs] of guild.voiceStates.cache) {
           if (!vs.channelId || vs.member?.user?.bot) continue;
+
+          // 🚫 ข้ามสมาชิกที่ติด role_blacklist
+          const isBlacklisted = vs.member?.roles?.cache?.some((r) => roleBlacklist.includes(r.id));
+          if (isBlacklisted) continue;
 
           // ข้ามห้องหรือหมวดหมู่ AFK
           const channel = vs.channel || guild.channels.cache.get(vs.channelId);

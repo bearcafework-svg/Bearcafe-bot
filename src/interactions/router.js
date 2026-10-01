@@ -97,7 +97,18 @@ function initInteractionRouter(client) {
         const chId = interaction.channelId || interaction.channel?.id;
         const guildId = interaction.guildId || interaction.guild?.id;
         const isHealJaiGuild = guildId && (guildId === process.env.HEALJAI_GUILD_ID || guildId === "1536199707922141254");
-        if (chId && !devAllowedChannels.includes(chId) && !isHealJaiGuild) {
+        const customId = interaction.customId || "";
+        const cmdName = interaction.commandName || "";
+        const isHealJaiInteraction =
+          isHealJaiGuild ||
+          customId.startsWith("heal_jai_") ||
+          customId.startsWith("btn_cancel_order") ||
+          customId.startsWith("btn_call_admin") ||
+          cmdName.startsWith("heal") ||
+          cmdName.startsWith("ฮิลใจ") ||
+          ["แก้ไขพนักงาน", "แก้ไขที่ปรึกษา", "บัตรพนักงาน", "ยืนยันการโอน", "ยืนยันสลิป", "อนุมัติสลิป"].includes(cmdName);
+
+        if (chId && !devAllowedChannels.includes(chId) && !isHealJaiInteraction) {
           return;
         }
       }

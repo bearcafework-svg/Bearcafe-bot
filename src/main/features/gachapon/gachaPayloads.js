@@ -98,7 +98,8 @@ function buildGachaResultPayload(user, rollData, settings) {
 
   const resultLines = results.map((r, idx) => {
     const item = r.item;
-    const rarityEmoji = RARITY_EMOJIS[item.rarity] || "⚪";
+    const tierCode = item.tier || item.rarity || "N";
+    const rarityEmoji = RARITY_EMOJIS[tierCode] || "⚪";
     const catEmoji = CATEGORY_EMOJIS[item.category] || "🎁";
     let statusNote = "";
 
@@ -106,7 +107,7 @@ function buildGachaResultPayload(user, rollData, settings) {
       statusNote = ` *(มีอยู่แล้ว ➔ ได้รับแต้มชดเชย +${r.compensatedPoints} แต้มแทน)*`;
     }
 
-    return `> **#${idx + 1}** ${rarityEmoji} ${catEmoji} **${item.name}**${statusNote}`;
+    return `> **#${idx + 1}** \`[${tierCode}]\` ${rarityEmoji} ${catEmoji} **${item.name}**${statusNote}`;
   });
 
   const costSummary = isDevUnlimited
@@ -131,6 +132,108 @@ function buildGachaResultPayload(user, rollData, settings) {
           },
           { type: 14, spacing: 2 }
         ]
+      }
+    ]
+  };
+}
+
+/**
+ * 2.1 การ์ดเปิดไข่กาชาปองทีละใบแบบแอนิเมชัน (Step-by-Step Reveal Animation)
+ */
+function buildGachaProgressPayload(user, results, revealedCount, totalCount, isFinished = false, rollData = {}, settings = {}) {
+  const isDevUnlimited = Boolean(rollData.isDevUnlimited);
+  const costPaid = rollData.costPaid || 0;
+  const finalPoints = rollData.finalPoints || 0;
+
+  const lines = [];
+
+  for (let idx = 0; idx < totalCount; idx++) {
+    if (idx < revealedCount) {
+      const r = results[idx];
+      const item = r.item;
+      const tierCode = item.tier || item.rarity || "N";
+      const rarityEmoji = RARITY_EMOJIS[tierCode] || "⚪";
+      const catEmoji = CATEGORY_EMOJIS[item.category] || "🎁";
+      let statusNote = "";
+
+      if (r.isDuplicate) {
+        statusNote = ` *(ซ้ำ ➔ +${r.compensatedPoints} แต้ม)*`;
+      }
+
+      const isJackpot = tierCode === "UR" || tierCode === "SSR" || tierCode === "LEGENDARY" || tierCode === "EPIC";
+      const highlight = isJackpot ? " ⭐ **[JACKPOT!]**" : "";
+
+      lines.push(`> **#${idx + 1}** \`[${tierCode}]\` ${rarityEmoji} ${catEmoji} **${item.name}**${highlight}${statusNote}`);
+    } else if (idx === revealedCount) {
+      lines.push(`> **#${idx + 1}** 🔮 *กำลังเปิดไข่ใบที่ #${idx + 1}... ✨*`);
+    } else {
+      lines.push(`> **#${idx + 1}** 🥚 \`[ยังไม่เปิด]\``);
+    }
+  }
+
+  const progressBar = "✨".repeat(revealedCount) + "⚪".repeat(Math.max(0, totalCount - revealedCount));
+
+  let footerText = `กำลังลุ้นของรางวัล (${revealedCount}/${totalCount})\n${progressBar}`;
+  if (isFinished) {
+    const costSummary = isDevUnlimited
+      ? "⚡ **โหมดทดสอบ:** ฟรี (ไม่หักแต้ม)"
+      : `💸 **หักค่าหมุน:** \`-${costPaid}\` แต้ม | 💰 **แต้มคงเหลือ:** \`${finalPoints}\` แต้ม`;
+    footerText = `${costSummary}\n-# รางวัลที่เป็น Role / แต้ม / วันบ้านเช่า ได้รับการส่งมอบเข้าบัญชีเรียบร้อยแล้วค่ะ 🐻💖`;
+  }
+
+  const containerComponents = [
+    { type: 14, spacing: 2 },
+    {
+      type: 10,
+      content:
+        `## 🎰︲__\` กำลังเปิดตู้กาชาปอง (${totalCount} ครั้ง) 𓂃 \`__\n` +
+        `<@${user.id}> กำลังลุ้นของรางวัลสุดเก๋...\n\n` +
+        `${lines.join("\n")}\n\n` +
+        `${footerText}`
+    },
+    { type: 14, spacing: 2 }
+  ];
+
+  // เมื่อเปิดครบทุกใบแล้ว แสดงปุ่มสำหรับหมุนต่อ
+  if (isFinished) {
+    const isDev = isDevUnlimited;
+    const singlePrice = settings?.single_roll_price || 100;
+    const tenPrice = settings?.ten_roll_price || 900;
+
+    containerComponents.push({
+      type: 1, // ActionRow
+      components: [
+        {
+          type: 2,
+          style: 1,
+          label: isDev ? "หมุนอีก 1 ครั้ง (ฟรี)" : `หมุนอีก 1 ครั้ง (${singlePrice} แต้ม)`,
+          emoji: { name: "🎲" },
+          custom_id: "gacha_roll_1"
+        },
+        {
+          type: 2,
+          style: 3,
+          label: isDev ? "หมุนอีก 10 ครั้ง (ฟรี)" : `หมุนอีก 10 ครั้ง (${tenPrice} แต้ม)`,
+          emoji: { name: "🎰" },
+          custom_id: "gacha_roll_10"
+        },
+        {
+          type: 2,
+          style: 2,
+          label: "ประวัติของฉัน",
+          emoji: { name: "📜" },
+          custom_id: "gacha_my_history"
+        }
+      ]
+    });
+  }
+
+  return {
+    flags: FLAG_V2_EPHEMERAL,
+    components: [
+      {
+        type: 17,
+        components: containerComponents
       }
     ]
   };
@@ -203,9 +306,33 @@ function buildGachaHistoryPayload(user, historyList) {
   };
 }
 
+/**
+ * 5. การ์ดแจ้งข้อผิดพลาดหรือข้อความแจ้งเตือน (Error / Notice Component V2)
+ */
+function buildGachaErrorPayload(errorMessage) {
+  return {
+    flags: FLAG_V2_EPHEMERAL,
+    components: [
+      {
+        type: 17, // Container
+        components: [
+          { type: 14, spacing: 2 },
+          {
+            type: 10, // Text
+            content: `### ❌︲__\` การแจ้งเตือนระบบตู้กาชาปอง \`__\n\n> ${errorMessage}`
+          },
+          { type: 14, spacing: 2 }
+        ]
+      }
+    ]
+  };
+}
+
 module.exports = {
   buildGachaMainPayload,
   buildGachaResultPayload,
+  buildGachaProgressPayload,
   buildGachaRatesPayload,
-  buildGachaHistoryPayload
+  buildGachaHistoryPayload,
+  buildGachaErrorPayload
 };

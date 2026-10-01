@@ -13,8 +13,10 @@ const {
 const {
   buildGachaMainPayload,
   buildGachaResultPayload,
+  buildGachaProgressPayload,
   buildGachaRatesPayload,
-  buildGachaHistoryPayload
+  buildGachaHistoryPayload,
+  buildGachaErrorPayload
 } = require("./gachaPayloads");
 const { FLAG_V2_EPHEMERAL } = require("./gachaConstants");
 
@@ -82,10 +84,7 @@ function setupGachapon(client) {
       if (customId === "gacha_roll_1") {
         const rollResult = await rollGacha(interaction.user, interaction.member, 1, sb);
         if (!rollResult.success) {
-          return interaction.editReply({
-            content: `❌ ${rollResult.error}`,
-            flags: FLAG_V2_EPHEMERAL
-          });
+          return interaction.editReply(buildGachaErrorPayload(rollResult.error));
         }
 
         const settings = await getGachaSettings(sb);
@@ -93,19 +92,35 @@ function setupGachapon(client) {
         return interaction.editReply(payload);
       }
 
-      // ── ปุ่ม: หมุน 10 ครั้ง ──
+      // ── ปุ่ม: หมุน 10 ครั้ง (เปิดไข่ทีละใบแบบแอนิเมชัน) ──
       if (customId === "gacha_roll_10") {
         const rollResult = await rollGacha(interaction.user, interaction.member, 10, sb);
         if (!rollResult.success) {
-          return interaction.editReply({
-            content: `❌ ${rollResult.error}`,
-            flags: FLAG_V2_EPHEMERAL
-          });
+          return interaction.editReply(buildGachaErrorPayload(rollResult.error));
         }
 
         const settings = await getGachaSettings(sb);
-        const payload = buildGachaResultPayload(interaction.user, rollResult, settings);
-        return interaction.editReply(payload);
+
+        // 🌟 Edit ทีละรางวัล เพื่อความเก๋และตื่นเต้น (Reveal 1 by 1)
+        for (let step = 1; step <= 10; step++) {
+          const isFinished = step === 10;
+          const stepPayload = buildGachaProgressPayload(
+            interaction.user,
+            rollResult.results,
+            step,
+            10,
+            isFinished,
+            rollResult,
+            settings
+          );
+
+          await interaction.editReply(stepPayload).catch(() => {});
+
+          if (!isFinished) {
+            await new Promise((resolve) => setTimeout(resolve, 600));
+          }
+        }
+        return;
       }
 
       // ── ปุ่ม: ดูอัตราดรอป ──
@@ -125,10 +140,9 @@ function setupGachapon(client) {
     } catch (err) {
       console.error("[gachapon] interaction error:", err);
       if (interaction.deferred || interaction.replied) {
-        await interaction.editReply({
-          content: `❌ เกิดข้อผิดพลาดในการประมวลผลตู้กาชาปอง: ${err.message}`,
-          flags: FLAG_V2_EPHEMERAL
-        }).catch(() => {});
+        await interaction.editReply(
+          buildGachaErrorPayload(`เกิดข้อผิดพลาดในการประมวลผลตู้กาชาปอง: ${err.message}`)
+        ).catch(() => {});
       }
     }
   });

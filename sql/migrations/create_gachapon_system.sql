@@ -7,8 +7,8 @@ CREATE TABLE IF NOT EXISTS gacha_items (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     code TEXT UNIQUE NOT NULL,
     name TEXT NOT NULL,
-    category TEXT NOT NULL CHECK (category IN ('points', 'rent_house', 'color_role', 'special_role')),
-    rarity TEXT NOT NULL DEFAULT 'COMMON' CHECK (rarity IN ('COMMON', 'RARE', 'EPIC', 'LEGENDARY')),
+    category TEXT NOT NULL CHECK (category IN ('points', 'rent_house', 'color_role', 'special_role', 'rent_house_days')),
+    rarity TEXT NOT NULL DEFAULT 'COMMON' CHECK (rarity IN ('COMMON', 'RARE', 'EPIC', 'LEGENDARY', 'UR', 'SSR', 'SR', 'R', 'N')),
     weight INTEGER NOT NULL DEFAULT 10,
     reward_value JSONB NOT NULL DEFAULT '{}'::jsonb,
     compensation_points INTEGER NOT NULL DEFAULT 50,
@@ -105,20 +105,20 @@ ON CONFLICT (key) DO UPDATE SET
 INSERT INTO gacha_items (code, name, category, rarity, weight, reward_value, compensation_points, is_active)
 VALUES
   -- 🪙 แต้มสะสมคาเฟ่ (รวมน้ำหนัก = 80)
-  ('pts_50', '🪙 แต้มสะสม +50 แต้ม', 'points', 'COMMON', 40, '{"points": 50}'::jsonb, 50, true),
-  ('pts_100', '🪙 แต้มสะสม +100 แต้ม', 'points', 'COMMON', 25, '{"points": 100}'::jsonb, 100, true),
-  ('pts_250', '🪙 แต้มสะสม +250 แต้ม', 'points', 'RARE', 10, '{"points": 250}'::jsonb, 250, true),
-  ('pts_500', '💰 แต้มสะสมก้อนโต +500 แต้ม', 'points', 'EPIC', 5, '{"points": 500}'::jsonb, 500, true),
+  ('pts_50', '🪙 แต้มสะสม +50 แต้ม', 'points', 'N', 40, '{"points": 50}'::jsonb, 50, true),
+  ('pts_100', '🪙 แต้มสะสม +100 แต้ม', 'points', 'N', 25, '{"points": 100}'::jsonb, 100, true),
+  ('pts_250', '🪙 แต้มสะสม +250 แต้ม', 'points', 'R', 10, '{"points": 250}'::jsonb, 250, true),
+  ('pts_500', '💰 แต้มสะสมก้อนโต +500 แต้ม', 'points', 'SR', 5, '{"points": 500}'::jsonb, 500, true),
 
   -- 🏠 สิทธิ์บ้านเช่า (รวมน้ำหนัก = 20)
-  ('rent_3days', '🏠 สิทธิ์บ้านเช่าห้องเสียง (3 วัน)', 'rent_house', 'RARE', 15, '{"rent_days": 3}'::jsonb, 200, true),
-  ('rent_7days', '🏡 สิทธิ์บ้านเช่าห้องเสียง (7 วัน)', 'rent_house', 'EPIC', 5, '{"rent_days": 7}'::jsonb, 400, true),
+  ('rent_3days', '🏠 สิทธิ์บ้านเช่าห้องเสียง (3 วัน)', 'rent_house', 'SR', 15, '{"rent_days": 3}'::jsonb, 200, true),
+  ('rent_7days', '🏡 สิทธิ์บ้านเช่าห้องเสียง (7 วัน)', 'rent_house', 'SSR', 5, '{"rent_days": 7}'::jsonb, 400, true),
 
   -- 🎨 ยศเปลี่ยนสีชื่อ (รวมน้ำหนัก = 15)
-  ('color_role_pass', '🎨 สิทธิ์เปลี่ยนสียศฟรี 1 ครั้ง', 'color_role', 'RARE', 15, '{"free_changes": 1}'::jsonb, 150, true),
+  ('color_role_pass', '🎨 สิทธิ์เปลี่ยนสียศฟรี 1 ครั้ง', 'color_role', 'SR', 15, '{"free_changes": 1}'::jsonb, 150, true),
 
   -- 👑 ยศบทบาทพิเศษ (น้ำหนัก = 1 - Jackpot)
-  ('role_lucky_bear', '👑 ยศพิเศษ: นักสุ่มนำโชค (Lucky Gacha Bear)', 'special_role', 'LEGENDARY', 1, '{"role_id": "1318580353752895583"}'::jsonb, 1000, true)
+  ('role_lucky_bear', '👑 ยศพิเศษ: นักสุ่มนำโชค (Lucky Gacha Bear)', 'special_role', 'UR', 1, '{"role_id": "1318580353752895583"}'::jsonb, 1000, true)
 ON CONFLICT (code) DO UPDATE SET
   name = EXCLUDED.name,
   category = EXCLUDED.category,

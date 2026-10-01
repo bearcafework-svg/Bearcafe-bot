@@ -341,21 +341,17 @@ const GUILD_SLASH_COMMANDS = [
         type: ApplicationCommandOptionType.String,
         required: true,
         choices: [
-          { name: "1️⃣ บอร์ดอ่านข้อตกลงและนโยบาย (Terms)", value: "terms" },
-          { name: "2️⃣ บอร์ดเมนูเครื่องดื่มและสั่งบริการ (Menu)", value: "menu" },
-          { name: "3️⃣ แผงตอกบัตรเข้ากะของทีมงาน (Shift)", value: "shift" },
-          { name: "4️⃣ ประวัติการทำผิดกฎ (Violation History)", value: "violation_history" },
-          { name: "5️⃣ บอร์ดลงทะเบียนสมาชิกใหม่ (Registration Panel)", value: "verify_panel" },
-          { name: "6️⃣ แผงเลือกรับการแจ้งเตือน (Notifications Select)", value: "notice_panel" },
-          { name: "7️⃣ แผงตั้งค่าข้อความต้อนรับทีมงาน (Staff Welcome Msg)", value: "staff_welcome_msg" },
-          { name: "8️⃣ กระดานยอดโดเนทสะสม (Top Donate Board)", value: "top_donate" },
-          { name: "9️⃣ บอร์ดห้องเสียงหาเพื่อน (Voice Board)", value: "voice_board" },
-          { name: "🔟 กระดานเควสประจำวัน (Daily Quest Board)", value: "daily_quest" },
-          { name: "1️⃣1️⃣ แผงเปิดรับสมัครทีมงาน (Recruitment Form)", value: "recruitment_form" },
-          { name: "1️⃣2️⃣ แผงเลือกและเปลี่ยนยศสี (Color Roles Panel)", value: "color_roles" },
-          { name: "1️⃣3️⃣ กระดานจัดอันดับหมีติดเกม (Minigame Leaderboard)", value: "minigame_top" },
-          { name: "1️⃣4️⃣ กล่องความประทับใจ (Public Showcase Preview)", value: "feedback" },
-          { name: "1️⃣5️⃣ ตู้สุ่มกาชาปอง (Gachapon Machine)", value: "gachapon" },
+          { name: "1️⃣ บอร์ดลงทะเบียนสมาชิกใหม่ (Registration Panel)", value: "verify_panel" },
+          { name: "2️⃣ แผงเลือกรับการแจ้งเตือน (Notifications Select)", value: "notice_panel" },
+          { name: "3️⃣ แผงตั้งค่าข้อความต้อนรับทีมงาน (Staff Welcome Msg)", value: "staff_welcome_msg" },
+          { name: "4️⃣ กระดานยอดโดเนทสะสม (Top Donate Board)", value: "top_donate" },
+          { name: "5️⃣ บอร์ดห้องเสียงหาเพื่อน (Voice Board)", value: "voice_board" },
+          { name: "6️⃣ กระดานเควสประจำวัน (Daily Quest Board)", value: "daily_quest" },
+          { name: "7️⃣ แผงเปิดรับสมัครทีมงาน (Recruitment Form)", value: "recruitment_form" },
+          { name: "8️⃣ แผงเลือกและเปลี่ยนยศสี (Color Roles Panel)", value: "color_roles" },
+          { name: "9️⃣ กระดานจัดอันดับหมีติดเกม (Minigame Leaderboard)", value: "minigame_top" },
+          { name: "🔟 ตู้สุ่มกาชาปอง (Gachapon Machine)", value: "gachapon" },
+          { name: "1️⃣1️⃣ ประวัติการทำผิดกฎ (Violation History)", value: "violation_history" },
         ],
       },
       {
@@ -604,6 +600,32 @@ function areCommandsEqual(existingCollection, targetCommands) {
   return true;
 }
 
+const SEND_COMPONENT_HEALJAI = {
+  name: "send-component",
+  description: "[Staff Only] ส่งบอร์ดและ Component V2 ของระบบฮิลใจ",
+  options: [
+    {
+      name: "component",
+      description: "เลือกบอร์ดระบบฮิลใจที่ต้องการส่ง",
+      type: ApplicationCommandOptionType.String,
+      required: true,
+      choices: [
+        { name: "1️⃣ บอร์ดอ่านข้อตกลงและนโยบาย (Terms)", value: "terms" },
+        { name: "2️⃣ บอร์ดเมนูเครื่องดื่มและสั่งบริการ (Menu)", value: "menu" },
+        { name: "3️⃣ แผงตอกบัตรเข้ากะของทีมงาน (Shift)", value: "shift" },
+        { name: "4️⃣ กล่องความประทับใจ (Public Showcase Preview)", value: "feedback" },
+      ],
+    },
+    {
+      name: "channel",
+      description: "เลือกห้องที่ต้องการให้ส่งการ์ดไป (เว้นว่างเพื่อส่งในห้องปัจจุบัน)",
+      type: ApplicationCommandOptionType.Channel,
+      channel_types: [ChannelType.GuildText],
+      required: false,
+    },
+  ],
+};
+
 /**
  * ลงทะเบียน Guild Slash Commands ทั้งหมดในครั้งเดียว (Bulk Set)
  * @param {import("discord.js").Guild} guild
@@ -625,7 +647,18 @@ async function registerAllGuildCommands(guild) {
 
   try {
     const startTime = Date.now();
+    const isHealJaiGuild = guild.id === healJaiGuildId;
     let targetCommands = GUILD_SLASH_COMMANDS;
+
+    // สลับ /send-component ให้เป็นเวอร์ชันของ HealJai เมื่อลงทะเบียนใน HealJai Guild
+    if (isHealJaiGuild) {
+      targetCommands = targetCommands.map((cmd) => {
+        if (cmd.name === "send-component") {
+          return SEND_COMPONENT_HEALJAI;
+        }
+        return cmd;
+      });
+    }
 
     if (isDevMode) {
       const allowedDevCommands = (process.env.DEV_SLASH_COMMANDS || "test_bee,send-component,บัตรพนักงาน,แก้ไขพนักงาน,healjai-admin,อนุมัติสลิป,ยืนยันสลิป,หมุนกาชา")
@@ -633,7 +666,7 @@ async function registerAllGuildCommands(guild) {
         .map((s) => s.trim().toLowerCase())
         .filter(Boolean);
 
-      targetCommands = GUILD_SLASH_COMMANDS.filter((cmd) =>
+      targetCommands = targetCommands.filter((cmd) =>
         allowedDevCommands.includes(cmd.name.toLowerCase())
       );
       console.log(
@@ -643,7 +676,7 @@ async function registerAllGuildCommands(guild) {
       // บอทหลัก (Production Mode) — ไม่ลงทะเบียนคำสั่งโปรเจกต์ฮีลใจเด็ดขาด (ทำงานเฉพาะบอท Dev / Secondary Bot)
       const HEALJAI_COMMANDS = ["healjai-admin", "บัตรพนักงาน", "แก้ไขพนักงาน", "ยืนยันการโอน", "ยืนยันสลิป", "อนุมัติสลิป"];
       const DEV_ONLY_COMMANDS = [...HEALJAI_COMMANDS];
-      targetCommands = GUILD_SLASH_COMMANDS.filter(
+      targetCommands = targetCommands.filter(
         (cmd) => !DEV_ONLY_COMMANDS.includes(cmd.name.toLowerCase())
       );
     }

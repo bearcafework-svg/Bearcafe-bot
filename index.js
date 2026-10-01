@@ -34,7 +34,7 @@ if (!activeBotToken) {
   process.exit(1);
 }
 
-const devAllowedFeatures = (process.env.DEV_FEATURES || "bees,healJai,voiceBoard,gachapon")
+const devAllowedFeatures = (process.env.DEV_FEATURES || "bees,healJai,voiceBoard,gachapon,sendComponent")
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);
@@ -132,6 +132,7 @@ setupFeature("voiceBoard", "./src/features/voiceBoard", "setupVoiceBoard"); // L
 setupFeature("dailyQuest", "./src/features/dailyQuest", "setupDailyQuest", supabaseEnvKeys);
 setupFeature("moveMembers", "./src/commands/moveMembers", "setupMoveMembers");
 setupFeature("gachapon", "./src/features/gachapon", "setupGachapon", supabaseEnvKeys);
+setupFeature("sendComponent", "./src/commands/sendComponent", "setupSendComponent");
 
 
 

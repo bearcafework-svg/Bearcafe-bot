@@ -187,7 +187,8 @@ function isHealJaiEvent(eventName, args) {
       typeof interaction.customId === "string" &&
       (interaction.customId.startsWith("heal_jai_") ||
        interaction.customId.startsWith("btn_cancel_order") ||
-       interaction.customId.startsWith("btn_call_admin"))
+       interaction.customId.startsWith("btn_call_admin") ||
+       interaction.customId.startsWith("p_3498"))
     ) {
       return true;
     }
@@ -195,16 +196,47 @@ function isHealJaiEvent(eventName, args) {
     // 2. ตรวจสอบ Slash Commands ของ HealJai
     if (typeof interaction.isChatInputCommand === "function" && interaction.isChatInputCommand()) {
       const name = interaction.commandName ? interaction.commandName.toLowerCase() : "";
-      if (name.startsWith("heal") || name.startsWith("ฮิลใจ") || name === "ยืนยันการโอน" || name === "ยืนยันสลิป" || name === "อนุมัติสลิป" || name === "บัตรพนักงาน" || name === "แก้ไขพนักงาน") {
+      if (
+        name.startsWith("heal") ||
+        name.startsWith("ฮิลใจ") ||
+        name === "ยืนยันการโอน" ||
+        name === "ยืนยันสลิป" ||
+        name === "อนุมัติสลิป" ||
+        name === "บัตรพนักงาน" ||
+        name === "แก้ไขพนักงาน" ||
+        name === "แก้ไขที่ปรึกษา" ||
+        name === "ส่งเมนู" ||
+        name === "ข้อตกลง"
+      ) {
         return true;
       }
     }
     // 3. ตรวจสอบ Autocomplete ของ HealJai
     if (typeof interaction.isAutocomplete === "function" && interaction.isAutocomplete()) {
       const name = interaction.commandName ? interaction.commandName.toLowerCase() : "";
-      if (name === "บัตรพนักงาน" || name === "แก้ไขพนักงาน" || name === "อนุมัติสลิป" || name === "ยืนยันสลิป" || name.startsWith("heal") || name.startsWith("ฮิลใจ")) {
+      if (
+        name === "บัตรพนักงาน" ||
+        name === "แก้ไขพนักงาน" ||
+        name === "แก้ไขที่ปรึกษา" ||
+        name === "อนุมัติสลิป" ||
+        name === "ยืนยันสลิป" ||
+        name.startsWith("heal") ||
+        name.startsWith("ฮิลใจ")
+      ) {
         return true;
       }
+    }
+
+    // 4. ตรวจสอบจากชื่อห้องหรือ channelId
+    const chName = interaction?.channel?.name || "";
+    if (
+      chName.includes("พักใจ") ||
+      chName.includes("ฮิลใจ") ||
+      chName.includes("เลือกเมนู") ||
+      chName.startsWith("🌱") ||
+      chName.startsWith("☕")
+    ) {
+      return true;
     }
   }
 
@@ -214,6 +246,7 @@ function isHealJaiEvent(eventName, args) {
     if (
       chName.includes("พักใจ") ||
       chName.includes("ฮิลใจ") ||
+      chName.includes("เลือกเมนู") ||
       chName.startsWith("🌱") ||
       chName.startsWith("☕") ||
       (message?.attachments && message.attachments.size > 0)
@@ -265,11 +298,15 @@ function setupGuildFilter(client) {
         const cleanGuildId = guildId ? String(guildId).trim() : null;
 
         // บังคับจำกัดช่องเฉพาะเมื่ออยู่ในเซิร์ฟเวอร์ Bear Cafe หลัก (เพื่อไม่ให้บอททดสอบไปกวนห้องสาธารณะ)
-        // หากเกิดในเซิร์ฟเวอร์ฮิลใจ (HEALJAI_GUILD_ID) จะปล่อยผ่านตามกฎของฮิลใจ
+        // หากเกิดในเซิร์ฟเวอร์ฮิลใจ (HEALJAI_GUILD_ID) หรือเป็น HealJai Event จะปล่อยผ่าน
         if (!cleanGuildId || cleanGuildId === BEARCAFE_GUILD_ID) {
           const channelId = extractChannelIdFromArgs(args);
           if (channelId && !devChannels.includes(channelId)) {
-            // ข้อยกเว้นสำหรับข้อความในห้องพักใจ Ticket (ดักจับรูปภาพสลิป)
+            // หากเป็น HealJai Event หรือข้อความในห้องพักใจ Ticket ให้ปล่อยผ่าน
+            if (isHealJaiEvent(eventName, args)) {
+              return originalEmit.apply(this, [eventName, ...args]);
+            }
+
             if (eventName === "messageCreate") {
               const message = args[0];
               const chName = message?.channel?.name || "";
@@ -279,8 +316,7 @@ function setupGuildFilter(client) {
                 chName.startsWith("☕・พักใจ-") ||
                 chName.startsWith("☕-พักใจ-") ||
                 chName.startsWith("☕・") ||
-                chName.startsWith("☕︰") ||
-                isHealJaiEvent(eventName, args)
+                chName.startsWith("☕︰")
               ) {
                 return originalEmit.apply(this, [eventName, ...args]);
               }
@@ -298,15 +334,14 @@ function setupGuildFilter(client) {
                 chName.startsWith("☕・พักใจ-") ||
                 chName.startsWith("☕-พักใจ-") ||
                 chName.startsWith("☕・") ||
-                chName.startsWith("☕︰") ||
-                isHealJaiEvent(eventName, args)
+                chName.startsWith("☕︰")
               ) {
                 return originalEmit.apply(this, [eventName, ...args]);
               }
 
-              // 1. คำสั่งทดสอบ เช่น /test_bee, /send-component อนุญาตให้ทำงานได้ในทุกห้อง
+              // 1. คำสั่งทดสอบ เช่น /test_bee, /send-component, /หมุนกาชา อนุญาตให้ทำงานได้ในทุกห้อง
               if (interaction && typeof interaction.isChatInputCommand === "function" && interaction.isChatInputCommand()) {
-                const allowedDevCommands = (process.env.DEV_SLASH_COMMANDS || "test_bee,send-component,ยืนยันการโอน,บัตรพนักงาน")
+                const allowedDevCommands = (process.env.DEV_SLASH_COMMANDS || "test_bee,send-component,ยืนยันการโอน,ยืนยันสลิป,อนุมัติสลิป,บัตรพนักงาน,แก้ไขพนักงาน,แก้ไขที่ปรึกษา,หมุนกาชา,gacha")
                   .split(",")
                   .map((s) => s.trim().toLowerCase())
                   .filter(Boolean);
@@ -320,8 +355,8 @@ function setupGuildFilter(client) {
                 return originalEmit.apply(this, [eventName, ...args]);
               }
 
-              // 3. การกดปุ่ม/ส่งฟอร์มของระบบผึ้ง (bee_*) หรือระบบ Voice Board (vb_*) อนุญาตให้ทำงานได้ในทุกห้อง
-              if (interaction && typeof interaction.customId === "string" && (interaction.customId.startsWith("bee_") || interaction.customId.startsWith("vb_"))) {
+              // 3. การกดปุ่ม/ส่งฟอร์มของระบบผึ้ง (bee_*), Voice Board (vb_*), Gachapon (gacha_*), หรือ HealJai (heal_jai_*)
+              if (interaction && typeof interaction.customId === "string" && (interaction.customId.startsWith("bee_") || interaction.customId.startsWith("vb_") || interaction.customId.startsWith("gacha_") || interaction.customId.startsWith("heal_jai_"))) {
                 return originalEmit.apply(this, [eventName, ...args]);
               }
 
@@ -355,27 +390,22 @@ function setupGuildFilter(client) {
         if (process.env.DEV_MODE !== "true") {
           return false;
         }
-        const interaction = eventName === "interactionCreate" ? args[0] : null;
-        const isSendComp = interaction?.isChatInputCommand?.() && interaction.commandName?.toLowerCase() === "send-component";
-        if (!isHealJaiEvent(eventName, args) && !isSendComp) {
-          return false;
-        }
         return originalEmit.apply(this, [eventName, ...args]);
       }
 
       // ── 2. กรณีเกิดในกิลด์ Bear Cafe หลัก (1144251788493602848) ────
-      // อนุญาตคำสั่ง /send-component และปุ่ม Voice Board (vb_*) เสมอ
       if (cleanGuildId === BEARCAFE_GUILD_ID) {
         if (eventName === "interactionCreate") {
           const interaction = args[0];
           if (interaction?.isChatInputCommand?.() && interaction.commandName?.toLowerCase() === "send-component") {
             return originalEmit.apply(this, [eventName, ...args]);
           }
-          if (typeof interaction?.customId === "string" && interaction.customId.startsWith("vb_")) {
+          if (typeof interaction?.customId === "string" && (interaction.customId.startsWith("vb_") || interaction.customId.startsWith("gacha_"))) {
             return originalEmit.apply(this, [eventName, ...args]);
           }
         }
-        if (isHealJaiEvent(eventName, args)) {
+        // บอทหลัก (ไม่ใช่ DEV_MODE) ห้ามตอบสนอง HealJai ใน Bear Cafe guild
+        if (process.env.DEV_MODE !== "true" && isHealJaiEvent(eventName, args)) {
           return false;
         }
         return originalEmit.apply(this, [eventName, ...args]);

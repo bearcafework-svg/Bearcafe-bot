@@ -34,7 +34,7 @@ if (!activeBotToken) {
   process.exit(1);
 }
 
-const devAllowedFeatures = (process.env.DEV_FEATURES || "bees,healJai,voiceBoard")
+const devAllowedFeatures = (process.env.DEV_FEATURES || "bees,healJai,voiceBoard,gachapon")
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);
@@ -131,6 +131,7 @@ setupFeature("beeGacha", "./src/features/beeGacha", "setupBeeGacha", supabaseEnv
 setupFeature("voiceBoard", "./src/features/voiceBoard", "setupVoiceBoard"); // Live Voice & Friend Finder Board
 setupFeature("dailyQuest", "./src/features/dailyQuest", "setupDailyQuest", supabaseEnvKeys);
 setupFeature("moveMembers", "./src/commands/moveMembers", "setupMoveMembers");
+setupFeature("gachapon", "./src/features/gachapon", "setupGachapon", supabaseEnvKeys);
 
 
 

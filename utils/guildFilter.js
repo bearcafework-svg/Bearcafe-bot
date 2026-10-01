@@ -195,14 +195,14 @@ function isHealJaiEvent(eventName, args) {
     // 2. ตรวจสอบ Slash Commands ของ HealJai
     if (typeof interaction.isChatInputCommand === "function" && interaction.isChatInputCommand()) {
       const name = interaction.commandName ? interaction.commandName.toLowerCase() : "";
-      if (name.startsWith("heal") || name.startsWith("ฮิลใจ") || name === "ยืนยันการโอน" || name === "ยืนยันสลิป" || name === "บัตรพนักงาน") {
+      if (name.startsWith("heal") || name.startsWith("ฮิลใจ") || name === "ยืนยันการโอน" || name === "ยืนยันสลิป" || name === "อนุมัติสลิป" || name === "บัตรพนักงาน" || name === "แก้ไขพนักงาน") {
         return true;
       }
     }
     // 3. ตรวจสอบ Autocomplete ของ HealJai
     if (typeof interaction.isAutocomplete === "function" && interaction.isAutocomplete()) {
       const name = interaction.commandName ? interaction.commandName.toLowerCase() : "";
-      if (name === "บัตรพนักงาน" || name.startsWith("heal") || name.startsWith("ฮิลใจ")) {
+      if (name === "บัตรพนักงาน" || name === "แก้ไขพนักงาน" || name === "อนุมัติสลิป" || name === "ยืนยันสลิป" || name.startsWith("heal") || name.startsWith("ฮิลใจ")) {
         return true;
       }
     }
@@ -211,7 +211,13 @@ function isHealJaiEvent(eventName, args) {
   if (eventName === "messageCreate") {
     const message = args[0];
     const chName = message?.channel?.name || "";
-    if (chName.includes("พักใจ") || chName.startsWith("☕") || (message?.attachments && message.attachments.size > 0)) {
+    if (
+      chName.includes("พักใจ") ||
+      chName.includes("ฮิลใจ") ||
+      chName.startsWith("🌱") ||
+      chName.startsWith("☕") ||
+      (message?.attachments && message.attachments.size > 0)
+    ) {
       return true;
     }
     if (message && typeof message.content === "string") {
@@ -268,9 +274,12 @@ function setupGuildFilter(client) {
               const message = args[0];
               const chName = message?.channel?.name || "";
               if (
+                chName.startsWith("🌱︲") ||
+                chName.startsWith("🌱") ||
                 chName.startsWith("☕・พักใจ-") ||
                 chName.startsWith("☕-พักใจ-") ||
                 chName.startsWith("☕・") ||
+                chName.startsWith("☕︰") ||
                 isHealJaiEvent(eventName, args)
               ) {
                 return originalEmit.apply(this, [eventName, ...args]);
@@ -284,9 +293,12 @@ function setupGuildFilter(client) {
               // 0. Interaction ในห้องพักใจ Ticket ของ HealJai
               const chName = interaction?.channel?.name || "";
               if (
+                chName.startsWith("🌱︲") ||
+                chName.startsWith("🌱") ||
                 chName.startsWith("☕・พักใจ-") ||
                 chName.startsWith("☕-พักใจ-") ||
                 chName.startsWith("☕・") ||
+                chName.startsWith("☕︰") ||
                 isHealJaiEvent(eventName, args)
               ) {
                 return originalEmit.apply(this, [eventName, ...args]);

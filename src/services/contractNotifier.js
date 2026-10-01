@@ -169,18 +169,107 @@ async function checkAndNotifyContracts(client) {
 }
 
 /**
- * เริ่มต้นระบบ Auto Contract Notifier
+ * ฟังก์ชันตรวจสอบและลบห้อง Discord สำหรับสัญญาโฆษณาที่ครบกำหนดเวลาแล้ว
+ */
+async function cleanupExpiredAdChannels(client) {
+  const supabase = getSupabase();
+  if (!supabase) {
+    return;
+  }
+
+  try {
+    const nowIso = new Date().toISOString();
+    const { data: expiredAds, error } = await supabase
+      .from("contracts")
+      .select("*")
+      .eq("type", "ad")
+      .not("channel_id", "is", null)
+      .is("channel_deleted_at", null)
+      .lte("end_at", nowIso);
+
+    if (error) throw error;
+    if (!expiredAds || expiredAds.length === 0) return;
+
+    console.log(`[adCleanup] 🧹 พบสัญญาโฆษณาหมดอายุที่ต้องลบห้อง ${expiredAds.length} รายการ`);
+
+    for (const contract of expiredAds) {
+      const channelId = String(contract.channel_id ?? "").trim();
+      if (!channelId) continue;
+
+      let deleteSuccess = false;
+      let actionLogText = "";
+
+      try {
+        const channel = await client.channels.fetch(channelId).catch(() => null);
+        if (channel) {
+          await channel.delete("สัญญาโฆษณาครบกำหนดเวลาแล้ว ลบห้องอัตโนมัติ");
+          deleteSuccess = true;
+          actionLogText = `ลบห้อง Discord (${channelId}) สำเร็จเนื่องจากหมดอายุสัญญา`;
+          console.log(`[adCleanup] ✅ ลบห้อง Discord ID ${channelId} (สัญญา ID: ${contract.id}) เรียบร้อยแล้ว`);
+        } else {
+          // Channel not found / already deleted manually in Discord
+          deleteSuccess = true;
+          actionLogText = `ไม่พบห้อง Discord (${channelId}) ในระบบแล้ว ปรับสถานะเป็นลบเรียบร้อย`;
+          console.log(`[adCleanup] ℹ️ ไม่พบห้อง Discord ID ${channelId} ถือว่าถูกลบไปแล้ว`);
+        }
+      } catch (err) {
+        if (err.code === 10003 || err.status === 404) {
+          // Unknown channel / 404
+          deleteSuccess = true;
+          actionLogText = `ห้อง Discord (${channelId}) ถูกลบไปก่อนหน้าแล้ว`;
+        } else {
+          console.error(`[adCleanup] ❌ เกิดข้อผิดพลาดในการลบห้อง Discord ID ${channelId}:`, err.message);
+        }
+      }
+
+      if (deleteSuccess) {
+        const editLog = Array.isArray(contract.edit_log) ? contract.edit_log : [];
+        const updatedLog = [
+          ...editLog,
+          {
+            editor: "ระบบอัตโนมัติ (BearCafe Bot)",
+            avatar: null,
+            timestamp: new Date().toISOString(),
+            action: actionLogText,
+          },
+        ];
+
+        await supabase
+          .from("contracts")
+          .update({
+            channel_deleted_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            edit_log: updatedLog,
+          })
+          .eq("id", contract.id);
+      }
+    }
+  } catch (err) {
+    console.error("[adCleanup] Error during expired ad channels cleanup:", err.message);
+  }
+}
+
+/**
+ * เริ่มต้นระบบ Auto Contract Notifier & Ad Channel Cleanup
  */
 function setupContractNotifier(client) {
   client.once("clientReady", () => {
-    console.log("[contractNotifier] ✅ ระบบแจ้งเตือนสัญญาเช่าอัตโนมัติพร้อมทำงานแล้ว");
+    console.log("[contractNotifier] ✅ ระบบแจ้งเตือนสัญญาเช่าและลบห้องโฆษณาอัตโนมัติพร้อมทำงานแล้ว");
     // สแกนทันทีเมื่อบอทออนไลน์
     checkAndNotifyContracts(client).catch(console.error);
-    // ตั้งเวลาสแกนซ้ำทุก 1 ชั่วโมง
+    cleanupExpiredAdChannels(client).catch(console.error);
+
+    // ตรวจสอบสัญญาบ้านเช่าทุก 1 ชั่วโมง
     setInterval(() => {
       checkAndNotifyContracts(client).catch(console.error);
     }, CHECK_INTERVAL_MS);
+
+    // ตรวจสอบและลบห้องโฆษณาที่หมดอายุทุก 5 นาที
+    setInterval(() => {
+      cleanupExpiredAdChannels(client).catch(console.error);
+    }, 5 * 60 * 1000);
   });
 }
 
-module.exports = { setupContractNotifier, checkAndNotifyContracts };
+module.exports = { setupContractNotifier, checkAndNotifyContracts, cleanupExpiredAdChannels };
+

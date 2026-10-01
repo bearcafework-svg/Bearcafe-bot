@@ -1138,11 +1138,23 @@ function buildCounselorCardPayload(counselorData = {}, member = null) {
     ...(specialtiesList.length > 0 ? specialtiesList : ["*(ยังไม่ได้ระบุความถนัด)*"])
   ].join("\n");
 
+  const serviceModes = Array.isArray(counselorData.service_modes) && counselorData.service_modes.length > 0
+    ? counselorData.service_modes
+    : ["chat", "voice"];
+
+  const servicesList = [];
+  if (serviceModes.includes("voice")) servicesList.push("`[🔊 คอลเสียง]`");
+  if (serviceModes.includes("chat")) servicesList.push("`[💬 พิมพ์คุย]`");
+  if (counselorData.is_silent_companion) servicesList.push("`[🍃 โหมดนั่งเงียบเป็นเพื่อน]`");
+  if (servicesList.length === 0) servicesList.push("`[💬 พิมพ์คุย]`");
+
+  const servicesText = servicesList.join(" ");
+
   const topContent = [
     `## <:idolgreensuki:1554499554575913041>︲<@${userId}> ${displayName}`,
     `" ${bio} "\n`,
     `> สถานะการทำงาน: \`${statusText}\``,
-    `> บริการ: \`[🔊 คอลเสียง]\` \`[💬 พิมพ์คุย]\` \`[🍃 โหมดนั่งเงียบเป็นเพื่อน]\``,
+    `> บริการ: ${servicesText}`,
     `> คะแนนเฉลี่ย: ${rating} / 5.00 (${totalReviews} รีวิว)`,
     `> บริการสำเร็จ: ${totalSessions} คน`
   ].join("\n");

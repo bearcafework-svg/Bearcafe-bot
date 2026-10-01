@@ -355,6 +355,7 @@ const GUILD_SLASH_COMMANDS = [
           { name: "1️⃣2️⃣ แผงเลือกและเปลี่ยนยศสี (Color Roles Panel)", value: "color_roles" },
           { name: "1️⃣3️⃣ กระดานจัดอันดับหมีติดเกม (Minigame Leaderboard)", value: "minigame_top" },
           { name: "1️⃣4️⃣ กล่องความประทับใจ (Public Showcase Preview)", value: "feedback" },
+          { name: "1️⃣5️⃣ ตู้สุ่มกาชาปอง (Gachapon Machine)", value: "gachapon" },
         ],
       },
       {
@@ -380,6 +381,7 @@ const GUILD_SLASH_COMMANDS = [
         choices: [
           { name: "📊 แผงควบคุม & สรุปสถานะ (Dashboard)", value: "dashboard" },
           { name: "🛠️ สลับโหมดเปิด-ปิดบริการ (Toggle Maintenance)", value: "toggle_maintenance" },
+          { name: "📜 สลับเปิด-ปิดการกดข้อตกลง (Toggle Terms Acceptance)", value: "toggle_terms" },
           { name: "🧹 เคลียร์ห้องค้างตกค้างทันที (Run Cleanup Now)", value: "run_cleanup" },
           { name: "📑 ส่งรายงานสรุปยอดวันนี้ทันที (Send Daily Report)", value: "daily_report" },
           { name: "🔍 ตรวจสอบและจัดการเคส (Manage Case)", value: "manage_case" },
@@ -412,6 +414,110 @@ const GUILD_SLASH_COMMANDS = [
         type: ApplicationCommandOptionType.Channel,
         channelTypes: [ChannelType.GuildText],
         required: false,
+      },
+    ],
+  },
+
+  // 20.1 /แก้ไขพนักงาน (Edit Counselor Details - Staff Only)
+  {
+    name: "แก้ไขพนักงาน",
+    description: "[Staff Only] แก้ไขข้อมูลผู้รับฟัง (ชื่อ, ความถนัด, รูปแบบบริการ, ข้อมูลส่วนตัว)",
+    options: [
+      {
+        name: "พนักงาน",
+        description: "เลือกรายชื่อพนักงาน/ผู้รับฟังที่ต้องการแก้ไข",
+        type: ApplicationCommandOptionType.String,
+        required: true,
+        autocomplete: true,
+      },
+      {
+        name: "ชื่อ",
+        description: "ชื่อที่แสดงบนบัตรพนักงาน (Display Name)",
+        type: ApplicationCommandOptionType.String,
+        required: false,
+      },
+      {
+        name: "ความถนัด",
+        description: "ความถนัดเฉพาะ คั่นด้วยจุลภาค เช่น ความรัก, งาน, สุขภาพจิต, ครอบครัว, ทั่วไป",
+        type: ApplicationCommandOptionType.String,
+        required: false,
+      },
+      {
+        name: "บริการ",
+        description: "รูปแบบบริการที่เปิดรับ",
+        type: ApplicationCommandOptionType.String,
+        required: false,
+        choices: [
+          { name: "🔊+💬 ทุกบริการ (คอลเสียง + พิมพ์คุย)", value: "all" },
+          { name: "💬 เฉพาะพิมพ์คุย (Chat Only)", value: "chat" },
+          { name: "🔊 เฉพาะคอลเสียง (Voice Only)", value: "voice" },
+        ],
+      },
+      {
+        name: "โหมดเงียบ",
+        description: "เปิดรับโหมดนั่งเงียบเป็นเพื่อนหรือไม่ (true / false)",
+        type: ApplicationCommandOptionType.Boolean,
+        required: false,
+      },
+      {
+        name: "คำแนะนำตัว",
+        description: "ข้อความแนะนำตัวสั้นๆ (Bio)",
+        type: ApplicationCommandOptionType.String,
+        required: false,
+      },
+      {
+        name: "รูปโปรไฟล์",
+        description: "URL รูปภาพโปรไฟล์สำหรับแสดงบนบัตรพนักงาน",
+        type: ApplicationCommandOptionType.String,
+        required: false,
+      },
+      {
+        name: "เลขบัญชี",
+        description: "เลขบัญชีธนาคาร หรือ พร้อมเพย์สำหรับรับเงิน",
+        type: ApplicationCommandOptionType.String,
+        required: false,
+      },
+    ],
+  },
+
+  // 21. /อนุมัติสลิป (Approve Payment & Assign Counselor - Staff Only)
+  {
+    name: "อนุมัติสลิป",
+    description: "[Staff Only] ตรวจสอบสลิป อนุมัติยอดชำระเงิน และเลือก/สุ่มผู้รับฟังที่ออนไลน์",
+    options: [
+      {
+        name: "user",
+        description: "เลือกลูกค้าที่ต้องการอนุมัติสลิป/เปิดเคส",
+        type: ApplicationCommandOptionType.User,
+        required: true,
+      },
+      {
+        name: "counselor",
+        description: "เลือกผู้รับฟังที่ต้องการส่งเคสให้ หรือเลือก 'สุ่มผู้รับฟังที่ออนไลน์'",
+        type: ApplicationCommandOptionType.String,
+        required: false,
+        autocomplete: true,
+      },
+    ],
+  },
+
+  // 22. /ยืนยันสลิป (Alias for /อนุมัติสลิป)
+  {
+    name: "ยืนยันสลิป",
+    description: "[Staff Only] ตรวจสอบสลิป อนุมัติยอดชำระเงิน และเลือก/สุ่มผู้รับฟังที่ออนไลน์",
+    options: [
+      {
+        name: "user",
+        description: "เลือกลูกค้าที่ต้องการอนุมัติสลิป/เปิดเคส",
+        type: ApplicationCommandOptionType.User,
+        required: true,
+      },
+      {
+        name: "counselor",
+        description: "เลือกผู้รับฟังที่ต้องการส่งเคสให้ หรือเลือก 'สุ่มผู้รับฟังที่ออนไลน์'",
+        type: ApplicationCommandOptionType.String,
+        required: false,
+        autocomplete: true,
       },
     ],
   },
@@ -458,6 +564,12 @@ const GUILD_SLASH_COMMANDS = [
         required: true,
       },
     ],
+  },
+
+  // 25. /หมุนกาชา (Gachapon System)
+  {
+    name: "หมุนกาชา",
+    description: "🎰 เปิดตู้กาชาปอง Bear Cafe สุ่มรับของรางวัลสุดพิเศษ (ใช้แต้ม Points)",
   },
 ];
 
@@ -516,7 +628,7 @@ async function registerAllGuildCommands(guild) {
     let targetCommands = GUILD_SLASH_COMMANDS;
 
     if (isDevMode) {
-      const allowedDevCommands = (process.env.DEV_SLASH_COMMANDS || "test_bee,send-component,บัตรพนักงาน,healjai-admin")
+      const allowedDevCommands = (process.env.DEV_SLASH_COMMANDS || "test_bee,send-component,บัตรพนักงาน,แก้ไขพนักงาน,healjai-admin,อนุมัติสลิป,ยืนยันสลิป,หมุนกาชา")
         .split(",")
         .map((s) => s.trim().toLowerCase())
         .filter(Boolean);
@@ -529,7 +641,7 @@ async function registerAllGuildCommands(guild) {
       );
     } else {
       // บอทหลัก (Production Mode) — ไม่ลงทะเบียนคำสั่งโปรเจกต์ฮีลใจเด็ดขาด (ทำงานเฉพาะบอท Dev / Secondary Bot)
-      const HEALJAI_COMMANDS = ["healjai-admin", "บัตรพนักงาน", "ยืนยันการโอน", "ยืนยันสลิป"];
+      const HEALJAI_COMMANDS = ["healjai-admin", "บัตรพนักงาน", "แก้ไขพนักงาน", "ยืนยันการโอน", "ยืนยันสลิป", "อนุมัติสลิป"];
       const DEV_ONLY_COMMANDS = [...HEALJAI_COMMANDS];
       targetCommands = GUILD_SLASH_COMMANDS.filter(
         (cmd) => !DEV_ONLY_COMMANDS.includes(cmd.name.toLowerCase())

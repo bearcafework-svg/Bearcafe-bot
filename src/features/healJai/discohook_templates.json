@@ -171,24 +171,6 @@
                   "name": "💼"
                 },
                 "custom_id": "heal_jai_counselor_wallet"
-              },
-              {
-                "style": 2,
-                "type": 2,
-                "label": "︲แก้ไขข้อมูลส่วนตัว",
-                "emoji": {
-                  "name": "📝"
-                },
-                "custom_id": "heal_jai_counselor_edit_profile"
-              },
-              {
-                "style": 2,
-                "type": 2,
-                "label": "︲เลือกความถนัด",
-                "emoji": {
-                  "name": "🎯"
-                },
-                "custom_id": "heal_jai_counselor_specialties"
               }
             ]
           }

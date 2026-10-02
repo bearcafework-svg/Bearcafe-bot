@@ -37,6 +37,7 @@ function getAllowedGuildIds() {
   }
 
   // 3. ดึงจาก HEALJAI_GUILD_ID ใน process.env (เฉพาะบอท Dev เท่านั้น เนื่องจากฮีลใจรันบน Dev Bot)
+  const isDevMode = process.env.DEV_MODE === "true";
   if (isDevMode) {
     if (process.env.HEALJAI_GUILD_ID) {
       for (const id of process.env.HEALJAI_GUILD_ID.split(",")) {

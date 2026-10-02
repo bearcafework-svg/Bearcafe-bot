@@ -38,6 +38,10 @@ const {
   buildAdminDashboardPayload,
   buildAdminManageCasePayload,
   buildDailyReportPayload,
+  buildAdminCounselorSelectPayload,
+  buildAdminCounselorEditPayload,
+  buildAdminEditCounselorModal,
+  buildCounselorWalletHistoryPayload,
   ALL_SPECIALTIES
 } = require("./healJaiPayloads");
 
@@ -389,60 +393,119 @@ function scheduleDispatchTimeout(client, guild, orderId, messageId, expireTimest
         .eq("id", orderId)
         .maybeSingle();
 
-      if (order && order.session_status === "DISPATCHING" && !order.counselor_id) {
-        console.log(`[HealJai] ⏰ Dispatch alert expired for order #${order.order_code}. Escalating to Owner DM and notifying customer ticket...`);
+      if (!order || order.session_status !== "DISPATCHING") return;
 
-        // 1. แจ้งเตือนไปยังห้อง Dispatch
-        const dispatchChannel = guild.channels.cache.get(DISPATCH_CHANNEL_ID) ||
-                                await guild.channels.fetch(DISPATCH_CHANNEL_ID).catch(() => null);
-        if (dispatchChannel) {
-          await dispatchChannel.send({
-            content: `<@&${STAFF_ROLE_ID}> <@&${COUNSELOR_ROLE_ID}> 🚨 **ไม่มีผู้รับฟังรับเคส #${order.order_code} ภายในเวลา 3 นาที**\n> 📢 ระบบได้ส่ง DM แจ้งเตือนไปยังแอดมิน/Owner และแจ้งลูกค้าในห้อง Ticket แล้วค่ะ 🍵`
-          }).catch(() => {});
-        }
+      const dispatchChannel = guild.channels.cache.get(DISPATCH_CHANNEL_ID) ||
+                              await guild.channels.fetch(DISPATCH_CHANNEL_ID).catch(() => null);
 
-        // 2. ส่ง DM แจ้งเตือนไปยัง OwnerID
-        const ownerId = process.env.OWNER_ID || guild.ownerId;
-        if (ownerId) {
+      // ── กรณีที่ 1: เคสที่มีการเลือกตัวบุคคลไว้ แต่หมดเวลา 3 นาที (คิวหลุด) ──
+      // ลบข้อความแจ้งเตือนเดิมทิ้ง แล้วส่งการ์ดใบใหม่ที่แท็ก Role ให้ทุกคนกดรับได้
+      if (order.counselor_id) {
+        console.log(`[HealJai] ⏰ Assigned counselor <@${order.counselor_id}> timed out for order #${order.order_code}. Re-dispatching with role mention...`);
+
+        if (messageId && dispatchChannel) {
           try {
-            const ownerUser = await client.users.fetch(ownerId).catch(() => null);
-            if (ownerUser) {
-              const ticketUrl = `https://discord.com/channels/${guild.id}/${order.ticket_channel_id}`;
-              await ownerUser.send({
-                content: [
-                  `## 🚨︲แจ้งเตือนไม่มีผู้รับฟังรับเคส (HealJai Dispatch Timeout)`,
-                  `> **รหัสออเดอร์:** \`#${order.order_code}\``,
-                  `> **ลูกค้า:** <@${order.customer_id}> (${order.customer_id})`,
-                  `> **แพ็กเกจ:** ${order.package_name || "เครื่องดื่มพักใจ"} (${order.duration_minutes || 15} นาที)`,
-                  `> **ยอดชำระ:** ${order.total_price} บาท (ชำระแล้ว)`,
-                  `> **โหมดบริการ:** ${order.service_mode === "voice" ? "🎙️ คอลเสียง" : "💬 พิมพ์คุย"}`,
-                  `> **ห้อง Ticket:** <#${order.ticket_channel_id}> ([คลิกเพื่อเปิดห้อง](${ticketUrl}))\n`,
-                  `⚠️ *เคสนี้ยังไม่มีผู้ให้คำปรึกษากดรับภายในเวลา 3 นาที ระบบได้แจ้งลูกค้าว่ากำลังติดต่อแอดมิน กรุณาเข้าตรวจสอบค่ะ 🍵*`
-                ].join("\n")
-              }).catch((dmErr) => {
-                console.warn(`[HealJai] Could not send DM to owner (${ownerId}):`, dmErr.message);
-              });
-            }
-          } catch (ownerErr) {
-            console.error("[HealJai] Error sending DM to owner on dispatch timeout:", ownerErr.message);
-          }
+            const oldMsg = await dispatchChannel.messages.fetch(messageId).catch(() => null);
+            if (oldMsg) await oldMsg.delete().catch(() => {});
+          } catch (_) {}
         }
 
-        // 3. ส่งแจ้งเตือนกลับไปยังห้อง Ticket เดิมของลูกค้า
-        if (order.ticket_channel_id) {
-          const ticketCh = guild.channels.cache.get(order.ticket_channel_id) ||
-                           await guild.channels.fetch(order.ticket_channel_id).catch(() => null);
-          if (ticketCh) {
-            await ticketCh.send({
-              content: [
-                `## ⏳︲แจ้งสถานะการให้บริการ`,
-                `> <@${order.customer_id}> ขออภัยในความไม่สะดวกค่ะ ขณะนี้ผู้รับฟังทุกคนอาจติดภารกิจหรือไม่สะดวกรับงานในทันที`,
-                `> `,
-                `> 📢 **ระบบได้ส่งการแจ้งเตือนไปยังแอดมินเรียบร้อยแล้วค่ะ**`,
-                `> ทีมงานกำลังเร่งประสานงานและจะเข้ามาดูแลคุณในห้องนี้โดยเร็วที่สุดนะคะ ขอบคุณที่รอและวางใจคาเฟ่ของเราค่ะ 🍵`
-              ].join("\n")
-            }).catch(() => {});
+        await supabase
+          .from("heal_jai_orders_sessions")
+          .update({
+            counselor_id: null,
+            is_specific_counselor: false,
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", order.id);
+
+        sendOrderHistoryLog(guild, {
+          status: "DISPATCH_TIMEOUT_DROP",
+          orderCode: order.order_code,
+          customerId: order.customer_id,
+          extraInfo: `⏰ ที่ปรึกษา <@${order.counselor_id}> ไม่ได้กดรับเคสภายใน 3 นาที ระบบลบการ์ดเดิมและเปิดเป็น Open Dispatch แท็ก Role <@&${COUNSELOR_ROLE_ID}>`
+        });
+
+        const newExpireTimestamp = Math.floor((Date.now() + 3 * 60 * 1000) / 1000);
+        const newDispatchPayload = buildDispatchAlertPayload({
+          counselorId: null,
+          customerId: order.customer_id,
+          serviceMode: order.service_mode || "chat",
+          orderId: order.id,
+          orderCode: order.order_code,
+          packageName: order.package_name || "ชาเขียวเย็นใจ",
+          duration: order.duration_minutes || 15,
+          isSilent: order.is_silent || false,
+          isSpecific: false,
+          toppingName: order.is_silent ? "นั่งเงียบเป็นเพื่อน (+19 บาท)" : null,
+          isBooster: order.is_booster || false,
+          totalMinutes: order.duration_minutes || 15,
+          totalPrice: order.total_price || 39,
+          expireTimestamp: newExpireTimestamp
+        });
+
+        if (dispatchChannel) {
+          if (newDispatchPayload.pingMention) {
+            await dispatchChannel.send({ content: newDispatchPayload.pingMention }).catch(() => {});
           }
+          const newMsg = await dispatchChannel.send(newDispatchPayload).catch(() => null);
+          if (newMsg) {
+            scheduleDispatchTimeout(client, guild, order.id, newMsg.id, newExpireTimestamp);
+          }
+        }
+        return;
+      }
+
+      // ── กรณีที่ 2: เคส Open Dispatch หมดเวลา 3 นาทีแล้วยังไม่มีใครรับ ──
+      console.log(`[HealJai] ⏰ Open Dispatch expired for order #${order.order_code}. Escalating to Owner DM and notifying customer ticket...`);
+
+      if (dispatchChannel) {
+        await dispatchChannel.send({
+          content: `<@&${STAFF_ROLE_ID}> <@&${COUNSELOR_ROLE_ID}> 🚨 **ไม่มีผู้รับฟังรับเคส #${order.order_code} ภายในเวลา 3 นาที**\n> 📢 ระบบได้ส่ง DM แจ้งเตือนไปยังแอดมิน/Owner และแจ้งลูกค้าในห้อง Ticket แล้วค่ะ 🍵`
+        }).catch(() => {});
+      }
+
+      // 2. ส่ง DM แจ้งเตือนไปยัง OwnerID
+      const ownerId = process.env.OWNER_ID || guild.ownerId;
+      if (ownerId) {
+        try {
+          const ownerUser = await client.users.fetch(ownerId).catch(() => null);
+          if (ownerUser) {
+            const ticketUrl = `https://discord.com/channels/${guild.id}/${order.ticket_channel_id}`;
+            await ownerUser.send({
+              content: [
+                `## 🚨︲แจ้งเตือนไม่มีผู้รับฟังรับเคส (HealJai Dispatch Timeout)`,
+                `> **รหัสออเดอร์:** \`#${order.order_code}\``,
+                `> **ลูกค้า:** <@${order.customer_id}> (${order.customer_id})`,
+                `> **แพ็กเกจ:** ${order.package_name || "เครื่องดื่มพักใจ"} (${order.duration_minutes || 15} นาที)`,
+                `> **ยอดชำระ:** ${order.total_price} บาท (ชำระแล้ว)`,
+                `> **โหมดบริการ:** ${order.service_mode === "voice" ? "🎙️ คอลเสียง" : "💬 พิมพ์คุย"}`,
+                `> **ห้อง Ticket:** <#${order.ticket_channel_id}> ([คลิกเพื่อเปิดห้อง](${ticketUrl}))\n`,
+                `⚠️ *เคสนี้ยังไม่มีผู้ให้คำปรึกษากดรับภายในเวลา 3 นาที ระบบได้แจ้งลูกค้าว่ากำลังติดต่อแอดมิน กรุณาเข้าตรวจสอบค่ะ 🍵*`
+              ].join("\n")
+            }).catch((dmErr) => {
+              console.warn(`[HealJai] Could not send DM to owner (${ownerId}):`, dmErr.message);
+            });
+          }
+        } catch (ownerErr) {
+          console.error("[HealJai] Error sending DM to owner on dispatch timeout:", ownerErr.message);
+        }
+      }
+
+      // 3. ส่งแจ้งเตือนกลับไปยังห้อง Ticket เดิมของลูกค้า
+      if (order.ticket_channel_id) {
+        const ticketCh = guild.channels.cache.get(order.ticket_channel_id) ||
+                         await guild.channels.fetch(order.ticket_channel_id).catch(() => null);
+        if (ticketCh) {
+          await ticketCh.send({
+            content: [
+              `## ⏳︲แจ้งสถานะการให้บริการ`,
+              `> <@${order.customer_id}> ขออภัยในความไม่สะดวกค่ะ ขณะนี้ผู้รับฟังทุกคนอาจติดภารกิจหรือไม่สะดวกรับงานในทันที`,
+              `> `,
+              `> 📢 **ระบบได้ส่งการแจ้งเตือนไปยังแอดมินเรียบร้อยแล้วค่ะ**`,
+              `> ทีมงานกำลังเร่งประสานงานและจะเข้ามาดูแลคุณในห้องนี้โดยเร็วที่สุดนะคะ ขอบคุณที่รอและวางใจคาเฟ่ของเราค่ะ 🍵`
+            ].join("\n")
+          }).catch(() => {});
         }
       }
     } catch (err) {
@@ -507,12 +570,12 @@ const sessionTimers = new Map();
 // Memory map สำหรับเก็บ Provider Ready timers (3 นาทีหลังรับเคส)
 const providerReadyTimers = new Map();
 
-// Memory map และค่าคงที่สำหรับเก็บห้อง Session ไว้ 24 ชั่วโมงเพื่อให้ลูกค้ารีวิว (24-Hour Retention)
-const SESSION_RETENTION_MS = 24 * 60 * 60 * 1000;
+// Memory map และค่าคงที่สำหรับเก็บห้อง Session ไว้ 10 นาทีหลังจบเคส (10-Minute Retention)
+const SESSION_RETENTION_MS = 10 * 60 * 1000;
 const sessionRetentionTimers = new Map();
 
 /**
- * ตั้งเวลาลบห้องสนทนาเซสชันอัตโนมัติเมื่อครบ 24 ชั่วโมง
+ * ตั้งเวลาลบห้องสนทนาเซสชันอัตโนมัติเมื่อครบ 10 นาที
  */
 function scheduleSessionRoomCleanup(client, guild, orderId, textChannelId, remainingMs = SESSION_RETENTION_MS) {
   if (sessionRetentionTimers.has(orderId)) {
@@ -526,11 +589,11 @@ function scheduleSessionRoomCleanup(client, guild, orderId, textChannelId, remai
         const textCh = guild.channels.cache.get(textChannelId) ||
                        await guild.channels.fetch(textChannelId).catch(() => null);
         if (textCh) {
-          await textCh.delete("HealJai session 24-hour retention expired").catch(() => {});
+          await textCh.delete("HealJai session 10-minute retention expired").catch(() => {});
         }
       }
     } catch (err) {
-      console.error(`[HealJai] Error deleting text channel ${textChannelId} after 24h retention:`, err.message);
+      console.error(`[HealJai] Error deleting text channel ${textChannelId} after 10m retention:`, err.message);
     }
   }, Math.max(remainingMs, 1000));
 
@@ -1044,19 +1107,25 @@ async function handleSessionExpiry(client, guild, orderId, { isEarly = false } =
     await updateCounselorCardMessage(guild, order.counselor_id);
   }
 
-  // 3. จัดการ Channel: ส่งข้อความจบเซสชัน + ส่งการ์ดประเมิน 1-5 ดาว
+  // 3. จัดการ Channel: ส่งข้อความขอบคุณ + เปลี่ยนชื่อห้อง
   const textChannelId = order.session_channel_id || order.ticket_channel_id;
   const sessionChannel = textChannelId
     ? (guild.channels.cache.get(textChannelId) || await guild.channels.fetch(textChannelId).catch(() => null))
     : null;
 
   if (sessionChannel) {
-    const finishMessage = isEarly
-      ? `## ⏹️︲ผู้รับฟังจบบริการเรียบร้อยแล้วค่ะ (ก่อนเวลา)\n> <@${order.customer_id}> <@${order.counselor_id}> ขอบคุณสำหรับช่วงเวลาอบอุ่นนี้นะคะ 🍵\n> -# สิทธิ์การส่งข้อความและการคุยเสียงถูกปิดแล้ว คุณลูกค้าสามารถคลิกให้คะแนนดาวด้านล่างได้ภายใน 24 ชั่วโมงค่ะ`
-      : `## ✅︲ครบเวลาบริการแล้วค่ะ!\n> <@${order.customer_id}> <@${order.counselor_id}> เวลา **${order.duration_minutes || 30} นาที** สิ้นสุดแล้วนะคะ ขอบคุณสำหรับช่วงเวลาอบอุ่นนี้ 🍵\n> -# สิทธิ์การส่งข้อความและการคุยเสียงถูกปิดแล้ว คุณลูกค้าสามารถคลิกให้คะแนนดาวด้านล่างได้ภายใน 24 ชั่วโมงค่ะ`;
+    const thankYouMessage = [
+      `## <@${order.customer_id}> ขอบคุณที่ใช้บริการกับเราในครั้งนี้นะคะ <a:heartoutlines:1536268541144076369>`,
+      `> หากสะดวก ฝากทุกท่านช่วยรีวิวหรือแชร์ฟีดแบ็กเกี่ยวกับการใช้บริการได้ที่ <#1545240537089703986> เพื่อให้เราได้นำความคิดเห็นไปพัฒนาและปรับปรุงการทำงานให้ดียิ่งขึ้นนะคะ ขอบคุณมาก ๆ ค่ะ <a:511398spin:1536700803732209736>\n`,
+      `-# ⏱️ ห้องนี้จะถูกลบอัตโนมัติภายใน 10 นาทีค่ะ`
+    ].join("\n");
 
-    await sessionChannel.send({ content: finishMessage }).catch(() => {});
-    await sessionChannel.send(buildFeedbackPromptPayload()).catch(() => {});
+    await sessionChannel.send({ content: thankYouMessage }).catch(() => {});
+
+    // แก้ไขชื่อห้องเป็น "✅︰เคสเสร็จสิ้น"
+    await sessionChannel.setName("✅︰เคสเสร็จสิ้น").catch((e) => {
+      console.error("[HealJai] Failed to rename completed session channel:", e.message);
+    });
 
     // ล็อกสิทธิ์การพิมพ์และการคุยเสียง
     try {
@@ -1108,11 +1177,11 @@ async function handleSessionExpiry(client, guild, orderId, { isEarly = false } =
     packageName: order.package_name,
     totalPrice: order.total_price,
     extraInfo: isEarly
-      ? `จบบริการก่อนเวลา (Early End: true) — ล็อกห้องสนทนาและเก็บห้องไว้ 24 ชั่วโมงสำหรับการรีวิว`
-      : `ครบกำหนดเวลาบริการ (Auto-Timer Expiry) — ล็อกห้องสนทนาและเก็บห้องไว้ 24 ชั่วโมงสำหรับการรีวิว`
+      ? `จบบริการก่อนเวลา (Early End: true) — ล็อกห้องสนทนาและตั้งเวลาลบห้องภายใน 10 นาที`
+      : `ครบกำหนดเวลาบริการ (Auto-Timer Expiry) — ล็อกห้องสนทนาและตั้งเวลาลบห้องภายใน 10 นาที`
   });
 
-  // 6. ตั้งเวลาลบ Text Channel หลังจาก 24 ชั่วโมง (24-Hour Retention)
+  // 6. ตั้งเวลาลบ Text Channel หลังจาก 10 นาที (10-Minute Retention)
   if (textChannelId) {
     scheduleSessionRoomCleanup(client, guild, orderId, textChannelId, SESSION_RETENTION_MS);
   }
@@ -1836,27 +1905,69 @@ function setupHealJai(client) {
     }
   });
 
-  // ── 1.2.1 Autocomplete & Slash Command: /อนุมัติสลิป และ /ยืนยันสลิป (Staff Only) ────
+  // ── 1.2.1 Autocomplete & Slash Command: /อนุมัติสลิป (Staff Only) ────────────
   const handleApproveSlipAutocomplete = async (interaction) => {
     const focusedValue = (interaction.options.getFocused() || "").toLowerCase();
     const supabase = getSupabase();
-    const choices = [
-      { name: "🎲 ︲สุ่มผู้รับฟังที่ออนไลน์ในขณะนี้ (Auto Random)", value: "random_online" }
-    ];
+    const choices = [];
+
+    // ตัวเลือกแรก: แจ้งเตือนรวม (แท็ก Role)
+    choices.push({
+      name: "📢 ︲ส่งแจ้งเตือนรวม (แท็ก Role ทุกคน)",
+      value: "open_dispatch"
+    });
+
+    const addedUserIds = new Set();
 
     if (supabase) {
       const { data: onlineCounselors } = await supabase
         .from("heal_jai_counselors")
-        .select("user_id, display_name, status")
+        .select("user_id, display_name, status, service_modes, is_silent_companion")
         .eq("status", "ONLINE")
         .limit(24);
 
       if (onlineCounselors && onlineCounselors.length > 0) {
         for (const c of onlineCounselors) {
+          addedUserIds.add(c.user_id);
           const name = c.display_name || c.user_id;
+          const modes = [];
+          if (Array.isArray(c.service_modes)) {
+            if (c.service_modes.includes("chat")) modes.push("💬 Chat");
+            if (c.service_modes.includes("voice")) modes.push("🎙️ Voice");
+          }
+          if (c.is_silent_companion) modes.push("🌿 นั่งเงียบ");
+          const modesStr = modes.length > 0 ? ` (${modes.join(", ")})` : "";
+
           choices.push({
-            name: `🟢 ︲${name} (${c.user_id})`.slice(0, 100),
+            name: `🟢 ︲${name}${modesStr}`.slice(0, 100),
             value: c.user_id
+          });
+        }
+      }
+    }
+
+    // เพิ่มสมาชิกในเซิร์ฟเวอร์ที่มีสถานะ Discord Online และมี Role ผู้ให้คำปรึกษา หรือ Admin
+    if (interaction.guild) {
+      let members = interaction.guild.members.cache;
+      if (members.size < 10) {
+        try {
+          members = await interaction.guild.members.fetch();
+        } catch (_) {}
+      }
+
+      for (const [memberId, member] of members) {
+        if (member.user.bot || addedUserIds.has(memberId)) continue;
+        const hasCounselorRole = member.roles.cache.has(COUNSELOR_ROLE_ID) ||
+                                member.roles.cache.has(STAFF_ROLE_ID) ||
+                                member.roles.cache.has("1536208040582316032");
+        const presenceStatus = member.presence?.status;
+        const isOnline = presenceStatus === "online" || presenceStatus === "idle" || presenceStatus === "dnd";
+
+        if (hasCounselorRole && isOnline) {
+          addedUserIds.add(memberId);
+          choices.push({
+            name: `🟢 ︲${member.displayName} (Discord Online)`.slice(0, 100),
+            value: memberId
           });
         }
       }
@@ -1870,7 +1981,6 @@ function setupHealJai(client) {
   };
 
   registerAutocomplete("อนุมัติสลิป", handleApproveSlipAutocomplete);
-  registerAutocomplete("ยืนยันสลิป", handleApproveSlipAutocomplete);
 
   const handleApproveSlipCommand = async (interaction) => {
     const isOwner = (process.env.OWNER_ID && interaction.user.id === process.env.OWNER_ID) ||
@@ -1894,7 +2004,11 @@ function setupHealJai(client) {
     await interaction.deferReply({ flags: FLAG_EPHEMERAL }).catch(() => {});
 
     const targetUser = interaction.options.getUser("user", true);
-    const counselorChoice = interaction.options.getString("counselor") || "random_online";
+    const counselorChoice = interaction.options.getString("counselor", true);
+    if (!counselorChoice) {
+      return interaction.editReply({ content: "⚠️ กรุณาเลือกผู้รับฟังที่ออนไลน์เพื่อมอบหมายเคสค่ะ" });
+    }
+
     const supabase = getSupabase();
     if (!supabase) {
       return interaction.editReply({ content: "❌ ไม่สามารถเชื่อมต่อฐานข้อมูลได้ค่ะ" });
@@ -1932,19 +2046,10 @@ function setupHealJai(client) {
         });
       }
 
-      // 2. กำหนดผู้รับฟัง (Counselor)
-      let selectedCounselorId = null;
-      let isSpecific = false;
-
-      if (counselorChoice && counselorChoice !== "random_online") {
-        selectedCounselorId = counselorChoice;
-        isSpecific = true;
-      } else {
-        // กรณีเลือกสุ่มผู้รับฟังที่ออนไลน์ ให้เปิดเป็น Open Dispatch (counselor_id = null) เพื่อให้ผู้รับฟังท่านใดที่ว่างสามารถกดรับได้ทันที
-        selectedCounselorId = null;
-        isSpecific = false;
-      }
-
+      // 2. กำหนดผู้รับฟัง (Counselor ที่แอดมินเลือก หรือ ส่งแจ้งเตือนรวม)
+      const isOpenDispatch = counselorChoice === "open_dispatch";
+      const selectedCounselorId = isOpenDispatch ? null : counselorChoice;
+      const isSpecific = !isOpenDispatch;
       const verifiedAt = new Date().toISOString();
 
       // 3. อัปเดตออเดอร์ใน DB
@@ -1998,7 +2103,7 @@ function setupHealJai(client) {
                 components: [
                   {
                     type: 10,
-                    content: `## <:50121checkmark:1358584609087946867>︲__\` ตรวจสอบสลิปสำเร็จ! \`__\n> <@${targetUser.id}> **กำลังค้นหาผู้รับฟังให้คุณ** โปรดรอสักครู่นะคะ . . .`
+                    content: `## <:50121checkmark:1358584609087946867>︲__\` ตรวจสอบสลิปสำเร็จ! \`__\n> <@${targetUser.id}> **กำลังประสานงานผู้รับฟังให้คุณ** โปรดรอสักครู่นะคะ . . .`
                   }
                 ]
               }
@@ -2019,7 +2124,7 @@ function setupHealJai(client) {
         duration: order.duration_minutes || 15,
         isSilent: order.is_silent || false,
         isSpecific: isSpecific,
-        toppingName: order.is_silent ? "นั่งเงียบเป็นเพื่อน (+19 บาท)" : (isSpecific ? "ระบุตัวผู้รับฟัง (+39 บาท)" : null),
+        toppingName: order.is_silent ? "นั่งเงียบเป็นเพื่อน (+19 บาท)" : (isSpecific ? "ระบุตัวผู้รับฟัง" : null),
         isBooster: order.is_booster || false,
         totalMinutes: order.duration_minutes || 15,
         totalPrice: order.total_price || 39,
@@ -2044,11 +2149,11 @@ function setupHealJai(client) {
         orderCode: order.order_code,
         customerId: targetUser.id,
         totalPrice: order.total_price,
-        extraInfo: `สลิปได้รับการอนุมัติโดยทีมงาน <@${interaction.user.id}>${selectedCounselorId ? ` (ระบุผู้รับฟัง: <@${selectedCounselorId}>)` : ' (สุ่มผู้รับฟังที่ออนไลน์)'}`
+        extraInfo: `สลิปได้รับการอนุมัติโดยทีมงาน <@${interaction.user.id}> (${selectedCounselorId ? `มอบหมายให้: <@${selectedCounselorId}>` : `เปิดแจ้งเตือนรวมแท็ก Role`})`
       });
 
       return interaction.editReply({
-        content: `✅ **อนุมัติสลิปสำหรับลูกค้า <@${targetUser.id}> สำเร็จแล้วค่ะ!**\n> 🍵 ออเดอร์ \`#${order.order_code}\` ยอด ${order.total_price || 39} บาท\n> 🎯 มอบหมายไปยัง: ${selectedCounselorId ? `<@${selectedCounselorId}>` : 'สุ่มผู้รับฟังที่ออนไลน์'}\n> 📨 ส่งการ์ดแจ้งเตือนไปยังห้องรับเคส <#${DISPATCH_CHANNEL_ID}> เรียบร้อยแล้วค่ะ`
+        content: `✅ **อนุมัติสลิปสำหรับลูกค้า <@${targetUser.id}> สำเร็จแล้วค่ะ!**\n> 🍵 ออเดอร์ \`#${order.order_code}\` ยอด ${order.total_price || 39} บาท\n> 🎯 มอบหมายไปยัง: ${selectedCounselorId ? `<@${selectedCounselorId}>` : `📢 ส่งแจ้งเตือนรวม (แท็ก Role)`}\n> 📨 ส่งการ์ดแจ้งเตือนไปยังห้องรับเคส <#${DISPATCH_CHANNEL_ID}> เรียบร้อยแล้วค่ะ`
       });
     } catch (err) {
       console.error("[HealJai] Error executing approve slip command:", err);
@@ -2059,7 +2164,6 @@ function setupHealJai(client) {
   };
 
   registerCommand("อนุมัติสลิป", handleApproveSlipCommand);
-  registerCommand("ยืนยันสลิป", handleApproveSlipCommand);
 
   // ── 1.3 ตรวจจับข้อความแชทเพื่อ Auto-Start เซสชันเมื่อทั้งสองฝ่ายส่งข้อความ ────────
   client.on("messageCreate", async (message) => {
@@ -2145,39 +2249,78 @@ function setupHealJai(client) {
   registerAutocomplete("บัตรพนักงาน", async (interaction) => {
     const focusedValue = (interaction.options.getFocused() || "").toLowerCase();
     const supabase = getSupabase();
-    let choices = [];
+    const choicesMap = new Map(); // key: userId, value: { name, value, priority }
 
+    // 1. ดึงข้อมูลจากฐานข้อมูล Supabase
     if (supabase) {
       const { data: counselors } = await supabase
         .from("heal_jai_counselors")
         .select("user_id, display_name, status")
-        .limit(50);
+        .limit(100);
 
       if (counselors && counselors.length > 0) {
-        choices = counselors.map((c) => {
-          const emoji = c.status === "ONLINE" ? "🟢" : (c.status === "BUSY" ? "🟡" : "⚪");
+        for (const c of counselors) {
+          const isDbOnline = c.status === "ONLINE";
+          const isDbBusy = c.status === "BUSY";
+          const emoji = isDbOnline ? "🟢" : (isDbBusy ? "🟡" : "⚪");
           const name = c.display_name || c.user_id;
-          return {
+          choicesMap.set(c.user_id, {
             name: `${emoji} ${name} (${c.user_id})`.slice(0, 100),
-            value: c.user_id
-          };
-        });
+            value: c.user_id,
+            priority: isDbOnline ? 1 : (isDbBusy ? 2 : 4)
+          });
+        }
       }
     }
 
-    // หากไม่มีใน DB ให้ดึงจากสมาชิกที่มี Role ผู้ให้คำปรึกษา
-    if (choices.length === 0 && interaction.guild) {
-      const members = interaction.guild.members.cache.filter((m) =>
-        m.roles.cache.has(COUNSELOR_ROLE_ID) || m.roles.cache.has(STAFF_ROLE_ID)
-      );
-      choices = members.map((m) => ({
-        name: `⚪ ${m.displayName} (${m.id})`.slice(0, 100),
-        value: m.id
-      }));
+    // 2. ดึง/ตรวจสมาชิกในเซิร์ฟเวอร์ Discord (รวมถึงตรวจ Live Discord Presence)
+    if (interaction.guild) {
+      let members = interaction.guild.members.cache;
+      if (members.size < 10) {
+        try {
+          members = await interaction.guild.members.fetch();
+        } catch (_) {}
+      }
+
+      for (const [memberId, member] of members) {
+        if (member.user.bot) continue;
+
+        const hasCounselorRole = member.roles.cache.has(COUNSELOR_ROLE_ID) ||
+                                member.roles.cache.has(STAFF_ROLE_ID) ||
+                                member.roles.cache.has("1536208040582316032");
+        const presenceStatus = member.presence?.status; // 'online' | 'idle' | 'dnd' | 'offline' | undefined
+        const isDiscordOnline = presenceStatus === "online";
+        const isDiscordAway = presenceStatus === "idle" || presenceStatus === "dnd";
+
+        if (choicesMap.has(memberId)) {
+          const current = choicesMap.get(memberId);
+          if (isDiscordOnline && !current.name.startsWith("🟢")) {
+            current.name = `🟢 ${member.displayName} (${memberId})`.slice(0, 100);
+            current.priority = 1;
+          } else if (isDiscordAway && current.name.startsWith("⚪")) {
+            current.name = `🟡 ${member.displayName} (${memberId})`.slice(0, 100);
+            current.priority = 2;
+          }
+        } else if (hasCounselorRole || isDiscordOnline || isDiscordAway) {
+          const emoji = isDiscordOnline ? "🟢" : (isDiscordAway ? "🟡" : "⚪");
+          const priority = isDiscordOnline ? 1 : (isDiscordAway ? 2 : (hasCounselorRole ? 3 : 5));
+          choicesMap.set(memberId, {
+            name: `${emoji} ${member.displayName} (${memberId})`.slice(0, 100),
+            value: memberId,
+            priority
+          });
+        }
+      }
     }
 
-    const filtered = choices
-      .filter((choice) => choice.name.toLowerCase().includes(focusedValue) || choice.value.includes(focusedValue))
+    const allChoices = Array.from(choicesMap.values());
+    allChoices.sort((a, b) => a.priority - b.priority);
+
+    const filtered = allChoices
+      .filter((choice) =>
+        choice.name.toLowerCase().includes(focusedValue) ||
+        choice.value.includes(focusedValue)
+      )
       .slice(0, 25);
 
     return interaction.respond(filtered).catch(() => {});
@@ -2337,14 +2480,7 @@ function setupHealJai(client) {
       });
     }
 
-    const targetUserId = interaction.options.getString("พนักงาน", true);
-    const newName = interaction.options.getString("ชื่อ");
-    const newSpecialties = interaction.options.getString("ความถนัด");
-    const newService = interaction.options.getString("บริการ");
-    const isSilent = interaction.options.getBoolean("โหมดเงียบ");
-    const newBio = interaction.options.getString("คำแนะนำตัว");
-    const newImageUrl = interaction.options.getString("รูปโปรไฟล์");
-    const newPayoutAccount = interaction.options.getString("เลขบัญชี");
+    const targetUserId = interaction.options.getUser("พนักงาน")?.id || interaction.options.getString("พนักงาน");
 
     await interaction.deferReply({ flags: FLAG_EPHEMERAL });
 
@@ -2354,111 +2490,59 @@ function setupHealJai(client) {
       return interaction.editReply({ content: "❌ ไม่สามารถเชื่อมต่อฐานข้อมูลได้ค่ะ" });
     }
 
-    const targetMember = await guild.members.fetch(targetUserId).catch(() => null);
+    // หากระบุตัวพนักงานมาตรงๆ -> เปิดหน้าแก้ไขของการ์ดคนนั้นทันที
+    if (targetUserId) {
+      const targetMember = await guild.members.fetch(targetUserId).catch(() => null);
+      let { data: counselor } = await supabase
+        .from("heal_jai_counselors")
+        .select("*")
+        .eq("user_id", targetUserId)
+        .maybeSingle();
 
-    // ดึงข้อมูลเดิม
-    const { data: existing } = await supabase
-      .from("heal_jai_counselors")
-      .select("*")
-      .eq("user_id", targetUserId)
-      .maybeSingle();
-
-    const updateData = {
-      guild_id: guild.id,
-      user_id: targetUserId,
-      updated_at: new Date().toISOString()
-    };
-
-    if (newName !== null && newName !== undefined && newName.trim().length > 0) {
-      updateData.display_name = newName.trim();
-    } else if (!existing) {
-      updateData.display_name = targetMember?.displayName || targetUserId;
-    }
-
-    if (newBio !== null && newBio !== undefined && newBio.trim().length > 0) {
-      updateData.bio = newBio.trim();
-    }
-
-    if (newImageUrl !== null && newImageUrl !== undefined && newImageUrl.trim().length > 0) {
-      updateData.image_url = newImageUrl.trim();
-    }
-
-    if (newPayoutAccount !== null && newPayoutAccount !== undefined && newPayoutAccount.trim().length > 0) {
-      updateData.payout_account = newPayoutAccount.trim();
-    }
-
-    if (isSilent !== null && isSilent !== undefined) {
-      updateData.is_silent_companion = isSilent;
-    }
-
-    if (newService) {
-      if (newService === "all") {
-        updateData.service_modes = ["chat", "voice"];
-      } else if (newService === "chat") {
-        updateData.service_modes = ["chat"];
-      } else if (newService === "voice") {
-        updateData.service_modes = ["voice"];
+      if (!counselor) {
+        counselor = {
+          guild_id: guild.id,
+          user_id: targetUserId,
+          display_name: targetMember?.displayName || targetUserId,
+          status: "OFFLINE",
+          service_modes: ["chat", "voice"],
+          is_silent_companion: false,
+          specialty_tags: ALL_SPECIALTIES,
+          bio: "ยินดีต้อนรับสู่พื้นที่พักใจ พร้อมรับฟังและอยู่เคียงข้างคุณเสมอค่ะ",
+          image_url: targetMember?.displayAvatarURL?.({ extension: "png", size: 512 }) || null
+        };
+        await supabase.from("heal_jai_counselors").upsert(counselor, { onConflict: "user_id" });
       }
+
+      return interaction.editReply(buildAdminCounselorEditPayload(counselor, targetMember));
     }
 
-    if (newSpecialties !== null && newSpecialties !== undefined && newSpecialties.trim().length > 0) {
-      const parsedTags = newSpecialties
-        .split(/[,，\n]/)
-        .map((s) => s.trim())
-        .filter(Boolean);
-      updateData.specialty_tags = parsedTags;
-      updateData.specialties_updated_at = new Date().toISOString();
-    }
-
-    const { error: upsertErr } = await supabase
+    // กรณีไม่ระบุตัวพนักงาน -> แสดงเมนู Select Dropdown รายชื่อพนักงาน
+    const { data: dbCounselors } = await supabase
       .from("heal_jai_counselors")
-      .upsert(updateData, { onConflict: "user_id" });
+      .select("user_id, display_name, status")
+      .eq("guild_id", guild.id)
+      .limit(25);
 
-    if (upsertErr) {
-      console.error("[HealJai] Error updating counselor:", upsertErr.message);
-      return interaction.editReply({
-        content: `❌ เกิดข้อผิดพลาดในการบันทึกข้อมูล: \`${upsertErr.message}\``
-      });
+    let counselorList = [];
+    if (dbCounselors && dbCounselors.length > 0) {
+      counselorList = dbCounselors.map((c) => ({
+        userId: c.user_id,
+        displayName: c.display_name,
+        status: c.status
+      }));
+    } else {
+      const roleMembers = guild.members.cache.filter((m) =>
+        m.roles.cache.has(COUNSELOR_ROLE_ID) || m.roles.cache.has(STAFF_ROLE_ID)
+      );
+      counselorList = roleMembers.map((m) => ({
+        userId: m.id,
+        displayName: m.displayName,
+        status: "OFFLINE"
+      })).slice(0, 25);
     }
 
-    // อัปเดตการ์ดบัตรพนักงานบน Discord ทันที
-    await updateCounselorCardMessage(guild, targetUserId);
-
-    // ดึงข้อมูลล่าสุดมาสรุปผล
-    const { data: updatedCounselor } = await supabase
-      .from("heal_jai_counselors")
-      .select("*")
-      .eq("user_id", targetUserId)
-      .maybeSingle();
-
-    const sModes = updatedCounselor?.service_modes || ["chat", "voice"];
-    const sModesText = sModes.map(m => m === "voice" ? "🔊 คอลเสียง" : "💬 พิมพ์คุย").join(", ");
-    const sTags = (updatedCounselor?.specialty_tags || []).join(", ") || "*(ไม่ได้ระบุ)*";
-
-    return interaction.editReply({
-      flags: FLAG_V2,
-      components: [
-        {
-          type: 17,
-          components: [
-            {
-              type: 10,
-              content: [
-                `## <:idolgreensuki:1554499554575913041>︲__\` แก้ไขข้อมูลผู้รับฟังสำเร็จแล้วค่ะ! \`__\n`,
-                `* 👤⠀**พนักงาน:** <@${targetUserId}> (${updatedCounselor?.display_name || targetUserId})`,
-                `* 📱⠀**บริการที่เปิดรับ:** \`[${sModesText}]\``,
-                `* 🍃⠀**โหมดนั่งเงียบ:** ${updatedCounselor?.is_silent_companion ? "🟢 เปิดใช้งาน" : "⚪ ปิด"}`,
-                `* 🎯⠀**ความถนัดเฉพาะ:** ${sTags}`,
-                `* 📝⠀**คำแนะนำตัว:** "${updatedCounselor?.bio || '-'}"`,
-                updatedCounselor?.image_url ? `* 🖼️⠀**รูปโปรไฟล์:** [คลิกดูรูปภาพ](${updatedCounselor.image_url})` : null,
-                updatedCounselor?.payout_account ? `* 💼⠀**เลขบัญชีรับเงิน:** \`${updatedCounselor.payout_account}\`` : null,
-                `\n> 🍵 *ระบบได้ทำการอัปเดตข้อมูลบนบัตรพนักงานในช่อง Discord ทันทีเรียบร้อยแล้วค่ะ*`
-              ].filter(Boolean).join("\n")
-            }
-          ]
-        }
-      ]
-    });
+    return interaction.editReply(buildAdminCounselorSelectPayload(counselorList));
   };
 
   registerCommand("แก้ไขพนักงาน", handleEditCounselorCommand);
@@ -2471,8 +2555,123 @@ function setupHealJai(client) {
     const { customId, guild, member, user, channel } = interaction;
     const supabase = getSupabase();
 
+    // ── 2.0 จัดการ Modal Submit ─────────────────────────────────────────
+    if (interaction.isModalSubmit()) {
+      if (customId && customId.startsWith("heal_jai_admin_modal_submit:")) {
+        const targetUserId = customId.split(":")[1];
+        const newDisplayName = interaction.fields.getTextInputValue("display_name");
+        const newBio = interaction.fields.getTextInputValue("bio");
+        const newImageUrl = interaction.fields.getTextInputValue("image_url");
+        const newPayoutAccount = interaction.fields.getTextInputValue("payout_account");
+
+        await interaction.deferUpdate().catch(() => {});
+
+        const updateData = {
+          updated_at: new Date().toISOString()
+        };
+        if (newDisplayName && newDisplayName.trim()) updateData.display_name = newDisplayName.trim();
+        if (newBio !== undefined) updateData.bio = newBio.trim();
+        if (newImageUrl !== undefined) updateData.image_url = newImageUrl.trim();
+        if (newPayoutAccount !== undefined) updateData.payout_account = newPayoutAccount.trim();
+
+        if (supabase) {
+          await supabase
+            .from("heal_jai_counselors")
+            .update(updateData)
+            .eq("user_id", targetUserId);
+        }
+
+        await updateCounselorCardMessage(guild, targetUserId);
+
+        const targetMember = await guild.members.fetch(targetUserId).catch(() => null);
+        let updated = null;
+        if (supabase) {
+          const { data } = await supabase
+            .from("heal_jai_counselors")
+            .select("*")
+            .eq("user_id", targetUserId)
+            .maybeSingle();
+          updated = data;
+        }
+
+        return interaction.editReply(buildAdminCounselorEditPayload(updated || {}, targetMember)).catch(() => {});
+      }
+    }
+
     // ── 2.0 จัดการ Select Menu (เลือกผู้รับฟัง & เลือกความถนัดเฉพาะ) ─────
     if (interaction.isStringSelectMenu()) {
+      // แอดมินเลือกรายชื่อพนักงานจาก Dropdown
+      if (customId === "heal_jai_admin_select_edit_counselor") {
+        const chosenUserId = interaction.values[0];
+        if (chosenUserId === "none") return;
+        await interaction.deferUpdate().catch(() => {});
+
+        const targetMember = await guild.members.fetch(chosenUserId).catch(() => null);
+        let counselor = null;
+        if (supabase) {
+          const { data } = await supabase
+            .from("heal_jai_counselors")
+            .select("*")
+            .eq("user_id", chosenUserId)
+            .maybeSingle();
+          counselor = data;
+        }
+
+        if (!counselor) {
+          counselor = {
+            guild_id: guild.id,
+            user_id: chosenUserId,
+            display_name: targetMember?.displayName || chosenUserId,
+            status: "OFFLINE",
+            service_modes: ["chat", "voice"],
+            is_silent_companion: false,
+            specialty_tags: ALL_SPECIALTIES,
+            bio: "ยินดีต้อนรับสู่พื้นที่พักใจ พร้อมรับฟังและอยู่เคียงข้างคุณเสมอค่ะ",
+            image_url: targetMember?.displayAvatarURL?.({ extension: "png", size: 512 }) || null
+          };
+          if (supabase) {
+            await supabase.from("heal_jai_counselors").upsert(counselor, { onConflict: "user_id" });
+          }
+        }
+
+        return interaction.editReply(buildAdminCounselorEditPayload(counselor, targetMember)).catch((e) => {
+          console.error("[HealJai] Error rendering counselor edit payload:", e.message);
+        });
+      }
+
+      // แอดมินเลือกความถนัดเฉพาะ (Specialties Multi-Select Dropdown)
+      if (customId && customId.startsWith("heal_jai_admin_set_specialties:")) {
+        const targetUserId = customId.split(":")[1];
+        const chosenTags = interaction.values;
+        await interaction.deferUpdate().catch(() => {});
+
+        if (supabase) {
+          await supabase
+            .from("heal_jai_counselors")
+            .update({
+              specialty_tags: chosenTags,
+              specialties_updated_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .eq("user_id", targetUserId);
+        }
+
+        await updateCounselorCardMessage(guild, targetUserId);
+
+        const targetMember = await guild.members.fetch(targetUserId).catch(() => null);
+        let updated = null;
+        if (supabase) {
+          const { data } = await supabase
+            .from("heal_jai_counselors")
+            .select("*")
+            .eq("user_id", targetUserId)
+            .maybeSingle();
+          updated = data;
+        }
+
+        return interaction.editReply(buildAdminCounselorEditPayload(updated || {}, targetMember)).catch(() => {});
+      }
+
       if (customId === "heal_jai_select_counselor" || customId === CUSTOM_IDS.SELECT_COUNSELOR || customId === "p_349898994257760257") {
         let state = ticketSelections.get(channel.id) || { step: 3.5, mode: "chat", drinkId: "tea_39", toppingId: "specific_39" };
         const chosenCounselorId = interaction.values[0];
@@ -2497,6 +2696,237 @@ function setupHealJai(client) {
       }
 
       return;
+    }
+
+    // ── 2.0.1 ปุ่มเลือกรูปแบบบริการ (Step 1 -> Step 2) ────────────────
+    if (
+      customId === CUSTOM_IDS.MODE_CHAT ||
+      customId === CUSTOM_IDS.MODE_VOICE ||
+      customId === "p_349868508034633730" ||
+      customId === "p_349868816987066371"
+    ) {
+      const state = ticketSelections.get(channel.id) || { step: 1 };
+      const isVoice = (customId === CUSTOM_IDS.MODE_VOICE || customId === "p_349868816987066371");
+      state.mode = isVoice ? "voice" : "chat";
+      state.step = 2;
+      state.userAvatarUrl = user.displayAvatarURL({ extension: "png", size: 512 });
+      ticketSelections.set(channel.id, state);
+
+      return interaction.update(buildInteractiveOrderPayload(state)).catch((e) => {
+        console.error("[HealJai] Failed to update service mode:", e.message);
+      });
+    }
+
+    // ── 2.0.2 ปุ่มเลือกเครื่องดื่ม (Step 2 -> Step 3) ─────────────────
+    if (
+      [CUSTOM_IDS.DRINK_TEA_39, CUSTOM_IDS.DRINK_COCOA_69, CUSTOM_IDS.DRINK_COFFEE_129, "p_349868922385731588"].includes(customId)
+    ) {
+      const state = ticketSelections.get(channel.id) || { step: 2, mode: "chat" };
+      if (customId === CUSTOM_IDS.DRINK_TEA_39 || customId === "heal_jai_drink_tea_39") state.drinkId = "tea_39";
+      else if (customId === CUSTOM_IDS.DRINK_COCOA_69 || customId === "heal_jai_drink_cocoa_69") state.drinkId = "cocoa_69";
+      else if (customId === CUSTOM_IDS.DRINK_COFFEE_129 || customId === "heal_jai_drink_coffee_129" || customId === "p_349868922385731588") state.drinkId = "coffee_129";
+      else state.drinkId = "tea_39";
+
+      state.step = 3;
+      state.userAvatarUrl = user.displayAvatarURL({ extension: "png", size: 512 });
+      ticketSelections.set(channel.id, state);
+
+      return interaction.update(buildInteractiveOrderPayload(state)).catch((e) => {
+        console.error("[HealJai] Failed to update drink selection:", e.message);
+      });
+    }
+
+    // ── 2.0.3 ปุ่มเลือกท็อปปิ้ง (Step 3 -> Step 3b หรือ Step 4) ────────
+    if (
+      [CUSTOM_IDS.TOPPING_SILENT, CUSTOM_IDS.TOPPING_SPECIFIC, CUSTOM_IDS.TOPPING_NONE, "p_349881684222545926"].includes(customId)
+    ) {
+      const state = ticketSelections.get(channel.id) || { step: 3, mode: "chat", drinkId: "tea_39" };
+      state.userAvatarUrl = user.displayAvatarURL({ extension: "png", size: 512 });
+
+      if (customId === CUSTOM_IDS.TOPPING_SILENT) {
+        state.toppingId = "silent_19";
+        state.counselorId = null;
+        state.counselorName = null;
+        state.step = 4;
+      } else if (customId === CUSTOM_IDS.TOPPING_NONE || customId === "p_349881684222545926") {
+        state.toppingId = "none";
+        state.counselorId = null;
+        state.counselorName = null;
+        state.step = 4;
+      } else if (customId === CUSTOM_IDS.TOPPING_SPECIFIC) {
+        state.toppingId = "specific_39";
+        state.step = 3.5;
+      }
+      ticketSelections.set(channel.id, state);
+
+      return interaction.update(buildInteractiveOrderPayload(state)).catch((e) => {
+        console.error("[HealJai] Failed to update topping selection:", e.message);
+      });
+    }
+
+    // ── 2.0.4 ปุ่มสั่งใหม่ (Reset Wizard) ──────────────────────────────
+    if (
+      customId === CUSTOM_IDS.RESET_ORDER ||
+      customId === "heal_jai_reset_order" ||
+      customId === "p_349886014707208200"
+    ) {
+      const state = {
+        step: 1,
+        mode: null,
+        drinkId: null,
+        toppingId: null,
+        counselorId: null,
+        counselorName: null,
+        userAvatarUrl: user.displayAvatarURL({ extension: "png", size: 512 })
+      };
+      ticketSelections.set(channel.id, state);
+
+      return interaction.update(buildInteractiveOrderPayload(state)).catch((e) => {
+        console.error("[HealJai] Failed to reset order wizard:", e.message);
+      });
+    }
+
+    // ── 2.0.5 จัดการปุ่มแผงควบคุมแก้ไขพนักงาน (Admin Counselor Controls) ──
+    if (customId === "heal_jai_admin_change_counselor") {
+      await interaction.deferUpdate().catch(() => {});
+      let counselorList = [];
+      if (supabase) {
+        const { data: dbCounselors } = await supabase
+          .from("heal_jai_counselors")
+          .select("user_id, display_name, status")
+          .eq("guild_id", guild.id)
+          .limit(25);
+
+        if (dbCounselors && dbCounselors.length > 0) {
+          counselorList = dbCounselors.map((c) => ({
+            userId: c.user_id,
+            displayName: c.display_name,
+            status: c.status
+          }));
+        }
+      }
+      if (counselorList.length === 0) {
+        const roleMembers = guild.members.cache.filter((m) =>
+          m.roles.cache.has(COUNSELOR_ROLE_ID) || m.roles.cache.has(STAFF_ROLE_ID)
+        );
+        counselorList = roleMembers.map((m) => ({
+          userId: m.id,
+          displayName: m.displayName,
+          status: "OFFLINE"
+        })).slice(0, 25);
+      }
+
+      return interaction.editReply(buildAdminCounselorSelectPayload(counselorList)).catch(() => {});
+    }
+
+    if (customId && customId.startsWith("heal_jai_admin_edit_modal:")) {
+      const targetUserId = customId.split(":")[1];
+      let currentData = null;
+      if (supabase) {
+        const { data } = await supabase
+          .from("heal_jai_counselors")
+          .select("*")
+          .eq("user_id", targetUserId)
+          .maybeSingle();
+        currentData = data;
+      }
+
+      const modal = buildAdminEditCounselorModal(targetUserId, currentData || {});
+      return interaction.showModal(modal).catch((e) => {
+        console.error("[HealJai] Error showing admin edit counselor modal:", e.message);
+      });
+    }
+
+    if (customId && customId.startsWith("heal_jai_admin_toggle_service:")) {
+      const targetUserId = customId.split(":")[1];
+      await interaction.deferUpdate().catch(() => {});
+
+      let existing = null;
+      if (supabase) {
+        const { data } = await supabase
+          .from("heal_jai_counselors")
+          .select("*")
+          .eq("user_id", targetUserId)
+          .maybeSingle();
+        existing = data;
+      }
+
+      const currentModes = existing?.service_modes || ["chat", "voice"];
+      let nextModes = ["chat", "voice"];
+      if (currentModes.includes("chat") && currentModes.includes("voice")) {
+        nextModes = ["chat"]; // Chat only
+      } else if (currentModes.length === 1 && currentModes[0] === "chat") {
+        nextModes = ["voice"]; // Voice only
+      } else {
+        nextModes = ["chat", "voice"]; // Both
+      }
+
+      if (supabase) {
+        await supabase
+          .from("heal_jai_counselors")
+          .update({
+            service_modes: nextModes,
+            updated_at: new Date().toISOString()
+          })
+          .eq("user_id", targetUserId);
+      }
+
+      await updateCounselorCardMessage(guild, targetUserId);
+
+      const targetMember = await guild.members.fetch(targetUserId).catch(() => null);
+      let updated = null;
+      if (supabase) {
+        const { data } = await supabase
+          .from("heal_jai_counselors")
+          .select("*")
+          .eq("user_id", targetUserId)
+          .maybeSingle();
+        updated = data;
+      }
+
+      return interaction.editReply(buildAdminCounselorEditPayload(updated || {}, targetMember)).catch(() => {});
+    }
+
+    if (customId && customId.startsWith("heal_jai_admin_toggle_silent:")) {
+      const targetUserId = customId.split(":")[1];
+      await interaction.deferUpdate().catch(() => {});
+
+      let existing = null;
+      if (supabase) {
+        const { data } = await supabase
+          .from("heal_jai_counselors")
+          .select("*")
+          .eq("user_id", targetUserId)
+          .maybeSingle();
+        existing = data;
+      }
+
+      const nextSilent = !existing?.is_silent_companion;
+
+      if (supabase) {
+        await supabase
+          .from("heal_jai_counselors")
+          .update({
+            is_silent_companion: nextSilent,
+            updated_at: new Date().toISOString()
+          })
+          .eq("user_id", targetUserId);
+      }
+
+      await updateCounselorCardMessage(guild, targetUserId);
+
+      const targetMember = await guild.members.fetch(targetUserId).catch(() => null);
+      let updated = null;
+      if (supabase) {
+        const { data } = await supabase
+          .from("heal_jai_counselors")
+          .select("*")
+          .eq("user_id", targetUserId)
+          .maybeSingle();
+        updated = data;
+      }
+
+      return interaction.editReply(buildAdminCounselorEditPayload(updated || {}, targetMember)).catch(() => {});
     }
 
     // ── 2.0.1 ปุ่มเลือกรูปแบบบริการ (Step 1 -> Step 2) ────────────────
@@ -3314,13 +3744,19 @@ function setupHealJai(client) {
       const ticketState = order.ticket_channel_id ? ticketSelections.get(order.ticket_channel_id) : null;
       const serviceMode = order.service_mode || ticketState?.mode || "chat";
 
-      // ตรวจสอบเงื่อนไขว่าผู้รับฟังเปิดรับบริการโหมดนี้หรือไม่ (chat / voice)
+      // ตรวจสอบเงื่อนไขว่าผู้รับฟังออนไลน์, รองรับโหมดบริการ (chat / voice), และรองรับนั่งเงียบหรือไม่
       if (supabase) {
         const { data: counselorRecord } = await supabase
           .from("heal_jai_counselors")
-          .select("service_modes, is_silent_companion")
+          .select("status, service_modes, is_silent_companion")
           .eq("user_id", user.id)
           .maybeSingle();
+
+        if (!counselorRecord || counselorRecord.status !== "ONLINE") {
+          return interaction.editReply({
+            content: "❌ ขออภัยค่ะ เฉพาะผู้ให้คำปรึกษาที่มีสถานะ **🟢 ออนไลน์ (ONLINE)** ในระบบเท่านั้นที่สามารถกดรับเคสได้ค่ะ (กรุณากดเปิดกะ/ออนไลน์ก่อนนะคะ 🍵)"
+          });
+        }
 
         const counselorModes = Array.isArray(counselorRecord?.service_modes) && counselorRecord.service_modes.length > 0
           ? counselorRecord.service_modes
@@ -3330,6 +3766,12 @@ function setupHealJai(client) {
           const modeLabel = serviceMode === "voice" ? "🎙️ คอลเสียง" : "💬 พิมพ์คุย";
           return interaction.editReply({
             content: `❌ ขออภัยค่ะ บัตรพนักงานของคุณไม่ได้เปิดรับบริการประเภท **${modeLabel}** จึงไม่สามารถกดรับเคสนี้ได้ค่ะ (ติดต่อแอดมินเพื่อปรับแก้ข้อมูลบริการนะคะ 🍵)`
+          });
+        }
+
+        if (order.is_silent && !counselorRecord.is_silent_companion) {
+          return interaction.editReply({
+            content: "❌ ขออภัยค่ะ เคสนี้ลูกค้าเลือกท็อปปิ้ง **🌿 นั่งเงียบเป็นเพื่อน** แต่บัตรพนักงานของคุณไม่ได้เปิดรับบริการนี้ค่ะ"
           });
         }
       }
@@ -3521,21 +3963,51 @@ function setupHealJai(client) {
           status: "DISPATCH_PASS",
           orderCode: order.order_code,
           customerId: order.customer_id,
-          extraInfo: `↩️ ผู้รับฟัง <@${user.id}> กดสละสิทธิ์เคส ระบบส่งต่อเคสให้ผู้รับฟังท่านอื่นที่รองรับโหมด ${order.service_mode === "voice" ? "คอลเสียง" : "พิมพ์แชท"}`
+          extraInfo: `↩️ ผู้รับฟัง <@${user.id}> กดสละสิทธิ์เคส ระบบลบการ์ดเดิมและส่งต่อเคสเป็น Open Dispatch แท็ก Role <@&${COUNSELOR_ROLE_ID}>`
         });
+
+        // ลบข้อความการ์ดแจ้งเตือนเดิมทิ้ง
+        if (interaction.message) {
+          await interaction.message.delete().catch(() => {});
+        }
+
+        // ส่งการ์ด Open Dispatch ใบใหม่พร้อมแท็ก Role
+        const newExpireTimestamp = Math.floor((Date.now() + 3 * 60 * 1000) / 1000);
+        const newDispatchPayload = buildDispatchAlertPayload({
+          counselorId: null,
+          customerId: order.customer_id,
+          serviceMode: order.service_mode || "chat",
+          orderId: order.id,
+          orderCode: order.order_code,
+          packageName: order.package_name || "ชาเขียวเย็นใจ",
+          duration: order.duration_minutes || 15,
+          isSilent: order.is_silent || false,
+          isSpecific: false,
+          toppingName: order.is_silent ? "นั่งเงียบเป็นเพื่อน (+19 บาท)" : null,
+          isBooster: order.is_booster || false,
+          totalMinutes: order.duration_minutes || 15,
+          totalPrice: order.total_price || 39,
+          expireTimestamp: newExpireTimestamp
+        });
+
+        const dispatchChannel = guild.channels.cache.get(DISPATCH_CHANNEL_ID) ||
+                                await guild.channels.fetch(DISPATCH_CHANNEL_ID).catch(() => null);
+        if (dispatchChannel) {
+          if (newDispatchPayload.pingMention) {
+            await dispatchChannel.send({ content: newDispatchPayload.pingMention }).catch(() => {});
+          }
+          const newMsg = await dispatchChannel.send(newDispatchPayload).catch(() => null);
+          if (newMsg) {
+            scheduleDispatchTimeout(client, guild, order.id, newMsg.id, newExpireTimestamp);
+          }
+        }
       }
 
       const orderMode = order?.service_mode || "chat";
       const modeLabel = orderMode === "voice" ? "🎙️ คอลเสียง" : "💬 พิมพ์คุย";
 
-      if (interaction.message && interaction.message.editable) {
-        await interaction.message.edit({
-          content: `<@&${COUNSELOR_ROLE_ID}> ↩️ **<@${user.id}> ได้กดสละสิทธิ์เคสนี้**\n> 📢 ระบบเปิดเคสนี้เป็น Open Dispatch สำหรับผู้รับฟังที่เปิดรับบริการ **${modeLabel}** และว่างอยู่ สามารถกดรับเคสต่อได้ทันทีค่ะ!`
-        }).catch(() => {});
-      }
-
       return interaction.editReply({
-        content: `↩️ คุณได้สละสิทธิ์เคสนี้แล้ว ระบบได้เปิดเคสให้ผู้ให้คำปรึกษาท่านอื่นที่รองรับโหมด ${modeLabel} กดรับแทนแล้วค่ะ ขอบคุณที่แจ้งนะคะ 🍵`
+        content: `↩️ คุณได้สละสิทธิ์เคสนี้แล้ว ระบบได้ลบการ์ดเดิมและเปิดเคสให้ผู้ให้คำปรึกษาท่านอื่นที่รองรับโหมด ${modeLabel} กดรับแทนแล้วค่ะ ขอบคุณที่แจ้งนะคะ 🍵`
       });
     }
 
@@ -3773,47 +4245,79 @@ function setupHealJai(client) {
         });
       }
 
-      // เช็กยอดสะสม (Wallet)
-      if (customId === CUSTOM_IDS.COUNSELOR_WALLET) {
-        await interaction.deferReply({ flags: FLAG_EPHEMERAL }).catch(() => {});
+      // เช็กยอดสะสม & ประวัติการให้บริการ (Wallet & Service History)
+      if (
+        customId === CUSTOM_IDS.COUNSELOR_WALLET ||
+        customId === "heal_jai_counselor_wallet" ||
+        (customId && customId.startsWith("heal_jai_wallet_")) ||
+        customId === "p_352948807912132609" ||
+        customId === "p_352948958059827204" ||
+        customId === "p_352948876690329602" ||
+        customId === "p_352948916817235971"
+      ) {
+        let page = 1;
+        let targetUserId = user.id;
 
-        let totalSessions = 0;
-        let earnings = 0.00;
-        let avgRating = 5.00;
+        const isPaginationAction = (customId && customId.startsWith("heal_jai_wallet_") && customId !== "heal_jai_counselor_wallet") ||
+                                   ["p_352948807912132609", "p_352948958059827204", "p_352948876690329602", "p_352948916817235971"].includes(customId);
 
-        if (supabase) {
-          const { data: counselorData } = await supabase
-            .from("heal_jai_counselors")
-            .select("*")
-            .eq("user_id", user.id)
-            .maybeSingle();
-
-          if (counselorData) {
-            totalSessions = counselorData.total_sessions || 0;
-            earnings = counselorData.accumulated_earnings || 0.00;
-            avgRating = counselorData.average_rating || 5.00;
+        if (isPaginationAction) {
+          if (customId && customId.startsWith("heal_jai_wallet_")) {
+            const parts = customId.split(":");
+            page = parseInt(parts[1], 10) || 1;
+            if (parts[2]) targetUserId = parts[2];
+          } else if (customId === "p_352948876690329602") {
+            page = 2;
+          } else if (customId === "p_352948916817235971") {
+            page = 999;
           }
+          await interaction.deferUpdate().catch(() => {});
+        } else {
+          await interaction.deferReply({ flags: FLAG_EPHEMERAL }).catch(() => {});
         }
 
-        return interaction.editReply({
-          flags: FLAG_V2,
-          components: [
-            {
-              type: 17,
-              components: [
-                {
-                  type: 10,
-                  content: [
-                    `## 💼︲__\` กระเป๋าเงินและสถิติของคุณ <@${user.id}> \`__\n`,
-                    `* 🍵⠀**จำนวนเซสชันที่ดูแล:** ${totalSessions} เซสชัน`,
-                    `* ⭐⠀**คะแนนเฉลี่ย:** ⭐ ${avgRating} / 5.00`,
-                    `* 💰⠀**รายได้สะสมรอโอน (70%):** **${earnings}** บาท\n`,
-                    `-# 🕒 รอบการจ่ายเงิน: ทุกวันที่ 15 และวันสิ้นเดือน (สะสมขั้นต่ำ 100 บาท)`
-                  ].join('\n')
-                }
-              ]
-            }
-          ]
+        const pageSize = 3;
+        const from = (page - 1) * pageSize;
+        const to = from + pageSize - 1;
+
+        let counselorData = null;
+        let orders = [];
+        let totalCount = 0;
+
+        if (supabase) {
+          const { data: cData } = await supabase
+            .from("heal_jai_counselors")
+            .select("*")
+            .eq("user_id", targetUserId)
+            .maybeSingle();
+          counselorData = cData;
+
+          const { data: orderData, count } = await supabase
+            .from("heal_jai_orders_sessions")
+            .select("*", { count: "exact" })
+            .eq("counselor_id", targetUserId)
+            .order("created_at", { ascending: false })
+            .range(from, to);
+
+          orders = orderData || [];
+          totalCount = count || 0;
+        }
+
+        const targetMember = await guild.members.fetch(targetUserId).catch(() => null);
+        const avatarUrl = targetMember?.displayAvatarURL?.({ extension: "png", size: 512 }) || user.displayAvatarURL({ extension: "png", size: 512 });
+
+        const payload = buildCounselorWalletHistoryPayload({
+          counselor: counselorData || {},
+          orders,
+          totalCount,
+          page,
+          pageSize,
+          userAvatarUrl: avatarUrl,
+          userId: targetUserId
+        });
+
+        return interaction.editReply(payload).catch((e) => {
+          console.error("[HealJai] Error sending counselor wallet payload:", e.message);
         });
       }
 

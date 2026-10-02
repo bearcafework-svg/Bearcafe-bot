@@ -134,6 +134,7 @@ setupFeature("moveMembers", "./src/commands/moveMembers", "setupMoveMembers");
 setupFeature("gachapon", "./src/features/gachapon", "setupGachapon", supabaseEnvKeys);
 setupFeature("mainQuest", "./src/features/mainQuest", "setupMainQuest", supabaseEnvKeys);
 setupFeature("sendComponent", "./src/commands/sendComponent", "setupSendComponent");
+setupFeature("aiAssistant", "./src/features/ai", "setupAI", ["GEMINI_API_KEY"]);
 
 
 
@@ -142,13 +143,7 @@ setupFeature("sendComponent", "./src/commands/sendComponent", "setupSendComponen
 
 
 function setupFeature(name, modulePath, setupName, requiredEnv = []) {
-  // 🛡️ ป้องกันบอทหลักโหลดระบบฮีลใจ (HealJai ทำงานเฉพาะบนบอท Dev / Secondary Bot เท่านั้น)
-  if (name === "healJai" && !isDevMode) {
-    console.log("[feature] 🛑 Skipping healJai on Main Bot (HealJai runs exclusively on Dev Bot).");
-    return;
-  }
-
-  if (isDevMode && !devAllowedFeatures.includes(name)) {
+  if (isDevMode && name !== "sendComponent" && !devAllowedFeatures.includes(name)) {
     return;
   }
 

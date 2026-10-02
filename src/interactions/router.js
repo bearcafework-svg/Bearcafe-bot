@@ -98,15 +98,22 @@ function initInteractionRouter(client) {
         const guildId = interaction.guildId || interaction.guild?.id;
         const isHealJaiGuild = guildId && (guildId === process.env.HEALJAI_GUILD_ID || guildId === "1536199707922141254");
         const customId = interaction.customId || "";
-        const cmdName = interaction.commandName || "";
+        const cmdName = (interaction.commandName || "").toLowerCase();
+        const allowedDevCommands = (process.env.DEV_SLASH_COMMANDS || "test_bee,send-component,heal-component,ยืนยันการโอน,อนุมัติสลิป,บัตรพนักงาน,แก้ไขพนักงาน,แก้ไขที่ปรึกษา,หมุนกาชา,gacha")
+          .split(",")
+          .map((s) => s.trim().toLowerCase())
+          .filter(Boolean);
+
         const isHealJaiInteraction =
           isHealJaiGuild ||
           customId.startsWith("heal_jai_") ||
           customId.startsWith("btn_cancel_order") ||
           customId.startsWith("btn_call_admin") ||
+          customId.startsWith("p_") ||
           cmdName.startsWith("heal") ||
           cmdName.startsWith("ฮิลใจ") ||
-          ["แก้ไขพนักงาน", "แก้ไขที่ปรึกษา", "บัตรพนักงาน", "ยืนยันการโอน", "ยืนยันสลิป", "อนุมัติสลิป"].includes(cmdName);
+          allowedDevCommands.includes(cmdName) ||
+          ["send-component", "heal-component", "แก้ไขพนักงาน", "แก้ไขที่ปรึกษา", "บัตรพนักงาน", "ยืนยันการโอน", "อนุมัติสลิป"].includes(cmdName);
 
         if (chId && !devAllowedChannels.includes(chId) && !isHealJaiInteraction) {
           return;

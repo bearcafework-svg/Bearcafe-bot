@@ -2,8 +2,54 @@
 // ตัวกลางประสานงานระหว่างระบบผึ้ง (Bee System) และระบบโฆษณาบรอดแคสต์ (Broadcast Scheduler)
 // ป้องกันการส่งชนกันในห้องแชทเดียวกัน และดูแลสถานะข้อความเพื่อการลบ/แทนที่ (Clean Chat)
 
+const fs = require("fs");
+const path = require("path");
+
 const activeBeesByChannel = new Map();
 const lastBroadcastByChannel = new Map();
+
+const STATE_FILE = path.resolve(process.cwd(), "src/shared/lastBroadcastState.json");
+
+/**
+ * โหลดสถานะบรอดแคสต์ล่าสุดจากไฟล์เมื่อเริ่มต้นระบบ
+ */
+function loadBroadcastState() {
+  try {
+    if (fs.existsSync(STATE_FILE)) {
+      const raw = fs.readFileSync(STATE_FILE, "utf8");
+      const data = JSON.parse(raw);
+      if (data && typeof data === "object") {
+        for (const [chId, info] of Object.entries(data)) {
+          lastBroadcastByChannel.set(chId, info);
+        }
+      }
+    }
+  } catch (err) {
+    // ignore
+  }
+}
+
+/**
+ * บันทึกสถานะบรอดแคสต์ลงไฟล์เพื่อคงอยู่แม้บอทรีสตาร์ท
+ */
+function saveBroadcastState() {
+  try {
+    const obj = {};
+    for (const [chId, info] of lastBroadcastByChannel.entries()) {
+      obj[chId] = info;
+    }
+    const dir = path.dirname(STATE_FILE);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(STATE_FILE, JSON.stringify(obj, null, 2), "utf8");
+  } catch (err) {
+    console.warn("[chatActivityBridge] Failed to save broadcast state:", err.message);
+  }
+}
+
+// โหลดข้อมูลเก่าขึ้น Memory ทันที
+loadBroadcastState();
 
 /**
  * บันทึกว่ามีผึ้ง active อยู่ใน channel
@@ -39,7 +85,7 @@ function isBeeActive(channelId) {
 }
 
 /**
- * บันทึกข้อความบรอดแคสต์ล่าสุดของ channel
+ * บันทึกข้อความบรอดแคสต์ล่าสุดของ channel พร้อมบันทึกลง Persistent Storage
  * @param {string} channelId
  * @param {string} messageId
  */
@@ -49,6 +95,7 @@ function recordBroadcast(channelId, messageId) {
     messageId,
     sentAt: Date.now()
   });
+  saveBroadcastState();
 }
 
 /**

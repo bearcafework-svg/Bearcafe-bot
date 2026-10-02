@@ -13,7 +13,10 @@ const config = require("../../config");
 const FLAG_EPHEMERAL = MessageFlags.Ephemeral;
 
 function setupSendComponent(client) {
-  registerCommand("send-component", async (interaction) => {
+  const handleComponentDispatch = async (interaction) => {
+    // ⚡ Defer reply ทันที เพื่อป้องกัน 10062 Unknown Interaction และ timeout 3 วินาทีของ Discord
+    await interaction.deferReply({ flags: FLAG_EPHEMERAL }).catch(() => {});
+
     const isOwner = (process.env.OWNER_ID && interaction.user.id === process.env.OWNER_ID) ||
                     (interaction.guild && interaction.guild.ownerId === interaction.user.id);
     const staffRoleId = (config.healJai && config.healJai.staffRoleId) || "1536208040582316032";
@@ -27,24 +30,19 @@ function setupSendComponent(client) {
     const isStaff = isOwner || hasStaffRole || hasPermission || isDevTester;
 
     if (!isStaff) {
-      return interaction.reply({
+      return interaction.editReply({
         content: "❌ ขออภัยค่ะ เฉพาะทีมงานแอดมินเท่านั้นที่สามารถใช้คำสั่งนี้ได้นะคะ",
-        flags: FLAG_EPHEMERAL
       });
     }
 
     const componentChoice = interaction.options.getString("component");
     const targetChannel = interaction.options.getChannel("channel") || interaction.channel;
 
-    if (!targetChannel.isTextBased()) {
-      return interaction.reply({
+    if (!targetChannel || !targetChannel.isTextBased()) {
+      return interaction.editReply({
         content: "⚠️ กรุณาเลือกห้องที่เป็น Text Channel เท่านั้นค่ะ",
-        flags: FLAG_EPHEMERAL
       });
     }
-
-    // ⚡ Defer reply ทันที เพื่อป้องกัน 10062 Unknown Interaction (เพราะส่ง Component v2 หรือสร้างภาพอาจใช้เวลาเกิน 3 วินาที)
-    await interaction.deferReply({ flags: FLAG_EPHEMERAL }).catch(() => {});
 
     let payload = null;
     let componentName = "";
@@ -228,9 +226,12 @@ function setupSendComponent(client) {
         content: `❌ เกิดข้อผิดพลาดในการส่งการ์ด: \`${errorDetail}\``,
       });
     }
-  });
+  };
 
-  console.log("🛠️ [sendComponent] Slash command /send-component registered successfully.");
+  registerCommand("send-component", handleComponentDispatch);
+  registerCommand("heal-component", handleComponentDispatch);
+
+  console.log("🛠️ [sendComponent] Slash commands /send-component and /heal-component registered successfully.");
 }
 
 module.exports = {

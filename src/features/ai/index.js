@@ -4,29 +4,41 @@
 // ===================================================
 
 const { setupAIHandler } = require("./aiHandler");
-const { aiReloadCommand, handleAIReload } = require("./aiCommands");
-const { loadKnowledgeFiles } = require("./aiEngine");
+const {
+  aiReloadCommand,
+  aiStatusCommand,
+  handleAIReload,
+  handleAIStatus,
+} = require("./aiCommands");
+const { initializeAIEngine } = require("./aiEngine");
 
-function setupAI(client) {
-  // 1. โหลดข้อมูลความรู้เริ่มต้น
-  loadKnowledgeFiles();
+async function setupAI(client) {
+  // 1. โหลดข้อมูลความรู้, บุคลิก และ Triggers เข้าสู่ RAM
+  await initializeAIEngine();
 
-  // 2. ติดตั้ง Message Handler ดักฟังเฉพาะห้อง 1544088196332134491
+  // 2. ติดตั้ง Message Handler ดักฟังห้องที่กำหนด
   setupAIHandler(client);
 
-  // 3. ติดตั้ง Slash Command Interaction Handler สำหรับ /ai-reload
+  // 3. ติดตั้ง Slash Command Interaction Handlers
   client.on("interactionCreate", async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
+
     if (interaction.commandName === "ai-reload") {
       return await handleAIReload(interaction);
     }
+
+    if (interaction.commandName === "ai-status") {
+      return await handleAIStatus(interaction);
+    }
   });
 
-  console.log("🐻 [AI] ติดตั้งระบบ Bear Cafe AI Assistant เรียบร้อยแล้ว!");
+  console.log("🐻 [AI] ติดตั้งระบบ Bear Cafe AI Assistant v2 เรียบร้อยแล้ว!");
 }
 
 module.exports = {
   setupAI,
   aiReloadCommand,
+  aiStatusCommand,
   handleAIReload,
+  handleAIStatus,
 };

@@ -330,7 +330,7 @@ const GUILD_SLASH_COMMANDS = [
     ],
   },
 
-  // 18. /send-component (Heal Jai / Component V2 System)
+  // 18. /send-component (Bear Cafe Component V2 System)
   {
     name: "send-component",
     description: "[Staff Only] ส่งบอร์ดและ Component V2 ของระบบไปยังห้องที่กำหนด",
@@ -341,6 +341,7 @@ const GUILD_SLASH_COMMANDS = [
         type: ApplicationCommandOptionType.String,
         required: true,
         choices: [
+          // ── ☕ Bear Cafe Main Components ──
           { name: "1️⃣ บอร์ดลงทะเบียนสมาชิกใหม่ (Registration Panel)", value: "verify_panel" },
           { name: "2️⃣ แผงเลือกรับการแจ้งเตือน (Notifications Select)", value: "notice_panel" },
           { name: "3️⃣ แผงตั้งค่าข้อความต้อนรับทีมงาน (Staff Welcome Msg)", value: "staff_welcome_msg" },
@@ -365,161 +366,7 @@ const GUILD_SLASH_COMMANDS = [
     ],
   },
 
-  // 19. /healjai-admin (Heal Jai Admin Control Hub)
-  {
-    name: "healjai-admin",
-    description: "[Admin/Staff] จัดการระบบหลังบ้าน ฮีลใจ (Heal Jai Control Hub)",
-    options: [
-      {
-        name: "action",
-        description: "เลือกการทำงานที่ต้องการ",
-        type: ApplicationCommandOptionType.String,
-        required: true,
-        choices: [
-          { name: "📊 แผงควบคุม & สรุปสถานะ (Dashboard)", value: "dashboard" },
-          { name: "🛠️ สลับโหมดเปิด-ปิดบริการ (Toggle Maintenance)", value: "toggle_maintenance" },
-          { name: "📜 สลับเปิด-ปิดการกดข้อตกลง (Toggle Terms Acceptance)", value: "toggle_terms" },
-          { name: "🧹 เคลียร์ห้องค้างตกค้างทันที (Run Cleanup Now)", value: "run_cleanup" },
-          { name: "📑 ส่งรายงานสรุปยอดวันนี้ทันที (Send Daily Report)", value: "daily_report" },
-          { name: "🔍 ตรวจสอบและจัดการเคส (Manage Case)", value: "manage_case" },
-        ],
-      },
-      {
-        name: "order_code",
-        description: "รหัสออเดอร์ (เช่น HJ-...) สำหรับคำสั่งจัดการเคส",
-        type: ApplicationCommandOptionType.String,
-        required: false,
-      },
-    ],
-  },
-
-  // 20. /บัตรพนักงาน (Heal Jai Counselor Card & ID Binding)
-  {
-    name: "บัตรพนักงาน",
-    description: "[Staff Only] ส่งบัตรพนักงาน/ผู้รับฟังลงในห้อง และผูก ID สำหรับอัปเดตข้อมูลอัตโนมัติ",
-    options: [
-      {
-        name: "พนักงาน",
-        description: "เลือกรายชื่อพนักงาน/ผู้รับฟังที่มีในระบบ",
-        type: ApplicationCommandOptionType.String,
-        required: true,
-        autocomplete: true,
-      },
-      {
-        name: "ห้อง",
-        description: "เลือกห้องที่ต้องการให้ส่งบัตรพนักงานไป (เว้นว่างเพื่อส่งในห้องปัจจุบัน)",
-        type: ApplicationCommandOptionType.Channel,
-        channelTypes: [ChannelType.GuildText],
-        required: false,
-      },
-    ],
-  },
-
-  // 20.1 /แก้ไขพนักงาน (Edit Counselor Details - Staff Only)
-  {
-    name: "แก้ไขพนักงาน",
-    description: "[Staff Only] แก้ไขข้อมูลผู้รับฟัง (ชื่อ, ความถนัด, รูปแบบบริการ, ข้อมูลส่วนตัว)",
-    options: [
-      {
-        name: "พนักงาน",
-        description: "เลือกรายชื่อพนักงาน/ผู้รับฟังที่ต้องการแก้ไข",
-        type: ApplicationCommandOptionType.String,
-        required: true,
-        autocomplete: true,
-      },
-      {
-        name: "ชื่อ",
-        description: "ชื่อที่แสดงบนบัตรพนักงาน (Display Name)",
-        type: ApplicationCommandOptionType.String,
-        required: false,
-      },
-      {
-        name: "ความถนัด",
-        description: "ความถนัดเฉพาะ คั่นด้วยจุลภาค เช่น ความรัก, งาน, สุขภาพจิต, ครอบครัว, ทั่วไป",
-        type: ApplicationCommandOptionType.String,
-        required: false,
-      },
-      {
-        name: "บริการ",
-        description: "รูปแบบบริการที่เปิดรับ",
-        type: ApplicationCommandOptionType.String,
-        required: false,
-        choices: [
-          { name: "🔊+💬 ทุกบริการ (คอลเสียง + พิมพ์คุย)", value: "all" },
-          { name: "💬 เฉพาะพิมพ์คุย (Chat Only)", value: "chat" },
-          { name: "🔊 เฉพาะคอลเสียง (Voice Only)", value: "voice" },
-        ],
-      },
-      {
-        name: "โหมดเงียบ",
-        description: "เปิดรับโหมดนั่งเงียบเป็นเพื่อนหรือไม่ (true / false)",
-        type: ApplicationCommandOptionType.Boolean,
-        required: false,
-      },
-      {
-        name: "คำแนะนำตัว",
-        description: "ข้อความแนะนำตัวสั้นๆ (Bio)",
-        type: ApplicationCommandOptionType.String,
-        required: false,
-      },
-      {
-        name: "รูปโปรไฟล์",
-        description: "URL รูปภาพโปรไฟล์สำหรับแสดงบนบัตรพนักงาน",
-        type: ApplicationCommandOptionType.String,
-        required: false,
-      },
-      {
-        name: "เลขบัญชี",
-        description: "เลขบัญชีธนาคาร หรือ พร้อมเพย์สำหรับรับเงิน",
-        type: ApplicationCommandOptionType.String,
-        required: false,
-      },
-    ],
-  },
-
-  // 21. /อนุมัติสลิป (Approve Payment & Assign Counselor - Staff Only)
-  {
-    name: "อนุมัติสลิป",
-    description: "[Staff Only] ตรวจสอบสลิป อนุมัติยอดชำระเงิน และเลือก/สุ่มผู้รับฟังที่ออนไลน์",
-    options: [
-      {
-        name: "user",
-        description: "เลือกลูกค้าที่ต้องการอนุมัติสลิป/เปิดเคส",
-        type: ApplicationCommandOptionType.User,
-        required: true,
-      },
-      {
-        name: "counselor",
-        description: "เลือกผู้รับฟังที่ต้องการส่งเคสให้ หรือเลือก 'สุ่มผู้รับฟังที่ออนไลน์'",
-        type: ApplicationCommandOptionType.String,
-        required: false,
-        autocomplete: true,
-      },
-    ],
-  },
-
-  // 22. /ยืนยันสลิป (Alias for /อนุมัติสลิป)
-  {
-    name: "ยืนยันสลิป",
-    description: "[Staff Only] ตรวจสอบสลิป อนุมัติยอดชำระเงิน และเลือก/สุ่มผู้รับฟังที่ออนไลน์",
-    options: [
-      {
-        name: "user",
-        description: "เลือกลูกค้าที่ต้องการอนุมัติสลิป/เปิดเคส",
-        type: ApplicationCommandOptionType.User,
-        required: true,
-      },
-      {
-        name: "counselor",
-        description: "เลือกผู้รับฟังที่ต้องการส่งเคสให้ หรือเลือก 'สุ่มผู้รับฟังที่ออนไลน์'",
-        type: ApplicationCommandOptionType.String,
-        required: false,
-        autocomplete: true,
-      },
-    ],
-  },
-
-  // 23. /อนุมัติเควส (Approve Daily Quest - Staff Only)
+  // 19. /อนุมัติเควส (Approve Daily Quest - Staff Only)
   {
     name: "อนุมัติเควส",
     description: "อนุมัติเควสถ่ายรูป (IRL) ให้กับสมาชิกและมอบแต้มรางวัล (เฉพาะทีมงาน)",
@@ -568,6 +415,20 @@ const GUILD_SLASH_COMMANDS = [
     name: "หมุนกาชา",
     description: "🎰 เปิดตู้กาชาปอง Bear Cafe สุ่มรับของรางวัลสุดพิเศษ (ใช้แต้ม Points)",
   },
+
+  // 26. /ai-reload (AI System Hot-Reload)
+  {
+    name: "ai-reload",
+    description: "รีโหลด Persona, Knowledge Base และ Sticker Triggers ของ AI เข้าสู่ RAM (เฉพาะ Admin)",
+    defaultMemberPermissions: PermissionFlagsBits.Administrator,
+  },
+
+  // 27. /ai-status (AI System Status & Daily Budget)
+  {
+    name: "ai-status",
+    description: "ตรวจสอบสถานะการทำงาน, Daily Budget และ Cache ของระบบ AI (เฉพาะ Admin)",
+    defaultMemberPermissions: PermissionFlagsBits.Administrator,
+  },
 ];
 
 /**
@@ -601,34 +462,126 @@ function areCommandsEqual(existingCollection, targetCommands) {
   return true;
 }
 
-const SEND_COMPONENT_HEALJAI = {
-  name: "send-component",
-  description: "[Staff Only] ส่งบอร์ดและ Component V2 ของระบบฮิลใจ",
-  options: [
-    {
-      name: "component",
-      description: "เลือกบอร์ดระบบฮิลใจที่ต้องการส่ง",
-      type: ApplicationCommandOptionType.String,
-      required: true,
-      choices: [
-        { name: "1️⃣ บอร์ดอ่านข้อตกลงและนโยบาย (Terms)", value: "terms" },
-        { name: "2️⃣ บอร์ดเมนูเครื่องดื่มและสั่งบริการ (Menu)", value: "menu" },
-        { name: "3️⃣ แผงตอกบัตรเข้ากะของทีมงาน (Shift)", value: "shift" },
-        { name: "4️⃣ กล่องความประทับใจ (Public Showcase Preview)", value: "feedback" },
-      ],
-    },
-    {
-      name: "channel",
-      description: "เลือกห้องที่ต้องการให้ส่งการ์ดไป (เว้นว่างเพื่อส่งในห้องปัจจุบัน)",
-      type: ApplicationCommandOptionType.Channel,
-      channel_types: [ChannelType.GuildText],
-      required: false,
-    },
-  ],
-};
+// ==============================================================================
+// 💚 HEAL JAI GUILD EXCLUSIVE SLASH COMMANDS (เซิร์ฟเวอร์ฮิลใจเท่านั้น)
+// ==============================================================================
+const HEAL_JAI_SLASH_COMMANDS = [
+  // 1. /heal-component (Heal Jai Component V2 System)
+  {
+    name: "heal-component",
+    description: "[Staff Only] ส่งบอร์ดและ Component V2 ของระบบฮิลใจ",
+    options: [
+      {
+        name: "component",
+        description: "เลือกบอร์ดระบบฮิลใจที่ต้องการส่ง",
+        type: ApplicationCommandOptionType.String,
+        required: true,
+        choices: [
+          { name: "1️⃣ บอร์ดอ่านข้อตกลงและนโยบาย (Terms)", value: "terms" },
+          { name: "2️⃣ บอร์ดเมนูเครื่องดื่มและสั่งบริการ (Menu)", value: "menu" },
+          { name: "3️⃣ แผงตอกบัตรเข้ากะของทีมงาน (Shift)", value: "shift" },
+          { name: "4️⃣ กล่องความประทับใจ (Public Showcase Preview)", value: "feedback" },
+        ],
+      },
+      {
+        name: "channel",
+        description: "เลือกห้องที่ต้องการให้ส่งการ์ดไป (เว้นว่างเพื่อส่งในห้องปัจจุบัน)",
+        type: ApplicationCommandOptionType.Channel,
+        channel_types: [ChannelType.GuildText],
+        required: false,
+      },
+    ],
+  },
+
+  // 2. /อนุมัติสลิป (Approve Payment & Assign Counselor - Staff Only)
+  {
+    name: "อนุมัติสลิป",
+    description: "[Staff Only] ตรวจสอบสลิป อนุมัติยอดชำระเงิน และเลือกผู้รับฟังที่ออนไลน์",
+    options: [
+      {
+        name: "user",
+        description: "เลือกลูกค้าที่ต้องการอนุมัติสลิป/เปิดเคส",
+        type: ApplicationCommandOptionType.User,
+        required: true,
+      },
+      {
+        name: "counselor",
+        description: "เลือกผู้รับฟังที่ออนไลน์เพื่อมอบหมายเคส",
+        type: ApplicationCommandOptionType.String,
+        required: true,
+        autocomplete: true,
+      },
+    ],
+  },
+
+  // 3. /บัตรพนักงาน (Heal Jai Counselor Card & ID Binding)
+  {
+    name: "บัตรพนักงาน",
+    description: "[Staff Only] ส่งบัตรพนักงาน/ผู้รับฟังลงในห้อง และผูก ID สำหรับอัปเดตข้อมูลอัตโนมัติ",
+    options: [
+      {
+        name: "พนักงาน",
+        description: "เลือกรายชื่อพนักงาน/ผู้รับฟังที่มีในระบบ",
+        type: ApplicationCommandOptionType.String,
+        required: true,
+        autocomplete: true,
+      },
+      {
+        name: "ห้อง",
+        description: "เลือกห้องที่ต้องการให้ส่งบัตรพนักงานไป (เว้นว่างเพื่อส่งในห้องปัจจุบัน)",
+        type: ApplicationCommandOptionType.Channel,
+        channelTypes: [ChannelType.GuildText],
+        required: false,
+      },
+    ],
+  },
+
+  // 4. /แก้ไขพนักงาน (Edit Counselor Details - Staff Only)
+  {
+    name: "แก้ไขพนักงาน",
+    description: "[Staff Only] เปิดเมนูปรับแต่งข้อมูลผู้รับฟังและบัตรพนักงาน (Interactive UI)",
+    options: [
+      {
+        name: "พนักงาน",
+        description: "เลือกรายชื่อพนักงาน/ผู้รับฟังที่ต้องการแก้ไข (หรือเว้นว่างเพื่อเลือกจากเมนู)",
+        type: ApplicationCommandOptionType.User,
+        required: false,
+      },
+    ],
+  },
+
+  // 5. /healjai-admin (Heal Jai Admin Control Hub)
+  {
+    name: "healjai-admin",
+    description: "[Admin/Staff] จัดการระบบหลังบ้าน ฮีลใจ (Heal Jai Control Hub)",
+    options: [
+      {
+        name: "action",
+        description: "เลือกการทำงานที่ต้องการ",
+        type: ApplicationCommandOptionType.String,
+        required: true,
+        choices: [
+          { name: "📊 แผงควบคุม & สรุปสถานะ (Dashboard)", value: "dashboard" },
+          { name: "🛠️ สลับโหมดเปิด-ปิดบริการ (Toggle Maintenance)", value: "toggle_maintenance" },
+          { name: "📜 สลับเปิด-ปิดการกดข้อตกลง (Toggle Terms Acceptance)", value: "toggle_terms" },
+          { name: "🧹 เคลียร์ห้องค้างตกค้างทันที (Run Cleanup Now)", value: "run_cleanup" },
+          { name: "📑 ส่งรายงานสรุปยอดวันนี้ทันที (Send Daily Report)", value: "daily_report" },
+          { name: "🔍 ตรวจสอบและจัดการเคส (Manage Case)", value: "manage_case" },
+        ],
+      },
+      {
+        name: "order_code",
+        description: "รหัสออเดอร์ (เช่น HJ-...) สำหรับคำสั่งจัดการเคส",
+        type: ApplicationCommandOptionType.String,
+        required: false,
+      },
+    ],
+  },
+];
 
 /**
  * ลงทะเบียน Guild Slash Commands ทั้งหมดในครั้งเดียว (Bulk Set)
+ * แยกคำสั่งระหว่าง Guild Bear Cafe และ Guild HealJai อย่างเด็ดขาด
  * @param {import("discord.js").Guild} guild
  */
 async function registerAllGuildCommands(guild) {
@@ -640,29 +593,13 @@ async function registerAllGuildCommands(guild) {
   const isDevMode = process.env.DEV_MODE === "true";
   const healJaiGuildId = process.env.HEALJAI_GUILD_ID || "1536199707922141254";
 
-  // 🛡️ ป้องกันไม่ให้บอทหลักลงทะเบียนคำสั่งในกิลด์ HealJai เด็ดขาด
-  if (!isDevMode && guild.id === healJaiGuildId) {
-    console.log(`[slash] 🛑 Skipping slash command registration on HealJai Guild "${guild.name}" for Main Bot.`);
-    return;
-  }
-
   try {
     const startTime = Date.now();
     const isHealJaiGuild = guild.id === healJaiGuildId;
-    let targetCommands = GUILD_SLASH_COMMANDS;
-
-    // สลับ /send-component ให้เป็นเวอร์ชันของ HealJai เมื่อลงทะเบียนใน HealJai Guild
-    if (isHealJaiGuild) {
-      targetCommands = targetCommands.map((cmd) => {
-        if (cmd.name === "send-component") {
-          return SEND_COMPONENT_HEALJAI;
-        }
-        return cmd;
-      });
-    }
+    let targetCommands = isHealJaiGuild ? HEAL_JAI_SLASH_COMMANDS : GUILD_SLASH_COMMANDS;
 
     if (isDevMode) {
-      const allowedDevCommands = (process.env.DEV_SLASH_COMMANDS || "test_bee,send-component,บัตรพนักงาน,แก้ไขพนักงาน,healjai-admin,อนุมัติสลิป,ยืนยันสลิป,หมุนกาชา")
+      const allowedDevCommands = (process.env.DEV_SLASH_COMMANDS || "test_bee,send-component,heal-component,บัตรพนักงาน,แก้ไขพนักงาน,healjai-admin,อนุมัติสลิป,หมุนกาชา")
         .split(",")
         .map((s) => s.trim().toLowerCase())
         .filter(Boolean);
@@ -672,13 +609,6 @@ async function registerAllGuildCommands(guild) {
       );
       console.log(
         `🛠️ [slash] DEV_MODE is active: Synchronizing only [${targetCommands.map((c) => c.name).join(", ")}] on "${guild.name}"`
-      );
-    } else {
-      // บอทหลัก (Production Mode) — ไม่ลงทะเบียนคำสั่งโปรเจกต์ฮีลใจเด็ดขาด (ทำงานเฉพาะบอท Dev / Secondary Bot)
-      const HEALJAI_COMMANDS = ["healjai-admin", "บัตรพนักงาน", "แก้ไขพนักงาน", "ยืนยันการโอน", "ยืนยันสลิป", "อนุมัติสลิป"];
-      const DEV_ONLY_COMMANDS = [...HEALJAI_COMMANDS];
-      targetCommands = targetCommands.filter(
-        (cmd) => !DEV_ONLY_COMMANDS.includes(cmd.name.toLowerCase())
       );
     }
 
@@ -704,6 +634,7 @@ async function registerAllGuildCommands(guild) {
 
 module.exports = {
   GUILD_SLASH_COMMANDS,
+  HEAL_JAI_SLASH_COMMANDS,
   registerAllGuildCommands,
   areCommandsEqual,
 };

@@ -5,20 +5,6 @@ const FLAG_V2 = 32768; // MessageFlags.IsComponentsV2
 const FLAG_EPHEMERAL = 64; // MessageFlags.Ephemeral
 
 /**
- * 1. บอร์ดอ่านข้อตกลงและนโยบาย
- */
-function buildAgreementPayload() {
-  return JSON.parse(JSON.stringify(templates.board_1_terms));
-}
-
-/**
- * 2. บอร์ดเมนูเครื่องดื่มและสั่งบริการ
- */
-function buildMainMenuPayload() {
-  return JSON.parse(JSON.stringify(templates.board_2_menu));
-}
-
-/**
  * Helper ปรับแต่ง Component v2 Payload ให้ปลอดภัย:
  * - ตัด Media Gallery ที่มี items ว่างออก (ป้องกัน Discord 400 Bad Request)
  * - ตัด flow metadata ของ Discohook ออกจาก Buttons
@@ -47,6 +33,20 @@ function sanitizeComponentV2(payload) {
     }
   }
   return clone;
+}
+
+/**
+ * 1. บอร์ดอ่านข้อตกลงและนโยบาย
+ */
+function buildAgreementPayload() {
+  return sanitizeComponentV2(JSON.parse(JSON.stringify(templates.board_1_terms)));
+}
+
+/**
+ * 2. บอร์ดเมนูเครื่องดื่มและสั่งบริการ
+ */
+function buildMainMenuPayload() {
+  return sanitizeComponentV2(JSON.parse(JSON.stringify(templates.board_2_menu)));
 }
 
 /**
@@ -94,10 +94,10 @@ function buildDispatchAlertPayload(dispatchInfo) {
   const isTargeted = Boolean(dispatchInfo.counselorId);
   const counselorMention = isTargeted ? `<@${dispatchInfo.counselorId}>` : `เปิดรับคำขอ (ทุกคนที่ว่าง)`;
   const headerNote = isTargeted
-    ? `ระบบได้สุ่มเลือกคุณจากรายชื่อผู้ให้คำปรึกษาที่สถานะ 🟢 ว่าง อยู่ในขณะนี้ค่ะ`
+    ? `แอดมินได้เลือกมอบหมายเคสนี้ให้กับคุณโดยตรงค่ะ`
     : `เคสเปิดรับคำขอสำหรับผู้ให้คำปรึกษาทุกคนที่ว่าง สามารถกดรับเคสได้ทันทีค่ะ`;
   const contentMention = isTargeted
-    ? `<@&1536208070420733982> 🔔 มีเคสใหม่ส่งถึงคุณ <@${dispatchInfo.counselorId}>`
+    ? `<@${dispatchInfo.counselorId}> 🔔 มีเคสใหม่ส่งตรงถึงคุณ 𓂃`
     : `<@&1536208070420733982> 🔔 มีเคสใหม่เปิดรับคำขอ ผู้ที่พร้อมดูแลสามารถกดรับได้เลยค่ะ!`;
 
   const customerMention = dispatchInfo.customerId ? `<@${dispatchInfo.customerId}>` : null;
@@ -1407,6 +1407,375 @@ function buildDailyReportPayload(reportData) {
   };
 }
 
+/**
+ * 23. แผงเลือกพนักงานที่ต้องการแก้ไข (Admin Counselor Selector)
+ * @param {Array<{userId: string, displayName: string, status: string}>} counselors
+ */
+function buildAdminCounselorSelectPayload(counselors = []) {
+  const options = counselors.slice(0, 25).map((c) => {
+    const statusEmoji = c.status === "ONLINE" ? "🟢" : (c.status === "BUSY" ? "🟡" : "⚪");
+    return {
+      label: `${c.displayName || c.userId}`.slice(0, 100),
+      description: `ID: ${c.userId}`.slice(0, 100),
+      value: c.userId,
+      emoji: { name: statusEmoji }
+    };
+  });
+
+  return {
+    content: null,
+    flags: FLAG_EPHEMERAL,
+    embeds: [
+      {
+        title: "👤  เมนูจัดการและแก้ไขข้อมูลพนักงาน — Heal Jai",
+        description: [
+          `-# ระบบปรับแต่งข้อมูลบัตรพนักงานสำหรับทีมงานแอดมิน 🍵\n`,
+          `โปรดเลือกรายชื่อ **ผู้รับฟัง / พนักงาน** ที่ต้องการปรับปรุงข้อมูลจากเมนูด้านล่าง:`,
+          `* 🟢⠀**พร้อมรับงาน** ┆ 🟡⠀**กำลังให้บริการ** ┆ ⚪⠀**พักรับงาน**\n`,
+          `> 💡 *เมื่อเลือกแล้ว ระบบจะแสดงแผงควบคุมสำหรับแก้ไขชื่อ, รูปแบบบริการ, โหมดเงียบ, ความถนัด และข้อมูลส่วนตัวทันที*`
+        ].join("\n"),
+        color: 0x57F287,
+        footer: {
+          text: "Bear Cafe • Staff Profile Management"
+        }
+      }
+    ],
+    components: [
+      {
+        type: 1,
+        components: [
+          {
+            type: 3, // StringSelectMenu
+            custom_id: "heal_jai_admin_select_edit_counselor",
+            placeholder: "🔍 เลือกพนักงานที่ต้องการแก้ไข...",
+            options: options.length > 0 ? options : [
+              { label: "ไม่พบรายชื่อพนักงานในระบบ", value: "none", description: "ยังไม่มีพนักงานลงทะเบียน" }
+            ],
+            disabled: options.length === 0
+          }
+        ]
+      }
+    ]
+  };
+}
+
+/**
+ * 24. แผงควบคุมแก้ไขข้อมูลพนักงาน (Admin Counselor Edit Panel)
+ * @param {object} counselorData - ข้อมูลจาก Supabase
+ * @param {import("discord.js").GuildMember} member - Discord Guild Member
+ */
+function buildAdminCounselorEditPayload(counselorData = {}, member = null) {
+  const userId = counselorData.user_id || member?.id || "0";
+  const displayName = counselorData.display_name || member?.displayName || member?.user?.username || userId;
+  const bio = counselorData.bio || "ยินดีต้อนรับสู่พื้นที่พักใจ พร้อมรับฟังและอยู่เคียงข้างคุณเสมอค่ะ";
+  const avatarUrl = counselorData.image_url || member?.displayAvatarURL?.({ extension: "png", size: 512 }) || "https://cdn.discordapp.com/attachments/1536267579843280987/1547362521919529081/New_premium_11.png";
+  const payoutAccount = counselorData.payout_account || "*(ยังไม่ระบุ)*";
+
+  const status = counselorData.status || "OFFLINE";
+  const statusEmoji = status === "ONLINE" ? "🟢" : (status === "BUSY" ? "🟡" : "⚪");
+  const statusText = status === "ONLINE" ? "พร้อมรับงาน" : (status === "BUSY" ? "กำลังให้บริการ" : "พักรับงาน");
+
+  const serviceModes = Array.isArray(counselorData.service_modes) && counselorData.service_modes.length > 0
+    ? counselorData.service_modes
+    : ["chat", "voice"];
+  
+  let serviceModeLabel = "🔊+💬 ทุกบริการ (คอลเสียง + พิมพ์คุย)";
+  if (serviceModes.length === 1 && serviceModes[0] === "chat") {
+    serviceModeLabel = "💬 เฉพาะพิมพ์คุย (Chat Only)";
+  } else if (serviceModes.length === 1 && serviceModes[0] === "voice") {
+    serviceModeLabel = "🔊 เฉพาะคอลเสียง (Voice Only)";
+  }
+
+  const isSilent = counselorData.is_silent_companion ? true : false;
+  const silentLabel = isSilent ? "🟢 เปิดรับโหมดเงียบ" : "⚪ ไม่เปิดรับโหมดเงียบ";
+
+  const selectedSpecialties = Array.isArray(counselorData.specialty_tags) && counselorData.specialty_tags.length > 0
+    ? counselorData.specialty_tags
+    : ALL_SPECIALTIES;
+
+  const specialtiesDisplay = selectedSpecialties.map(s => `• ${s}`).join("\n") || "*(ยังไม่ได้ระบุความถนัด)*";
+
+  // สร้าง Select Options สำหรับความถนัด
+  const specialtyOptions = ALL_SPECIALTIES.map((spec, idx) => ({
+    label: spec.slice(0, 100),
+    value: spec.slice(0, 100),
+    description: `ความถนัดข้อที่ ${idx + 1}`,
+    default: selectedSpecialties.includes(spec)
+  }));
+
+  return {
+    content: null,
+    flags: FLAG_EPHEMERAL,
+    embeds: [
+      {
+        title: `⚙️  แผงแก้ไขข้อมูลพนักงาน — ${displayName}`,
+        description: [
+          `-# จัดการและปรับแต่งข้อมูลบัตรพนักงานของ <@${userId}> 🍵\n`,
+          `### 👤 ข้อมูลทั่วไป (Profile Info)`,
+          `* 🏷️⠀**ชื่อบนบัตร:** **${displayName}**`,
+          `* 📡⠀**สถานะการทำงาน:** ${statusEmoji} **${statusText}**`,
+          `* 📱⠀**รูปแบบบริการ:** \`[ ${serviceModeLabel} ]\``,
+          `* 🍃⠀**โหมดนั่งเงียบเป็นเพื่อน:** \`[ ${silentLabel} ]\``,
+          `* 💼⠀**เลขบัญชีรับเงิน:** \`${payoutAccount}\``,
+          `* 📝⠀**คำแนะนำตัว:** "${bio}"\n`,
+          `### 🎯 ความถนัดเฉพาะ (Specialties)`,
+          specialtiesDisplay,
+          `\n> 💡 *ใช้เมนูด้านล่างเพื่อเลือกความถนัด หรือกดปุ่มเพื่อแก้ไขข้อมูล/สลับโหมดบริการได้ทันที (ระบบจะอัปเดตบัตรพนักงานให้อัตโนมัติ)*`
+        ].join("\n"),
+        color: 0x57F287,
+        thumbnail: {
+          url: avatarUrl
+        },
+        footer: {
+          text: `User ID: ${userId} • Bear Cafe Staff Management`
+        }
+      }
+    ],
+    components: [
+      // Row 1: Multi-select dropdown สำหรับความถนัดเฉพาะ
+      {
+        type: 1,
+        components: [
+          {
+            type: 3,
+            custom_id: `heal_jai_admin_set_specialties:${userId}`,
+            placeholder: "🎯 เลือกความถนัดเฉพาะ (เลือกได้หลายข้อ)...",
+            min_values: 1,
+            max_values: specialtyOptions.length,
+            options: specialtyOptions
+          }
+        ]
+      },
+      // Row 2: ปุ่มแก้ไขข้อมูลทั่วไป, สลับรูปแบบบริการ, สลับโหมดเงียบ, เปลี่ยนคน
+      {
+        type: 1,
+        components: [
+          {
+            type: 2,
+            style: 1, // Primary Blurple
+            label: "📝 แก้ไขข้อมูลทั่วไป",
+            custom_id: `heal_jai_admin_edit_modal:${userId}`
+          },
+          {
+            type: 2,
+            style: 2, // Secondary Grey
+            label: "📱 สลับรูปแบบบริการ",
+            emoji: { name: "🔄" },
+            custom_id: `heal_jai_admin_toggle_service:${userId}`
+          },
+          {
+            type: 2,
+            style: isSilent ? 3 : 2, // Green if on, Grey if off
+            label: isSilent ? "🍃 โหมดเงียบ: เปิด" : "🍃 โหมดเงียบ: ปิด",
+            custom_id: `heal_jai_admin_toggle_silent:${userId}`
+          },
+          {
+            type: 2,
+            style: 2,
+            label: "👥 เปลี่ยนคน",
+            custom_id: "heal_jai_admin_change_counselor"
+          }
+        ]
+      }
+    ]
+  };
+}
+
+/**
+ * 25. Modal ฟอร์มแก้ไขข้อมูลทั่วไปของพนักงานสำหรับแอดมิน
+ * @param {string} targetUserId
+ * @param {object} currentData
+ */
+function buildAdminEditCounselorModal(targetUserId, currentData = {}) {
+  const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require("discord.js");
+  const modal = new ModalBuilder()
+    .setCustomId(`heal_jai_admin_modal_submit:${targetUserId}`)
+    .setTitle("📝 แก้ไขข้อมูลพนักงาน (Staff Profile)");
+
+  const nameInput = new TextInputBuilder()
+    .setCustomId("display_name")
+    .setLabel("ชื่อที่แสดงบนบัตรพนักงาน (Display Name)")
+    .setStyle(TextInputStyle.Short)
+    .setValue(currentData.display_name ? String(currentData.display_name).slice(0, 50) : "")
+    .setMaxLength(50)
+    .setRequired(true);
+
+  const bioInput = new TextInputBuilder()
+    .setCustomId("bio")
+    .setLabel("คำแนะนำตัวสั้นๆ (Bio)")
+    .setStyle(TextInputStyle.Paragraph)
+    .setValue(currentData.bio ? String(currentData.bio).slice(0, 200) : "")
+    .setMaxLength(200)
+    .setRequired(false);
+
+  const imageInput = new TextInputBuilder()
+    .setCustomId("image_url")
+    .setLabel("URL รูปโปรไฟล์ (Discord CDN หรือเว็บภาพ)")
+    .setStyle(TextInputStyle.Short)
+    .setValue(currentData.image_url ? String(currentData.image_url).slice(0, 300) : "")
+    .setMaxLength(300)
+    .setRequired(false);
+
+  const payoutInput = new TextInputBuilder()
+    .setCustomId("payout_account")
+    .setLabel("เลขบัญชีรับเงิน / พร้อมเพย์ (Payout Account)")
+    .setStyle(TextInputStyle.Short)
+    .setValue(currentData.payout_account ? String(currentData.payout_account).slice(0, 50) : "")
+    .setMaxLength(50)
+    .setRequired(false);
+
+  modal.addComponents(
+    new ActionRowBuilder().addComponents(nameInput),
+    new ActionRowBuilder().addComponents(bioInput),
+    new ActionRowBuilder().addComponents(imageInput),
+    new ActionRowBuilder().addComponents(payoutInput)
+  );
+
+  return modal;
+}
+
+/**
+ * 26. Payload กระเป๋าเงินและประวัติการให้บริการของพนักงาน (Wallet & Service History V2)
+ * @param {object} params
+ * @param {object} params.counselor ข้อมูลพนักงาน
+ * @param {Array} params.orders รายการออเดอร์ในหน้านี้ (สูงสุด 3 รายการ)
+ * @param {number} params.totalCount จำนวนรายการทั้งหมด
+ * @param {number} params.page หน้าปัจจุบัน
+ * @param {number} params.pageSize จำนวนรายการต่อหน้า (default 3)
+ * @param {string} params.userAvatarUrl ลิงก์รูปโปรไฟล์
+ * @param {string} params.userId Discord User ID
+ */
+function buildCounselorWalletHistoryPayload({
+  counselor = {},
+  orders = [],
+  totalCount = 0,
+  page = 1,
+  pageSize = 3,
+  userAvatarUrl = "",
+  userId = ""
+}) {
+  const displayName = counselor.display_name || `<@${userId}>`;
+  const totalSessions = counselor.total_sessions || totalCount || 0;
+  const earnings = Number(counselor.accumulated_earnings || 0).toFixed(2);
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  const currentPage = Math.min(Math.max(1, page), totalPages);
+
+  const isFirstPage = currentPage <= 1;
+  const isLastPage = currentPage >= totalPages;
+
+  let orderContent = "### รายการทั้งหมด:\n";
+  if (!orders || orders.length === 0) {
+    orderContent += "ไม่พบรายการ";
+  } else {
+    const listItems = orders.map((o, idx) => {
+      const itemNum = (currentPage - 1) * pageSize + idx + 1;
+      const orderCode = o.order_code || `#HJ-${String(o.id || 0).padStart(4, "0")}`;
+      const unixTime = Math.floor(new Date(o.started_at || o.created_at || Date.now()).getTime() / 1000);
+      const sMode = o.service_mode === "voice" ? "🔊 คอลเสียง" : "💬 พิมพ์คุย";
+      const pkgName = o.package_name || (o.duration_minutes ? `บริการฮีลใจ (${o.duration_minutes} นาที)` : "บริการฮีลใจ");
+
+      // ออปชันเสริม
+      const optParts = [];
+      if (o.is_specific_counselor) optParts.push("🎯 ระบุผู้รับฟัง (+39 บ.)");
+      if (o.is_silent) optParts.push("🍃 นั่งเงียบเป็นเพื่อน");
+      if (o.is_booster) optParts.push("💎 สมาชิกบูสเตอร์");
+      const optText = optParts.length > 0 ? optParts.map(p => `\`${p}\``).join(", ") : "`ไม่มี`";
+
+      const totalPrice = Number(o.total_price || 0).toFixed(2);
+      const counselorShare = Number(o.counselor_share || (Number(o.total_price || 0) * 0.7)).toFixed(2);
+
+      return [
+        `${itemNum}. \`${orderCode}\` (<t:${unixTime}:R>)`,
+        `  - **ลูกค้า:** <@${o.customer_id || 'Unknown'}>`,
+        `  - **ประเภทบริการ:** \`${pkgName}\` — \`${sMode}\``,
+        `  - **ออปชันเสริม:** ${optText}`,
+        `  - **ยอดรวม:** \`${totalPrice} บาท\` ➔ **รายได้ที่คุณได้รับ (70%):** \`+${counselorShare} บาท\``
+      ].join("\n");
+    });
+    orderContent += listItems.join("\n\n");
+  }
+
+  const sectionComponent = {
+    type: 9,
+    components: [
+      {
+        type: 10,
+        content: `## <:hj_clover:1552227021122314250>︲__\` กระเป๋าเงินของคุณ${displayName} \`__\n- 🍵⠀**จำนวนการให้บริการ:** ${totalSessions} ครั้ง\n- 💰⠀**รายได้สะสมรอโอน (70%):** **${earnings}** บาท`
+      }
+    ]
+  };
+
+  if (userAvatarUrl && String(userAvatarUrl).startsWith("http")) {
+    sectionComponent.accessory = {
+      type: 11,
+      media: {
+        url: userAvatarUrl
+      }
+    };
+  }
+
+  return {
+    flags: FLAG_V2 | FLAG_EPHEMERAL,
+    components: [
+      {
+        type: 17,
+        components: [
+          sectionComponent,
+          {
+            type: 14,
+            spacing: 2
+          },
+          {
+            type: 10,
+            content: orderContent
+          },
+          {
+            type: 14,
+            spacing: 2
+          },
+          {
+            type: 1,
+            components: [
+              {
+                style: 2,
+                type: 2,
+                custom_id: `heal_jai_wallet_first:1:${userId}`,
+                label: "หน้าแรก",
+                disabled: isFirstPage
+              },
+              {
+                style: 2,
+                type: 2,
+                custom_id: `heal_jai_wallet_prev:${Math.max(1, currentPage - 1)}:${userId}`,
+                emoji: {
+                  name: "◀️"
+                },
+                disabled: isFirstPage
+              },
+              {
+                style: 2,
+                type: 2,
+                custom_id: `heal_jai_wallet_next:${Math.min(totalPages, currentPage + 1)}:${userId}`,
+                emoji: {
+                  name: "▶️"
+                },
+                disabled: isLastPage
+              },
+              {
+                style: 2,
+                type: 2,
+                label: "หน้าสุดท้าย",
+                custom_id: `heal_jai_wallet_last:${totalPages}:${userId}`,
+                disabled: isLastPage
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  };
+}
+
 module.exports = {
   FLAG_V2,
   FLAG_EPHEMERAL,
@@ -1431,6 +1800,11 @@ module.exports = {
   buildAdminDashboardPayload,
   buildAdminManageCasePayload,
   buildDailyReportPayload,
+  buildAdminCounselorSelectPayload,
+  buildAdminCounselorEditPayload,
+  buildAdminEditCounselorModal,
+  buildCounselorWalletHistoryPayload,
   ALL_SPECIALTIES
 };
+
 

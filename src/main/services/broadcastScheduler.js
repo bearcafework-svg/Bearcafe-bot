@@ -167,7 +167,7 @@ async function checkAndSendBroadcasts(client) {
           });
 
           if (ch) {
-            // Delete & Replace: Delete previous broadcast in this channel if exists
+            // Delete & Replace: ลบข้อความโฆษณาบรอดแคสต์เดิมในห้องนี้ก่อนส่งอันใหม่เสมอ
             const prevMsgId = chatActivityBridge.getLastBroadcastMessageId(channelId);
             if (prevMsgId) {
               try {
@@ -179,6 +179,30 @@ async function checkAndSendBroadcasts(client) {
               } catch (cleanupErr) {
                 console.warn(`[broadcastScheduler] Could not delete previous campaign message:`, cleanupErr.message);
               }
+            }
+
+            // Fallback Deep Cleanup: สแกนข้อความล่าสุดเพื่อกวาดลบข้อความโฆษณาเดิมที่อาจตกค้างข้ามการรีสตาร์ท
+            try {
+              const recentMessages = await ch.messages.fetch({ limit: 15 }).catch(() => null);
+              if (recentMessages && recentMessages.size > 0) {
+                const botId = client.user?.id;
+                if (botId) {
+                  const candidateGhostMsgs = recentMessages.filter(
+                    (msg) => msg.author.id === botId && !msg.pinned && msg.id !== prevMsgId
+                  );
+
+                  for (const [, ghostMsg] of candidateGhostMsgs) {
+                    const hasComponents = ghostMsg.components && ghostMsg.components.length > 0;
+                    const hasEmbeds = ghostMsg.embeds && ghostMsg.embeds.length > 0;
+                    if (hasComponents || hasEmbeds) {
+                      await ghostMsg.delete().catch(() => null);
+                      console.log(`[broadcastScheduler] 🧹 Cleaned up orphan/ghost campaign message ${ghostMsg.id} in channel ${channelId}`);
+                    }
+                  }
+                }
+              }
+            } catch (scanErr) {
+              // ignore scan error
             }
 
             const sentMsg = await ch.send(cleanPayload);

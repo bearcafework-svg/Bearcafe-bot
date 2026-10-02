@@ -147,7 +147,29 @@ function setupStickyPanels(client) {
                         return null;
                       });
 
+      const healJaiToken = process.env.DISCORD_HEALJAI_TOKEN || process.env.SECONDARY_BOT_TOKEN;
+
       if (!channel) {
+        if (healJaiToken) {
+          console.log(`[stickyPanels] Channel ${channelId} not found on primary client, attempting send via HealJai bot token...`);
+          const axios = require("axios");
+          if (session.lastBotMessageId) {
+            await axios.delete(`https://discord.com/api/v10/channels/${channelId}/messages/${session.lastBotMessageId}`, {
+              headers: { Authorization: `Bot ${healJaiToken}` }
+            }).catch(() => null);
+            session.lastBotMessageId = null;
+          }
+          const payload = sanitizePayload(rawPayload);
+          const res = await axios.post(`https://discord.com/api/v10/channels/${channelId}/messages`, payload, {
+            headers: { Authorization: `Bot ${healJaiToken}` }
+          });
+          if (res.data?.id) {
+            session.lastBotMessageId = res.data.id;
+            console.log(`[stickyPanels] Sent new sticky message ${res.data.id} in channel ${channelId} via HealJai bot token`);
+            await saveLastMessageId(channelId, res.data.id);
+            return;
+          }
+        }
         console.error(`[stickyPanels] Channel ${channelId} not found.`);
         return;
       }

@@ -466,32 +466,7 @@ function areCommandsEqual(existingCollection, targetCommands) {
 // 💚 HEAL JAI GUILD EXCLUSIVE SLASH COMMANDS (เซิร์ฟเวอร์ฮิลใจเท่านั้น)
 // ==============================================================================
 const HEAL_JAI_SLASH_COMMANDS = [
-  // 1. /send-component & /heal-component (Heal Jai Component V2 System)
-  {
-    name: "send-component",
-    description: "[Staff Only] ส่งบอร์ดและ Component V2 ของระบบฮิลใจ",
-    options: [
-      {
-        name: "component",
-        description: "เลือกบอร์ดระบบฮิลใจที่ต้องการส่ง",
-        type: ApplicationCommandOptionType.String,
-        required: true,
-        choices: [
-          { name: "1️⃣ บอร์ดอ่านข้อตกลงและนโยบาย (Terms)", value: "terms" },
-          { name: "2️⃣ บอร์ดเมนูเครื่องดื่มและสั่งบริการ (Menu)", value: "menu" },
-          { name: "3️⃣ แผงตอกบัตรเข้ากะของทีมงาน (Shift)", value: "shift" },
-          { name: "4️⃣ กล่องความประทับใจ (Public Showcase Preview)", value: "feedback" },
-        ],
-      },
-      {
-        name: "channel",
-        description: "เลือกห้องที่ต้องการให้ส่งการ์ดไป (เว้นว่างเพื่อส่งในห้องปัจจุบัน)",
-        type: ApplicationCommandOptionType.Channel,
-        channelTypes: [ChannelType.GuildText],
-        required: false,
-      },
-    ],
-  },
+  // 1. /heal-component (Heal Jai Component V2 System)
   {
     name: "heal-component",
     description: "[Staff Only] ส่งบอร์ดและ Component V2 ของระบบฮิลใจ",
@@ -604,6 +579,23 @@ const HEAL_JAI_SLASH_COMMANDS = [
   },
 ];
 
+const DEV_ONLY_SLASH_COMMANDS = [
+  {
+    name: "clear",
+    description: "🧹 [Admin/Dev] ลบข้อความตามจำนวนที่ต้องการในห้อง (1-100)",
+    options: [
+      {
+        name: "amount",
+        description: "จำนวนข้อความที่ต้องการลบ (1-100 ข้อความ)",
+        type: ApplicationCommandOptionType.Integer,
+        required: true,
+        minValue: 1,
+        maxValue: 100,
+      },
+    ],
+  },
+];
+
 /**
  * ลงทะเบียน Guild Slash Commands ทั้งหมดในครั้งเดียว (Bulk Set)
  * แยกคำสั่งระหว่าง Guild Bear Cafe และ Guild HealJai อย่างเด็ดขาด
@@ -632,16 +624,16 @@ async function registerAllGuildCommands(guild) {
 
     if (isDevMode) {
       if (isHealJaiGuild) {
-        // บนเซิร์ฟเวอร์ฮิลใจ: บอท Dev ดูแลคำสั่งของฮิลใจทั้งหมด
-        targetCommands = HEAL_JAI_SLASH_COMMANDS;
+        // บนเซิร์ฟเวอร์ฮิลใจ: บอท Dev ดูแลคำสั่งของฮิลใจทั้งหมด + คำสั่ง Dev
+        targetCommands = [...HEAL_JAI_SLASH_COMMANDS, ...DEV_ONLY_SLASH_COMMANDS];
       } else {
-        // บนเซิร์ฟเวอร์ Bear Cafe: บอท Dev ลงทะเบียนเฉพาะคำสั่งเทสต์ที่อนุญาต
-        const allowedDevCommands = (process.env.DEV_SLASH_COMMANDS || "test_bee,send-component,หมุนกาชา")
+        // บนเซิร์ฟเวอร์ Bear Cafe: บอท Dev ลงทะเบียนเฉพาะคำสั่งเทสต์ที่อนุญาต (ไม่รวม send-component)
+        const allowedDevCommands = (process.env.DEV_SLASH_COMMANDS || "test_bee,หมุนกาชา,clear")
           .split(",")
           .map((s) => s.trim().toLowerCase())
           .filter(Boolean);
 
-        targetCommands = targetCommands.filter((cmd) =>
+        targetCommands = [...targetCommands, ...DEV_ONLY_SLASH_COMMANDS].filter((cmd) =>
           allowedDevCommands.includes(cmd.name.toLowerCase())
         );
       }

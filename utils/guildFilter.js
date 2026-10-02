@@ -339,7 +339,7 @@ function setupGuildFilter(client) {
 
               // 1. คำสั่งทดสอบ เช่น /test_bee, /send-component, /หมุนกาชา อนุญาตให้ทำงานได้ในทุกห้อง
               if (interaction && typeof interaction.isChatInputCommand === "function" && interaction.isChatInputCommand()) {
-                const allowedDevCommands = (process.env.DEV_SLASH_COMMANDS || "test_bee,send-component,ยืนยันการโอน,อนุมัติสลิป,บัตรพนักงาน,แก้ไขพนักงาน,แก้ไขที่ปรึกษา,หมุนกาชา,gacha")
+                const allowedDevCommands = (process.env.DEV_SLASH_COMMANDS || "test_bee,heal-component,ยืนยันการโอน,อนุมัติสลิป,บัตรพนักงาน,แก้ไขพนักงาน,แก้ไขที่ปรึกษา,หมุนกาชา,gacha,clear")
                   .split(",")
                   .map((s) => s.trim().toLowerCase())
                   .filter(Boolean);
@@ -392,8 +392,11 @@ function setupGuildFilter(client) {
           const interaction = args[0];
           const cmdName = (interaction?.commandName || "").toLowerCase();
           const customId = interaction?.customId || "";
-          // ป้องกัน Heal Jai slash commands เฉพาะในกิลด์ Bear Cafe
+          // ป้องกัน Heal Jai slash commands และคำสั่ง dev-only บนกิลด์ Bear Cafe เมื่อไม่ใช่บอท Dev
           if (["heal-component", "อนุมัติสลิป", "บัตรพนักงาน", "แก้ไขพนักงาน", "healjai-admin"].includes(cmdName)) {
+            return false;
+          }
+          if (process.env.DEV_MODE !== "true" && cmdName === "clear") {
             return false;
           }
           if (customId.startsWith("heal_jai_") || customId.startsWith("btn_cancel_order") || customId.startsWith("btn_call_admin")) {

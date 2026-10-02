@@ -63,6 +63,7 @@ CREATE TABLE IF NOT EXISTS heal_jai_orders_sessions (
   expires_at TIMESTAMPTZ,
   ended_at TIMESTAMPTZ,
   ended_early BOOLEAN DEFAULT false,
+  dropped_counselor_ids TEXT[] DEFAULT '{}',
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );

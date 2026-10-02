@@ -100,6 +100,7 @@ const VOICE_STATS_COUNSELORS = "1549633022280867871"; // 🟢︰ผู้รั�
 const VOICE_STATS_CUPS = "1545240723958276157"; // 🍵︰เสิร์ฟความอบอุ่นไปแล้ว: X แก้ว
 const PUBLIC_REVIEW_CHANNEL = "1545240537089703986"; // 🌟︰กล่องความประทับใจ
 const ORDER_HISTORY_CHANNEL_ID = "1549710698702184539"; // 📁︰ประสัติ (Order History Logs)
+const TRANSCRIPTS_CHANNEL_ID = process.env.HEALJAI_TRANSCRIPTS_CHANNEL_ID || null; // 📁・บันทึก-transcripts (Auto-resolved if null)
 const SESSION_CATEGORY_ID = "1545237654612869201"; // หมวดหมู่ห้อง Session (ฮีลใจ)
 
 const TIMEOUT_MS = (config.healJai && config.healJai.timeoutMinutes ? config.healJai.timeoutMinutes : 15) * 60 * 1000;
@@ -358,6 +359,48 @@ async function sendOrderHistoryLog(guild, logData = {}) {
   }
 }
 
+/**
+ * ส่ง Log บันทึกการกดยอมรับข้อตกลงและนโยบายไปยังห้อง บันทึก-transcripts
+ */
+async function sendConsentAuditLog(guild, { user, channelId, version = "v1.0", roleId }) {
+  if (!guild || !user) return;
+  try {
+    const targetChannelId = TRANSCRIPTS_CHANNEL_ID ||
+      process.env.HEALJAI_TRANSCRIPTS_CHANNEL_ID ||
+      guild.channels.cache.find((c) =>
+        c.isTextBased() && (c.name.includes("บันทึก-transcripts") || c.name.includes("transcripts"))
+      )?.id;
+
+    if (!targetChannelId) return;
+
+    const transcriptChannel = guild.channels.cache.get(targetChannelId) ||
+                              await guild.channels.fetch(targetChannelId).catch(() => null);
+    if (!transcriptChannel) return;
+
+    const nowUnix = Math.floor(Date.now() / 1000);
+    const embed = new EmbedBuilder()
+      .setTitle("📜 บันทึกการยินยอมข้อตกลงและนโยบาย (Consent Audit Log)")
+      .setColor(0x57F287) // Soft Green
+      .setThumbnail(user.displayAvatarURL({ dynamic: true, size: 256 }))
+      .addFields(
+        { name: "👤 ผู้ยินยอม", value: `<@${user.id}> (${user.tag || user.username})`, inline: true },
+        { name: "🆔 User ID", value: `\`${user.id}\``, inline: true },
+        { name: "📋 เวอร์ชันข้อตกลง", value: `\`${version}\` (Full Terms & Conditions)`, inline: true },
+        { name: "🏷️ การมอบยศ", value: roleId ? `มอบยศ <@&${roleId}> เรียบร้อย` : "มอบยศสำเร็จ", inline: true },
+        { name: "📍 ช่องทางที่กดยอมรับ", value: channelId ? `<#${channelId}>` : "ห้องข้อตกลงหลัก", inline: true },
+        { name: "⏰ เวลาที่กดยอมรับ", value: `<t:${nowUnix}:F> (<t:${nowUnix}:R>)`, inline: true }
+      )
+      .setFooter({ text: "Bear Cafe • Heal Jai Audit Trail" })
+      .setTimestamp();
+
+    await transcriptChannel.send({ embeds: [embed] }).catch((e) => {
+      console.warn("[HealJai] Failed to send consent audit log:", e.message);
+    });
+  } catch (err) {
+    console.error("[HealJai] Error in sendConsentAuditLog:", err.message);
+  }
+}
+
 let supabaseClient;
 function getSupabase() {
   if (!supabaseClient && process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -401,7 +444,8 @@ function scheduleDispatchTimeout(client, guild, orderId, messageId, expireTimest
       // ── กรณีที่ 1: เคสที่มีการเลือกตัวบุคคลไว้ แต่หมดเวลา 3 นาที (คิวหลุด) ──
       // ลบข้อความแจ้งเตือนเดิมทิ้ง แล้วส่งการ์ดใบใหม่ที่แท็ก Role ให้ทุกคนกดรับได้
       if (order.counselor_id) {
-        console.log(`[HealJai] ⏰ Assigned counselor <@${order.counselor_id}> timed out for order #${order.order_code}. Re-dispatching with role mention...`);
+        const timedOutCounselorId = order.counselor_id;
+        console.log(`[HealJai] ⏰ Assigned counselor <@${timedOutCounselorId}> timed out for order #${order.order_code}. Re-dispatching with role mention...`);
 
         if (messageId && dispatchChannel) {
           try {
@@ -410,11 +454,16 @@ function scheduleDispatchTimeout(client, guild, orderId, messageId, expireTimest
           } catch (_) {}
         }
 
+        const existingDropped = Array.isArray(order.dropped_counselor_ids) ? order.dropped_counselor_ids : [];
+        const updatedDropped = Array.from(new Set([...existingDropped, timedOutCounselorId]));
+        recordDroppedCounselor(order.id, order.order_code, timedOutCounselorId);
+
         await supabase
           .from("heal_jai_orders_sessions")
           .update({
             counselor_id: null,
             is_specific_counselor: false,
+            dropped_counselor_ids: updatedDropped,
             updated_at: new Date().toISOString()
           })
           .eq("id", order.id);
@@ -569,6 +618,32 @@ const sessionTimers = new Map();
 
 // Memory map สำหรับเก็บ Provider Ready timers (3 นาทีหลังรับเคส)
 const providerReadyTimers = new Map();
+
+// Memory map สำหรับเก็บรายชื่อที่ปรึกษาที่เคสหลุดไปแล้ว (orderId / orderCode -> Set<counselorId>)
+const droppedCaseCounselors = new Map();
+
+function recordDroppedCounselor(orderId, orderCode, counselorId) {
+  if (!counselorId) return;
+  const cId = String(counselorId);
+  if (orderId) {
+    const k = String(orderId);
+    if (!droppedCaseCounselors.has(k)) droppedCaseCounselors.set(k, new Set());
+    droppedCaseCounselors.get(k).add(cId);
+  }
+  if (orderCode) {
+    const k = String(orderCode);
+    if (!droppedCaseCounselors.has(k)) droppedCaseCounselors.set(k, new Set());
+    droppedCaseCounselors.get(k).add(cId);
+  }
+}
+
+function hasDroppedCase(orderId, orderCode, counselorId) {
+  if (!counselorId) return false;
+  const cId = String(counselorId);
+  if (orderId && droppedCaseCounselors.get(String(orderId))?.has(cId)) return true;
+  if (orderCode && droppedCaseCounselors.get(String(orderCode))?.has(cId)) return true;
+  return false;
+}
 
 // Memory map และค่าคงที่สำหรับเก็บห้อง Session ไว้ 10 นาทีหลังจบเคส (10-Minute Retention)
 const SESSION_RETENTION_MS = 10 * 60 * 1000;
@@ -1382,13 +1457,25 @@ function scheduleProviderReadyTimeout(client, guild, orderId, sessionChannelId) 
       if (!order || order.session_status !== "WAITING_FOR_PROVIDER") return;
 
       const prevCounselorId = order.counselor_id;
+      if (prevCounselorId) {
+        const existingDropped = Array.isArray(order.dropped_counselor_ids) ? order.dropped_counselor_ids : [];
+        const updatedDropped = Array.from(new Set([...existingDropped, prevCounselorId]));
+        recordDroppedCounselor(order.id, order.order_code, prevCounselorId);
 
-      // ปรับสถานะเป็น DISPATCHING เพื่อเปิดให้ผู้รับฟังท่านอื่นกดรับเคสต่อได้ทันที
-      await supabase.from("heal_jai_orders_sessions").update({
-        session_status: "DISPATCHING",
-        counselor_id: null,
-        updated_at: new Date().toISOString()
-      }).eq("id", orderId);
+        // ปรับสถานะเป็น DISPATCHING เพื่อเปิดให้ผู้รับฟังท่านอื่นกดรับเคสต่อได้ทันที
+        await supabase.from("heal_jai_orders_sessions").update({
+          session_status: "DISPATCHING",
+          counselor_id: null,
+          dropped_counselor_ids: updatedDropped,
+          updated_at: new Date().toISOString()
+        }).eq("id", orderId);
+      } else {
+        await supabase.from("heal_jai_orders_sessions").update({
+          session_status: "DISPATCHING",
+          counselor_id: null,
+          updated_at: new Date().toISOString()
+        }).eq("id", orderId);
+      }
 
       if (prevCounselorId) {
         await supabase.from("heal_jai_counselors").update({
@@ -3072,16 +3159,29 @@ function setupHealJai(client) {
       try {
         // กรณีที่ 1: กดยินยอมในห้องข้อตกลง (1️⃣︰อ่านข้อตกลงและนโยบาย)
         if (channel.id === TERMS_CHANNEL_ID || !channel.name.includes("เลือกเมนู")) {
+          const hadVerifiedRole = Boolean(member?.roles?.cache?.has(VERIFIED_ROLE_ID));
+
           // 1. มอบ Role "ยืนยัน" (1545271910328180777)
-          if (member?.roles && !member.roles.cache.has(VERIFIED_ROLE_ID)) {
+          if (member?.roles && !hadVerifiedRole) {
             await member.roles.add(VERIFIED_ROLE_ID).catch((e) => {
               console.warn("[HealJai] Failed to grant verified role:", e.message);
             });
           }
 
           // 2. บันทึกลง heal_jai_consents
+          let isNewConsent = !hadVerifiedRole;
           if (supabase) {
             try {
+              const { data: existingConsent } = await supabase
+                .from("heal_jai_consents")
+                .select("id")
+                .eq("user_id", user.id)
+                .maybeSingle();
+
+              if (!existingConsent) {
+                isNewConsent = true;
+              }
+
               const { error: consentErr } = await supabase.from("heal_jai_consents").upsert({
                 guild_id: guild.id,
                 user_id: user.id,
@@ -3096,6 +3196,16 @@ function setupHealJai(client) {
             } catch (e) {
               console.error("[HealJai] Consent DB insert error:", e.message);
             }
+          }
+
+          // 3. ส่ง Log ไปยังห้อง 📁・บันทึก-transcripts เฉพาะการยินยอมครั้งแรกจากห้องอ่านข้อตกลงหลัก
+          if (isNewConsent) {
+            sendConsentAuditLog(guild, {
+              user,
+              channelId: channel.id,
+              version: "v1.0",
+              roleId: VERIFIED_ROLE_ID
+            });
           }
 
           return interaction.reply({
@@ -3752,6 +3862,16 @@ function setupHealJai(client) {
         });
       }
 
+      // ตรวจสอบว่าผู้รับฟังคนนี้เคยปล่อยเคสนี้หลุดไปแล้วหรือไม่ (ห้ามกดรับเคสที่ตนเองทำหลุด)
+      const droppedCounselorIds = Array.isArray(order.dropped_counselor_ids) ? order.dropped_counselor_ids : [];
+      const hasDropped = droppedCounselorIds.includes(user.id) || hasDroppedCase(order.id, order.order_code, user.id);
+
+      if (hasDropped) {
+        return interaction.editReply({
+          content: "❌ ขออภัยค่ะ คุณไม่สามารถกดรับเคสนี้ได้ เนื่องจากเคสนี้เคยหลุดจากคุณไปแล้ว เพื่อความเป็นธรรมกรุณาเปิดโอกาสให้ผู้รับฟังท่านอื่นเป็นผู้ดูแลนะคะ 🍵"
+        });
+      }
+
       const ticketState = order.ticket_channel_id ? ticketSelections.get(order.ticket_channel_id) : null;
       const serviceMode = order.service_mode || ticketState?.mode || "chat";
 
@@ -3962,11 +4082,17 @@ function setupHealJai(client) {
       }
 
       if (order && supabase) {
-        // เคลียร์ counselor_id และปรับเป็น DISPATCHING
+        const passCounselorId = user.id;
+        const existingDropped = Array.isArray(order.dropped_counselor_ids) ? order.dropped_counselor_ids : [];
+        const updatedDropped = Array.from(new Set([...existingDropped, passCounselorId]));
+        recordDroppedCounselor(order.id, order.order_code, passCounselorId);
+
+        // เคลียร์ counselor_id และปรับเป็น DISPATCHING พร้อมบันทึกรายชื่อผู้สละสิทธิ์
         await supabase.from("heal_jai_orders_sessions").update({
           counselor_id: null,
           is_specific_counselor: false,
           session_status: "DISPATCHING",
+          dropped_counselor_ids: updatedDropped,
           updated_at: new Date().toISOString()
         }).eq("id", order.id);
 

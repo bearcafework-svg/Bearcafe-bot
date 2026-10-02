@@ -26,7 +26,7 @@ const isLocalFastStart = isDevMode || process.env.LOCAL_FAST_START === "true" ||
 const supabaseEnvKeys = ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"];
 
 const activeBotToken = isDevMode
-  ? (process.env.SECONDARY_BOT_TOKEN || process.env.BOT_TOKEN)
+  ? (process.env.DISCORD_HEALJAI_TOKEN || process.env.SECONDARY_BOT_TOKEN || process.env.BOT_TOKEN)
   : process.env.BOT_TOKEN;
 
 if (!activeBotToken) {
@@ -34,7 +34,7 @@ if (!activeBotToken) {
   process.exit(1);
 }
 
-const devAllowedFeatures = (process.env.DEV_FEATURES || "bees,healJai,voiceBoard,gachapon,sendComponent,mainQuest")
+const devAllowedFeatures = (process.env.DEV_FEATURES || "bees,healJai,voiceBoard,gachapon,sendComponent,mainQuest,clearMessages")
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);
@@ -134,22 +134,16 @@ setupFeature("moveMembers", "./src/commands/moveMembers", "setupMoveMembers");
 setupFeature("gachapon", "./src/features/gachapon", "setupGachapon", supabaseEnvKeys);
 setupFeature("mainQuest", "./src/features/mainQuest", "setupMainQuest", supabaseEnvKeys);
 setupFeature("sendComponent", "./src/commands/sendComponent", "setupSendComponent");
+setupFeature("clearMessages", "./src/commands/clearMessages", "setupClearMessages");
 setupFeature("aiAssistant", "./src/features/ai", "setupAI", ["GEMINI_API_KEY"]);
 
-
-
-
-
-
-
 function setupFeature(name, modulePath, setupName, requiredEnv = []) {
-  // 🛡️ ป้องกันบอทหลักโหลดระบบฮีลใจ (HealJai ทำงานเฉพาะบนบอท Dev / Secondary Bot เท่านั้น)
-  if (name === "healJai" && !isDevMode) {
-    console.log("[feature] 🛑 Skipping healJai on Main Bot (HealJai runs exclusively on Dev Bot).");
+  // 🛡️ ป้องกันบอทหลักโหลดระบบฮีลใจและคำสั่ง Dev-only
+  if ((name === "healJai" || name === "clearMessages") && !isDevMode) {
     return;
   }
 
-  if (isDevMode && name !== "sendComponent" && !devAllowedFeatures.includes(name)) {
+  if (isDevMode && name !== "sendComponent" && name !== "clearMessages" && !devAllowedFeatures.includes(name)) {
     return;
   }
 

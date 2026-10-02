@@ -228,10 +228,13 @@ function setupSendComponent(client) {
     }
   };
 
-  registerCommand("send-component", handleComponentDispatch);
+  // /send-component ให้ลงทะเบียนเฉพาะบอทหลัก (Main Bot) เท่านั้น (บอท Dev ใช้ /heal-component)
+  if (process.env.DEV_MODE !== "true") {
+    registerCommand("send-component", handleComponentDispatch);
+  }
   registerCommand("heal-component", handleComponentDispatch);
 
-  console.log("🛠️ [sendComponent] Slash commands /send-component and /heal-component registered successfully.");
+  console.log(`🛠️ [sendComponent] Slash command ${process.env.DEV_MODE !== "true" ? "/send-component and /heal-component" : "/heal-component"} registered successfully.`);
 }
 
 module.exports = {

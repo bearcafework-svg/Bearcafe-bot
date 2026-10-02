@@ -1893,12 +1893,23 @@ function setupHealJai(client) {
           .eq("id", pendingOrder.id);
       }
 
+      // ปรับ permission ของลูกค้าในห้อง ticket ไม่ให้ส่งข้อความ/แนบไฟล์หลังส่งสลิปแล้ว
+      const targetUserId = customerId || message.author.id;
+      if (targetUserId && message.channel?.permissionOverwrites) {
+        await message.channel.permissionOverwrites.edit(targetUserId, {
+          SendMessages: false,
+          AttachFiles: false
+        }).catch((permErr) => {
+          console.error("[HealJai] Failed to revoke SendMessages permission after slip upload:", permErr.message);
+        });
+      }
+
       // ใส่ Reaction แจ้งรับสลิปแล้ว
       await message.react("📩").catch(() => {});
 
       // แจ้งเตือนทีมงานเข้ามาตรวจสอบสลิปแบบคนตรวจสอบ (Manual Check)
       await message.reply({
-        content: `🔔 <@&${STAFF_ROLE_ID}> **คุณ <@${message.author.id}> ได้แนบรูปภาพสลิปเรียบร้อยแล้วค่ะ!**\n> 🍵 ทีมงานสามารถตรวจสอบสลิปและใช้คำสั่ง **\`/อนุมัติสลิป\`** เพื่อเปิดเคสและเลือกผู้รับฟังได้เลยนะคะ`
+        content: `🔔 <@&${STAFF_ROLE_ID}> **คุณ <@${message.author.id}> ได้แนบรูปภาพสลิปเรียบร้อยแล้วค่ะ!**`
       }).catch(() => {});
     } catch (err) {
       console.error("[HealJai] Error handling slip message upload:", err);

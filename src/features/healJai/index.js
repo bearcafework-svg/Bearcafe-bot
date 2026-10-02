@@ -100,7 +100,7 @@ const VOICE_STATS_COUNSELORS = "1549633022280867871"; // 🟢︰ผู้รั�
 const VOICE_STATS_CUPS = "1545240723958276157"; // 🍵︰เสิร์ฟความอบอุ่นไปแล้ว: X แก้ว
 const PUBLIC_REVIEW_CHANNEL = "1545240537089703986"; // 🌟︰กล่องความประทับใจ
 const ORDER_HISTORY_CHANNEL_ID = "1549710698702184539"; // 📁︰ประสัติ (Order History Logs)
-const TRANSCRIPTS_CHANNEL_ID = process.env.HEALJAI_TRANSCRIPTS_CHANNEL_ID || null; // 📁・บันทึก-transcripts (Auto-resolved if null)
+const TRANSCRIPTS_CHANNEL_ID = process.env.HEALJAI_TRANSCRIPTS_CHANNEL_ID || "1545240025111990423"; // 📁︰บันทึก-transcripts (Auto-resolved)
 const SESSION_CATEGORY_ID = "1545237654612869201"; // หมวดหมู่ห้อง Session (ฮีลใจ)
 
 const TIMEOUT_MS = (config.healJai && config.healJai.timeoutMinutes ? config.healJai.timeoutMinutes : 15) * 60 * 1000;
@@ -362,22 +362,33 @@ async function sendOrderHistoryLog(guild, logData = {}) {
 /**
  * ส่ง Log บันทึกการกดยอมรับข้อตกลงและนโยบายไปยังห้อง บันทึก-transcripts
  */
-async function sendConsentAuditLog(guild, { user, channelId, version = "v1.0", roleId }) {
+async function sendConsentAuditLog(guild, { user, channelId, version = "v1.0", roleId, isReconfirmed = false }) {
   if (!guild || !user) return;
   try {
     const targetChannelId = TRANSCRIPTS_CHANNEL_ID ||
       process.env.HEALJAI_TRANSCRIPTS_CHANNEL_ID ||
-      guild.channels.cache.find((c) =>
-        c.isTextBased() && (c.name.includes("บันทึก-transcripts") || c.name.includes("transcripts"))
-      )?.id;
+      "1545240025111990423";
 
-    if (!targetChannelId) return;
-
-    const transcriptChannel = guild.channels.cache.get(targetChannelId) ||
+    let transcriptChannel = guild.channels.cache.get(targetChannelId) ||
                               await guild.channels.fetch(targetChannelId).catch(() => null);
-    if (!transcriptChannel) return;
+
+    if (!transcriptChannel) {
+      const allChannels = await guild.channels.fetch().catch(() => null);
+      transcriptChannel = allChannels?.find((c) =>
+        c && c.isTextBased() && (c.name.includes("บันทึก-transcripts") || c.name.includes("transcripts"))
+      );
+    }
+
+    if (!transcriptChannel) {
+      console.warn("[HealJai] Transcript channel not found in guild:", guild.id);
+      return;
+    }
 
     const nowUnix = Math.floor(Date.now() / 1000);
+    const statusText = isReconfirmed
+      ? "กดยืนยันซ้ำ (Re-verified)"
+      : (roleId ? `มอบยศ <@&${roleId}> เรียบร้อย` : "ยินยอมข้อตกลงสำเร็จ");
+
     const embed = new EmbedBuilder()
       .setTitle("📜 บันทึกการยินยอมข้อตกลงและนโยบาย (Consent Audit Log)")
       .setColor(0x57F287) // Soft Green
@@ -386,7 +397,7 @@ async function sendConsentAuditLog(guild, { user, channelId, version = "v1.0", r
         { name: "👤 ผู้ยินยอม", value: `<@${user.id}> (${user.tag || user.username})`, inline: true },
         { name: "🆔 User ID", value: `\`${user.id}\``, inline: true },
         { name: "📋 เวอร์ชันข้อตกลง", value: `\`${version}\` (Full Terms & Conditions)`, inline: true },
-        { name: "🏷️ การมอบยศ", value: roleId ? `มอบยศ <@&${roleId}> เรียบร้อย` : "มอบยศสำเร็จ", inline: true },
+        { name: "🏷️ สถานะ / การมอบยศ", value: statusText, inline: true },
         { name: "📍 ช่องทางที่กดยอมรับ", value: channelId ? `<#${channelId}>` : "ห้องข้อตกลงหลัก", inline: true },
         { name: "⏰ เวลาที่กดยอมรับ", value: `<t:${nowUnix}:F> (<t:${nowUnix}:R>)`, inline: true }
       )
@@ -396,6 +407,7 @@ async function sendConsentAuditLog(guild, { user, channelId, version = "v1.0", r
     await transcriptChannel.send({ embeds: [embed] }).catch((e) => {
       console.warn("[HealJai] Failed to send consent audit log:", e.message);
     });
+    console.log(`[HealJai] 📜 Sent consent audit log for ${user.tag || user.id} to #${transcriptChannel.name}`);
   } catch (err) {
     console.error("[HealJai] Error in sendConsentAuditLog:", err.message);
   }
@@ -3064,15 +3076,14 @@ function setupHealJai(client) {
             }
           }
 
-          // 3. ส่ง Log ไปยังห้อง 📁・บันทึก-transcripts เฉพาะการยินยอมครั้งแรกจากห้องอ่านข้อตกลงหลัก
-          if (isNewConsent) {
-            sendConsentAuditLog(guild, {
-              user,
-              channelId: channel.id,
-              version: "v1.0",
-              roleId: VERIFIED_ROLE_ID
-            });
-          }
+          // 3. ส่ง Log ไปยังห้อง 📁・บันทึก-transcripts
+          sendConsentAuditLog(guild, {
+            user,
+            channelId: channel.id,
+            version: "v1.0",
+            roleId: VERIFIED_ROLE_ID,
+            isReconfirmed: hadVerifiedRole || !isNewConsent
+          });
 
           return interaction.reply({
             flags: FLAG_V2 | FLAG_EPHEMERAL,
@@ -3118,6 +3129,15 @@ function setupHealJai(client) {
         });
 
         clearAutoDeleteTimer(channel.id);
+
+        // ส่ง Log ไปยังห้อง 📁・บันทึก-transcripts
+        sendConsentAuditLog(guild, {
+          user,
+          channelId: channel.id,
+          version: "v1.0",
+          roleId: VERIFIED_ROLE_ID,
+          isReconfirmed: false
+        });
 
         if (supabase) {
           await supabase

@@ -452,7 +452,32 @@ function areCommandsEqual(existingCollection, targetCommands) {
 // 💚 HEAL JAI GUILD EXCLUSIVE SLASH COMMANDS (เซิร์ฟเวอร์ฮิลใจเท่านั้น)
 // ==============================================================================
 const HEAL_JAI_SLASH_COMMANDS = [
-  // 1. /heal-component (Heal Jai Component V2 System)
+  // 1. /send-component & /heal-component (Heal Jai Component V2 System)
+  {
+    name: "send-component",
+    description: "[Staff Only] ส่งบอร์ดและ Component V2 ของระบบฮิลใจ",
+    options: [
+      {
+        name: "component",
+        description: "เลือกบอร์ดระบบฮิลใจที่ต้องการส่ง",
+        type: ApplicationCommandOptionType.String,
+        required: true,
+        choices: [
+          { name: "1️⃣ บอร์ดอ่านข้อตกลงและนโยบาย (Terms)", value: "terms" },
+          { name: "2️⃣ บอร์ดเมนูเครื่องดื่มและสั่งบริการ (Menu)", value: "menu" },
+          { name: "3️⃣ แผงตอกบัตรเข้ากะของทีมงาน (Shift)", value: "shift" },
+          { name: "4️⃣ กล่องความประทับใจ (Public Showcase Preview)", value: "feedback" },
+        ],
+      },
+      {
+        name: "channel",
+        description: "เลือกห้องที่ต้องการให้ส่งการ์ดไป (เว้นว่างเพื่อส่งในห้องปัจจุบัน)",
+        type: ApplicationCommandOptionType.Channel,
+        channelTypes: [ChannelType.GuildText],
+        required: false,
+      },
+    ],
+  },
   {
     name: "heal-component",
     description: "[Staff Only] ส่งบอร์ดและ Component V2 ของระบบฮิลใจ",
@@ -473,7 +498,7 @@ const HEAL_JAI_SLASH_COMMANDS = [
         name: "channel",
         description: "เลือกห้องที่ต้องการให้ส่งการ์ดไป (เว้นว่างเพื่อส่งในห้องปัจจุบัน)",
         type: ApplicationCommandOptionType.Channel,
-        channel_types: [ChannelType.GuildText],
+        channelTypes: [ChannelType.GuildText],
         required: false,
       },
     ],
@@ -582,17 +607,30 @@ async function registerAllGuildCommands(guild) {
   try {
     const startTime = Date.now();
     const isHealJaiGuild = guild.id === healJaiGuildId;
+
+    // 🛑 บอทหลัก (Production Mode: DEV_MODE=false) ห้ามแตะต้องคำสั่งบนเซิร์ฟเวอร์ฮิลใจโดยเด็ดขาด
+    if (!isDevMode && isHealJaiGuild) {
+      console.log(`[slash] 🛑 Main Bot does not manage commands on Heal Jai Guild ("${guild.name}"). Skipping.`);
+      return;
+    }
+
     let targetCommands = isHealJaiGuild ? HEAL_JAI_SLASH_COMMANDS : GUILD_SLASH_COMMANDS;
 
     if (isDevMode) {
-      const allowedDevCommands = (process.env.DEV_SLASH_COMMANDS || "test_bee,send-component,heal-component,บัตรพนักงาน,แก้ไขพนักงาน,healjai-admin,อนุมัติสลิป,หมุนกาชา")
-        .split(",")
-        .map((s) => s.trim().toLowerCase())
-        .filter(Boolean);
+      if (isHealJaiGuild) {
+        // บนเซิร์ฟเวอร์ฮิลใจ: บอท Dev ดูแลคำสั่งของฮิลใจทั้งหมด
+        targetCommands = HEAL_JAI_SLASH_COMMANDS;
+      } else {
+        // บนเซิร์ฟเวอร์ Bear Cafe: บอท Dev ลงทะเบียนเฉพาะคำสั่งเทสต์ที่อนุญาต
+        const allowedDevCommands = (process.env.DEV_SLASH_COMMANDS || "test_bee,send-component,หมุนกาชา")
+          .split(",")
+          .map((s) => s.trim().toLowerCase())
+          .filter(Boolean);
 
-      targetCommands = targetCommands.filter((cmd) =>
-        allowedDevCommands.includes(cmd.name.toLowerCase())
-      );
+        targetCommands = targetCommands.filter((cmd) =>
+          allowedDevCommands.includes(cmd.name.toLowerCase())
+        );
+      }
       console.log(
         `🛠️ [slash] DEV_MODE is active: Synchronizing only [${targetCommands.map((c) => c.name).join(", ")}] on "${guild.name}"`
       );

@@ -109,7 +109,6 @@ function initInteractionRouter(client) {
           customId.startsWith("heal_jai_") ||
           customId.startsWith("btn_cancel_order") ||
           customId.startsWith("btn_call_admin") ||
-          customId.startsWith("p_") ||
           cmdName.startsWith("heal") ||
           cmdName.startsWith("ฮิลใจ") ||
           allowedDevCommands.includes(cmdName) ||

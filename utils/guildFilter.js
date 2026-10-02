@@ -36,11 +36,14 @@ function getAllowedGuildIds() {
     }
   }
 
-  // 3. ดึงจาก HEALJAI_GUILD_ID ใน process.env
-  if (process.env.HEALJAI_GUILD_ID) {
-    for (const id of process.env.HEALJAI_GUILD_ID.split(",")) {
-      if (id.trim()) allowedSet.add(id.trim());
+  // 3. ดึงจาก HEALJAI_GUILD_ID ใน process.env (เฉพาะบอท Dev เท่านั้น เนื่องจากฮีลใจรันบน Dev Bot)
+  if (isDevMode) {
+    if (process.env.HEALJAI_GUILD_ID) {
+      for (const id of process.env.HEALJAI_GUILD_ID.split(",")) {
+        if (id.trim()) allowedSet.add(id.trim());
+      }
     }
+    allowedSet.add(HEALJAI_GUILD_ID);
   }
 
   // 4. ดึงจาก ALLOWED_GUILD_IDS ใน process.env
@@ -57,9 +60,8 @@ function getAllowedGuildIds() {
     }
   }
 
-  // 6. ดึงจาก Custom Guild IDs ที่กำหนดในโค้ด (Bear Cafe & HealJai)
+  // 6. ดึงจาก Custom Guild IDs ที่กำหนดในโค้ด (Bear Cafe กิลด์หลัก)
   allowedSet.add(BEARCAFE_GUILD_ID);
-  allowedSet.add(HEALJAI_GUILD_ID);
 
   return allowedSet;
 }
@@ -376,6 +378,10 @@ function setupGuildFilter(client) {
 
       // ── 1. กรณีเกิดในกิลด์ HealJai (1536199707922141254) ───────────
       if (cleanGuildId === HEALJAI_GUILD_ID) {
+        // หากเป็นบอทหลัก (Production Mode: DEV_MODE=false) ห้ามตอบสนองกิลด์ HealJai โดยเด็ดขาด
+        if (process.env.DEV_MODE !== "true") {
+          return false;
+        }
         return originalEmit.apply(this, [eventName, ...args]);
       }
 
@@ -389,7 +395,7 @@ function setupGuildFilter(client) {
           if (["heal-component", "อนุมัติสลิป", "บัตรพนักงาน", "แก้ไขพนักงาน", "healjai-admin"].includes(cmdName)) {
             return false;
           }
-          if (customId.startsWith("heal_jai_")) {
+          if (customId.startsWith("heal_jai_") || customId.startsWith("btn_cancel_order") || customId.startsWith("btn_call_admin")) {
             return false;
           }
         }

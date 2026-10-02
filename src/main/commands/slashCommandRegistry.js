@@ -360,7 +360,7 @@ const GUILD_SLASH_COMMANDS = [
         name: "channel",
         description: "เลือกห้องที่ต้องการให้ส่งการ์ดไป (เว้นว่างเพื่อส่งในห้องปัจจุบัน)",
         type: ApplicationCommandOptionType.Channel,
-        channel_types: [ChannelType.GuildText],
+        channelTypes: [ChannelType.GuildText],
         required: false,
       },
     ],

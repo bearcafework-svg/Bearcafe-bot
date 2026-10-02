@@ -184,8 +184,7 @@ function isHealJaiEvent(eventName, args) {
       typeof interaction.customId === "string" &&
       (interaction.customId.startsWith("heal_jai_") ||
        interaction.customId.startsWith("btn_cancel_order") ||
-       interaction.customId.startsWith("btn_call_admin") ||
-       interaction.customId.startsWith("p_"))
+       interaction.customId.startsWith("btn_call_admin"))
     ) {
       return true;
     }
@@ -203,8 +202,7 @@ function isHealJaiEvent(eventName, args) {
         name === "แก้ไขที่ปรึกษา" ||
         name === "ส่งเมนู" ||
         name === "ข้อตกลง" ||
-        name === "heal-component" ||
-        name === "send-component"
+        name === "heal-component"
       ) {
         return true;
       }
@@ -372,21 +370,12 @@ function setupGuildFilter(client) {
       }
     }
 
-    // 🛡️ ป้องกันไม่ให้บอทหลักตอบสนองต่อ Event ใดๆ ของฮีลใจโดยเด็ดขาด
-    if (process.env.DEV_MODE !== "true" && isHealJaiEvent(eventName, args)) {
-      return false;
-    }
-
     const guildId = extractGuildIdFromArgs(args);
     if (guildId) {
       const cleanGuildId = String(guildId).trim();
 
       // ── 1. กรณีเกิดในกิลด์ HealJai (1536199707922141254) ───────────
       if (cleanGuildId === HEALJAI_GUILD_ID) {
-        // หากเป็นบอทหลัก (Production Mode) ห้ามตอบสนองกิลด์ HealJai โดยเด็ดขาด
-        if (process.env.DEV_MODE !== "true") {
-          return false;
-        }
         return originalEmit.apply(this, [eventName, ...args]);
       }
 
@@ -394,16 +383,15 @@ function setupGuildFilter(client) {
       if (cleanGuildId === BEARCAFE_GUILD_ID) {
         if (eventName === "interactionCreate") {
           const interaction = args[0];
-          if (interaction?.isChatInputCommand?.() && interaction.commandName?.toLowerCase() === "send-component") {
-            return originalEmit.apply(this, [eventName, ...args]);
+          const cmdName = (interaction?.commandName || "").toLowerCase();
+          const customId = interaction?.customId || "";
+          // ป้องกัน Heal Jai slash commands เฉพาะในกิลด์ Bear Cafe
+          if (["heal-component", "อนุมัติสลิป", "บัตรพนักงาน", "แก้ไขพนักงาน", "healjai-admin"].includes(cmdName)) {
+            return false;
           }
-          if (typeof interaction?.customId === "string" && (interaction.customId.startsWith("vb_") || interaction.customId.startsWith("gacha_"))) {
-            return originalEmit.apply(this, [eventName, ...args]);
+          if (customId.startsWith("heal_jai_")) {
+            return false;
           }
-        }
-        // บอทหลัก (ไม่ใช่ DEV_MODE) ห้ามตอบสนอง HealJai ใน Bear Cafe guild
-        if (process.env.DEV_MODE !== "true" && isHealJaiEvent(eventName, args)) {
-          return false;
         }
         return originalEmit.apply(this, [eventName, ...args]);
       }

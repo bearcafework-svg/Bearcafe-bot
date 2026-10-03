@@ -8,11 +8,12 @@ const { Client, GatewayIntentBits } = require("discord.js");
 const { createClient } = require("@supabase/supabase-js");
 
 const BEARCAFE_GUILD_ID = process.env.GUILD_ID || "1144251788493602848";
-const SYNC_INTERVAL_MS = 60 * 1000; // ซิงค์อัตโนมัติทุก 1 นาที
+const SYNC_INTERVAL_MS = 2 * 60 * 1000; // ซิงค์ตามรอบทุก 2 นาที (ประหยัดโควตาและปลอดภัย 100%)
 
 let isSyncing = false;
 let syncTimeout = null;
 let fallbackBotClient = null;
+let lastSyncedSignature = ""; // Smart Cache: ข้ามการยิง Supabase หากข้อมูลห้องและจำนวนคนไม่มีการเปลี่ยนแปลง
 
 /**
  * ฟังก์ชันหลักในการรวบรวมห้องเสียงที่กำลังเอคทีฟและบันทึกลง Supabase
@@ -57,6 +58,14 @@ async function syncBearCafeLiveVoice(guild, supabase) {
 
     // เรียงลำดับห้องที่มีคนอยู่มากที่สุดขึ้นก่อน
     activeRooms.sort((a, b) => b.count - a.count);
+
+    // 🛡️ Smart Dirty Check: ตรวจสอบว่าจำนวนคนและห้องเสียงมีการเปลี่ยนแปลงจริงหรือไม่
+    const signature = `${totalInVoice}:${activeRooms.map((r) => `${r.id}:${r.count}`).join(",")}`;
+    if (signature === lastSyncedSignature) {
+      // ข้อมูลเหมือนเดิม 100% ข้ามการยิง Supabase เพื่อประหยัดโควตาและป้องกัน Rate Limit
+      return;
+    }
+    lastSyncedSignature = signature;
 
     // ดึง server_profile เดิมเพื่อทำการ merge ข้อมูล
     const { data: currentData } = await supabase
@@ -140,7 +149,7 @@ function setupBearCafeActivitySync(client) {
       const g = newState.guild || oldState.guild;
       if (g && g.id === BEARCAFE_GUILD_ID) {
         if (oldState.channelId !== newState.channelId) {
-          debouncedTriggerSync(guild, supabase, 12000);
+          debouncedTriggerSync(guild, supabase, 45000);
         }
       }
     });

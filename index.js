@@ -101,14 +101,10 @@ setupFeature("createRentHouse", "./src/commands/createRentHouse", "setupCreateRe
 
 if (!isLocalFastStart && process.env.DISABLE_CONTRACT_NOTIFIER !== "true") {
   setupContractNotifier(client);
-} else {
-  console.log("[local] ⏭️ Skipping contractNotifier (Auto DM) in Local/Dev mode.");
 }
 
 if (!isLocalFastStart && process.env.DISABLE_BROADCAST_SCHEDULER !== "true") {
   setupBroadcastScheduler(client);
-} else {
-  console.log("[local] ⏭️ Skipping broadcastScheduler in Local/Dev mode.");
 }
 setupFeature("checkRole", "./src/commands/checkRole", "setupCheckRole");
 setupFeature("resetForm", "./src/commands/resetForm", "setupResetForm", supabaseEnvKeys);
@@ -136,6 +132,7 @@ setupFeature("mainQuest", "./src/features/mainQuest", "setupMainQuest", supabase
 setupFeature("sendComponent", "./src/commands/sendComponent", "setupSendComponent");
 setupFeature("clearMessages", "./src/commands/clearMessages", "setupClearMessages");
 setupFeature("aiAssistant", "./src/features/ai", "setupAI", ["GEMINI_API_KEY"]);
+setupFeature("bearCafeActivitySync", "./src/features/bearCafeActivitySync", "setupBearCafeActivitySync", supabaseEnvKeys);
 
 function setupFeature(name, modulePath, setupName, requiredEnv = []) {
   // 🛡️ ป้องกันบอทหลักโหลดระบบฮีลใจและคำสั่ง Dev-only
@@ -223,11 +220,9 @@ client.once("clientReady", async () => {
     setInterval(() => updateBotPresence(client), 10 * 60 * 1000);
   }
 
-  // 2. ซิงค์ Voice Status สำหรับห้องเสียงในหมวดหมู่ Point x2 ทันที
-  if (!isLocalFastStart) {
+  // 2. ซิงค์ Voice Status สำหรับห้องเสียงในหมวดหมู่ Point x2 ทันที (เฉพาะบอทหลัก)
+  if (!isLocalFastStart && !isDevMode) {
     syncPointX2VoiceStatus(client);
-  } else {
-    console.log("[local] ⏭️ Skipping syncPointX2VoiceStatus in Local/Dev mode.");
   }
 
   // 3. ลงทะเบียน Slash Commands รวมแบบ Bulk Set (เร็วขึ้น 15x) สำหรับทุกกิลด์ที่อนุญาต
@@ -241,39 +236,37 @@ client.once("clientReady", async () => {
     }
   }
 
-  // 4. โหลด separator IDs จาก Redis
-  try {
-    const separators = await getAllSeparators();
-    for (const zone of config.zones) {
-      if (separators[zone.id]) {
-        zone.separatorChannelId = separators[zone.id];
-        console.log(`📌 โหลด separator โซน "${zone.name}": ${separators[zone.id]}`);
+  // 4. โหลด separator IDs จาก Redis (เฉพาะบอทหลัก)
+  if (!isDevMode) {
+    try {
+      const separators = await getAllSeparators();
+      for (const zone of config.zones) {
+        if (separators[zone.id]) {
+          zone.separatorChannelId = separators[zone.id];
+          console.log(`📌 โหลด separator โซน "${zone.name}": ${separators[zone.id]}`);
+        }
       }
+    } catch (e) {
+      console.error("⚠️ โหลด separators จาก Redis ไม่ได้:", e.message);
     }
-  } catch (e) {
-    console.error("⚠️ โหลด separators จาก Redis ไม่ได้:", e.message);
   }
 
   if (process.env.CLEAR_SLASH_COMMANDS_ON_START === "true") {
     console.warn("[slash] CLEAR_SLASH_COMMANDS_ON_START is disabled in this project to avoid wiping another bot's slash commands.");
   }
 
-  // 4.5 กู้คืนข้อมูลห้อง VIP จาก Supabase Table เข้าสู่ Redis (Disaster Recovery เผื่อกรณี Redis รีสตาร์ต/แคชหลุด)
-  if (!isLocalFastStart) {
+  // 4.5 กู้คืนข้อมูลห้อง VIP จาก Supabase Table เข้าสู่ Redis (เฉพาะบอทหลัก)
+  if (!isLocalFastStart && !isDevMode) {
     try {
       const { restoreVipRoomsFromDatabaseToRedis } = require("./src/services/vipRoomService");
       await restoreVipRoomsFromDatabaseToRedis();
     } catch (e) {
       console.warn("[VIP] ไม่สามารถกู้คืนห้อง VIP จาก Supabase ได้:", e.message);
     }
-  } else {
-    console.log("[local] ⏭️ Skipping restoreVipRoomsFromDatabaseToRedis in Local/Dev mode.");
   }
 
-  // 5. Startup Cleanup — ลบห้องค้างจากก่อนบอทดับ & สร้างห้องให้สมาชิกที่ค้างใน Lobby
-  if (isLocalFastStart) {
-    console.log("[local] Skipping startup cleanup.");
-  } else {
+  // 5. Startup Cleanup — ลบห้องค้างจากก่อนบอทดับ & สร้างห้องให้สมาชิกที่ค้างใน Lobby (เฉพาะบอทหลัก)
+  if (!isLocalFastStart && !isDevMode) {
     try {
       await startupCleanup();
       if (guild) {
@@ -284,27 +277,21 @@ client.once("clientReady", async () => {
     }
   }
 
-  // 6. เริ่ม monitor loop (ข้ามเมื่อเป็นโหมด Local/Dev)
-  if (!isLocalFastStart && process.env.DISABLE_ROOM_MONITOR !== "true") {
+  // 6. เริ่ม monitor loop (เฉพาะบอทหลัก)
+  if (!isLocalFastStart && !isDevMode && process.env.DISABLE_ROOM_MONITOR !== "true") {
     startMonitor(client);
-  } else {
-    console.log("[local] ⏭️ Skipping roomMonitor loop in Local/Dev mode.");
   }
 
-  // 7. เริ่มต้นทำงาน Voice Log Worker ดึงประวัติจาก Redis ลง Supabase (ข้ามเมื่อเป็นโหมด Local/Dev)
-  if (!isLocalFastStart && process.env.DISABLE_VOICE_WORKER !== "true") {
+  // 7. เริ่มต้นทำงาน Voice Log Worker ดึงประวัติจาก Redis ลง Supabase (เฉพาะบอทหลัก)
+  if (!isLocalFastStart && !isDevMode && process.env.DISABLE_VOICE_WORKER !== "true") {
     startVoiceLogWorker().catch((e) => console.error("Voice Log Worker failed to start:", e.message));
-  } else {
-    console.log("[local] ⏭️ Skipping Voice Log Worker in Local/Dev mode.");
   }
 
-  // 8. เริ่มต้นระบบตรวจนับถอยหลังและหมดอายุห้อง VIP 24 ชั่วโมง (รันตรวจทุก 1 นาที)
-  if (!isLocalFastStart && process.env.DISABLE_VIP_MONITOR !== "true") {
+  // 8. เริ่มต้นระบบตรวจนับถอยหลังและหมดอายุห้อง VIP 24 ชั่วโมง (เฉพาะบอทหลัก)
+  if (!isLocalFastStart && !isDevMode && process.env.DISABLE_VIP_MONITOR !== "true") {
     const { checkVipRoomsExpiry } = require("./handlers/roomDestroyer");
     checkVipRoomsExpiry(client);
     setInterval(() => checkVipRoomsExpiry(client), 60 * 1000);
-  } else {
-    console.log("[local] ⏭️ Skipping VIP room expiry monitor loop in Local/Dev mode.");
   }
 });
 

@@ -10,8 +10,24 @@ const FLAG_EPHEMERAL = 64; // MessageFlags.Ephemeral
  * - ตัด flow metadata ของ Discohook ออกจาก Buttons
  */
 function sanitizeComponentV2(payload) {
-  if (!payload || !payload.components) return payload;
+  if (!payload) return payload;
+  if (Array.isArray(payload)) {
+    return payload.map((item) => sanitizeComponentV2(item));
+  }
   const clone = JSON.parse(JSON.stringify(payload));
+  const isV2 = Boolean(
+    (clone.flags && (clone.flags & FLAG_V2) !== 0) ||
+    (Array.isArray(clone.components) && clone.components.some((c) => c && (c.type === 17 || c.type === 12 || c.type === 10)))
+  );
+
+  if (isV2) {
+    // Discord Components V2 strictly prohibits top-level 'content' and 'embeds' fields
+    delete clone.content;
+    delete clone.embeds;
+  } else if (clone.content === null || clone.content === undefined) {
+    delete clone.content;
+  }
+
   if (Array.isArray(clone.components)) {
     for (const topComp of clone.components) {
       if (topComp && Array.isArray(topComp.components)) {
@@ -83,7 +99,7 @@ function buildCheckoutTicketPayload(orderInfo = {}) {
       );
     }
   }
-  return payload;
+  return sanitizeComponentV2(payload);
 }
 
 /**
@@ -130,8 +146,7 @@ function buildDispatchAlertPayload(dispatchInfo) {
     menuImageUrl = matchedDrink?.imageUrl || 'https://cdn.discordapp.com/attachments/1536267579843280987/1547550913474854942/New_premium_13.png';
   }
 
-  return {
-    content: null,
+  return sanitizeComponentV2({
     flags: FLAG_V2,
     pingMention: contentMention,
     components: [
@@ -197,38 +212,58 @@ function buildDispatchAlertPayload(dispatchInfo) {
         ]
       }
     ]
-  };
+  });
 }
 
 /**
  * 6. แผงควบคุมในห้องสนทนาส่วนตัว (Session Dashboard)
- * @param {object} sessionInfo - { customerId, counselorId, totalMinutes, isBooster, packageName, serviceMode, voiceChannelId }
+ * @param {object} sessionInfo - { customerId, counselorId, counselorName, totalMinutes, isBooster, packageName, serviceMode, voiceChannelId }
  */
 function buildSessionDashboardPayload(sessionInfo = {}) {
   const customerMention = `<@${sessionInfo.customerId}>`;
-  const counselorMention = `<@${sessionInfo.counselorId}>`;
+  const counselorName = sessionInfo.counselorName ? ` — คุณ${sessionInfo.counselorName}` : '';
+  const counselorMention = `<@${sessionInfo.counselorId}>${counselorName}`;
   const totalMinutes = sessionInfo.totalMinutes || 30;
+  const isVoice = sessionInfo.serviceMode === 'voice';
   const boosterNote = sessionInfo.isBooster ? ' (รวมโบนัส Booster +5 นาที)' : '';
-  const voiceNote = (sessionInfo.serviceMode === 'voice' && sessionInfo.voiceChannelId)
+  const voiceNote = (isVoice && sessionInfo.voiceChannelId)
     ? `\n* 🎙️⠀**ห้องเสียง:** <#${sessionInfo.voiceChannelId}>`
     : '';
 
-  return {
-    content: null,
+  const headerTitle = isVoice
+    ? "## <:cupofmatcha:1536694010780065863>︲__` 𝖵𝗈𝗂𝖼𝖾 𝗋𝗈𝗈𝗆 ₊ ยินดีต้อนรับสู่ห้องสนทนาส่วนตัว 𓂃 `__"
+    : "## <:cupofmatcha:1536694010780065863>︲__` 𝖳𝖾𝗑𝗍 𝖼𝗁𝖺𝗍 ₊ ยินดีต้อนรับสู่ห้องสนทนาส่วนตัว 𓂃 `__";
+
+  return sanitizeComponentV2({
     flags: FLAG_V2,
     components: [
       {
         type: 17,
         components: [
           {
+            type: 12,
+            items: [
+              {
+                media: {
+                  url: "https://cdn.discordapp.com/attachments/1536267579843280987/1555726594474250270/BannerMain.png?backend=b2&ex=6ac192cc&is=6ac0414c&hm=ae7424b1a41702aab1336cd7cd8c9d9d2820a025e3104157a4796a4308065413&"
+                }
+              }
+            ]
+          },
+          {
+            type: 14,
+            divider: false,
+            spacing: 1
+          },
+          {
             type: 10,
             content: [
-              `## 🍵︲__\` ยินดีต้อนรับสู่ห้องสนทนาส่วนตัว (Heal Jai) 𓂃 \`__`,
-              `-# พื้นที่ปลอดภัยของคุณเปิดให้บริการแล้ว ขอให้เป็นช่วงเวลาที่อบอุ่นและผ่อนคลายนะคะ\n`,
+              headerTitle,
+              "-# พื้นที่ปลอดภัยของคุณเปิดให้บริการแล้ว ขอให้เป็นช่วงเวลาที่อบอุ่นและผ่อนคลายนะคะ\n",
               `* 👤⠀**ลูกค้า:** ${customerMention}`,
               `* 🍵⠀**ผู้รับฟัง:** ${counselorMention}`,
               `* ⏱️⠀**เวลาให้บริการ:** ${totalMinutes} นาที${boosterNote}${voiceNote}\n`,
-              `> 💡 *เมื่อทั้งสองฝ่ายพร้อม ให้ที่ปรึกษากดปุ่ม **"▶️ เริ่มเซสชัน"** ด้านล่างเพื่อเริ่มจับเวลา ระบบจะแจ้งเตือนเมื่อเหลือ 5 นาที / 1 นาที และปิดห้องอัตโนมัติเมื่อครบเวลาค่ะ*`
+              "> 💡 *เมื่อทั้งสองฝ่ายพร้อม ให้ที่ปรึกษากดปุ่ม **\"▶️ เริ่มเซสชัน\"** ด้านล่างเพื่อเริ่มจับเวลา ระบบจะแจ้งเตือนเมื่อเหลือ 5 นาที / 1 นาที และปิดห้องอัตโนมัติเมื่อครบเวลาค่ะ*"
             ].join('\n')
           },
           {
@@ -240,36 +275,36 @@ function buildSessionDashboardPayload(sessionInfo = {}) {
             type: 1,
             components: [
               {
-                style: 3,
                 type: 2,
-                label: '︲เริ่มเซสชัน',
+                style: 3,
+                label: "︲เริ่มเซสชัน",
                 emoji: {
-                  name: '▶️'
+                  name: "▶️"
                 },
-                custom_id: 'heal_jai_start_session'
+                custom_id: "heal_jai_start_session"
               },
               {
-                style: 4,
                 type: 2,
-                label: '︲จบบริการ (ก่อนเวลา)',
+                style: 4,
+                label: "︲จบบริการ (ก่อนเวลา)",
                 emoji: {
-                  name: '⏹️'
+                  name: "⏹️"
                 },
-                custom_id: 'heal_jai_end_session'
+                custom_id: "heal_jai_end_session"
               }
             ]
           }
         ]
       }
     ]
-  };
+  });
 }
 
 /**
  * 7. การ์ดส่งความประทับใจสำหรับส่งให้ลูกค้า (Prompt Rating)
  */
 function buildFeedbackPromptPayload() {
-  return JSON.parse(JSON.stringify(templates.board_7_feedback_card));
+  return sanitizeComponentV2(JSON.parse(JSON.stringify(templates.board_7_feedback_card)));
 }
 
 /**
@@ -285,8 +320,7 @@ function buildPublicReviewShowcasePayload(reviewData) {
   const dateStr = reviewData.dateStr || new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
   const sessionNum = reviewData.sessionNumber ? ` • แก้วที่เสิร์ฟ: #${reviewData.sessionNumber}` : '';
 
-  return {
-    content: null,
+  return sanitizeComponentV2({
     flags: FLAG_V2,
     components: [
       {
@@ -331,7 +365,7 @@ function buildPublicReviewShowcasePayload(reviewData) {
         ]
       }
     ]
-  };
+  });
 }
 
 /**
@@ -390,36 +424,41 @@ const MOCK_COUNSELORS = {
   counselor_ciew: {
     id: "counselor_ciew",
     name: "คุณซีบิว",
-    label: "คุณซีบิว — อายุ 20",
-    description: "ใจดี อบอุ่น รับฟังทุกเรื่องได้อย่างสบายใจ",
+    label: "คุณซีบิว",
+    description: "คลิกเพื่อดูรายละเอียด",
+    bio: "ใจดี อบอุ่น รับฟังทุกเรื่องได้อย่างสบายใจ 🍵 พร้อมรับฟังและอยู่เคียงข้างคุณเสมอค่ะ",
     emoji: "🍀"
   },
   counselor_sugar: {
     id: "counselor_sugar",
     name: "น้องหมีชูการ์ 🐻",
-    label: "น้องหมีชูการ์ 🐻 (🟢 ว่าง)",
-    description: "ใจดี อบอุ่น รับฟังทุกเรื่องได้อย่างสบายใจ",
+    label: "น้องหมีชูการ์ 🐻",
+    description: "คลิกเพื่อดูรายละเอียด",
+    bio: "ใจดี อบอุ่น รับฟังทุกเรื่องได้อย่างสบายใจ",
     emoji: "🐻"
   },
   counselor_sakura: {
     id: "counselor_sakura",
     name: "คุณหมีซากุระ 🌸",
-    label: "คุณหมีซากุระ 🌸 (🟢 ว่าง)",
-    description: "สายผ่อนคลาย คุยสบาย สไตล์เพื่อนข้างห้อง",
+    label: "คุณหมีซากุระ 🌸",
+    description: "คลิกเพื่อดูรายละเอียด",
+    bio: "สายผ่อนคลาย คุยสบาย สไตล์เพื่อนข้างห้อง",
     emoji: "🌸"
   },
   counselor_mocha: {
     id: "counselor_mocha",
     name: "บาริสต้าหมีมอคค่า ☕",
-    label: "บาริสต้าหมีมอคค่า ☕ (🟢 ว่าง)",
-    description: "รับฟังนิ่งๆ ใจเย็น ให้พื้นที่ปลอดภัยเต็มที่",
+    label: "บาริสต้าหมีมอคค่า ☕",
+    description: "คลิกเพื่อดูรายละเอียด",
+    bio: "รับฟังนิ่งๆ ใจเย็น ให้พื้นที่ปลอดภัยเต็มที่",
     emoji: "☕"
   },
   counselor_honey: {
     id: "counselor_honey",
     name: "หมีน้อยฮันนี่ 🍯",
-    label: "หมีน้อยฮันนี่ 🍯 (🟢 ว่าง)",
-    description: "พลังบวก สดใส ให้กำลังใจเก่ง",
+    label: "หมีน้อยฮันนี่ 🍯",
+    description: "คลิกเพื่อดูรายละเอียด",
+    bio: "พลังบวก สดใส ให้กำลังใจเก่ง",
     emoji: "🍯"
   }
 };
@@ -444,8 +483,7 @@ function buildInteractiveOrderPayload({
 
   // ── STEP 1: คลิกปุ่มเลือกบริการ (1/3) ───────────────────────────
   if (step === 1 || !mode) {
-    return {
-      content: null,
+    return sanitizeComponentV2({
       flags: FLAG_V2,
       components: [
         {
@@ -550,13 +588,12 @@ function buildInteractiveOrderPayload({
           ]
         }
       ]
-    };
+    });
   }
 
   // ── STEP 2: คลิกปุ่มเลือกเครื่องดื่ม (2/3) ───────────────────────────
   if (step === 2 || !drinkId) {
-    return {
-      content: null,
+    return sanitizeComponentV2({
       flags: FLAG_V2,
       components: [
         {
@@ -675,19 +712,43 @@ function buildInteractiveOrderPayload({
           ]
         }
       ]
-    };
+    });
   }
 
   // ── STEP 3b: คลิกเลือกผู้รับฟังจาก Dropdown (3/3) ─────────────────
   if (step === 3.5 || (toppingId === "specific_39" && !counselorId && step !== 4)) {
-    const defaultCounselorOptions = counselorOptions || Object.values(MOCK_COUNSELORS).map((c) => ({
-      label: c.label || c.name,
-      value: c.id,
-      emoji: { name: c.emoji || "🍀" }
-    }));
+    let resolvedOptions = [];
+    if (Array.isArray(counselorOptions)) {
+      resolvedOptions = counselorOptions;
+    } else {
+      resolvedOptions = Object.values(MOCK_COUNSELORS).filter((c) => {
+        const modes = c.service_modes || ["chat", "voice"];
+        return !mode || modes.includes(mode);
+      });
+    }
 
-    return {
-      content: null,
+    const hasCounselors = resolvedOptions.length > 0;
+
+    let selectOptions = [];
+    if (hasCounselors) {
+      selectOptions = resolvedOptions.slice(0, 25).map((c) => ({
+        label: (c.label || c.displayName || c.name || "").replace(/\s*—\s*อายุ\s*\d+/g, "").trim(),
+        value: c.value || c.userId || c.user_id || c.id,
+        description: "คลิกเพื่อดูรายละเอียด",
+        emoji: typeof c.emoji === "string" ? { name: c.emoji } : (c.emoji || { name: "🍀" })
+      }));
+    } else {
+      selectOptions = [
+        {
+          label: "ไม่มีผู้ให้บริการว่างในขณะนี้",
+          value: "none",
+          description: "กรุณาลองใหม่อีกครั้ง หรือเปลี่ยนโหมดบริการ",
+          emoji: { name: "⚪" }
+        }
+      ];
+    }
+
+    return sanitizeComponentV2({
       flags: FLAG_V2,
       components: [
         {
@@ -778,10 +839,11 @@ function buildInteractiveOrderPayload({
                 {
                   type: 3,
                   custom_id: "heal_jai_select_counselor",
-                  placeholder: "🟢︲คลิกเลือกผู้รับฟัง",
+                  placeholder: hasCounselors ? "🟢︲คลิกเลือกผู้รับฟัง" : "🔴︲ไม่มีผู้ให้บริการตามที่เลือก",
                   min_values: 1,
                   max_values: 1,
-                  options: defaultCounselorOptions.slice(0, 25)
+                  disabled: !hasCounselors,
+                  options: selectOptions
                 }
               ]
             },
@@ -798,8 +860,7 @@ function buildInteractiveOrderPayload({
 
   // ── STEP 3: คลิกปุ่มเลือกท็อปปิ้ง (3/3) ───────────────────────────
   if (step === 3 || (!toppingId && step !== 4)) {
-    return {
-      content: null,
+    return sanitizeComponentV2({
       flags: FLAG_V2,
       components: [
         {
@@ -917,7 +978,7 @@ function buildInteractiveOrderPayload({
           ]
         }
       ]
-    };
+    });
   }
 
   // ── STEP 4: ทวนรายการเครื่องดื่มของท่าน (Summary / Checkout) ────────
@@ -934,8 +995,7 @@ function buildInteractiveOrderPayload({
 
   const totalPrice = (drink ? drink.price : 0) + toppingPrice;
 
-  return {
-    content: null,
+  return sanitizeComponentV2({
     flags: FLAG_V2,
     components: [
       {
@@ -1005,7 +1065,7 @@ function buildInteractiveOrderPayload({
         ]
       }
     ]
-  };
+  });
 }
 
 // ── ฟังก์ชันคงไว้สำหรับความเข้ากันได้ ─────────────────────────────────
@@ -1017,8 +1077,12 @@ function buildInteractiveMenuPayload(params) {
  * สร้างการ์ดชำระเงิน (Scan to Pay Component v2)
  */
 function buildScanToPayPayload(orderInfo = {}) {
+  const isVoice = orderInfo.mode === "voice" || orderInfo.serviceMode === "voice";
+  const modeText = orderInfo.modeName || (isVoice ? "🔊︲คอลเสียง (Voice)" : "💬︲พิมพ์คุย (Chat)");
+
   const summaryLines = [
     `### <:matchamochi:1536695320174534699>︲__\` สรุปรายการคำสั่งซื้อของคุณ \`__`,
+    `* 🛋️⠀**รูปแบบบริการ:** ${modeText}`,
     `* 🍵⠀**แพ็กเกจ:** ${orderInfo.packageName || 'เครื่องดื่มพักใจ'} (${orderInfo.duration || 30} นาที)`,
     orderInfo.toppingName ? `* 🌱⠀**ท็อปปิ้ง:** ${orderInfo.toppingName}` : null,
     orderInfo.counselorName ? `* 🎯⠀**ระบุตัวผู้รับฟัง:** ${orderInfo.counselorName}` : null,
@@ -1027,8 +1091,7 @@ function buildScanToPayPayload(orderInfo = {}) {
     `> เมื่อโอนเงินเรียบร้อยแล้ว ให้แนบและส่งรูปภาพสลิปในห้องนี้ได้เลยค่ะ ระบบจะทำการตรวจสอบสลิปอัตโนมัติ 🍵`
   ].filter(Boolean).join('\n');
 
-  return {
-    content: null,
+  return sanitizeComponentV2({
     flags: FLAG_V2,
     components: [
       {
@@ -1094,7 +1157,7 @@ function buildScanToPayPayload(orderInfo = {}) {
         ]
       }
     ]
-  };
+  });
 }
 
 const ALL_SPECIALTIES = [
@@ -1110,7 +1173,7 @@ const ALL_SPECIALTIES = [
  * @param {object} counselorData - ข้อมูลพนักงานจาก Supabase
  * @param {import("discord.js").GuildMember} member - Discord Guild Member
  */
-function buildCounselorCardPayload(counselorData = {}, member = null) {
+function buildCounselorCardPayload(counselorData = {}, member = null, options = {}) {
   const status = counselorData.status || "OFFLINE";
   let statusText = "⚪ พักรับงาน";
   if (status === "ONLINE") {
@@ -1150,8 +1213,10 @@ function buildCounselorCardPayload(counselorData = {}, member = null) {
 
   const servicesText = servicesList.join(" ");
 
+  const mentionText = /^\d+$/.test(userId) ? `<@${userId}> ${displayName}` : displayName;
+
   const topContent = [
-    `## <:idolgreensuki:1554499554575913041>︲<@${userId}> ${displayName}`,
+    `## <:idolgreensuki:1554499554575913041>︲${mentionText}`,
     `" ${bio} "\n`,
     `> สถานะการทำงาน: \`${statusText}\``,
     `> บริการ: ${servicesText}`,
@@ -1159,40 +1224,74 @@ function buildCounselorCardPayload(counselorData = {}, member = null) {
     `> บริการสำเร็จ: ${totalSessions} คน`
   ].join("\n");
 
-  return {
-    content: null,
+  const cardComponents = [
+    {
+      type: 9,
+      components: [
+        {
+          type: 10,
+          content: topContent
+        }
+      ],
+      accessory: {
+        type: 11,
+        media: {
+          url: avatarUrl
+        }
+      }
+    },
+    {
+      type: 10,
+      content: specialtiesContent
+    }
+  ];
+
+  if (options.showBackButton || options.showInteractiveButtons) {
+    const counselorConfirmId = options.counselorId ? `heal_jai_confirm_counselor_${options.counselorId}` : "heal_jai_confirm_counselor";
+    cardComponents.push(
+      {
+        type: 14,
+        divider: true,
+        spacing: 2
+      },
+      {
+        type: 1,
+        components: [
+          {
+            type: 2,
+            style: 3,
+            label: "︲เลือกผู้รับฟังท่านนี้",
+            emoji: { name: "✅" },
+            custom_id: counselorConfirmId
+          },
+          {
+            type: 2,
+            style: 2,
+            label: "︲ย้อนกลับไป",
+            emoji: { name: "↩️" },
+            custom_id: "heal_jai_back_to_counselor_select"
+          },
+          {
+            type: 2,
+            style: 5,
+            label: "︲คลิกหากพบปัญหา",
+            emoji: { name: "🚨" },
+            url: "https://discord.com/channels/1536199707922141254/1536207517120466964"
+          }
+        ]
+      }
+    );
+  }
+
+  return sanitizeComponentV2({
     flags: FLAG_V2,
     components: [
       {
         type: 17,
-        components: [
-          {
-            type: 9,
-            components: [
-              {
-                type: 10,
-                content: topContent
-              }
-            ],
-            accessory: {
-              type: 11,
-              media: {
-                url: avatarUrl
-              }
-            }
-          },
-          {
-            type: 10,
-            content: specialtiesContent
-          },
-          {
-            type: 14,
-            spacing: 2
-          }
-        ]
+        components: cardComponents
       }
     ]
-  };
+  });
 }
 
 /**
@@ -1239,7 +1338,6 @@ function buildAdminDashboardPayload(stats) {
   const maintenanceBtnLabel = stats.isMaintenance ? "🟢 เปิดให้บริการระบบ" : "🔴 ปิดปรับปรุงระบบชั่วคราว";
 
   return {
-    content: null,
     flags: FLAG_EPHEMERAL,
     embeds: [
       {
@@ -1318,7 +1416,6 @@ function buildAdminManageCasePayload(order) {
   const channelLink = order.session_channel_id || order.ticket_channel_id;
 
   return {
-    content: null,
     flags: FLAG_EPHEMERAL,
     embeds: [
       {
@@ -1382,7 +1479,6 @@ function buildDailyReportPayload(reportData) {
     : "* ไม่มีข้อมูลเคสที่ปรึกษาในวันนี้";
 
   return {
-    content: null,
     embeds: [
       {
         title: `📊  รายงานสรุปยอดประจำวัน — Bear Cafe ฮีลใจ`,
@@ -1423,7 +1519,6 @@ function buildAdminCounselorSelectPayload(counselors = []) {
   });
 
   return {
-    content: null,
     flags: FLAG_EPHEMERAL,
     embeds: [
       {
@@ -1504,7 +1599,6 @@ function buildAdminCounselorEditPayload(counselorData = {}, member = null) {
   }));
 
   return {
-    content: null,
     flags: FLAG_EPHEMERAL,
     embeds: [
       {
@@ -1517,6 +1611,7 @@ function buildAdminCounselorEditPayload(counselorData = {}, member = null) {
           `* 📱⠀**รูปแบบบริการ:** \`[ ${serviceModeLabel} ]\``,
           `* 🍃⠀**โหมดนั่งเงียบเป็นเพื่อน:** \`[ ${silentLabel} ]\``,
           `* 💼⠀**เลขบัญชีรับเงิน:** \`${payoutAccount}\``,
+          `* 💰⠀**รายได้สะสม:** \`฿${Number(counselor.accumulated_earnings || 0).toLocaleString()}\``,
           `* 📝⠀**คำแนะนำตัว:** "${bio}"\n`,
           `### 🎯 ความถนัดเฉพาะ (Specialties)`,
           specialtiesDisplay,
@@ -1546,28 +1641,34 @@ function buildAdminCounselorEditPayload(counselorData = {}, member = null) {
           }
         ]
       },
-      // Row 2: ปุ่มแก้ไขข้อมูลทั่วไป, สลับรูปแบบบริการ, สลับโหมดเงียบ, เปลี่ยนคน
+      // Row 2: ปุ่มแก้ไขข้อมูลทั่วไป, สลับรูปแบบบริการ, สลับโหมดเงียบ, รียอดสะสม, เปลี่ยนคน
       {
         type: 1,
         components: [
           {
             type: 2,
             style: 1, // Primary Blurple
-            label: "📝 แก้ไขข้อมูลทั่วไป",
+            label: "📝 แก้ไขข้อมูล",
             custom_id: `heal_jai_admin_edit_modal:${userId}`
           },
           {
             type: 2,
             style: 2, // Secondary Grey
-            label: "📱 สลับรูปแบบบริการ",
+            label: "📱 โหมดบริการ",
             emoji: { name: "🔄" },
             custom_id: `heal_jai_admin_toggle_service:${userId}`
           },
           {
             type: 2,
             style: isSilent ? 3 : 2, // Green if on, Grey if off
-            label: isSilent ? "🍃 โหมดเงียบ: เปิด" : "🍃 โหมดเงียบ: ปิด",
+            label: isSilent ? "🍃 เงียบ: เปิด" : "🍃 เงียบ: ปิด",
             custom_id: `heal_jai_admin_toggle_silent:${userId}`
+          },
+          {
+            type: 2,
+            style: 4, // Destructive Red
+            label: "💰 รียอด",
+            custom_id: `heal_jai_admin_reset_earnings:${userId}`
           },
           {
             type: 2,
@@ -1624,11 +1725,20 @@ function buildAdminEditCounselorModal(targetUserId, currentData = {}) {
     .setMaxLength(50)
     .setRequired(false);
 
+  const sessionsInput = new TextInputBuilder()
+    .setCustomId("total_sessions")
+    .setLabel("จำนวนบริการสำเร็จ (Total Sessions)")
+    .setStyle(TextInputStyle.Short)
+    .setValue(currentData.total_sessions !== undefined && currentData.total_sessions !== null ? String(currentData.total_sessions) : "0")
+    .setMaxLength(10)
+    .setRequired(false);
+
   modal.addComponents(
     new ActionRowBuilder().addComponents(nameInput),
     new ActionRowBuilder().addComponents(bioInput),
     new ActionRowBuilder().addComponents(imageInput),
-    new ActionRowBuilder().addComponents(payoutInput)
+    new ActionRowBuilder().addComponents(payoutInput),
+    new ActionRowBuilder().addComponents(sessionsInput)
   );
 
   return modal;
@@ -1714,7 +1824,7 @@ function buildCounselorWalletHistoryPayload({
     };
   }
 
-  return {
+  return sanitizeComponentV2({
     flags: FLAG_V2 | FLAG_EPHEMERAL,
     components: [
       {
@@ -1773,12 +1883,13 @@ function buildCounselorWalletHistoryPayload({
         ]
       }
     ]
-  };
+  });
 }
 
 module.exports = {
   FLAG_V2,
   FLAG_EPHEMERAL,
+  sanitizeComponentV2,
   SERVICE_MODES,
   DRINK_OPTIONS,
   TOPPING_OPTIONS,
@@ -1806,5 +1917,4 @@ module.exports = {
   buildCounselorWalletHistoryPayload,
   ALL_SPECIALTIES
 };
-
 

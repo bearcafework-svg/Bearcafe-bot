@@ -1,7 +1,6 @@
 {
   "board_1_terms": [
     {
-      "content": null,
       "flags": 32768,
       "components": [
         {
@@ -31,7 +30,6 @@
       ]
     },
     {
-      "content": null,
       "flags": 32768,
       "components": [
         {
@@ -129,7 +127,6 @@
     ]
   },
   "board_3_shift_panel": {
-    "content": null,
     "flags": 32768,
     "components": [
       {
@@ -181,7 +178,6 @@
     ]
   },
   "board_4_checkout_ticket": {
-    "content": null,
     "flags": 32768,
     "components": [
       {
@@ -296,7 +292,6 @@
     ]
   },
   "board_6_session_dashboard": {
-    "content": null,
     "flags": 32768,
     "components": [
       {
@@ -339,7 +334,6 @@
     ]
   },
   "board_7_feedback_card": {
-    "content": null,
     "flags": 32768,
     "components": [
       {

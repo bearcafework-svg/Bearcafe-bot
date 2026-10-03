@@ -415,6 +415,20 @@ const GUILD_SLASH_COMMANDS = [
     name: "หมุนกาชา",
     description: "🎰 เปิดตู้กาชาปอง Bear Cafe สุ่มรับของรางวัลสุดพิเศษ (ใช้แต้ม Points)",
   },
+
+  // 26. /ai-reload (AI System Hot-Reload)
+  {
+    name: "ai-reload",
+    description: "รีโหลด Persona, Knowledge Base และ Sticker Triggers ของ AI เข้าสู่ RAM (เฉพาะ Admin)",
+    defaultMemberPermissions: PermissionFlagsBits.Administrator,
+  },
+
+  // 27. /ai-status (AI System Status & Daily Budget)
+  {
+    name: "ai-status",
+    description: "ตรวจสอบสถานะการทำงาน, Daily Budget และ Cache ของระบบ AI (เฉพาะ Admin)",
+    defaultMemberPermissions: PermissionFlagsBits.Administrator,
+  },
 ];
 
 /**
@@ -612,8 +626,11 @@ async function registerAllGuildCommands(guild) {
       if (isHealJaiGuild) {
         // บนเซิร์ฟเวอร์ฮิลใจ: บอท Dev ดูแลคำสั่งของฮิลใจทั้งหมด + คำสั่ง Dev
         targetCommands = [...HEAL_JAI_SLASH_COMMANDS, ...DEV_ONLY_SLASH_COMMANDS];
+      } else if (guild.id === "1144251788493602848") {
+        // 🛑 บนกิลด์ Bear Cafe (1144251788493602848): ห้ามมีคำสั่ง /slash ของบอท Dev โดยเด็ดขาด
+        targetCommands = [];
       } else {
-        // บนเซิร์ฟเวอร์ Bear Cafe: บอท Dev ลงทะเบียนเฉพาะคำสั่งเทสต์ที่อนุญาต (ไม่รวม send-component)
+        // บนเซิร์ฟเวอร์อื่นๆ: บอท Dev ลงทะเบียนเฉพาะคำสั่งเทสต์ที่อนุญาต (ไม่รวม send-component)
         const allowedDevCommands = (process.env.DEV_SLASH_COMMANDS || "test_bee,หมุนกาชา,clear")
           .split(",")
           .map((s) => s.trim().toLowerCase())
@@ -623,26 +640,32 @@ async function registerAllGuildCommands(guild) {
           allowedDevCommands.includes(cmd.name.toLowerCase())
         );
       }
-      console.log(
-        `🛠️ [slash] DEV_MODE is active: Synchronizing only [${targetCommands.map((c) => c.name).join(", ")}] on "${guild.name}"`
-      );
+      if (guild.id !== "1144251788493602848") {
+        console.log(
+          `🛠️ [slash] DEV_MODE is active: Synchronizing only [${targetCommands.map((c) => c.name).join(", ")}] on "${guild.name}"`
+        );
+      }
     }
 
     // ⚡ Smart Command Check: ตรวจสอบคำสั่งเดิมก่อน ถ้าตรงกันอยู่แล้วให้ข้ามทันทีเพื่อไม่ให้ติด 429
     const existing = await guild.commands.fetch().catch(() => null);
     if (existing && areCommandsEqual(existing, targetCommands)) {
-      const duration = Date.now() - startTime;
-      console.log(
-        `⚡ [slash] Commands on "${guild.name}" are already up to date (${targetCommands.length} commands, ${duration}ms, skipped API call to avoid 429)`
-      );
+      if (!isDevMode || guild.id !== "1144251788493602848") {
+        const duration = Date.now() - startTime;
+        console.log(
+          `⚡ [slash] Commands on "${guild.name}" are already up to date (${targetCommands.length} commands, ${duration}ms, skipped API call to avoid 429)`
+        );
+      }
       return;
     }
 
     await guild.commands.set(targetCommands);
-    const duration = Date.now() - startTime;
-    console.log(
-      `⚡ [slash] Synchronized ${targetCommands.length} guild slash commands on "${guild.name}" (${duration}ms)`
-    );
+    if (!isDevMode || guild.id !== "1144251788493602848") {
+      const duration = Date.now() - startTime;
+      console.log(
+        `⚡ [slash] Synchronized ${targetCommands.length} guild slash commands on "${guild.name}" (${duration}ms)`
+      );
+    }
   } catch (err) {
     console.error(`❌ [slash] Failed to bulk set slash commands on "${guild.name}":`, err.message);
   }

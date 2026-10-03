@@ -14,12 +14,13 @@ const stickyConfigs = new Map();
 const activeStickySessions = new Map();
 
 function setupStickyPanels(client) {
+  const isDev = process.env.DEV_MODE === "true";
   const isLocal = process.env.LOCAL_FAST_START === "true" || process.env.DISABLE_BACKGROUND_SERVICES === "true" || process.env.DISABLE_STICKY_PANELS === "true";
   if (isLocal) {
-    console.log("[stickyPanels] ⏭️ Skipping setupStickyPanels in Local/Dev mode.");
+    if (!isDev) console.log("[stickyPanels] ⏭️ Skipping setupStickyPanels in Local/Dev mode.");
     return;
   }
-  console.log("[stickyPanels] Initializing setupStickyPanels...");
+  if (!isDev) console.log("[stickyPanels] Initializing setupStickyPanels...");
 
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -87,6 +88,12 @@ function setupStickyPanels(client) {
   async function deleteOldStickyMessage(channel, session) {
     if (!channel) return;
 
+    // 🛑 บอท Dev (DEV_MODE=true) ห้ามจัดการ/ลบ Sticky Message บน GUILDID 1144251788493602848 โดยเด็ดขาด
+    const channelGuildId = channel?.guildId || channel?.guild?.id;
+    if (process.env.DEV_MODE === "true" && channelGuildId === "1144251788493602848") {
+      return;
+    }
+
     // 1. ลบจาก lastBotMessageId ที่บันทึกไว้ใน Session ก่อน
     const targetMsgId = session ? session.lastBotMessageId : null;
     if (targetMsgId) {
@@ -146,6 +153,12 @@ function setupStickyPanels(client) {
                         console.error(`[stickyPanels] Failed to fetch channel ${channelId}:`, fetchErr.message);
                         return null;
                       });
+
+      const channelGuildId = channel?.guildId || channel?.guild?.id;
+      // 🛑 บอท Dev (DEV_MODE=true) ห้ามจัดการข้อความติดหนึบ (Sticky Messages) บน GUILDID 1144251788493602848 โดยเด็ดขาด
+      if (process.env.DEV_MODE === "true" && channelGuildId === "1144251788493602848") {
+        return;
+      }
 
       const healJaiToken = process.env.DISCORD_HEALJAI_TOKEN || process.env.SECONDARY_BOT_TOKEN;
       const healJaiGuildId = process.env.HEALJAI_GUILD_ID || "1536199707922141254";
@@ -209,7 +222,7 @@ function setupStickyPanels(client) {
   // 1. ดึงการตั้งค่าห้องและ last_message_id จาก DB ตอนบอทเริ่มทำงาน
   async function loadInitialConfigs() {
     try {
-      console.log("[stickyPanels] Querying initial configurations from sticky_channels table...");
+      if (!isDev) console.log("[stickyPanels] Querying initial configurations from sticky_channels table...");
       const { data, error } = await supabase
         .from("sticky_channels")
         .select("channel_id, delay_ms, payload, refresh_trigger, last_message_id");
@@ -231,7 +244,7 @@ function setupStickyPanels(client) {
             isBusy: false
           });
 
-          if (row.last_message_id) {
+          if (row.last_message_id && process.env.DEBUG === "true") {
             console.log(`[stickyPanels] Restored last_message_id (${row.last_message_id}) for channel ${row.channel_id} from database.`);
           }
         }
@@ -244,7 +257,7 @@ function setupStickyPanels(client) {
 
   // 2. สมัครรับการแจ้งเตือน Realtime เพื่อซิงค์หน่วยความจำบอทและสั่งทำงานแบบ Instant
   function setupRealtimeSync() {
-    console.log("[stickyPanels] Subscribing to Supabase Realtime changes for sticky_channels...");
+    if (!isDev) console.log("[stickyPanels] Subscribing to Supabase Realtime changes for sticky_channels...");
     
     const realtimeChannel = supabase
       .channel("sticky_channels_realtime")
@@ -256,6 +269,14 @@ function setupStickyPanels(client) {
           console.log(`[stickyPanels] Realtime Event Received: ${eventType} on table sticky_channels`);
           
           if (eventType === "INSERT" || eventType === "UPDATE") {
+            if (process.env.DEV_MODE === "true") {
+              const ch = client.channels.cache.get(newRow.channel_id) || await client.channels.fetch(newRow.channel_id).catch(() => null);
+              const targetGId = ch?.guildId || ch?.guild?.id;
+              if (targetGId === "1144251788493602848") {
+                return;
+              }
+            }
+
             const oldConfig = stickyConfigs.get(newRow.channel_id);
             const sanitizedNewPayload = sanitizePayload(newRow.payload);
             stickyConfigs.set(newRow.channel_id, {
@@ -286,6 +307,16 @@ function setupStickyPanels(client) {
               console.log(`[stickyPanels] Silently updated config in memory for channel ${newRow.channel_id}`);
             }
           } else if (eventType === "DELETE") {
+            if (process.env.DEV_MODE === "true") {
+              const ch = client.channels.cache.get(oldRow.channel_id) || await client.channels.fetch(oldRow.channel_id).catch(() => null);
+              const targetGId = ch?.guildId || ch?.guild?.id;
+              if (targetGId === "1144251788493602848") {
+                stickyConfigs.delete(oldRow.channel_id);
+                activeStickySessions.delete(oldRow.channel_id);
+                return;
+              }
+            }
+
             console.log(`[stickyPanels] Channel ${oldRow.channel_id} config was deleted. Cleaning up sticky messages...`);
             
             const session = activeStickySessions.get(oldRow.channel_id);
@@ -312,7 +343,7 @@ function setupStickyPanels(client) {
       );
 
     realtimeChannel.subscribe((status, err) => {
-      console.log(`[stickyPanels] Realtime subscription status: ${status}`);
+      if (!isDev) console.log(`[stickyPanels] Realtime subscription status: ${status}`);
       if (err && status !== "CHANNEL_ERROR") {
         console.error("[stickyPanels] Realtime subscription error details:", err.message || err);
       } else if (status === "CHANNEL_ERROR") {
@@ -330,6 +361,11 @@ function setupStickyPanels(client) {
     // ข้ามถ้าไม่ใช่ในกิลด์ หรือเป็นข้อความของตัวบอทเอง
     if (!message.guild) return;
     if (message.author.id === client.user.id) return;
+
+    // 🛑 บอท Dev (DEV_MODE=true) ห้ามจัดการข้อความติดหนึบ (Sticky Messages) บน GUILDID 1144251788493602848 โดยเด็ดขาด
+    if (process.env.DEV_MODE === "true" && (message.guild.id === "1144251788493602848" || message.guildId === "1144251788493602848")) {
+      return;
+    }
 
     const channelId = message.channel.id;
     const channelConfig = stickyConfigs.get(channelId);
@@ -360,7 +396,7 @@ function setupStickyPanels(client) {
     }, delay);
   });
 
-  console.log("[stickyPanels] Module loaded successfully");
+  if (!isDev) console.log("[stickyPanels] Module loaded successfully");
 }
 
 module.exports = { setupStickyPanels };

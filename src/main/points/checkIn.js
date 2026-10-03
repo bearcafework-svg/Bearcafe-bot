@@ -116,15 +116,8 @@ function buildClaimPayload(tier, nextCooldownTimestamp, premiumRoleInfo) {
         type: 2,
         style: 5,
         label: "︲คลิกเพื่อเช็กแต้ม",
-        emoji: { id: "1256669436350562355", name: "bee20000", animated: false },
+        emoji: { id: "1522154708200849449", name: "bagpack_icon", animated: false },
         url: "https://discord.com/channels/1144251788493602848/1524123727724417276"
-      },
-      {
-        type: 2,
-        style: 5,
-        label: "︲ปฎิทินเช็กอิน 28 วัน (ฟรี)",
-        emoji: { id: "1276130500410605609", name: "68492gift", animated: false },
-        url: "https://bearcafe4commu.vercel.app/"
       }
     ]
   });

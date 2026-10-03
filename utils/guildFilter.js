@@ -387,9 +387,19 @@ function setupGuildFilter(client) {
       }
 
       // ── 2. กรณีเกิดในกิลด์ Bear Cafe หลัก (1144251788493602848) ────
-      if (cleanGuildId === BEARCAFE_GUILD_ID) {
+      if (cleanGuildId === BEARCAFE_GUILD_ID || cleanGuildId === "1144251788493602848") {
         if (eventName === "interactionCreate") {
           const interaction = args[0];
+
+          // 🛑 บอท Dev (DEV_MODE=true) ห้ามรับหรือตอบสนองคำสั่ง /slash ทุกชนิดบนกิลด์ Bear Cafe หลัก (1144251788493602848)
+          if (process.env.DEV_MODE === "true") {
+            const isChatCommand = typeof interaction?.isChatInputCommand === "function" && interaction.isChatInputCommand();
+            const isAutocomplete = typeof interaction?.isAutocomplete === "function" && interaction.isAutocomplete();
+            if (isChatCommand || isAutocomplete) {
+              return false;
+            }
+          }
+
           const cmdName = (interaction?.commandName || "").toLowerCase();
           const customId = interaction?.customId || "";
           // ป้องกัน Heal Jai slash commands และคำสั่ง dev-only บนกิลด์ Bear Cafe เมื่อไม่ใช่บอท Dev

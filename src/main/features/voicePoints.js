@@ -309,10 +309,10 @@ function setupVoicePoints(client) {
                   {
                     type: 2,
                     style: 5,
-                    label: "︲เช็กแต้มของคุณ",
+                    label: "︲คลิกเพื่อเช็กแต้ม",
                     emoji: {
-                      id: "1212856675053346897",
-                      name: "bearcafe_star",
+                      id: "1522154708200849449",
+                      name: "bagpack_icon",
                       animated: false,
                     },
                     url: "https://discord.com/channels/1144251788493602848/1524123727724417276",

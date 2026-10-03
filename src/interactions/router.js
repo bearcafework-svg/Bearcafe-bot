@@ -93,6 +93,14 @@ function initInteractionRouter(client) {
 
   client.on(Events.InteractionCreate, async (interaction) => {
     try {
+      if (isDevMode) {
+        const currentGuildId = interaction.guildId || interaction.guild?.id;
+        // 🛑 บอท Dev (DEV_MODE=true) ห้ามรับหรือตอบสนองคำสั่ง /slash บนกิลด์ Bear Cafe (1144251788493602848) โดยเด็ดขาด
+        if (currentGuildId === "1144251788493602848" && (interaction.isChatInputCommand?.() || interaction.isAutocomplete?.())) {
+          return;
+        }
+      }
+
       if (isDevMode && devAllowedChannels.length > 0) {
         const chId = interaction.channelId || interaction.channel?.id;
         const guildId = interaction.guildId || interaction.guild?.id;

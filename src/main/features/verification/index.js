@@ -109,9 +109,9 @@ const WELCOME_BUTTON_POOL = [
   {
     type: 2,
     style: 5,
-    label: "︲ปฎิทินเช็กอิน 28 วัน (ฟรี)",
-    emoji: { id: "1276130500410605609", name: "68492gift", animated: false },
-    url: "https://bearcafe4commu.vercel.app/"
+    label: "︲หาคนรับฟังอยู่ใช่มั้ยคะ คลิกเลย!",
+    emoji: { id: "1531390206614311033", name: "184293bunnywave", animated: true },
+    url: "https://discord.gg/EbH2m6PBvy"
   }
 ];
 

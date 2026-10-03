@@ -1,5 +1,5 @@
 const { getSupabaseClient } = require('../services/supabaseClient');
-const { MessageFlags } = require('discord.js');
+const { MessageFlags, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
 const cfg = require('./settingCheckIn.json');
 const sharedConfig = require('../sharedSettings.json');
 cfg.role_blacklist = sharedConfig.role_blacklist;
@@ -136,8 +136,14 @@ function buildMainPayload(interaction, points, cakes, maxPoints, page = 1, daily
           type: 1,
           components: [
             claimButton,
-            { type: 2, style: 5, label: "︲สุ่มรางวัลเช็กอิน (ฟรี)", emoji: { id: "1301541277992485005", name: "secret_box", animated: true }, url: "https://discord.com/channels/1144251788493602848/1524122838775238777" },
-            { type: 2, style: 5, label: "︲ปฎิทินเช็กอิน 28 วัน (ฟรี)", emoji: { id: "1276130500410605609", name: "68492gift", animated: false }, url: "https://bearcafe4commu.vercel.app/" }
+            {
+              type: 2,
+              style: 1,
+              custom_id: `mypoints_open_redeem_modal_${interaction.user.id}`,
+              label: "︲กรอกโค้ดรับรางวัล",
+              emoji: { id: "1276130500410605609", name: "68492gift", animated: false }
+            },
+            { type: 2, style: 5, label: "︲สุ่มรางวัลเช็กอิน (ฟรี)", emoji: { id: "1301541277992485005", name: "secret_box", animated: true }, url: "https://discord.com/channels/1144251788493602848/1524122838775238777" }
           ]
         }
       ]
@@ -145,7 +151,7 @@ function buildMainPayload(interaction, points, cakes, maxPoints, page = 1, daily
   };
 }
 
-const { registerCommand, registerButton, registerSelectMenu } = require('../interactions/router');
+const { registerCommand, registerButton, registerSelectMenu, registerModal } = require('../interactions/router');
 
 function setupMyPoints(client) {
   const supabase = getSupabaseClient();
@@ -334,6 +340,323 @@ function setupMyPoints(client) {
     } catch (err) {
       console.error('[myPoints] Error giving role:', err.message);
       await interaction.reply({ content: "เกิดข้อผิดพลาดในการมอบยศ โปรดลองอีกครั้ง", flags: FLAG_EPHEMERAL });
+    }
+  });
+
+  // ── จัดการกดปุ่มเปิด Modal กรอกโค้ดรับรางวัล ───────────────────────
+  registerButton('mypoints_open_redeem_modal_', async (interaction) => {
+    const ownerId = interaction.customId.replace('mypoints_open_redeem_modal_', '');
+    const userId = interaction.user.id;
+
+    if (userId !== ownerId) {
+      return interaction.reply({
+        content: '## <:bear7:1148271118709436416>︲ปุ่มนี้กดได้เฉพาะเจ้าของคำสั่งเท่านั้นนะคะ ꒰⑅ᵕ༚ᵕ꒱˖♡',
+        flags: FLAG_EPHEMERAL
+      });
+    }
+
+    const modal = new ModalBuilder()
+      .setCustomId(`mypoints_redeem_modal_${interaction.user.id}`)
+      .setTitle("🎁 กรอกโค้ดรับรางวัล");
+
+    const codeInput = new TextInputBuilder()
+      .setCustomId("redeem_code_input")
+      .setLabel("ระบุโค้ดรางวัล (Redeem Code)")
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder("เช่น BEARCAFE2026")
+      .setMinLength(2)
+      .setMaxLength(32)
+      .setRequired(true);
+
+    modal.addComponents(new ActionRowBuilder().addComponents(codeInput));
+    await interaction.showModal(modal);
+  });
+
+  // ── จัดการส่งฟอร์ม Modal กรอกโค้ดรับรางวัล ────────────────────────
+  registerModal('mypoints_redeem_modal_', async (interaction) => {
+    const ownerId = interaction.customId.replace('mypoints_redeem_modal_', '');
+    const userId = interaction.user.id;
+
+    if (userId !== ownerId) {
+      return interaction.reply({
+        content: '## <:bear7:1148271118709436416>︲ฟอร์มนี้กดได้เฉพาะเจ้าของคำสั่งเท่านั้นนะคะ ꒰⑅ᵕ༚ᵕ꒱˖♡',
+        flags: FLAG_EPHEMERAL
+      });
+    }
+
+    const isBlacklisted = cfg.role_blacklist.some(id => interaction.member?.roles?.cache?.has(id));
+    if (isBlacklisted) {
+      return interaction.reply(blacklistPayload(userId));
+    }
+
+    const code = interaction.fields.getTextInputValue('redeem_code_input')?.trim()?.toUpperCase();
+    if (!code) {
+      return interaction.reply({
+        flags: FLAG_V2 | FLAG_EPHEMERAL,
+        components: [{
+          type: 17,
+          components: [
+            {
+              type: 10,
+              content: '## ❌︲__` กรุณาระบุโค้ดรางวัล `__\n- คุณยังไม่ได้กรอกโค้ดรางวัล กรุณาลองใหม่อีกครั้งค่ะ'
+            }
+          ]
+        }]
+      });
+    }
+
+    try {
+      const { data: codeData, error: codeErr } = await supabase
+        .from('redeem_codes')
+        .select('*')
+        .eq('code', code)
+        .maybeSingle();
+
+      if (codeErr) {
+        console.error('[myPoints] Error fetching redeem code:', codeErr.message);
+        return interaction.reply({
+          flags: FLAG_V2 | FLAG_EPHEMERAL,
+          components: [{
+            type: 17,
+            components: [
+              {
+                type: 10,
+                content: '## ❌︲__` เกิดข้อผิดพลาดในระบบ `__\n- ไม่สามารถตรวจสอบโค้ดได้ในขณะนี้ กรุณาลองใหม่ภายหลังค่ะ'
+              }
+            ]
+          }]
+        });
+      }
+
+      // 2.1 ไม่พบโค้ดในระบบ
+      if (!codeData) {
+        return interaction.reply({
+          flags: FLAG_V2 | FLAG_EPHEMERAL,
+          components: [{
+            type: 17,
+            components: [
+              {
+                type: 10,
+                content: `## ❌︲__\` ไม่พบโค้ดนี้ในระบบ \`__\n- โค้ด \`"${code}"\` ไม่ถูกต้องหรือไม่มีอยู่ในระบบค่ะ\n- รบกวนตรวจสอบตัวสะกด พิมพ์เล็ก/พิมพ์ใหญ่ แล้วลองใหม่อีกครั้งนะคะ`
+              }
+            ]
+          }]
+        });
+      }
+
+      // 2.4 โค้ดถูกปิดใช้งาน
+      if (codeData.is_enabled === false) {
+        return interaction.reply({
+          flags: FLAG_V2 | FLAG_EPHEMERAL,
+          components: [{
+            type: 17,
+            components: [
+              {
+                type: 10,
+                content: `## ⏳︲__\` โค้ดนี้ไม่สามารถใช้งานได้ในขณะนี้ \`__\n- โค้ด \`"${code}"\` ถูกปิดการใช้งานชั่วคราวค่ะ\n- หากสงสัยสามารถสอบถามทีมงานเพิ่มเติมได้เลยนะคะ`
+              }
+            ]
+          }]
+        });
+      }
+
+      const now = new Date();
+
+      // 2.4 ยังไม่ถึงเวลาใช้งาน
+      if (codeData.start_at && new Date(codeData.start_at) > now) {
+        const startTs = Math.floor(new Date(codeData.start_at).getTime() / 1000);
+        return interaction.reply({
+          flags: FLAG_V2 | FLAG_EPHEMERAL,
+          components: [{
+            type: 17,
+            components: [
+              {
+                type: 10,
+                content: `## ⏳︲__\` โค้ดยังไม่ถึงเวลาใช้งาน \`__\n- โค้ด \`"${code}"\` จะเริ่มเปิดให้ใช้งานใน <t:${startTs}:R> ค่ะ\n- รอกิจกรรมเริ่มต้นก่อนนะคะ 🐻💖`
+              }
+            ]
+          }]
+        });
+      }
+
+      // 2.4 โค้ดหมดอายุ
+      if (codeData.end_at && new Date(codeData.end_at) < now) {
+        return interaction.reply({
+          flags: FLAG_V2 | FLAG_EPHEMERAL,
+          components: [{
+            type: 17,
+            components: [
+              {
+                type: 10,
+                content: `## ⏳︲__\` โค้ดหมดอายุแล้ว \`__\n- โค้ด \`"${code}"\` สิ้นสุดระยะเวลาการใช้งานแล้วค่ะ\n- รอติดตามกิจกรรมและโค้ดแจกฟรีรอบถัดไปน้า!`
+              }
+            ]
+          }]
+        });
+      }
+
+      // 2.3 โควต้าเต็ม
+      if (codeData.max_uses && codeData.max_uses > 0 && (codeData.used_count ?? 0) >= codeData.max_uses) {
+        return interaction.reply({
+          flags: FLAG_V2 | FLAG_EPHEMERAL,
+          components: [{
+            type: 17,
+            components: [
+              {
+                type: 10,
+                content: `## 🔒︲__\` สิทธิ์การใช้งานเต็มแล้ว \`__\n- ขออภัยด้วยนะคะ โค้ด \`"${code}"\` มีผู้ใช้สิทธิ์ครบตามจำนวนที่กำหนดแล้วค่ะ\n- รอติดตามกิจกรรมและโค้ดแจกฟรีรอบถัดไปน้า!`
+              }
+            ]
+          }]
+        });
+      }
+
+      // 2.2 เคยแลกรับโค้ดนี้ไปแล้ว
+      const { data: existingLog } = await supabase
+        .from('redeem_logs')
+        .select('id')
+        .eq('discord_id', userId)
+        .eq('code', codeData.code)
+        .maybeSingle();
+
+      if (existingLog) {
+        return interaction.reply({
+          flags: FLAG_V2 | FLAG_EPHEMERAL,
+          components: [{
+            type: 17,
+            components: [
+              {
+                type: 10,
+                content: `## ⚠️︲__\` คุณเคยใช้โค้ดนี้ไปแล้ว \`__\n- บัญชี <@${userId}> เคยแลกรับรางวัลจากโค้ด \`"${code}"\` ไปแล้วค่ะ\n- โค้ดนี้จำกัดสิทธิ์ 1 ครั้งต่อ 1 บัญชีเท่านั้นนะคะ 🐻💖`
+              }
+            ]
+          }]
+        });
+      }
+
+      // 🟢 ดำเนินการมอบรางวัล
+      const granted = {};
+      let pointsAdded = 0;
+      let roleGranted = null;
+      let roleAddSuccess = true;
+
+      // จัดการแต้ม
+      let currentPoints = 0;
+      const maxCap = getMaxPoints(interaction.member);
+      if (codeData.reward_type === 'points' || codeData.reward_type === 'both') {
+        pointsAdded = codeData.points ?? 0;
+        granted.pointsAdded = pointsAdded;
+
+        const { data: userRow } = await supabase
+          .from('user_points')
+          .select('points, max_cap')
+          .eq('discord_id', userId)
+          .maybeSingle();
+
+        currentPoints = userRow?.points ?? 0;
+        const newPoints = Math.min(currentPoints + pointsAdded, maxCap);
+
+        await supabase.from('user_points').upsert({
+          discord_id: userId,
+          points: newPoints,
+          max_cap: maxCap,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'discord_id' });
+
+        currentPoints = newPoints;
+      }
+
+      // จัดการยศ
+      if ((codeData.reward_type === 'role' || codeData.reward_type === 'both') && codeData.role_id) {
+        roleGranted = codeData.role_id;
+        granted.roleGranted = roleGranted;
+
+        try {
+          if (interaction.member && !interaction.member.roles.cache.has(roleGranted)) {
+            await interaction.member.roles.add(roleGranted, `Redeem Code: ${codeData.code}`);
+          }
+        } catch (roleErr) {
+          console.error(`[myPoints] Failed to add role ${roleGranted} to user ${userId}:`, roleErr.message);
+          roleAddSuccess = false;
+        }
+      }
+
+      // บันทึก log และเพิ่ม used_count
+      await supabase.from('redeem_logs').insert({
+        discord_id: userId,
+        code: codeData.code,
+        reward_details: granted,
+        redeemed_at: new Date().toISOString()
+      });
+
+      await supabase.from('redeem_codes').update({
+        used_count: (codeData.used_count ?? 0) + 1
+      }).eq('id', codeData.id);
+
+      // สร้าง Component V2 ตามเงื่อนไขความสำเร็จ
+      const checkPointsBtnRow = {
+        type: 1,
+        components: [
+          {
+            type: 2,
+            style: 5,
+            label: "︲คลิกเพื่อเช็กแต้ม",
+            emoji: { id: "1522154708200849449", name: "bagpack_icon", animated: false },
+            url: "https://discord.com/channels/1144251788493602848/1524123727724417276"
+          }
+        ]
+      };
+
+      const components = [];
+
+      if (codeData.reward_type === 'points') {
+        const successContent = `## <:strawberryv2:1520439075100688614>︲__\` แลกรับรางวัลสำเร็จ 𓂃 \`__\n- ยินดีด้วยนะคะ : <@${userId}> *!*\n- คุณได้รับ **+${pointsAdded.toLocaleString()} แต้ม** จากโค้ด \`"${code}"\` <:cuteplant:1152834055528783872>\n- แต้มปัจจุบันสะสมเป็น: \` ${currentPoints.toLocaleString()} / ${maxCap.toLocaleString()} \` แต้ม`;
+        components.push({ type: 10, content: successContent });
+        components.push({ type: 14, spacing: 2 });
+        components.push(checkPointsBtnRow);
+      } else if (codeData.reward_type === 'role') {
+        let roleNotice = `- คุณได้รับยศ <@&${roleGranted}> จากโค้ด \`"${code}"\` เรียบร้อยแล้วค่ะ 🐻🎉\n- ไปแต่งโปรไฟล์หรืออวดเพื่อนๆ ในห้องแชทได้เลยน้า!`;
+        if (!roleAddSuccess) {
+          roleNotice = `- คุณได้รับสิทธิ์ยศ <@&${roleGranted}> จากโค้ด \`"${code}"\` เรียบร้อยแล้วค่ะ (แต่บอทไม่สามารถส่งยศให้อัตโนมัติได้ กรุณาติดต่อแอดมินนะคะ)`;
+        }
+        const successContent = `## <:strawberryv2:1520439075100688614>︲__\` แลกรับรางวัลสำเร็จ 𓂃 \`__\n- ยินดีด้วยนะคะ : <@${userId}> *!*\n${roleNotice}`;
+        components.push({ type: 10, content: successContent });
+      } else {
+        // both
+        let roleLine = `  • ได้รับยศ: <@&${roleGranted}> เข้าโปรไฟล์แล้วค่ะ ✨`;
+        if (!roleAddSuccess) {
+          roleLine = `  • สิทธิ์ยศ: <@&${roleGranted}> (บอทไม่สามารถส่งยศให้อัตโนมัติได้ กรุณาติดต่อแอดมินนะคะ)`;
+        }
+        const successContent = `## <:strawberryv2:1520439075100688614>︲__\` แลกรับรางวัลสำเร็จ 𓂃 \`__\n- ยินดีด้วยนะคะ : <@${userId}> *!*\n- คุณได้รับรางวัลใหญ่จากโค้ด \`"${code}"\` ครบถ้วน:\n  • ได้รับแต้ม: **+${pointsAdded.toLocaleString()} แต้ม** (ยอดรวม \` ${currentPoints.toLocaleString()} / ${maxCap.toLocaleString()} \`)\n${roleLine}`;
+        components.push({ type: 10, content: successContent });
+        components.push({ type: 14, spacing: 2 });
+        components.push(checkPointsBtnRow);
+      }
+
+      return interaction.reply({
+        flags: FLAG_V2 | FLAG_EPHEMERAL,
+        components: [
+          {
+            type: 17,
+            components
+          }
+        ]
+      });
+
+    } catch (err) {
+      console.error('[myPoints] Redeem error:', err.message);
+      return interaction.reply({
+        flags: FLAG_V2 | FLAG_EPHEMERAL,
+        components: [{
+          type: 17,
+          components: [
+            {
+              type: 10,
+              content: '## ❌︲__` เกิดข้อผิดพลาดในการแลกรับรางวัล `__\n- กรุณาลองใหม่อีกครั้ง หรือติดต่อผู้ดูแลระบบค่ะ'
+            }
+          ]
+        }]
+      });
     }
   });
 }

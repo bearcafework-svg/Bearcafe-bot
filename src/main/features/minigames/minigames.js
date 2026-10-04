@@ -8,6 +8,7 @@ const { addPointsWithCap, deductPoints } = require('../../utils/pointManager');
 const { getNextQuestion, maskWord, scrambleWord } = require('./questionBank');
 const { createTextImageBuffer, createSentenceBuilderImageBuffer } = require('./canvasGenerator');
 const { setupResetTop } = require('./resetTop');
+const { processTriggerEvent } = require('../dailyQuest/questEngine');
 
 const FLAG_V2 = MessageFlags.IsComponentsV2 || 32768;
 const FLAG_EPHEMERAL = MessageFlags.Ephemeral || 64;
@@ -895,6 +896,23 @@ function setupMinigames(client) {
                 points_earned: 0
               }).catch(e => console.error('[minigames] Fallback win stat insert failed:', e.message));
             });
+
+          // ── Daily Quest Progress (minigame_win & minigame_play) ─────────────
+          processTriggerEvent(client, supabase, interaction.user, 'minigame_win', {
+            channelId: interaction.channelId,
+            parentId: interaction.channel?.parentId,
+            gameId: Number(gameId),
+            member: interaction.member,
+            amount: 1
+          }).catch(err => console.error('[minigames] Daily Quest minigame_win error:', err.message));
+
+          processTriggerEvent(client, supabase, interaction.user, 'minigame_play', {
+            channelId: interaction.channelId,
+            parentId: interaction.channel?.parentId,
+            gameId: Number(gameId),
+            member: interaction.member,
+            amount: 1
+          }).catch(err => console.error('[minigames] Daily Quest minigame_play error:', err.message));
         }
 
         // 3. Post next question with minimal delay
@@ -1184,6 +1202,23 @@ function setupMinigames(client) {
                 });
               })
               .catch(err => console.error(`[minigames] Error awarding points for Game ${targetGameId}:`, err.message));
+
+            // ── Daily Quest Progress (minigame_win & minigame_play) ─────────────
+            processTriggerEvent(client, supabase, interaction.user, 'minigame_win', {
+              channelId: channelId,
+              parentId: interaction.channel?.parentId,
+              gameId: Number(targetGameId),
+              member: interaction.member,
+              amount: 1
+            }).catch(err => console.error('[minigames] Daily Quest minigame_win error:', err.message));
+
+            processTriggerEvent(client, supabase, interaction.user, 'minigame_play', {
+              channelId: channelId,
+              parentId: interaction.channel?.parentId,
+              gameId: Number(targetGameId),
+              member: interaction.member,
+              amount: 1
+            }).catch(err => console.error('[minigames] Daily Quest minigame_play error:', err.message));
           }
 
           setTimeout(() => {
@@ -1357,6 +1392,23 @@ function setupMinigames(client) {
               points_earned: 0
             }).catch(e => console.error('[minigames] Fallback win stat insert failed:', e.message));
           });
+
+        // ── Daily Quest Progress (minigame_win & minigame_play) ─────────────
+        processTriggerEvent(client, supabase, message.author, 'minigame_win', {
+          channelId: message.channelId,
+          parentId: message.channel?.parentId,
+          gameId: Number(matchedGameId),
+          member: message.member,
+          amount: 1
+        }).catch(err => console.error('[minigames] Daily Quest minigame_win error:', err.message));
+
+        processTriggerEvent(client, supabase, message.author, 'minigame_play', {
+          channelId: message.channelId,
+          parentId: message.channel?.parentId,
+          gameId: Number(matchedGameId),
+          member: message.member,
+          amount: 1
+        }).catch(err => console.error('[minigames] Daily Quest minigame_play error:', err.message));
       }
 
       // 4. Post next question Component V2 with minimal delay

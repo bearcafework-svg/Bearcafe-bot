@@ -153,7 +153,7 @@ async function getPreviewQuestionData(gameId, supabase) {
         supabase,
         gameId,
         { difficulty: "medium" },
-        { tableName: "akari_minigame_questions" }
+        { tableName: "minigame_questions" }
       );
     } catch (_) {}
   }

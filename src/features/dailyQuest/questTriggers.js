@@ -93,9 +93,10 @@ function setupQuestTriggers(client, supabase) {
         });
       }
 
-      // 1.7 เควสใช้อีโมจิของเซิร์ฟเวอร์ (chat_emoji)
+      // 1.7 เควสใช้อีโมจิของเซิร์ฟเวอร์ (chat_emoji) หรืออีโมจิหมี
       const hasCustomEmoji = /<a?:[a-zA-Z0-9_]+:[0-9]+>/.test(content);
-      if (hasCustomEmoji) {
+      const hasBearUnicodeEmoji = /[\u{1F9F8}\u{1F43B}\u{1F43C}\u{1F428}]/u.test(content) || /(:bear:|หมี)/i.test(content);
+      if (hasCustomEmoji || hasBearUnicodeEmoji) {
         await processTriggerEvent(client, supabase, user, "chat_emoji", {
           channelId,
           parentId,
@@ -185,8 +186,11 @@ function setupQuestTriggers(client, supabase) {
       const isJoined = !oldState.channelId && Boolean(newState.channelId);
       if (isJoined) {
         // ทริกเกอร์เควสแวะห้องเสียง (voice_join)
+        const channel = newState.channel || (newState.channelId ? newState.guild?.channels?.cache?.get(newState.channelId) : null);
+        const parentId = channel?.parentId || null;
         await processTriggerEvent(client, supabase, member.user, "voice_join", {
           channelId: newState.channelId,
+          parentId,
           member
         });
       }
@@ -233,6 +237,7 @@ function setupQuestTriggers(client, supabase) {
           // บันทึกสะสม 1 นาที
           await processTriggerEvent(client, supabase, user, "voice_duration", {
             channelId: vs.channelId,
+            parentId,
             memberCount,
             amount: 1,
             member: vs.member

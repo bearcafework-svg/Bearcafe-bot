@@ -941,8 +941,8 @@ async function spawnQuestion(client, channel, gameId, guildId, supabase) {
   }
 
   const sessionKey = `${guildId}:${channel.id}`;
-  // ส่งคำขอโจทย์ไปยัง akari_minigame_questions บน Akari Supabase
-  const questionObj = await getNextQuestion(supabase, gameId, gameSettings, { tableName: 'akari_minigame_questions' });
+  // ส่งคำขอโจทย์ไปยัง minigame_questions บน Main Supabase
+  const questionObj = await getNextQuestion(supabase, gameId, gameSettings, { tableName: 'minigame_questions' });
   if (!questionObj) return null;
 
   const rawAnswer = String(questionObj.answer).trim();

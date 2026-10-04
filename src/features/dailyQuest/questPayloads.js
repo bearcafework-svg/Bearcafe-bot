@@ -58,6 +58,26 @@ function renderProgressBar(current, target) {
 }
 
 /**
+ * ฟอร์แมตข้อความรางวัลของเควส (แต้ม, ยศ หรือทั้งสอง)
+ * @param {object} q
+ * @returns {string}
+ */
+function formatQuestRewardText(q) {
+  const parts = [];
+  const points = Number(q.reward_points ?? q.rewardPoints) || 0;
+  const roleId = q.reward_role_id || q.trigger_config?.reward_role_id;
+
+  if (points > 0) {
+    parts.push(`${POINT_ICON_STR} **+${points}**`);
+  }
+  if (roleId) {
+    parts.push(`🎖️ **ยศ** <@&${roleId}>`);
+  }
+
+  return parts.length > 0 ? parts.join(" • ") : "ไม่มีรางวัล";
+}
+
+/**
  * สร้างการ์ดประกาศ Daily Quest ประจำวัน (Component V2)
  * @param {string} questDate
  * @param {Array} quests
@@ -71,7 +91,7 @@ function buildDailyQuestAnnouncementPayload(questDate, quests, nextResetTs) {
   for (const q of quests) {
     questComponents.push({
       type: 10,
-      content: `## ${q.title}\n- __\`วิธีทำเควส\`__ : ${q.description}\n- __\`รางวัล\`__ : ${POINT_ICON_STR} **+${q.reward_points}**`
+      content: `## ${q.title}\n- __\`วิธีทำเควส\`__ : ${q.description}\n- __\`รางวัล\`__ : ${formatQuestRewardText(q)}`
     });
     questComponents.push({
       type: 14,
@@ -214,7 +234,7 @@ function buildDailyQuestProgressPayload(user, questDate, quests, userProgressMap
       components: [
         {
           type: 10,
-          content: `## ${q.title}\n- __\`ความคืบหน้า\`__ : ${barStr}\n- __\`วิธีทำเควส\`__ : ${q.description || "-"}\n- __\`รางวัล\`__ : ${POINT_ICON_STR} **+${q.reward_points}**`
+          content: `## ${q.title}\n- __\`ความคืบหน้า\`__ : ${barStr}\n- __\`วิธีทำเควส\`__ : ${q.description || "-"}\n- __\`รางวัล\`__ : ${formatQuestRewardText(q)}`
         }
       ],
       accessory: accessoryComponent
@@ -336,7 +356,7 @@ function buildQuestCompletedNotificationPayload(user, quest) {
                 type: 10,
                 content:
                   `## <:50121checkmark:1358584609087946867>︲__\` 𝖰𝗎𝖾𝗌𝗍 𝖼𝗈𝗆𝗉𝗅𝖾𝗍𝖾𝖽 ₊ ผ่านเควสเรียบร้อย 𓂃 \`__\n` +
-                  `- <@${userId}> ผ่านเควส **\`${cleanTitle}\`** ได้รับ ${POINT_ICON_STR} **+${rewardPoints}**`
+                  `- <@${userId}> ผ่านเควส **\`${cleanTitle}\`** ได้รับ ${formatQuestRewardText(quest)}`
               }
             ],
             accessory: {
@@ -392,7 +412,7 @@ function buildQuestCompletedNotificationPayload(user, quest) {
 function buildBatchQuestCompletedNotificationPayload(questTitle, items) {
   const cleanTitle = (questTitle || "").replace(/^[^a-zA-Z0-9\u0E00-\u0E7F]+/g, "").trim();
   const userLines = items
-    .map((item) => `- <@${item.userId}> ได้รับ ${POINT_ICON_STR} **+${item.rewardPoints ?? 30}**`)
+    .map((item) => `- <@${item.userId}> ได้รับ ${formatQuestRewardText(item)}`)
     .join("\n");
 
   return {
@@ -543,5 +563,6 @@ module.exports = {
   buildQuestCompletedNotificationPayload,
   buildBatchQuestCompletedNotificationPayload,
   buildAllQuestsBonusNotificationPayload,
-  buildBetaNoticePayload
+  buildBetaNoticePayload,
+  formatQuestRewardText
 };

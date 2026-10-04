@@ -10,6 +10,7 @@ cfg.role_blacklist = sharedConfig.role_blacklist;
 cfg.point_icon = sharedConfig.point_icon;
 const infotarot2 = require('./Infotarot2.json');
 const { blacklistPayload, cooldownContent, otherCommandsPayload } = require('../shared/tarotComponents');
+const { processTriggerEvent } = require('../dailyQuest/questEngine');
 
 // ─── Cooldown store (in-memory) ───────────────────────────────────────────────
 const { getCooldown, setCooldown } = require('../../utils/cooldownManager');
@@ -286,6 +287,16 @@ function setupTarot4(client) {
     const tarotDelta        = alreadyClaimed ? 0 : Math.min(1, cfg.mission_target - tarotPoint);
     const { newTarotPoint } = await addPoints(supabase, userId, 0, tarotDelta);
     const missionComplete   = newTarotPoint >= cfg.mission_target;
+
+    // ── บันทึกความคืบหน้า Daily Quest (horoscope_usage) ──────────────────────
+    processTriggerEvent(client, supabase, message.author, 'horoscope_usage', {
+      channelId: message.channel.id,
+      parentId: message.channel.parentId,
+      tarotType: 'tarot4',
+      commandName: 'เกิดใหม่เป็นอะไร',
+      member: message.member,
+      amount: 1
+    }).catch(err => console.error('[tarot4] processTriggerEvent error:', err.message));
 
     // ── ลบ loading + ส่ง result พร้อมกัน ─────────────────────────────────────
     const deletePromise = loadingMsg.deletable

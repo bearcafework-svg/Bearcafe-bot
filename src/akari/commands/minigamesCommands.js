@@ -224,7 +224,7 @@ const AKARI_SLASH_COMMANDS = [
     ],
   },
   {
-    name: "akari-admin",
+    name: "kuma-admin",
     description: "ระบบจัดการสถานะสมาชิกและพรีเมียม (เฉพาะนักพัฒนาบอท Kuma)",
     default_member_permissions: "0",
     options: [
@@ -280,11 +280,13 @@ const AKARI_SLASH_COMMANDS = [
   ...PREVIEW_SLASH_COMMANDS,
   {
     name: "reveal-answer",
-    description: "🔍 ดูเฉลยของมินิเกมที่กำลังเปิดเล่นอยู่ในห้องนี้ (คำสั่งชั่วคราว)",
+    description: "🔍 ดูเฉลยของมินิเกมที่กำลังเปิดเล่นอยู่ในห้องนี้ (เฉพาะผู้ดูแลระบบ)",
+    default_member_permissions: PermissionFlagsBits.ManageChannels.toString(),
   },
   {
     name: "ans",
-    description: "🔍 ดูเฉลยของมินิเกมที่กำลังเปิดเล่นอยู่ในห้องนี้ (คำสั่งชั่วคราว)",
+    description: "🔍 ดูเฉลยของมินิเกมที่กำลังเปิดเล่นอยู่ในห้องนี้ (เฉพาะผู้ดูแลระบบ)",
+    default_member_permissions: PermissionFlagsBits.ManageChannels.toString(),
   },
   // ...STORE_SLASH_COMMANDS, // ปิดระบบร้านค้าชั่วคราวตามคำสั่ง
 ];
@@ -558,7 +560,7 @@ async function handleSetupGames(interaction, supabase, client) {
     `-# หมวดหมู่: **${targetCategory.name}**\n` +
     `-# สร้างใหม่: **${createdChannelsInfo.length} ช่อง** ︲ คงห้องเดิม: **${existingActiveGames.length} ช่อง**\n\n` +
     `${allChannelsDisplay.join("\n")}` +
-    `${quotaNoticeText ? `\n\n${quotaNoticeText}` : ""}`;
+    `${quotaNotice ? `\n\n${quotaNotice}` : ""}`;
 
   const payload = {
     flags: FLAG_V2,
@@ -1618,12 +1620,12 @@ async function handleRemoveGame(interaction, supabase) {
 }
 
 /**
- * ตรวจสอบสิทธิ์ผู้ดูแลระบบ/นักพัฒนาหลักของ Akari Bot
+ * ตรวจสอบสิทธิ์ผู้ดูแลระบบ/นักพัฒนาหลักของ Kuma Bot
  */
-function isAkariAdmin(userId, client) {
+function isKumaAdmin(userId, client) {
   if (!userId) return false;
 
-  const adminIds = (process.env.AKARI_ADMIN_IDS || process.env.OWNER_ID || "")
+  const adminIds = (process.env.KUMA_ADMIN_IDS || process.env.AKARI_ADMIN_IDS || process.env.OWNER_ID || "")
     .split(",")
     .map((id) => id.trim())
     .filter(Boolean);
@@ -1640,14 +1642,15 @@ function isAkariAdmin(userId, client) {
 
   return false;
 }
+const isAkariAdmin = isKumaAdmin;
 
 /**
- * จัดการคำสั่ง /akari-admin (เฉพาะนักพัฒนาบอท Akari สำหรับจัดการสมาชิกและพรีเมียม)
+ * จัดการคำสั่ง /kuma-admin (เฉพาะนักพัฒนาบอท Kuma สำหรับจัดการสมาชิกและพรีเมียม)
  */
-async function handleAkariAdmin(interaction, supabase, client) {
+async function handleKumaAdmin(interaction, supabase, client) {
   const userId = interaction.user.id;
 
-  if (!isAkariAdmin(userId, client)) {
+  if (!isKumaAdmin(userId, client)) {
     return interaction.reply({
       flags: FLAG_V2,
       components: [
@@ -1658,7 +1661,7 @@ async function handleAkariAdmin(interaction, supabase, client) {
               type: 10,
               content:
                 "## <:lowwarning:1548772721679278180>︲__` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ การเข้าถึงถูกปฏิเสธ 𓂃 `__\n" +
-                "> คุณไม่มีสิทธิ์ใช้งานคำสั่งนี้ คำสั่งนี้สงวนสิทธิ์เฉพาะนักพัฒนาและผู้ดูแลระบบหลักของ Akari Bot เท่านั้น",
+                "> คุณไม่มีสิทธิ์ใช้งานคำสั่งนี้ คำสั่งนี้สงวนสิทธิ์เฉพาะนักพัฒนาและผู้ดูแลระบบหลักของ Kuma Bot เท่านั้น",
             },
           ],
         },
@@ -1928,11 +1931,20 @@ async function handleAkariAdmin(interaction, supabase, client) {
  * จัดการคำสั่ง /reveal-answer หรือ /ans (คำสั่งชั่วคราวสำหรับดูเฉลยของมินิเกมที่กำลังเปิดเล่นอยู่ในห้อง)
  */
 async function handleRevealAnswer(interaction, supabase) {
-  const { guildId, channelId } = interaction;
+  const { guildId, channelId, member } = interaction;
 
   if (!guildId || !channelId) {
     return interaction.reply({
       content: "❌ คำสั่งนี้สามารถใช้ได้เฉพาะในห้องข้อความของเซิร์ฟเวอร์เท่านั้น",
+      flags: MessageFlags.Ephemeral,
+    });
+  }
+
+  const isDev = isKumaAdmin(interaction.user.id, interaction.client);
+  const isChannelAdmin = member?.permissions?.has?.(PermissionFlagsBits.ManageChannels) || member?.permissions?.has?.(PermissionFlagsBits.Administrator);
+  if (!isDev && !isChannelAdmin) {
+    return interaction.reply({
+      content: "❌ คำสั่งดูเฉลยสงวนสิทธิ์เฉพาะผู้ดูแลระบบ (Administrator / Manage Channels) เท่านั้นครับ",
       flags: MessageFlags.Ephemeral,
     });
   }
@@ -2032,7 +2044,9 @@ module.exports = {
   handleClearCategory,
   handleSetGame,
   handleRemoveGame,
-  handleAkariAdmin,
+  handleKumaAdmin,
+  handleAkariAdmin: handleKumaAdmin,
+  isKumaAdmin,
   isAkariAdmin,
   handleRevealAnswer,
   handleSettingStore,
@@ -2053,6 +2067,8 @@ module.exports = {
   POINTS_SLASH_COMMANDS,
   STORE_SLASH_COMMANDS,
   AKARI_GAME_NAMES,
+  KUMA_GAME_NAMES: AKARI_GAME_NAMES,
   GAME_DESCRIPTIONS,
   AKARI_SLASH_COMMANDS,
+  KUMA_SLASH_COMMANDS: AKARI_SLASH_COMMANDS,
 };

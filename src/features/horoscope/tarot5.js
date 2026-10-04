@@ -10,6 +10,7 @@ cfg.role_blacklist = sharedConfig.role_blacklist;
 cfg.point_icon = sharedConfig.point_icon;
 const infotarot3 = require('./Infotarot3.json');
 const { blacklistPayload, cooldownContent, otherCommandsPayload } = require('../shared/tarotComponents');
+const { processTriggerEvent } = require('../dailyQuest/questEngine');
 
 // ─── Cooldown store (in-memory) ───────────────────────────────────────────────
 const { getCooldown, setCooldown } = require('../../utils/cooldownManager');
@@ -395,6 +396,16 @@ function setupTarot5(client) {
         const tarotDelta        = alreadyClaimed ? 0 : Math.min(1, cfg.mission_target - tarotPoint);
         const { newTarotPoint } = await addPoints(supabase, user.id, 0, tarotDelta);
         const missionComplete   = newTarotPoint >= cfg.mission_target;
+
+        // ── บันทึกความคืบหน้า Daily Quest (horoscope_usage) ──────────────────────
+        processTriggerEvent(client, supabase, user, 'horoscope_usage', {
+          channelId: interaction.channelId,
+          parentId: interaction.channel?.parentId,
+          tarotType: 'tarot5',
+          commandName: 'เลือกหมี',
+          member: interaction.member,
+          amount: 1
+        }).catch(err => console.error('[tarot5] processTriggerEvent error:', err.message));
 
         // อัปเดต message เดิม (แทนที่ปุ่มหมีด้วยผลลัพธ์)
         const resultPayload = alreadyClaimed

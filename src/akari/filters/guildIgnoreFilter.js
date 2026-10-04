@@ -12,9 +12,10 @@ function initExcludedGuilds() {
   // 0. ค่าเริ่มต้น: เซิร์ฟเวอร์หลัก Bear Cafe (1144251788493602848)
   excludedGuildIds.add("1144251788493602848");
 
-  // 1. ดึงจาก AKARI_EXCLUDED_GUILD_IDS
-  if (process.env.AKARI_EXCLUDED_GUILD_IDS) {
-    for (const id of process.env.AKARI_EXCLUDED_GUILD_IDS.split(",")) {
+  // 1. ดึงจาก KUMA_EXCLUDED_GUILD_IDS หรือ AKARI_EXCLUDED_GUILD_IDS
+  const rawExcluded = process.env.KUMA_EXCLUDED_GUILD_IDS || process.env.AKARI_EXCLUDED_GUILD_IDS;
+  if (rawExcluded) {
+    for (const id of rawExcluded.split(",")) {
       if (id.trim()) excludedGuildIds.add(id.trim());
     }
   }

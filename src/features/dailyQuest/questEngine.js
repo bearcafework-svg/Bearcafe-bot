@@ -106,19 +106,14 @@ async function getOrInitDailyQuestSet(supabase, targetDate = getBangkokTodayDate
       return { set: existingSet, quests: orderedQuests };
     }
 
-    // 2. หากยังไม่มี ให้สุ่มสร้างชุดใหม่ 3 เควส
-    // ดึงชุดของเมื่อวานมาเพื่อหลีกเลี่ยงการสุ่มซ้ำวันติดกัน
-    const yesterday = new Date(new Date(targetDate).getTime() - 86400000)
-      .toISOString()
-      .split("T")[0];
-
-    const { data: yesterdaySet } = await supabase
+    // 2. หากยังไม่มี ให้สุ่มสร้างชุดใหม่ 3 เควสตาม Option A (Exhaustion Cycle: ไม่ซ้ำจนกว่าจะวนครบ Pool)
+    // ดึงประวัติชุดเควสที่ผ่านมาก่อน targetDate เพื่อคำนวณเควสที่ยังไม่ออกในรอบปัจจุบัน
+    const { data: pastSets } = await supabase
       .from("daily_quest_sets")
-      .select("quest_ids")
-      .eq("quest_date", yesterday)
-      .maybeSingle();
-
-    const yesterdayIds = new Set(yesterdaySet?.quest_ids || []);
+      .select("quest_date, quest_ids")
+      .lt("quest_date", targetDate)
+      .order("quest_date", { ascending: true })
+      .limit(60);
 
     // ดึงแม่แบบเควสที่ active ทั้งหมด
     const { data: allTemplates, error: tErr } = await supabase
@@ -137,11 +132,38 @@ async function getOrInitDailyQuestSet(supabase, targetDate = getBangkokTodayDate
     );
     const irlPool = allTemplates.filter((q) => q.category === "irl");
 
-    // ฟังก์ชันช่วยสุ่มโดยเลี่ยงของเมื่อวานถ้าเป็นไปได้
+    // ฟังก์ชันคำนวณแคนดิเดตที่ยังไม่ออกในรอบปัจจุบัน (Exhaustion Pool)
+    const getExhaustionCandidates = (pool) => {
+      if (!pool || pool.length === 0) return [];
+      const poolIds = new Set(pool.map((q) => q.id));
+      let currentCycle = new Set();
+      let lastPickedId = null;
+
+      if (Array.isArray(pastSets)) {
+        for (const set of pastSets) {
+          const pickedId = set.quest_ids?.find((id) => poolIds.has(id));
+          if (pickedId) {
+            lastPickedId = pickedId;
+            if (currentCycle.has(pickedId) || currentCycle.size >= pool.length) {
+              currentCycle = new Set([pickedId]);
+            } else {
+              currentCycle.add(pickedId);
+            }
+          }
+        }
+      }
+
+      let remaining = pool.filter((q) => !currentCycle.has(q.id));
+      if (remaining.length === 0) {
+        // เมื่อวนครบทั้ง Pool แล้ว รีเซ็ตรอบใหม่ (หลีกเลี่ยงเควสของเมื่อวาน)
+        remaining = pool.filter((q) => pool.length <= 1 || q.id !== lastPickedId);
+      }
+      return remaining.length > 0 ? remaining : pool;
+    };
+
     const pickOne = (pool) => {
-      if (!pool || pool.length === 0) return null;
-      const filtered = pool.filter((q) => !yesterdayIds.has(q.id));
-      const candidates = filtered.length > 0 ? filtered : pool;
+      const candidates = getExhaustionCandidates(pool);
+      if (!candidates || candidates.length === 0) return null;
       return candidates[Math.floor(Math.random() * candidates.length)];
     };
 
@@ -338,9 +360,28 @@ async function completeQuest(client, supabase, user, quest, targetDate, dailyQue
       return;
     }
 
-    // 2. มอบแต้มรางวัลของเควสนี้
-    const pointsToAdd = quest.reward_points || 5;
-    await updateUserPoints(supabase, user.id, pointsToAdd);
+    // 2. มอบแต้มรางวัลของเควสนี้ (ถ้ามี)
+    const pointsToAdd = Number(quest.reward_points) || 0;
+    if (pointsToAdd > 0) {
+      await updateUserPoints(supabase, user.id, pointsToAdd);
+    }
+
+    // 2.1 มอบยศ Discord (ถ้ามี reward_role_id)
+    const roleIdToAdd = quest.reward_role_id || quest.trigger_config?.reward_role_id;
+    if (roleIdToAdd && client) {
+      try {
+        for (const guild of client.guilds.cache.values()) {
+          const member = await guild.members.fetch(user.id).catch(() => null);
+          if (member && !member.roles.cache.has(roleIdToAdd)) {
+            await member.roles.add(roleIdToAdd, `Daily Quest Reward: ${quest.title}`);
+            console.log(`[dailyQuest] 🎖️ Awarded role ${roleIdToAdd} to user ${user.id} (${quest.title})`);
+            break;
+          }
+        }
+      } catch (roleErr) {
+        console.error(`[dailyQuest] Failed to award role ${roleIdToAdd} to user ${user.id}:`, roleErr.message);
+      }
+    }
 
     // 3. บันทึกสถิติ Analytics
     await supabase
@@ -349,7 +390,7 @@ async function completeQuest(client, supabase, user, quest, targetDate, dailyQue
         quest_date: targetDate,
         event_type: "quest_completed",
         user_id: user.id,
-        metadata: { quest_code: quest.code, reward: pointsToAdd }
+        metadata: { quest_code: quest.code, reward_points: pointsToAdd, reward_role_id: roleIdToAdd || null }
       })
       .then(null, () => {});
 
@@ -366,7 +407,8 @@ async function completeQuest(client, supabase, user, quest, targetDate, dailyQue
       avatarUrl,
       questId: quest.id,
       questTitle: quest.title,
-      rewardPoints: pointsToAdd
+      rewardPoints: pointsToAdd,
+      rewardRoleId: roleIdToAdd || null
     });
 
     // 5. ตรวจสอบเงื่อนไขโบนัสครบ 3 เควส
@@ -384,7 +426,7 @@ const BATCH_DEBOUNCE_MS = 2500; // 2.5 วินาที
 /**
  * เพิ่มรายการเควสที่สำเร็จเข้าคิว และตั้งเวลาส่งแจ้งเตือนแบบรวมกลุ่ม
  * @param {import('discord.js').Client} client
- * @param {object} item { userId, avatarUrl, questId, questTitle, rewardPoints }
+ * @param {object} item { userId, avatarUrl, questId, questTitle, rewardPoints, rewardRoleId }
  */
 function queueQuestCompletionNotification(client, item) {
   questCompletionQueue.push(item);
@@ -439,11 +481,16 @@ async function flushQuestCompletionQueue(client) {
           const single = chunk[0];
           payload = buildQuestCompletedNotificationPayload(
             { id: single.userId, avatarUrl: single.avatarUrl },
-            { title: group.title, reward_points: single.rewardPoints }
+            { title: group.title, reward_points: single.rewardPoints, reward_role_id: single.rewardRoleId }
           );
         } else {
           // หากมีหลายคน (2-10 คน) ส่งการ์ดแบบรวมกลุ่ม
-          payload = buildBatchQuestCompletedNotificationPayload(group.title, chunk);
+          const formattedChunk = chunk.map((c) => ({
+            ...c,
+            reward_points: c.rewardPoints,
+            reward_role_id: c.rewardRoleId
+          }));
+          payload = buildBatchQuestCompletedNotificationPayload(group.title, formattedChunk);
         }
 
         await notifyCh.send(payload).catch((err) => {
@@ -496,12 +543,32 @@ async function processTriggerEvent(client, supabase, user, triggerType, eventCon
     // ตรวจสอบเงื่อนไขย่อย (Trigger Config)
     const cfg = quest.trigger_config || {};
 
-    // ฟังก์ชันตรวจสอบ Channel และ Forum/Thread Parent Channel
+    // ฟังก์ชันตรวจสอบ Channel และ Forum/Thread Parent Channel รวมถึงหมวดหมู่ (Category)
     const isChannelMatch = () => {
-      const allowed = cfg.channel_ids || (cfg.channel_id ? [cfg.channel_id] : null);
-      if (!allowed || allowed.length === 0) return true;
-      const targetIds = [eventContext.channelId, eventContext.parentId].filter(Boolean);
-      return targetIds.some((id) => allowed.includes(id));
+      const allowedChannels = cfg.channel_ids || (cfg.channel_id ? [cfg.channel_id] : null);
+      const allowedCategories = cfg.category_ids || (cfg.category_id ? [cfg.category_id] : null);
+
+      const hasChannels = allowedChannels && allowedChannels.length > 0;
+      const hasCategories = allowedCategories && allowedCategories.length > 0;
+
+      if (!hasChannels && !hasCategories) return true;
+
+      // ตรวจสอบหมวดหมู่ (Category ID): สำหรับ Voice Channel คือ channel.parentId
+      if (hasCategories) {
+        if (!eventContext.parentId || !allowedCategories.includes(eventContext.parentId)) {
+          return false;
+        }
+      }
+
+      // ตรวจสอบห้อง (Channel ID หรือ Forum Thread Parent ID)
+      if (hasChannels) {
+        const targetIds = [eventContext.channelId, eventContext.parentId].filter(Boolean);
+        if (!targetIds.some((id) => allowedChannels.includes(id))) {
+          return false;
+        }
+      }
+
+      return true;
     };
 
     if (!isChannelMatch()) continue;
@@ -519,6 +586,11 @@ async function processTriggerEvent(client, supabase, user, triggerType, eventCon
       if (cfg.media_type && eventContext.mediaType !== cfg.media_type) continue;
     } else if (triggerType === "reaction_add") {
       if (cfg.message_url && eventContext.messageUrl !== cfg.message_url) continue;
+    } else if (triggerType === "horoscope_usage") {
+      if (cfg.tarot_type && cfg.tarot_type !== "any" && eventContext.tarotType !== cfg.tarot_type) continue;
+      if (cfg.command && cfg.command !== "any" && eventContext.commandName !== cfg.command) continue;
+    } else if (triggerType === "minigame_win" || triggerType === "minigame_play") {
+      if (cfg.game_id && cfg.game_id !== "any" && Number(cfg.game_id) !== Number(eventContext.gameId)) continue;
     }
 
     // คำนวณความคืบหน้าใหม่

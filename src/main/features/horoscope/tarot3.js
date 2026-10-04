@@ -10,6 +10,7 @@ cfg.role_blacklist = sharedConfig.role_blacklist;
 cfg.point_icon = sharedConfig.point_icon;
 const infotarot = require('./Infotarot.json');
 const { blacklistPayload, cooldownContent, otherCommandsPayload } = require('../shared/tarotComponents');
+const { processTriggerEvent } = require('../dailyQuest/questEngine');
 
 // ─── Cooldown store (in-memory) ───────────────────────────────────────────────
 const { getCooldown, setCooldown } = require('../../utils/cooldownManager');
@@ -299,6 +300,16 @@ function setupTarot3(client) {
     const tarotDelta        = alreadyClaimed ? 0 : Math.min(1, cfg.mission_target - tarotPoint);
     const { newTarotPoint } = await addPoints(supabase, userId, 0, tarotDelta);
     const missionComplete   = newTarotPoint >= cfg.mission_target;
+
+    // ── บันทึกความคืบหน้า Daily Quest (horoscope_usage) ──────────────────────
+    processTriggerEvent(client, supabase, message.author, 'horoscope_usage', {
+      channelId: message.channel.id,
+      parentId: message.channel.parentId,
+      tarotType: 'tarot3',
+      commandName: 'เขย่าเซียมซี',
+      member: message.member,
+      amount: 1
+    }).catch(err => console.error('[tarot3] processTriggerEvent error:', err.message));
 
     // ── ลบ loading + ส่ง result พร้อมกัน ─────────────────────────────────────
     const deletePromise = loadingMsg.deletable

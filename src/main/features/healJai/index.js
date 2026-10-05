@@ -3093,6 +3093,9 @@ function setupHealJai(client) {
               package_name: drink.name,
               duration_minutes: drink.duration,
               service_mode: state.mode || "chat",
+              is_silent: false,
+              is_specific_counselor: false,
+              counselor_id: null,
               updated_at: new Date().toISOString()
             })
             .eq("ticket_channel_id", channel.id)

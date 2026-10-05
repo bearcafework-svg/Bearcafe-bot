@@ -126,11 +126,12 @@ function buildDispatchAlertPayload(dispatchInfo) {
 
   // ตรวจสอบท็อปปิ้ง (ถ้าไม่มี ไม่แสดง)
   let toppingText = null;
-  if (dispatchInfo.toppingName && dispatchInfo.toppingName !== 'none' && dispatchInfo.toppingName !== 'ไม่มี') {
+  const isNoneTopping = !dispatchInfo.toppingName || ['none', 'ไม่มี', 'ไม่รับท็อปปิ้ง'].includes(dispatchInfo.toppingName.trim());
+  if (!isNoneTopping) {
     toppingText = dispatchInfo.toppingName;
   } else if (dispatchInfo.isSilent) {
     toppingText = 'นั่งเงียบเป็นเพื่อน (+19 บาท)';
-  } else if (dispatchInfo.isSpecific) {
+  } else if (dispatchInfo.isSpecific && dispatchInfo.counselorId) {
     toppingText = 'ระบุตัวผู้รับฟัง (+39 บาท)';
   }
 
@@ -982,7 +983,7 @@ function buildInteractiveOrderPayload({
   }
 
   // ── STEP 4: ทวนรายการเครื่องดื่มของท่าน (Summary / Checkout) ────────
-  let toppingLine = "### 3. ไม่ใส่ท็อปปิ้ง";
+  let toppingLine = null;
   let toppingPrice = 0;
   if (toppingId === "silent_19") {
     toppingLine = "### 3. นั่งเงียบเป็นเพื่อน — 19 บาท";
@@ -995,6 +996,14 @@ function buildInteractiveOrderPayload({
 
   const totalPrice = (drink ? drink.price : 0) + toppingPrice;
 
+  const summaryDetails = [
+    `## 📝︲__\` ทวนรายการเครื่องดื่มของท่าน \`__`,
+    `### 1. ${modeName}`,
+    `### 2. ${drink ? drink.name : "เครื่องดื่ม"} — ${drink ? drink.price : 0} บาท`,
+    toppingLine,
+    `# ยอดรวม: 💸 ${totalPrice} บาท`
+  ].filter(Boolean).join('\n');
+
   return sanitizeComponentV2({
     flags: FLAG_V2,
     components: [
@@ -1006,7 +1015,7 @@ function buildInteractiveOrderPayload({
             components: [
               {
                 type: 10,
-                content: `## 📝︲__\` ทวนรายการเครื่องดื่มของท่าน \`__\n### 1. ${modeName}\n### 2. ${drink ? drink.name : "เครื่องดื่ม"} — ${drink ? drink.price : 0} บาท\n${toppingLine}\n# ยอดรวม: 💸 ${totalPrice} บาท`
+                content: summaryDetails
               }
             ],
             accessory: {

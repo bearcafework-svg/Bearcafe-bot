@@ -92,6 +92,28 @@ async function postDailyAnnouncement(client, supabase, targetDate = getBangkokTo
       return;
     }
 
+    // 0. ล้างข้อความทั้งหมดในห้องก่อนส่งเควสใหม่
+    try {
+      if (typeof channel.bulkDelete === "function") {
+        let deleted;
+        do {
+          // ดึงและลบข้อความชุดละไม่เกิน 100 ข้อความ (filterOld: true เพื่อกัน error ข้อความที่เก่ากว่า 14 วัน)
+          deleted = await channel.bulkDelete(100, true).catch(() => null);
+        } while (deleted && deleted.size >= 10);
+      }
+
+      // ตรวจสอบข้อความคงเหลือ (รวมถึงข้อความที่อายุเกิน 14 วันที่ bulkDelete ลบไม่ได้)
+      const remainingMessages = await channel.messages.fetch({ limit: 100 }).catch(() => null);
+      if (remainingMessages && remainingMessages.size > 0) {
+        for (const msg of remainingMessages.values()) {
+          await msg.delete().catch(() => {});
+        }
+      }
+      console.log(`[dailyQuest] 🧹 Cleaned all previous messages in #${channel.name} (${channelId})`);
+    } catch (clearErr) {
+      console.warn(`[dailyQuest] Warning during channel message cleanup:`, clearErr.message);
+    }
+
     // 1. ส่งข้อความแจ้งเตือนและแท็กบทบาทก่อน
     const thaiDate = formatThaiDate(targetDate);
     const mentionMsg = `<a:3602exclamationmarkbubble:1372837492205555812> เควสประจำวัน ${thaiDate} มาแล้ว! <@&${roleId}>`;

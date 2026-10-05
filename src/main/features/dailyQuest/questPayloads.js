@@ -65,13 +65,14 @@ function renderProgressBar(current, target) {
 function formatQuestRewardText(q) {
   const parts = [];
   const points = Number(q.reward_points ?? q.rewardPoints) || 0;
-  const roleId = q.reward_role_id || q.trigger_config?.reward_role_id;
+  const roleId = q.reward_role_id || q.rewardRoleId || q.trigger_config?.reward_role_id;
+  const roleName = q.reward_role_name || q.rewardRoleName || q.trigger_config?.reward_role_name;
 
   if (points > 0) {
     parts.push(`${POINT_ICON_STR} **+${points}**`);
   }
   if (roleId) {
-    parts.push(`🎖️ **ยศ** <@&${roleId}>`);
+    parts.push(roleName ? `🎖️ **ยศ** \`@${roleName}\`` : `🎖️ **ยศ** \`@${roleId}\``);
   }
 
   return parts.length > 0 ? parts.join(" • ") : "ไม่มีรางวัล";

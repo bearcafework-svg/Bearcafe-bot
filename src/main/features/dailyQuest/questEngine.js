@@ -408,7 +408,8 @@ async function completeQuest(client, supabase, user, quest, targetDate, dailyQue
       questId: quest.id,
       questTitle: quest.title,
       rewardPoints: pointsToAdd,
-      rewardRoleId: roleIdToAdd || null
+      rewardRoleId: roleIdToAdd || null,
+      rewardRoleName: quest.reward_role_name || quest.trigger_config?.reward_role_name || (roleIdToAdd ? client.guilds.cache.first()?.roles.cache.get(roleIdToAdd)?.name : null) || null
     });
 
     // 5. ตรวจสอบเงื่อนไขโบนัสครบ 3 เควส
@@ -481,14 +482,20 @@ async function flushQuestCompletionQueue(client) {
           const single = chunk[0];
           payload = buildQuestCompletedNotificationPayload(
             { id: single.userId, avatarUrl: single.avatarUrl },
-            { title: group.title, reward_points: single.rewardPoints, reward_role_id: single.rewardRoleId }
+            {
+              title: group.title,
+              reward_points: single.rewardPoints,
+              reward_role_id: single.rewardRoleId,
+              reward_role_name: single.rewardRoleName
+            }
           );
         } else {
           // หากมีหลายคน (2-10 คน) ส่งการ์ดแบบรวมกลุ่ม
           const formattedChunk = chunk.map((c) => ({
             ...c,
             reward_points: c.rewardPoints,
-            reward_role_id: c.rewardRoleId
+            reward_role_id: c.rewardRoleId,
+            reward_role_name: c.rewardRoleName
           }));
           payload = buildBatchQuestCompletedNotificationPayload(group.title, formattedChunk);
         }

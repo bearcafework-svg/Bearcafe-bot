@@ -367,19 +367,51 @@ async function completeQuest(client, supabase, user, quest, targetDate, dailyQue
     }
 
     // 2.1 มอบยศ Discord (ถ้ามี reward_role_id)
+    let roleAwardSuccess = false;
+    let roleAwardDetail = null;
     const roleIdToAdd = quest.reward_role_id || quest.trigger_config?.reward_role_id;
+
     if (roleIdToAdd && client) {
       try {
-        for (const guild of client.guilds.cache.values()) {
-          const member = await guild.members.fetch(user.id).catch(() => null);
-          if (member && !member.roles.cache.has(roleIdToAdd)) {
-            await member.roles.add(roleIdToAdd, `Daily Quest Reward: ${quest.title}`);
-            console.log(`[dailyQuest] 🎖️ Awarded role ${roleIdToAdd} to user ${user.id} (${quest.title})`);
-            break;
+        const targetGuildId = process.env.GUILD_ID || "1144251788493602848";
+        // 1. ลองดึงจาก Main Guild ก่อน
+        let targetGuild = client.guilds.cache.get(targetGuildId) || (await client.guilds.fetch(targetGuildId).catch(() => null));
+        let member = null;
+
+        if (targetGuild) {
+          member = await targetGuild.members.fetch(user.id).catch(() => null);
+        }
+
+        // 2. หากยังไม่พบ ให้ค้นหาจากทุกกิลด์ที่บอทอยู่
+        if (!member) {
+          for (const g of client.guilds.cache.values()) {
+            member = await g.members.fetch(user.id).catch(() => null);
+            if (member) {
+              targetGuild = g;
+              break;
+            }
           }
         }
+
+        if (member) {
+          const hasRole = member.roles.cache.has(roleIdToAdd);
+          if (!hasRole) {
+            await member.roles.add(roleIdToAdd, `Daily Quest Reward: ${quest.title}`);
+            roleAwardSuccess = true;
+            roleAwardDetail = "awarded";
+            console.log(`[dailyQuest] 🎖️ Awarded role ${roleIdToAdd} to user ${user.id} in guild ${targetGuild?.name || targetGuildId} (${quest.title})`);
+          } else {
+            roleAwardSuccess = true;
+            roleAwardDetail = "already_has_role";
+            console.log(`[dailyQuest] ℹ️ User ${user.id} already has role ${roleIdToAdd} (${quest.title})`);
+          }
+        } else {
+          console.warn(`[dailyQuest] ⚠️ Could not fetch member ${user.id} in guild ${targetGuildId} to award role ${roleIdToAdd}`);
+          roleAwardDetail = "member_not_found";
+        }
       } catch (roleErr) {
-        console.error(`[dailyQuest] Failed to award role ${roleIdToAdd} to user ${user.id}:`, roleErr.message);
+        console.error(`[dailyQuest] ❌ Failed to award role ${roleIdToAdd} to user ${user.id}:`, roleErr);
+        roleAwardDetail = `error: ${roleErr.message}`;
       }
     }
 
@@ -683,9 +715,15 @@ async function approveIrlQuest(client, supabase, targetUser, questId, staffUser)
     })
     .then(null, () => {});
 
+  const roleId = quest.reward_role_id || quest.trigger_config?.reward_role_id;
+  const rewardDesc = [];
+  if (quest.reward_points > 0) rewardDesc.push(`มอบแต้ม +${quest.reward_points}`);
+  if (roleId) rewardDesc.push(`มอบยศ <@&${roleId}>`);
+  const rewardNotice = rewardDesc.length > 0 ? ` (${rewardDesc.join(", ")})` : "";
+
   return {
     success: true,
-    message: `✅ อนุมัติเควส **${quest.title}** ให้กับ <@${targetUser.id}> เรียบร้อยแล้วค่ะ! (มอบแต้ม +${quest.reward_points})`
+    message: `✅ อนุมัติเควส **${quest.title}** ให้กับ <@${targetUser.id}> เรียบร้อยแล้วค่ะ!${rewardNotice}`
   };
 }
 

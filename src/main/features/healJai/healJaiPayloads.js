@@ -107,13 +107,17 @@ function buildCheckoutTicketPayload(orderInfo = {}) {
  * @param {object} dispatchInfo - { counselorId, orderId, orderCode, packageName, duration, isSilent, isBooster, totalMinutes, totalPrice, expireTimestamp }
  */
 function buildDispatchAlertPayload(dispatchInfo) {
-  const isTargeted = Boolean(dispatchInfo.counselorId);
-  const counselorMention = isTargeted ? `<@${dispatchInfo.counselorId}>` : `เปิดรับคำขอ (ทุกคนที่ว่าง)`;
+  const counselorIdStr = typeof dispatchInfo.counselorId === 'string' ? dispatchInfo.counselorId.trim() : '';
+  const isValidSnowflake = /^\d{17,20}$/.test(counselorIdStr);
+  const isTargeted = Boolean(counselorIdStr) && isValidSnowflake;
+  const counselorMention = isTargeted
+    ? `<@${counselorIdStr}>`
+    : (counselorIdStr ? `**${counselorIdStr}**` : `เปิดรับคำขอ (ทุกคนที่ว่าง)`);
   const headerNote = isTargeted
     ? `แอดมินได้เลือกมอบหมายเคสนี้ให้กับคุณโดยตรงค่ะ`
     : `เคสเปิดรับคำขอสำหรับผู้ให้คำปรึกษาทุกคนที่ว่าง สามารถกดรับเคสได้ทันทีค่ะ`;
   const contentMention = isTargeted
-    ? `<@${dispatchInfo.counselorId}> 🔔 มีเคสใหม่ส่งตรงถึงคุณ 𓂃`
+    ? `<@${counselorIdStr}> 🔔 มีเคสใหม่ส่งตรงถึงคุณ 𓂃`
     : `<@&1536208070420733982> 🔔 มีเคสใหม่เปิดรับคำขอ ผู้ที่พร้อมดูแลสามารถกดรับได้เลยค่ะ!`;
 
   const customerMention = dispatchInfo.customerId ? `<@${dispatchInfo.customerId}>` : null;

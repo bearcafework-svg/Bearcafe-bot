@@ -481,10 +481,25 @@ async function handleSetupGames(interaction, supabase, client) {
             guild_id: guild.id,
             game_id: gameId,
             channel_id: newChannel.id,
+            channel_name: newChannel.name,
             created_at: new Date().toISOString(),
           },
           { onConflict: "guild_id,game_id" }
         );
+
+        // อัปเดตข้อมูลเซิร์ฟเวอร์ใน tenant_configs ด้วย
+        await supabase.from("tenant_configs").upsert(
+          {
+            guild_id: guild.id,
+            guild_name: guild.name,
+            icon_url: guild.iconURL({ dynamic: true, size: 128 }) || null,
+            member_count: Number(guild.memberCount) || 0,
+            owner_id: guild.ownerId || null,
+            status: "active",
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "guild_id" }
+        ).catch(() => {});
 
         await supabase.from("tenant_minigame_settings").upsert(
           {
@@ -1425,10 +1440,25 @@ async function handleSetGame(interaction, supabase, client) {
           guild_id: guild.id,
           game_id: gameId,
           channel_id: targetChannel.id,
+          channel_name: targetChannel.name,
           created_at: new Date().toISOString(),
         },
         { onConflict: "guild_id,game_id" }
       );
+
+      // อัปเดตข้อมูลเซิร์ฟเวอร์ใน tenant_configs ด้วย
+      await supabase.from("tenant_configs").upsert(
+        {
+          guild_id: guild.id,
+          guild_name: guild.name,
+          icon_url: guild.iconURL({ dynamic: true, size: 128 }) || null,
+          member_count: Number(guild.memberCount) || 0,
+          owner_id: guild.ownerId || null,
+          status: "active",
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "guild_id" }
+      ).catch(() => {});
 
       // เปิดสถานะเกมใน tenant_minigame_settings
       await supabase.from("tenant_minigame_settings").upsert(

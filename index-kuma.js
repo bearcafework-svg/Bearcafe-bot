@@ -18,6 +18,7 @@ const { setupAkariGuildFilter } = require("./src/akari/filters/guildIgnoreFilter
 const { setupAkariMinigames, flushAllTenantPoints } = require("./src/akari/minigames/minigamesEngine");
 const { setupServerActivitySync } = require("./src/akari/services/serverActivitySync");
 const { setupWelcomeService } = require("./src/akari/services/welcomeService");
+const { setupTenantSync } = require("./src/akari/services/tenantSyncService");
 const {
   registerAkariCommands,
   handleSetupGames,
@@ -261,6 +262,7 @@ client.once("clientReady", () => {
   // 7.1 เริ่มการทำงานของ Server Activity Sync (ซิงค์ Live Voice & Joins ทุก 5 นาที)
   if (kumaSupabase) {
     setupServerActivitySync(client, kumaSupabase);
+    setupTenantSync(client, kumaSupabase);
   }
 });
 

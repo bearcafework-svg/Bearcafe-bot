@@ -499,7 +499,7 @@ async function handleSetupGames(interaction, supabase, client) {
             updated_at: new Date().toISOString(),
           },
           { onConflict: "guild_id" }
-        ).catch(() => {});
+        );
 
         await supabase.from("tenant_minigame_settings").upsert(
           {
@@ -1458,7 +1458,7 @@ async function handleSetGame(interaction, supabase, client) {
           updated_at: new Date().toISOString(),
         },
         { onConflict: "guild_id" }
-      ).catch(() => {});
+      );
 
       // เปิดสถานะเกมใน tenant_minigame_settings
       await supabase.from("tenant_minigame_settings").upsert(

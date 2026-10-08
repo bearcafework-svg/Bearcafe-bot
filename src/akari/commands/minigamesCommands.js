@@ -116,6 +116,9 @@ const AKARI_GAME_NAMES = {
   13: "🧩︲เรียงประโยค-อังกฤษ",
 };
 
+// รายการมินิเกมที่ปิดปรับปรุงชั่วคราว (ซ่อนออกจาก /setting-games และตัวเลือกคำสั่ง)
+const TEMPORARY_DISABLED_GAME_IDS = [1, 2];
+
 const GAME_DESCRIPTIONS = {
   1: "เติมคำศัพท์ภาษาไทยที่ถูกซ่อนอยู่",
   2: "เติมคำศัพท์ภาษาอังกฤษที่ถูกซ่อนอยู่",
@@ -178,10 +181,12 @@ const AKARI_SLASH_COMMANDS = [
         description: "เลือกมินิเกมที่ต้องการผูกลงห้องนี้",
         type: 4, // INTEGER
         required: true,
-        choices: Object.entries(AKARI_GAME_NAMES).map(([id, name]) => ({
-          name: name,
-          value: parseInt(id, 10),
-        })),
+        choices: Object.entries(AKARI_GAME_NAMES)
+          .filter(([id]) => !TEMPORARY_DISABLED_GAME_IDS.includes(parseInt(id, 10)))
+          .map(([id, name]) => ({
+            name: name,
+            value: parseInt(id, 10),
+          })),
       },
       {
         name: "channel",
@@ -202,10 +207,12 @@ const AKARI_SLASH_COMMANDS = [
         description: "เลือกมินิเกมที่ต้องการยกเลิกการผูกห้อง",
         type: 4, // INTEGER
         required: true,
-        choices: Object.entries(AKARI_GAME_NAMES).map(([id, name]) => ({
-          name: name,
-          value: parseInt(id, 10),
-        })),
+        choices: Object.entries(AKARI_GAME_NAMES)
+          .filter(([id]) => !TEMPORARY_DISABLED_GAME_IDS.includes(parseInt(id, 10)))
+          .map(([id, name]) => ({
+            name: name,
+            value: parseInt(id, 10),
+          })),
       },
     ],
   },
@@ -608,9 +615,14 @@ async function buildSettingGamesPayload(guild, supabase) {
   let activeCount = 0;
   let missingCount = 0;
 
+  // คัดกรองเฉพาะมินิเกมที่เปิดให้ใช้งาน (ซ่อนเกม 1 และ 2 ออกจากหน้าตั้งค่า)
+  const displayableGameIds = Object.keys(AKARI_GAME_NAMES).filter(
+    (idStr) => !TEMPORARY_DISABLED_GAME_IDS.includes(parseInt(idStr, 10))
+  );
+
   // คำนวณสถานะ 3 แบบ: 🟢 พร้อมเล่น | 🔴 ปิดอยู่ | ⚠️ ห้องหาย
   const gameStatuses = {};
-  for (const idStr of Object.keys(AKARI_GAME_NAMES)) {
+  for (const idStr of displayableGameIds) {
     const gId = parseInt(idStr, 10);
     const boundChannelId = channelsMap[gId];
     const isEnabled = settingsMap[gId] !== false;
@@ -627,7 +639,7 @@ async function buildSettingGamesPayload(guild, supabase) {
     }
   }
 
-  const selectOptions = Object.keys(AKARI_GAME_NAMES).map((idStr) => {
+  const selectOptions = displayableGameIds.map((idStr) => {
     const gId = parseInt(idStr, 10);
     const gameInfo = gameStatuses[gId];
     const isHeavy = HEAVYWEIGHT_GAMES.includes(gId);
@@ -656,7 +668,7 @@ async function buildSettingGamesPayload(guild, supabase) {
     };
   });
 
-  const activeGameIds = Object.keys(AKARI_GAME_NAMES).filter(
+  const activeGameIds = displayableGameIds.filter(
     (idStr) => gameStatuses[parseInt(idStr, 10)]?.status === "active"
   );
 
@@ -684,6 +696,9 @@ async function buildSettingGamesPayload(guild, supabase) {
   const planText = isPremium ? "👑⠀**แผนสมาชิก:** Premium (พรีเมียม)" : "📦⠀**แผนสมาชิก:** Standard (ฟรี)";
   const quotaText = isPremium ? `🎮⠀**โควตาที่ใช้:** **ไม่จำกัด** (${activeCount} เกม)` : `🎮⠀**โควตาที่ใช้:** **${activeCount}/${FREE_QUOTA_LIMIT}** เกม`;
 
+  const totalDisplayGames = displayableGameIds.length;
+  const disabledCount = totalDisplayGames - activeCount - missingCount;
+
   const contentText =
     `## <:bee20000:1256669436350562355>︲__\` 𝖲𝖾𝗍𝗍𝗂𝗇𝗀𝗌 ₊ จัดการมินิเกม 𓂃 \`__\n` +
     `> ${planText}\n` +
@@ -691,7 +706,7 @@ async function buildSettingGamesPayload(guild, supabase) {
     `## 📊︲สถานะห้อง\n` +
     `- <:goodconektion:1548760301762121801> พร้อมเล่น **${activeCount}** เกม\n` +
     `- <:conektionokay:1548760281675599964> ห้องหาย **${missingCount}** เกม\n` +
-    `- <:conektionbad:1548760143192260689> ปิดอยู่ **${13 - activeCount - missingCount}** เกม`;
+    `- <:conektionbad:1548760143192260689> ปิดอยู่ **${Math.max(0, disabledCount)}** เกม`;
 
   const guildIconUrl = guild.iconURL({ size: 256 }) || "https://cdn.discordapp.com/embed/avatars/0.png";
 
@@ -923,6 +938,13 @@ async function handleSettingToggle(interaction, supabase) {
   const gameId = parseInt(selectedValue.replace("toggle_", ""));
   const guildId = interaction.guild.id;
   const gameName = AKARI_GAME_NAMES[gameId] || `มินิเกม #${gameId}`;
+
+  if (TEMPORARY_DISABLED_GAME_IDS.includes(gameId)) {
+    return interaction.reply({
+      content: `⚠️ มินิเกม **${gameName}** ปิดปรับปรุงระบบชั่วคราวครับ`,
+      flags: MessageFlags.Ephemeral,
+    });
+  }
 
   // 1. ตรวจสอบว่าเกมนี้ห้องหาย หรือยังไม่ได้ผูกห้องหรือไม่
   let boundChannelId = null;
@@ -1369,6 +1391,24 @@ async function handleSetGame(interaction, supabase, client) {
   const gameId = options.getInteger("game");
   const targetChannel = options.getChannel("channel");
   const gameName = AKARI_GAME_NAMES[gameId] || `มินิเกม #${gameId}`;
+
+  if (TEMPORARY_DISABLED_GAME_IDS.includes(gameId)) {
+    return interaction.editReply({
+      flags: FLAG_V2,
+      components: [
+        {
+          type: 17,
+          components: [
+            {
+              type: 10,
+              content: `## <:lowwarning:1548772721679278180>︲__\` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ มินิเกมปิดปรับปรุงชั่วคราว 𓂃 \`__\n` +
+                `# มินิเกม **${gameName}** กำลังอยู่ระหว่างการปรับปรุงระบบ ขออภัยในความไม่สะดวกครับ`,
+            },
+          ],
+        },
+      ],
+    });
+  }
 
   // ตรวจสอบสิทธิ์การใช้งานตามระดับสมาชิกก่อนผูกห้อง
   const access = await validateGameAccess(guild.id, gameId, supabase);

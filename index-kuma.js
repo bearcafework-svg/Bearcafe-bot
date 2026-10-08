@@ -7,6 +7,13 @@ require("dotenv").config();
 
 const { Client, GatewayIntentBits, ActivityType, MessageFlags } = require("discord.js");
 const { createClient } = require("@supabase/supabase-js");
+const ws = require("ws");
+
+// Polyfill WebSocket สำหรับ Node.js < 22 เพื่อให้ @supabase/realtime-js ทำงานได้
+if (!globalThis.WebSocket) {
+  globalThis.WebSocket = ws;
+}
+
 const { setupAkariGuildFilter } = require("./src/akari/filters/guildIgnoreFilter");
 const { setupAkariMinigames, flushAllTenantPoints } = require("./src/akari/minigames/minigamesEngine");
 const { setupServerActivitySync } = require("./src/akari/services/serverActivitySync");
@@ -55,6 +62,7 @@ if (supabaseUrl && supabaseKey) {
     supabaseKey,
     {
       auth: { persistSession: false },
+      realtime: { transport: ws },
     }
   );
   console.log("⚡ [KumaBot] เชื่อมต่อ Main Supabase Database สำเร็จแล้ว!");

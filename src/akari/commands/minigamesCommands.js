@@ -169,20 +169,6 @@ const AKARI_SLASH_COMMANDS = [
     default_member_permissions: PermissionFlagsBits.ManageChannels.toString(),
   },
   {
-    name: "clear",
-    description: "ลบช่องทุกประเภทภายในหมวดหมู่ที่กำหนด (เฉพาะนักพัฒนาบอท Kuma)",
-    default_member_permissions: "0",
-    options: [
-      {
-        name: "category",
-        description: "เลือกหมวดหมู่ (Category) ที่ต้องการลบช่องข้างใน",
-        type: 7, // CHANNEL
-        channel_types: [ChannelType.GuildCategory],
-        required: true,
-      },
-    ],
-  },
-  {
     name: "set-game",
     description: "ผูกมินิเกมที่ต้องการลงในห้องที่ระบุ และเริ่มเล่นทันที (เฉพาะผู้ดูแลระบบ)",
     default_member_permissions: PermissionFlagsBits.ManageChannels.toString(),
@@ -223,58 +209,6 @@ const AKARI_SLASH_COMMANDS = [
       },
     ],
   },
-  {
-    name: "kuma-admin",
-    description: "ระบบจัดการสถานะสมาชิกและพรีเมียม (เฉพาะนักพัฒนาบอท Kuma)",
-    default_member_permissions: "0",
-    options: [
-      {
-        name: "set-premium",
-        description: "อัปเกรดสถานะ Premium ให้กับเซิร์ฟเวอร์",
-        type: 1, // SUB_COMMAND
-        options: [
-          {
-            name: "guild_id",
-            description: "ไอดีเซิร์ฟเวอร์ (Guild ID)",
-            type: 3, // STRING
-            required: true,
-          },
-          {
-            name: "days",
-            description: "จำนวนวันที่ต้องการเปิดใช้งาน (เช่น 30, 90, 365)",
-            type: 4, // INTEGER
-            required: true,
-          },
-        ],
-      },
-      {
-        name: "remove-premium",
-        description: "ยกเลิกสถานะ Premium ของเซิร์ฟเวอร์ และปรับกลับเป็น Standard",
-        type: 1, // SUB_COMMAND
-        options: [
-          {
-            name: "guild_id",
-            description: "ไอดีเซิร์ฟเวอร์ (Guild ID)",
-            type: 3, // STRING
-            required: true,
-          },
-        ],
-      },
-      {
-        name: "check-tenant",
-        description: "ตรวจสอบข้อมูลแผนสมาชิกและจำนวนห้องมินิเกมของเซิร์ฟเวอร์",
-        type: 1, // SUB_COMMAND
-        options: [
-          {
-            name: "guild_id",
-            description: "ไอดีเซิร์ฟเวอร์ (Guild ID)",
-            type: 3, // STRING
-            required: true,
-          },
-        ],
-      },
-    ],
-  },
   ...POINTS_SLASH_COMMANDS,
   ...HELP_SLASH_COMMANDS,
   ...PREVIEW_SLASH_COMMANDS,
@@ -283,13 +217,25 @@ const AKARI_SLASH_COMMANDS = [
     description: "🔍 ดูเฉลยของมินิเกมที่กำลังเปิดเล่นอยู่ในห้องนี้ (เฉพาะผู้ดูแลระบบ)",
     default_member_permissions: PermissionFlagsBits.ManageChannels.toString(),
   },
-  {
-    name: "ans",
-    description: "🔍 ดูเฉลยของมินิเกมที่กำลังเปิดเล่นอยู่ในห้องนี้ (เฉพาะผู้ดูแลระบบ)",
-    default_member_permissions: PermissionFlagsBits.ManageChannels.toString(),
-  },
   // ...STORE_SLASH_COMMANDS, // ปิดระบบร้านค้าชั่วคราวตามคำสั่ง
 ];
+
+// คำสั่ง /clear โหลดเฉพาะในเซิร์ฟเวอร์ที่กำหนด (Guild-Scoped Only)
+const KUMA_CLEAR_ALLOWED_GUILD_ID = "1038378858958815272";
+const KUMA_CLEAR_SLASH_COMMAND = {
+  name: "clear",
+  description: "ลบช่องทุกประเภทภายในหมวดหมู่ที่กำหนด (เฉพาะนักพัฒนาบอท Kuma)",
+  default_member_permissions: "0",
+  options: [
+    {
+      name: "category",
+      description: "เลือกหมวดหมู่ (Category) ที่ต้องการลบช่องข้างใน",
+      type: 7, // CHANNEL
+      channel_types: [ChannelType.GuildCategory],
+      required: true,
+    },
+  ],
+};
 
 /**
  * เปรียบเทียบชุดคำสั่งที่มีอยู่ใน Discord กับคำสั่งเป้าหมายว่าตรงกันหรือไม่
@@ -318,17 +264,28 @@ async function registerAkariCommands(client) {
     try {
       if (!client.application) return;
 
-      // 1. ตรวจสอบว่า Global Slash Commands ของ Akari ตรงกับชุดปัจจุบันหรือไม่
+      // 1. ตรวจสอบและลงทะเบียน Global Slash Commands ของ Akari/Kuma
       const existingGlobal = await client.application.commands.fetch().catch(() => null);
-      if (existingGlobal && areCommandsEqual(existingGlobal, AKARI_SLASH_COMMANDS)) {
+      if (!existingGlobal || !areCommandsEqual(existingGlobal, AKARI_SLASH_COMMANDS)) {
+        await client.application.commands.set(AKARI_SLASH_COMMANDS);
+        console.log(`🏮 [AkariCommands] ลงทะเบียน Global Slash Commands (${AKARI_SLASH_COMMANDS.length} คำสั่ง) สำเร็จแล้ว!`);
+      } else {
         console.log("⚡ [AkariCommands] Global Slash Commands เป็นปัจจุบันแล้ว (ข้ามการ sync ซ้ำ)");
-        return;
       }
 
-      await client.application.commands.set(AKARI_SLASH_COMMANDS);
-      console.log(`🏮 [AkariCommands] ลงทะเบียน Global Slash Commands (${AKARI_SLASH_COMMANDS.length} คำสั่ง) สำเร็จแล้ว!`);
+      // 2. ลงทะเบียนคำสั่ง /clear ให้เฉพาะเซิร์ฟเวอร์ที่ได้รับอนุญาต (Guild-Scoped Only)
+      try {
+        const targetGuild = client.guilds.cache.get(KUMA_CLEAR_ALLOWED_GUILD_ID) ||
+                            await client.guilds.fetch(KUMA_CLEAR_ALLOWED_GUILD_ID).catch(() => null);
+        if (targetGuild) {
+          await targetGuild.commands.set([KUMA_CLEAR_SLASH_COMMAND]);
+          console.log(`🏮 [AkariCommands] ลงทะเบียน /clear ให้เฉพาะกิลด์ ${KUMA_CLEAR_ALLOWED_GUILD_ID} เรียบร้อยแล้ว!`);
+        }
+      } catch (guildCmdErr) {
+        console.warn("⚠️ [AkariCommands] Failed to register guild-specific /clear command:", guildCmdErr.message);
+      }
     } catch (e) {
-      console.error("❌ [AkariCommands] Register Global Slash Commands Error:", e.message);
+      console.error("❌ [AkariCommands] Register Slash Commands Error:", e.message);
     }
   };
 
@@ -1104,6 +1061,14 @@ async function handleSettingToggle(interaction, supabase) {
  */
 async function handleClearCategory(interaction, supabase) {
   const { guild, member, options } = interaction;
+
+  // ตรวจสอบว่าคำสั่งถูกเรียกใช้ในเซิร์ฟเวอร์ที่อนุญาตเท่านั้น
+  if (interaction.guildId !== KUMA_CLEAR_ALLOWED_GUILD_ID) {
+    return interaction.reply({
+      content: "❌ คำสั่งนี้อนุญาตให้ใช้งานเฉพาะในเซิร์ฟเวอร์ที่กำหนดเท่านั้นครับ",
+      flags: MessageFlags.Ephemeral,
+    });
+  }
 
   // ตรวจสอบสิทธิ์เฉพาะนักพัฒนาบอท Akari (Developer Only)
   if (!isAkariAdmin(interaction.user.id, interaction.client)) {

@@ -111,16 +111,13 @@ client.on("interactionCreate", async (interaction) => {
       if (interaction.commandName === "remove-game") {
         return await handleRemoveGame(interaction, kumaSupabase);
       }
-      if (interaction.commandName === "kuma-admin" || interaction.commandName === "akari-admin") {
-        return await handleKumaAdmin(interaction, kumaSupabase, client);
-      }
       if (interaction.commandName === "points") {
         return await handlePointsCommand(interaction, kumaSupabase);
       }
       if (interaction.commandName === "leaderboard") {
         return await handleLeaderboardCommand(interaction, kumaSupabase);
       }
-      if (interaction.commandName === "reveal-answer" || interaction.commandName === "ans") {
+      if (interaction.commandName === "reveal-answer") {
         return await handleRevealAnswer(interaction, kumaSupabase);
       }
       if (interaction.commandName === "help") {

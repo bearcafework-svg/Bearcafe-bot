@@ -92,14 +92,8 @@ function setupVoicePoints(client) {
           return;
         }
 
-        const { data: existingRecord } = await supabase
-          .from("voice_states")
-          .select("channel_id, joined_at")
-          .eq("discord_user_id", userId)
-          .maybeSingle();
-
-        const shouldUpdateJoinedAt = !existingRecord || existingRecord.channel_id !== channelId;
-        const joinedAt = shouldUpdateJoinedAt ? new Date().toISOString() : existingRecord.joined_at;
+        const session = voiceJoinTimes.get(userId);
+        const joinedAt = session?.joinedAt ? new Date(session.joinedAt).toISOString() : new Date().toISOString();
 
         await supabase.from("voice_states").upsert({
           discord_user_id: userId,
@@ -409,23 +403,42 @@ function setupVoicePoints(client) {
   }
 
   async function trackJoinState(guild) {
+    const statesToUpsert = [];
+    const now = Date.now();
+    const nowIso = new Date(now).toISOString();
+
     for (const [memberId, voiceState] of guild.voiceStates.cache) {
       if (!voiceState.channelId || voiceState.member?.user?.bot) continue;
       if (voiceJoinTimes.has(memberId)) continue;
 
       voiceJoinTimes.set(memberId, {
-        joinedAt: Date.now(),
+        joinedAt: now,
         channelId: voiceState.channelId,
         channelName: voiceState.channel?.name ?? null,
         parentId: voiceState.channel?.parentId ?? null,
       });
 
-      await syncVoiceState(
-        memberId,
-        voiceState.channelId,
-        voiceState.channel?.name ?? null,
-        guild.id
-      );
+      statesToUpsert.push({
+        discord_user_id: memberId,
+        channel_id: voiceState.channelId,
+        channel_name: voiceState.channel?.name ?? null,
+        guild_id: guild.id,
+        is_connected: true,
+        joined_at: nowIso,
+        updated_at: nowIso,
+      });
+    }
+
+    if (statesToUpsert.length > 0 && supabase) {
+      try {
+        const CHUNK_SIZE = 50;
+        for (let i = 0; i < statesToUpsert.length; i += CHUNK_SIZE) {
+          const chunk = statesToUpsert.slice(i, i + CHUNK_SIZE);
+          await supabase.from("voice_states").upsert(chunk, { onConflict: "discord_user_id" });
+        }
+      } catch (err) {
+        console.error("[voice-points] Batch voice_states sync error:", err.message);
+      }
     }
   }
 

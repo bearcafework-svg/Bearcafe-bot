@@ -41,7 +41,6 @@ const {
   handleLeaderboardCommand,
   handlePointsButtonInteraction,
   handleHelpCommand,
-  handlePreviewCommand,
   handlePreviewButtonInteraction,
 } = require("./src/akari/commands/minigamesCommands");
 
@@ -108,7 +107,7 @@ client.on("interactionCreate", async (interaction) => {
       if (interaction.commandName === "setup-games") {
         return await handleSetupGames(interaction, kumaSupabase, client);
       }
-      if (interaction.commandName === "setting-games" || interaction.commandName === "setting-game") {
+      if (interaction.commandName === "setting-games") {
         return await handleSettingGames(interaction, kumaSupabase);
       }
       if (interaction.commandName === "clear") {
@@ -131,9 +130,6 @@ client.on("interactionCreate", async (interaction) => {
       }
       if (interaction.commandName === "help") {
         return await handleHelpCommand(interaction, client);
-      }
-      if (interaction.commandName === "preview") {
-        return await handlePreviewCommand(interaction, kumaSupabase);
       }
     }
 

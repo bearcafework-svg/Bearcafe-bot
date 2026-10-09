@@ -167,11 +167,6 @@ const AKARI_SLASH_COMMANDS = [
     default_member_permissions: PermissionFlagsBits.ManageChannels.toString(),
   },
   {
-    name: "setting-game",
-    description: "เปิด/ปิด การใช้งานมินิเกมแต่ละเกมย่อยในเซิร์ฟเวอร์ (เฉพาะผู้ดูแลระบบ)",
-    default_member_permissions: PermissionFlagsBits.ManageChannels.toString(),
-  },
-  {
     name: "set-game",
     description: "ผูกมินิเกมที่ต้องการลงในห้องที่ระบุ และเริ่มเล่นทันที (เฉพาะผู้ดูแลระบบ)",
     default_member_permissions: PermissionFlagsBits.ManageChannels.toString(),
@@ -218,16 +213,10 @@ const AKARI_SLASH_COMMANDS = [
   },
   ...POINTS_SLASH_COMMANDS,
   ...HELP_SLASH_COMMANDS,
-  ...PREVIEW_SLASH_COMMANDS,
-  {
-    name: "reveal-answer",
-    description: "🔍 ดูเฉลยของมินิเกมที่กำลังเปิดเล่นอยู่ในห้องนี้ (เฉพาะผู้ดูแลระบบ)",
-    default_member_permissions: PermissionFlagsBits.ManageChannels.toString(),
-  },
   // ...STORE_SLASH_COMMANDS, // ปิดระบบร้านค้าชั่วคราวตามคำสั่ง
 ];
 
-// คำสั่ง /clear โหลดเฉพาะในเซิร์ฟเวอร์ที่กำหนด (Guild-Scoped Only)
+// คำสั่งเฉพาะเซิร์ฟเวอร์ (Guild-Scoped Only)
 const KUMA_CLEAR_ALLOWED_GUILD_ID = "1038378858958815272";
 const KUMA_CLEAR_SLASH_COMMAND = {
   name: "clear",
@@ -242,6 +231,13 @@ const KUMA_CLEAR_SLASH_COMMAND = {
       required: true,
     },
   ],
+};
+
+const KUMA_REVEAL_ALLOWED_GUILD_ID = "1493110432347459627";
+const KUMA_REVEAL_SLASH_COMMAND = {
+  name: "reveal-answer",
+  description: "🔍 ดูเฉลยของมินิเกมที่กำลังเปิดเล่นอยู่ในห้องนี้ (เฉพาะผู้ดูแลระบบ)",
+  default_member_permissions: PermissionFlagsBits.ManageChannels.toString(),
 };
 
 /**
@@ -280,16 +276,26 @@ async function registerAkariCommands(client) {
         console.log("⚡ [AkariCommands] Global Slash Commands เป็นปัจจุบันแล้ว (ข้ามการ sync ซ้ำ)");
       }
 
-      // 2. ลงทะเบียนคำสั่ง /clear ให้เฉพาะเซิร์ฟเวอร์ที่ได้รับอนุญาต (Guild-Scoped Only)
-      try {
-        const targetGuild = client.guilds.cache.get(KUMA_CLEAR_ALLOWED_GUILD_ID) ||
-                            await client.guilds.fetch(KUMA_CLEAR_ALLOWED_GUILD_ID).catch(() => null);
-        if (targetGuild) {
-          await targetGuild.commands.set([KUMA_CLEAR_SLASH_COMMAND]);
-          console.log(`🏮 [AkariCommands] ลงทะเบียน /clear ให้เฉพาะกิลด์ ${KUMA_CLEAR_ALLOWED_GUILD_ID} เรียบร้อยแล้ว!`);
+      // 2. ลงทะเบียนคำสั่งเฉพาะเซิร์ฟเวอร์ (Guild-Scoped Only)
+      const guildCommandsMap = new Map();
+      const addGuildCommand = (guildId, cmd) => {
+        if (!guildCommandsMap.has(guildId)) guildCommandsMap.set(guildId, []);
+        guildCommandsMap.get(guildId).push(cmd);
+      };
+      addGuildCommand(KUMA_CLEAR_ALLOWED_GUILD_ID, KUMA_CLEAR_SLASH_COMMAND);
+      addGuildCommand(KUMA_REVEAL_ALLOWED_GUILD_ID, KUMA_REVEAL_SLASH_COMMAND);
+
+      for (const [gId, cmds] of guildCommandsMap.entries()) {
+        try {
+          const targetGuild = client.guilds.cache.get(gId) ||
+                              await client.guilds.fetch(gId).catch(() => null);
+          if (targetGuild) {
+            await targetGuild.commands.set(cmds);
+            console.log(`🏮 [AkariCommands] ลงทะเบียน Guild Commands (${cmds.map((c) => c.name).join(", ")}) ให้กิลด์ ${gId} เรียบร้อยแล้ว!`);
+          }
+        } catch (guildCmdErr) {
+          console.warn(`⚠️ [AkariCommands] Failed to register guild-specific commands for ${gId}:`, guildCmdErr.message);
         }
-      } catch (guildCmdErr) {
-        console.warn("⚠️ [AkariCommands] Failed to register guild-specific /clear command:", guildCmdErr.message);
       }
     } catch (e) {
       console.error("❌ [AkariCommands] Register Slash Commands Error:", e.message);
@@ -1975,6 +1981,13 @@ async function handleRevealAnswer(interaction, supabase) {
     });
   }
 
+  if (guildId !== KUMA_REVEAL_ALLOWED_GUILD_ID) {
+    return interaction.reply({
+      content: "❌ คำสั่งนี้เปิดให้ใช้งานเฉพาะในเซิร์ฟเวอร์ที่กำหนดเท่านั้นครับ",
+      flags: MessageFlags.Ephemeral,
+    });
+  }
+
   const isDev = isKumaAdmin(interaction.user.id, interaction.client);
   const isChannelAdmin = member?.permissions?.has?.(PermissionFlagsBits.ManageChannels) || member?.permissions?.has?.(PermissionFlagsBits.Administrator);
   if (!isDev && !isChannelAdmin) {
@@ -2106,4 +2119,5 @@ module.exports = {
   GAME_DESCRIPTIONS,
   AKARI_SLASH_COMMANDS,
   KUMA_SLASH_COMMANDS: AKARI_SLASH_COMMANDS,
+  KUMA_REVEAL_ALLOWED_GUILD_ID,
 };

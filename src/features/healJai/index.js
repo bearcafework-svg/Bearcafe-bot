@@ -5211,14 +5211,30 @@ function setupHealJai(client) {
 
       if (supabase) {
         try {
-          const { error: counselorErr } = await supabase.from("heal_jai_counselors").upsert({
+          // 🛡️ ตรวจสอบก่อนว่ามีข้อมูลเดิมในฐานข้อมูลหรือไม่ เพื่อไม่ให้เขียนทับ display_name ที่แอดมินหรือพนักงานตั้งไว้
+          const { data: existingCounselor } = await supabase
+            .from("heal_jai_counselors")
+            .select("display_name")
+            .eq("user_id", user.id)
+            .maybeSingle();
+
+          const updatePayload = {
             guild_id: guild.id,
             user_id: user.id,
-            display_name: member?.displayName || user.username,
             status: targetStatus,
             last_shift_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
-          }, { onConflict: "user_id" });
+          };
+
+          // เขียนทับเฉพาะกรณีพนักงานใหม่ที่ยังไม่เคยมี display_name เท่านั้น
+          if (!existingCounselor || !existingCounselor.display_name) {
+            updatePayload.display_name = member?.displayName || user.username;
+          }
+
+          const { error: counselorErr } = await supabase
+            .from("heal_jai_counselors")
+            .upsert(updatePayload, { onConflict: "user_id" });
+
           if (counselorErr) {
             console.error("[HealJai] Counselor status upsert error:", counselorErr.message);
           }
@@ -5257,14 +5273,28 @@ function setupHealJai(client) {
 
         if (supabase) {
           try {
-            await supabase.from("heal_jai_counselors").upsert({
+            // 🛡️ รักษา display_name เดิมไว้ ไม่ให้ถูกทับด้วย Discord Nickname/Username
+            const { data: existingCounselor } = await supabase
+              .from("heal_jai_counselors")
+              .select("display_name")
+              .eq("user_id", user.id)
+              .maybeSingle();
+
+            const profilePayload = {
               guild_id: guild.id,
               user_id: user.id,
-              display_name: member?.displayName || user.username,
               bio: bio || "ยินดีต้อนรับสู่พื้นที่พักใจ พร้อมรับฟังและอยู่เคียงข้างคุณเสมอค่ะ 🍵",
               image_url: imageUrl || null,
               updated_at: new Date().toISOString()
-            }, { onConflict: "user_id" });
+            };
+
+            if (!existingCounselor || !existingCounselor.display_name) {
+              profilePayload.display_name = member?.displayName || user.username;
+            }
+
+            await supabase
+              .from("heal_jai_counselors")
+              .upsert(profilePayload, { onConflict: "user_id" });
           } catch (e) {
             console.error("[HealJai] Failed to save counselor profile:", e.message);
           }

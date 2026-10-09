@@ -860,7 +860,7 @@ function buildInteractiveOrderPayload({
           ]
         }
       ]
-    };
+    });
   }
 
   // ── STEP 3: คลิกปุ่มเลือกท็อปปิ้ง (3/3) ───────────────────────────
@@ -1226,7 +1226,7 @@ function buildCounselorCardPayload(counselorData = {}, member = null, options = 
 
   const servicesText = servicesList.join(" ");
 
-  const mentionText = /^\d+$/.test(userId) ? `<@${userId}> ${displayName}` : displayName;
+  const mentionText = displayName;
 
   const topContent = [
     `## <:idolgreensuki:1554499554575913041>︲${mentionText}`,

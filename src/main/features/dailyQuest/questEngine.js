@@ -74,14 +74,46 @@ async function updateUserPoints(supabase, userId, delta) {
   }
 }
 
+// ─────────────────────────────────────────────────────────────
+// 🚀 IN-MEMORY PERFORMANCE CACHE (Guard against Supabase Egress/Log Bloat)
+// ─────────────────────────────────────────────────────────────
+let cachedQuestData = {
+  date: null,
+  set: null,
+  quests: [],
+  fetchedAt: 0
+};
+
+// Cache user progress for 45 seconds to absorb rapid chat message bursts
+const userProgressCache = new Map(); // key: `${userId}:${targetDate}`, value: { data: map, expiresAt: number }
+
+function invalidateUserProgressCache(userId, targetDate) {
+  if (userId && targetDate) {
+    userProgressCache.delete(`${userId}:${targetDate}`);
+  }
+}
+
 /**
  * สุ่มหรือดึง Daily Quest Set ของวันที่ระบุ (1 Chat, 1 Voice/Community, 1 IRL)
  * @param {object} supabase
  * @param {string} targetDate YYYY-MM-DD
+ * @param {boolean} forceRefresh
  * @returns {Promise<{ set: object, quests: Array }>}
  */
-async function getOrInitDailyQuestSet(supabase, targetDate = getBangkokTodayDate()) {
+async function getOrInitDailyQuestSet(supabase, targetDate = getBangkokTodayDate(), forceRefresh = false) {
   if (!supabase) return { set: null, quests: [] };
+
+  const now = Date.now();
+  // ใช้ In-memory cache หากยังอยู่ในวันเดิมและไม่เกิน 10 นาที
+  if (
+    !forceRefresh &&
+    cachedQuestData.date === targetDate &&
+    Array.isArray(cachedQuestData.quests) &&
+    cachedQuestData.quests.length > 0 &&
+    now - cachedQuestData.fetchedAt < 10 * 60 * 1000
+  ) {
+    return { set: cachedQuestData.set, quests: cachedQuestData.quests };
+  }
 
   try {
     // 1. ตรวจสอบว่ามีชุดเควสของวันนี้ในตารางแล้วหรือไม่
@@ -102,6 +134,13 @@ async function getOrInitDailyQuestSet(supabase, targetDate = getBangkokTodayDate
       const orderedQuests = existingSet.quest_ids
         .map((qid) => questsData?.find((q) => q.id === qid))
         .filter(Boolean);
+
+      cachedQuestData = {
+        date: targetDate,
+        set: existingSet,
+        quests: orderedQuests,
+        fetchedAt: Date.now()
+      };
 
       return { set: existingSet, quests: orderedQuests };
     }
@@ -190,6 +229,13 @@ async function getOrInitDailyQuestSet(supabase, targetDate = getBangkokTodayDate
       return { set: null, quests: selectedQuests };
     }
 
+    cachedQuestData = {
+      date: targetDate,
+      set: insertedSet,
+      quests: selectedQuests,
+      fetchedAt: Date.now()
+    };
+
     return { set: insertedSet, quests: selectedQuests };
   } catch (err) {
     console.error("[dailyQuest] getOrInitDailyQuestSet error:", err.message);
@@ -198,14 +244,24 @@ async function getOrInitDailyQuestSet(supabase, targetDate = getBangkokTodayDate
 }
 
 /**
- * ดึงสถานะ Progress ของผู้ใช้ในวันนั้น
+ * ดึงสถานะ Progress ของผู้ใช้ในวันนั้น (พร้อม In-Memory Cache 45s)
  * @param {object} supabase
  * @param {string} userId
  * @param {string} targetDate
+ * @param {boolean} forceRefresh
  * @returns {Promise<object>} map: { [quest_id]: progressRow }
  */
-async function getUserDailyProgress(supabase, userId, targetDate = getBangkokTodayDate()) {
+async function getUserDailyProgress(supabase, userId, targetDate = getBangkokTodayDate(), forceRefresh = false) {
   if (!supabase || !userId) return {};
+
+  const cacheKey = `${userId}:${targetDate}`;
+  const now = Date.now();
+  if (!forceRefresh) {
+    const cached = userProgressCache.get(cacheKey);
+    if (cached && cached.expiresAt > now) {
+      return cached.data;
+    }
+  }
 
   try {
     const { data: progressList } = await supabase
@@ -224,6 +280,20 @@ async function getUserDailyProgress(supabase, userId, targetDate = getBangkokTod
         };
       }
     }
+
+    // แคชไว้ 45 วินาที เพื่อดูดซับ Burst Message ในห้องแชท
+    userProgressCache.set(cacheKey, {
+      data: map,
+      expiresAt: now + 45 * 1000
+    });
+
+    // ทำความสะอาดแคชเมื่อขนาดเกิน 3000 รายการ
+    if (userProgressCache.size > 3000) {
+      for (const [k, v] of userProgressCache.entries()) {
+        if (v.expiresAt <= now) userProgressCache.delete(k);
+      }
+    }
+
     return map;
   } catch (err) {
     console.error("[dailyQuest] getUserDailyProgress error:", err.message);
@@ -359,6 +429,9 @@ async function completeQuest(client, supabase, user, quest, targetDate, dailyQue
       console.error("[dailyQuest] Failed to complete quest:", updateErr.message);
       return;
     }
+
+    // ล้างแคชเพื่อให้รีเฟรชสถานะเควสใหม่
+    invalidateUserProgressCache(user.id, targetDate);
 
     // 2. มอบแต้มรางวัลของเควสนี้ (ถ้ามี)
     const pointsToAdd = Number(quest.reward_points) || 0;
@@ -570,6 +643,11 @@ async function processTriggerEvent(client, supabase, user, triggerType, eventCon
   const { quests } = await getOrInitDailyQuestSet(supabase, today);
   if (!quests || quests.length === 0) return;
 
+  // ⚡ FAST GUARD: กรองว่าวันนี้มีเควสที่ตรงกับ triggerType นี้หรือไม่ ก่อนดึง Database!
+  // ช่วยตัด Supabase REST calls ได้มหาศาลเมื่อไม่มีเควสประเภทนี้ในชุดประจำวัน
+  const hasMatchingTrigger = quests.some((q) => q.trigger_type === triggerType);
+  if (!hasMatchingTrigger) return;
+
   const progressMap = await getUserDailyProgress(supabase, user.id, today);
 
   for (const quest of quests) {
@@ -665,6 +743,21 @@ async function processTriggerEvent(client, supabase, user, triggerType, eventCon
         .then(null, (err) => {
           console.error("[dailyQuest] Failed to upsert progress:", err?.message);
         });
+
+      // อัปเดต In-Memory Cache เพื่อลดการ Query ซ้ำ
+      const cacheKey = `${user.id}:${today}`;
+      const cached = userProgressCache.get(cacheKey);
+      if (cached && cached.data) {
+        cached.data[quest.id] = {
+          quest_date: today,
+          user_id: user.id,
+          quest_id: quest.id,
+          current_progress: currentProgress,
+          target_count: target,
+          is_completed: false
+        };
+        cached.expiresAt = Date.now() + 45 * 1000;
+      }
     }
   }
 }

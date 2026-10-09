@@ -145,72 +145,58 @@ async function checkThrottleLimits(supabase, hourlyLimit = 50, dailyLimit = 500)
  * @param {SupabaseClient} supabase Supabase client
  */
 function startQueueProcessor(client, supabase) {
-  console.log("[queue-processor] Polling loop started (every 30 seconds)");
+  console.log("[queue-processor] Polling loop started (optimized single-query every 45s)");
 
   setInterval(async () => {
     if (isProcessingQueue) return; // Skip if already processing a queue
 
     try {
-      // 1. Check for any active processing queue
-      const { data: processingQueues, error: procErr } = await supabase
+      // รวม 3 สถานะเหลือเพียง 1 Single Query เพื่อลด Egress & Request Bloat
+      const { data: queues, error: qErr } = await supabase
         .from("dm_broadcast_queues")
         .select("*")
-        .eq("status", "processing")
-        .order("created_at", { ascending: true })
-        .limit(1);
+        .in("status", ["processing", "paused", "pending"])
+        .order("created_at", { ascending: true });
 
-      if (procErr) throw procErr;
+      if (qErr) throw qErr;
+      if (!queues || queues.length === 0) return;
 
-      if (processingQueues && processingQueues.length > 0) {
+      // 1. ตรวจสอบคิวที่กำลังประมวลผลอยู่
+      const activeQueue = queues.find((q) => q.status === "processing");
+      if (activeQueue) {
         isProcessingQueue = true;
-        await logBroadcast(supabase, "info", `🟢 บอทเริ่มประมวลผลคิวบรอดแคสต์: "${processingQueues[0].title}"`, processingQueues[0].id);
-        await processQueue(processingQueues[0], client, supabase);
+        await logBroadcast(supabase, "info", `🟢 บอทเริ่มประมวลผลคิวบรอดแคสต์: "${activeQueue.title}"`, activeQueue.id);
+        await processQueue(activeQueue, client, supabase);
         isProcessingQueue = false;
         return;
       }
 
-      // 2. If no processing queue, check for any paused queue to see if we can resume it
-      const { data: pausedQueues, error: pausedErr } = await supabase
-        .from("dm_broadcast_queues")
-        .select("*")
-        .eq("status", "paused")
-        .order("created_at", { ascending: true })
-        .limit(1);
-
-      if (pausedErr) throw pausedErr;
-
-      if (pausedQueues && pausedQueues.length > 0) {
-        const queueOpts = pausedQueues[0].message_payload?.options || {};
+      // 2. ตรวจสอบคิวที่เคยพักไว้ (paused) ว่าคลายขีดจำกัดแล้วหรือไม่
+      const pausedQueue = queues.find((q) => q.status === "paused");
+      if (pausedQueue) {
+        const queueOpts = pausedQueue.message_payload?.options || {};
         const throttle = await checkThrottleLimits(supabase, queueOpts.hourly_limit || 50, queueOpts.daily_limit || 500);
         if (throttle.allowed) {
-          await logBroadcast(supabase, "info", `⏯️ บอทเริ่มประมวลผลต่อสำหรับคิวที่เคยพักไว้: "${pausedQueues[0].title}"`, pausedQueues[0].id);
+          await logBroadcast(supabase, "info", `⏯️ บอทเริ่มประมวลผลต่อสำหรับคิวที่เคยพักไว้: "${pausedQueue.title}"`, pausedQueue.id);
           await supabase
             .from("dm_broadcast_queues")
             .update({ status: "processing", updated_at: new Date().toISOString() })
-            .eq("id", pausedQueues[0].id);
+            .eq("id", pausedQueue.id);
           
           isProcessingQueue = true;
-          const resumedQueue = { ...pausedQueues[0], status: "processing" };
+          const resumedQueue = { ...pausedQueue, status: "processing" };
           await processQueue(resumedQueue, client, supabase);
           isProcessingQueue = false;
           return;
         }
       }
 
-      // 3. If no active/paused queue, check for pending queue to initialize
-      const { data: pendingQueues, error: pendErr } = await supabase
-        .from("dm_broadcast_queues")
-        .select("*")
-        .eq("status", "pending")
-        .order("created_at", { ascending: true })
-        .limit(1);
-
-      if (pendErr) throw pendErr;
-
-      if (pendingQueues && pendingQueues.length > 0) {
+      // 3. ตรวจสอบคิวใหม่ (pending) เพื่อเตรียมตั้งต้น
+      const pendingQueue = queues.find((q) => q.status === "pending");
+      if (pendingQueue) {
         isProcessingQueue = true;
-        await logBroadcast(supabase, "info", `📋 บอทเตรียมตั้งต้นคิวบรอดแคสต์ใหม่: "${pendingQueues[0].title}"`, pendingQueues[0].id);
-        await initializeQueue(pendingQueues[0], client, supabase);
+        await logBroadcast(supabase, "info", `📋 บอทเตรียมตั้งต้นคิวบรอดแคสต์ใหม่: "${pendingQueue.title}"`, pendingQueue.id);
+        await initializeQueue(pendingQueue, client, supabase);
         isProcessingQueue = false;
       }
 
@@ -221,7 +207,7 @@ function startQueueProcessor(client, supabase) {
       }
       isProcessingQueue = false;
     }
-  }, 10 * 1000);
+  }, 45 * 1000);
 }
 
 /**

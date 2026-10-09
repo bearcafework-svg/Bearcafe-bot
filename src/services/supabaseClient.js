@@ -3,6 +3,7 @@
 
 const { createClient } = require("@supabase/supabase-js");
 const ws = require("ws");
+const { getGuardedFetch } = require("./supabaseTrafficGuard");
 
 if (!globalThis.WebSocket) {
   globalThis.WebSocket = ws;
@@ -33,6 +34,9 @@ function getSupabaseClient() {
       detectSessionInUrl: false,
     },
     realtime: { transport: ws },
+    global: {
+      fetch: getGuardedFetch()
+    }
   });
 
   return supabaseInstance;

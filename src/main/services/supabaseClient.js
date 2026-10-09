@@ -1,7 +1,13 @@
-// src/main/services/supabaseClient.js
+// src/services/supabaseClient.js
 // ศูนย์กลางเชื่อมต่อ Supabase แบบ Singleton เพื่อแชร์ Connection Pool และประหยัด RAM
 
 const { createClient } = require("@supabase/supabase-js");
+const ws = require("ws");
+const { getGuardedFetch } = require("./supabaseTrafficGuard");
+
+if (!globalThis.WebSocket) {
+  globalThis.WebSocket = ws;
+}
 
 let supabaseInstance = null;
 
@@ -27,6 +33,10 @@ function getSupabaseClient() {
       autoRefreshToken: false,
       detectSessionInUrl: false,
     },
+    realtime: { transport: ws },
+    global: {
+      fetch: getGuardedFetch()
+    }
   });
 
   return supabaseInstance;

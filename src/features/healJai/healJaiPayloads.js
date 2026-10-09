@@ -1226,7 +1226,7 @@ function buildCounselorCardPayload(counselorData = {}, member = null, options = 
 
   const servicesText = servicesList.join(" ");
 
-  const mentionText = /^\d+$/.test(userId) ? `<@${userId}> ${displayName}` : displayName;
+  const mentionText = displayName;
 
   const topContent = [
     `## <:idolgreensuki:1554499554575913041>︲${mentionText}`,

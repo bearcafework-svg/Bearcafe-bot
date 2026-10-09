@@ -28,7 +28,10 @@ const DAILY_CAP_MAP = {
 };
 
 function getDailyCap(maxCap) {
-  return DAILY_CAP_MAP[maxCap] ?? 150;
+  const isLimited = maxCap >= 15000;
+  const baseCap = isLimited ? (maxCap - 15000) : maxCap;
+  const baseDaily = DAILY_CAP_MAP[baseCap] ?? (baseCap >= 12000 ? 1000 : 150);
+  return isLimited ? (baseDaily + 1500) : baseDaily;
 }
 
 function getTodayBangkok() {

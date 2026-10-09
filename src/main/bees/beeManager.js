@@ -81,6 +81,11 @@ function getMaxPoints(member) {
       if (cap > maxPoints) maxPoints = cap;
     }
   }
+  const limitedRoleId = checkInCfg?.limited_role?.role_id || '1383998275711012956';
+  const bonusCap = checkInCfg?.limited_role?.bonus_max_cap ?? 15000;
+  if (member.roles.cache.has(limitedRoleId)) {
+    maxPoints += bonusCap;
+  }
   return maxPoints;
 }
 

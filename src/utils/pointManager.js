@@ -21,8 +21,15 @@ function getTodayBangkok() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
 }
 
-function getDailyCap(maxCap) {
-  return DAILY_CAP_MAP[maxCap] ?? 150;
+const LIMITED_ROLE_ID = cfg?.limited_role?.role_id || '1383998275711012956';
+const LIMITED_BONUS_CAP = cfg?.limited_role?.bonus_max_cap ?? 15000;
+const LIMITED_BONUS_DAILY = cfg?.limited_role?.bonus_daily_cap ?? 1500;
+
+function getDailyCap(maxCap, member = null) {
+  const hasLimited = Boolean(member?.roles?.cache?.has(LIMITED_ROLE_ID)) || (maxCap >= LIMITED_BONUS_CAP);
+  const baseCap = hasLimited ? (maxCap >= LIMITED_BONUS_CAP ? maxCap - LIMITED_BONUS_CAP : maxCap) : maxCap;
+  const baseDaily = DAILY_CAP_MAP[baseCap] ?? (baseCap >= 12000 ? 1000 : 150);
+  return hasLimited ? (baseDaily + LIMITED_BONUS_DAILY) : baseDaily;
 }
 
 function getMaxPoints(member) {
@@ -32,6 +39,9 @@ function getMaxPoints(member) {
     if (member.roles.cache.has(roleId)) {
       if (cap > maxPoints) maxPoints = cap;
     }
+  }
+  if (member.roles.cache.has(LIMITED_ROLE_ID)) {
+    maxPoints += LIMITED_BONUS_CAP;
   }
   return maxPoints;
 }
@@ -74,7 +84,7 @@ function getVoicePointMultiplier(channel) {
 
 async function addPointsWithCap(supabase, member, userId, pointsDelta) {
   const maxCap = member ? getMaxPoints(member) : 750;
-  const dailyCap = getDailyCap(maxCap);
+  const dailyCap = getDailyCap(maxCap, member);
   const today = getTodayBangkok();
 
   const { data: row, error } = await supabase

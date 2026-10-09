@@ -75,6 +75,11 @@
     "1211007338321023026": 12000
   },
   "DEFAULT_CAP": 750,
+  "limited_role": {
+    "role_id": "1383998275711012956",
+    "bonus_max_cap": 15000,
+    "bonus_daily_cap": 1500
+  },
   "roles_exchange": [
     {
       "id": "1144705166038278260",

@@ -10,6 +10,9 @@ const FLAG_EPHEMERAL = 64; // MessageFlags.Ephemeral
 
 const { getTodayBangkok, getDailyCap, getDailyResetTimestamp } = require('../utils/pointManager');
 
+const LIMITED_ROLE_ID = cfg?.limited_role?.role_id || '1383998275711012956';
+const LIMITED_BONUS_CAP = cfg?.limited_role?.bonus_max_cap ?? 15000;
+
 function getMaxPoints(member) {
   let maxPoints = cfg.DEFAULT_CAP;
   if (!member || !member.roles) return maxPoints;
@@ -17,6 +20,9 @@ function getMaxPoints(member) {
     if (member.roles.cache.has(roleId)) {
       if (cap > maxPoints) maxPoints = cap;
     }
+  }
+  if (member.roles.cache.has(LIMITED_ROLE_ID)) {
+    maxPoints += LIMITED_BONUS_CAP;
   }
   return maxPoints;
 }
@@ -39,9 +45,14 @@ async function getUserData(supabase, userId, member = null) {
       points = maxPoints;
       await supabase
         .from('user_points')
-        .update({ points: maxPoints })
+        .update({ points: maxPoints, max_cap: maxPoints })
         .eq('discord_id', userId);
       console.log(`[myPoints] User ${userId} points (${data?.points}) exceeded max cap (${maxPoints}). Automatically capped to ${maxPoints}.`);
+    } else {
+      await supabase
+        .from('user_points')
+        .update({ max_cap: maxPoints })
+        .eq('discord_id', userId);
     }
   }
 
@@ -56,8 +67,12 @@ function buildMainPayload(interaction, points, cakes, maxPoints, page = 1, daily
   const avatarUrl = interaction.member.displayAvatarURL({ extension: 'png', size: 128 });
   const username = interaction.user.displayName || interaction.user.username;
   const cakeUrl = cfg.cake_images[Math.min(cakes, 4)];
-  const dailyCap = getDailyCap(maxPoints);
+  const dailyCap = getDailyCap(maxPoints, interaction.member);
   const resetTimestamp = getDailyResetTimestamp();
+  const hasLimitedRole = Boolean(interaction.member?.roles?.cache?.has(LIMITED_ROLE_ID));
+  const limitedNotice = hasLimitedRole
+    ? '\n\nสุดยอด! <:Limited_26:1542162263253848164>︲`@💎⠀𝖬𝗈𝗈𝗇 𝖦𝖾𝗆 ₊  𓂃 ลิมิเต็ด 𝟤𝟢𝟤𝟨` ปลดล็อกความสามารถสุดพิเศษ ทำให้ปริมาณการรับแต้มต่อวันและพื้นที่เพิ่มขึ้นแบบเห็นได้ชัด!'
+    : '';
 
   const options = [];
   const rolesList = page === 1 ? cfg.roles_exchange : cfg.roles_exchange_page2;
@@ -116,7 +131,7 @@ function buildMainPayload(interaction, points, cakes, maxPoints, page = 1, daily
           type: 9,
           components: [{
             type: 10,
-            content: `## <:bagpack_icon:1522154708200849449>︲__\` 𝖬𝗒 𝗉𝗈𝗂𝗇𝗍𝗌 ₊ ${username} \`__\n-# สะสมเค้กครบ 4 ชิ้น รับฟรี 1 ยศ เลือกได้จากคลังยศกว่า **30 ยศ** เปลี่ยนสไตล์ให้โปรไฟล์ของคุณได้ตามใจ พร้อมสะสมต่อเพื่อปลดล็อกรางวัลอีกมากมาย <:cuteplant:1152834055528783872>\n\n> <:bee20000:1256669436350562355>︰แต้มตอนนี้ของคุณ \`${points.toLocaleString()}\` / \`${maxPoints.toLocaleString()}\`\n> <a:7596clock:1160230591892029510>︰แต้มรับวันนี้ \`${dailyPoints.toLocaleString()}\` / \`${dailyCap.toLocaleString()}\` แต้ม (รีเซ็ตใน <t:${resetTimestamp}:R>)\n> <a:59217leaf:1512014878796152862>︰สะสมแต้ม <:strawberryv2:1520439075100688614> **750 แต้ม** เพื่อรับเค้ก <:cake_point:1522152896035033098> **1 ชิ้น** สำหรับแลกยศฟรี!`
+            content: `## <:bagpack_icon:1522154708200849449>︲__\` 𝖬𝗒 𝗉𝗈𝗂𝗇𝗍𝗌 ₊ ${username} \`__\n-# สะสมเค้กครบ 4 ชิ้น รับฟรี 1 ยศ เลือกได้จากคลังยศกว่า **30 ยศ** เปลี่ยนสไตล์ให้โปรไฟล์ของคุณได้ตามใจ พร้อมสะสมต่อเพื่อปลดล็อกรางวัลอีกมากมาย <:cuteplant:1152834055528783872>\n\n> <:bee20000:1256669436350562355>︰แต้มตอนนี้ของคุณ \`${points.toLocaleString()}\` / \`${maxPoints.toLocaleString()}\`\n> <a:7596clock:1160230591892029510>︰แต้มรับวันนี้ \`${dailyPoints.toLocaleString()}\` / \`${dailyCap.toLocaleString()}\` แต้ม (รีเซ็ตใน <t:${resetTimestamp}:R>)\n> <a:59217leaf:1512014878796152862>︰สะสมแต้ม <:strawberryv2:1520439075100688614> **750 แต้ม** เพื่อรับเค้ก <:cake_point:1522152896035033098> **1 ชิ้น** สำหรับแลกยศฟรี!${limitedNotice}`
           }],
           accessory: { type: 11, media: { url: avatarUrl } }
         },

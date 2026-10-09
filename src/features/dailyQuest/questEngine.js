@@ -679,9 +679,17 @@ async function processTriggerEvent(client, supabase, user, triggerType, eventCon
 
       // ตรวจสอบห้อง (Channel ID หรือ Forum Thread Parent ID)
       if (hasChannels) {
-        const targetIds = [eventContext.channelId, eventContext.parentId].filter(Boolean);
-        if (!targetIds.some((id) => allowedChannels.includes(id))) {
-          return false;
+        // ข้อยกเว้นสำหรับมินิเกม: หากเควสระบุ game_id ชัดเจนแล้ว ให้ยึด game_id เป็นหลัก
+        // เพื่อป้องกันกรณี channel_id ในเควสไม่ตรงกับตาราง minigame_settings หรือมีการย้ายห้อง
+        const isMinigameWithId =
+          (triggerType === "minigame_win" || triggerType === "minigame_play") &&
+          cfg.game_id &&
+          cfg.game_id !== "any";
+        if (!isMinigameWithId) {
+          const targetIds = [eventContext.channelId, eventContext.parentId].filter(Boolean);
+          if (!targetIds.some((id) => allowedChannels.includes(id))) {
+            return false;
+          }
         }
       }
 

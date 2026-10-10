@@ -20,7 +20,7 @@ let workerPausedUntil = 0;
 async function startVoiceLogWorker() {
   console.log("[voiceLogWorker] ⚙️ Background Voice Log Worker started.");
   
-  // รันตรวจสอบ Queue ทุกๆ 3 วินาที
+  // รันตรวจสอบ Queue ทุกๆ 10 วินาที เพื่อรวบรวมเป็น Batch ประหยัด HTTP Request
   setInterval(async () => {
     if (isProcessing) return;
     if (Date.now() < workerPausedUntil) return;

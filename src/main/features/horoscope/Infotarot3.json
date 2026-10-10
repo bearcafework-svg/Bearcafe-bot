@@ -9,7 +9,7 @@
       "job": "งานใหม่ ไอเดียใหม่ หรือโอกาสที่ไม่เคยลอง กล้าก้าวออกไปจะได้ประสบการณ์",
       "money": "การเงินขึ้นลงตามอารมณ์ ระวังใช้จ่ายเพลินกับความอยาก",
       "heal": "สุขภาพโดยรวมดี แต่ควรพักผ่อนให้เพียงพอ",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/the_fool.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/the_fool.webp&output=webp"
     },
     "2": {
       "name": "The Magician",
@@ -19,7 +19,7 @@
       "job": "งานเด่น มีโอกาสโชว์ความสามารถหรือเริ่มโปรเจกต์ใหม่",
       "money": "การเงินมีรายรับจากทักษะหรือความสามารถพิเศษ",
       "heal": "สุขภาพแข็งแรง แต่ระวังพักผ่อนน้อย",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/the_magician.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/the_magician.webp&output=webp"
     },
     "3": {
       "name": "The High Priestess",
@@ -29,7 +29,7 @@
       "job": "งานต้องใช้สมาธิ การวิเคราะห์ และความรอบคอบ",
       "money": "การเงินนิ่ง ๆ ยังไม่เหมาะกับการเสี่ยง",
       "heal": "ระวังความเครียดทางอารมณ์",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/the_high_priestess.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/the_high_priestess.webp&output=webp"
     },
     "4": {
       "name": "The Empress",
@@ -39,7 +39,7 @@
       "job": "งานด้านสร้างสรรค์ งานบริการ หรือสิ่งที่ใช้ใจทำเด่น",
       "money": "การเงินดี ใช้จ่ายเพื่อความสุขหรือคนรอบตัว",
       "heal": "สุขภาพดี แต่ระวังพักผ่อนไม่เป็นเวลา",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/the_empress.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/the_empress.webp&output=webp"
     },
     "5": {
       "name": "The Emperor",
@@ -49,7 +49,7 @@
       "job": "งานด้านบริหาร วางแผน และความรับผิดชอบเด่น",
       "money": "การเงินมั่นคงจากวินัยและการจัดการ",
       "heal": "ระวังความเครียดจากความกดดัน",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/the_emperor.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/the_emperor.webp&output=webp"
     },
     "6": {
       "name": "The Hierophant",
@@ -59,7 +59,7 @@
       "job": "งานเกี่ยวกับการเรียนรู้ องค์กร หรือระบบเด่น",
       "money": "การเงินมั่นคง ไม่หวือหวาแต่ปลอดภัย",
       "heal": "สุขภาพดี แต่ควรผ่อนคลายความเครียด",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/the_hierophant.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/the_hierophant.webp&output=webp"
     },
     "7": {
       "name": "The Lovers",
@@ -69,7 +69,7 @@
       "job": "งานต้องเลือกเส้นทางที่ตรงกับใจจริง",
       "money": "การเงินมีรายจ่ายจากเรื่องความสัมพันธ์หรือความสุข",
       "heal": "สุขภาพใจสำคัญมากวันนี้",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/the_lovers.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/the_lovers.webp&output=webp"
     },
     "8": {
       "name": "The Chariot",
@@ -79,7 +79,7 @@
       "job": "งานก้าวหน้า หากเธอไม่ยอมแพ้กลางทาง",
       "money": "การเงินดีจากความขยันและความพยายาม",
       "heal": "ระวังพักผ่อนน้อยจากความเร่งรีบ",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/the_chariot.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/the_chariot.webp&output=webp"
     },
     "9": {
       "name": "Strength",
@@ -89,7 +89,7 @@
       "job": "งานผ่านอุปสรรคได้ด้วยสติและใจเย็น",
       "money": "การเงินพอใช้ ไม่ตึงมือ",
       "heal": "สุขภาพดี แต่ควรผ่อนคลายความเครียด",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/strength.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/strength.webp&output=webp"
     },
     "10": {
       "name": "The Hermit",
@@ -99,7 +99,7 @@
       "job": "งานเหมาะกับการทำเงียบ ๆ วางแผนระยะยาว",
       "money": "การเงินนิ่ง ๆ ยังไม่มีการเปลี่ยนแปลง",
       "heal": "ควรพักผ่อนให้เพียงพอ",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/the_hermit.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/the_hermit.webp&output=webp"
     },
     "11": {
       "name": "Wheel Of Fortune",
@@ -109,7 +109,7 @@
       "job": "งานมีโอกาสใหม่หรือการเปลี่ยนทิศทาง",
       "money": "การเงินมีโชคเล็ก ๆ เข้ามา",
       "heal": "สุขภาพโดยรวมดีขึ้น",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/the_wheel_of_fortune.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/the_wheel_of_fortune.webp&output=webp"
     },
     "12": {
       "name": "Justice",
@@ -119,7 +119,7 @@
       "job": "งานเกี่ยวกับเอกสาร กฎหมาย หรือการตัดสินใจเด่น",
       "money": "การเงินสมดุล รายรับรายจ่ายพอ ๆ กัน",
       "heal": "สุขภาพอยู่ในเกณฑ์ปกติ",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/justice.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/justice.webp&output=webp"
     },
     "13": {
       "name": "The Hanged Man",
@@ -129,7 +129,7 @@
       "job": "งานชะงักชั่วคราว รอจังหวะที่เหมาะ",
       "money": "การเงินตึงมือ ควรประหยัด",
       "heal": "ระวังอาการเมื่อยล้า",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/the_hanged_man.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/the_hanged_man.webp&output=webp"
     },
     "14": {
       "name": "Death",
@@ -139,7 +139,7 @@
       "job": "งานมีการเปลี่ยนแปลงหน้าที่หรือแนวทาง",
       "money": "การเงินมีรายจ่ายจำเป็น",
       "heal": "ควรพักผ่อนและดูแลตัวเอง",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/death.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/death.webp&output=webp"
     },
     "15": {
       "name": "Temperance",
@@ -149,7 +149,7 @@
       "job": "งานต้องใช้ความใจเย็นและการประสานงาน",
       "money": "การเงินพอใช้ ไม่เด่นไม่แย่",
       "heal": "สุขภาพอยู่ในเกณฑ์สมดุล",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/temperance.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/temperance.webp&output=webp"
     },
     "16": {
       "name": "The Devil",
@@ -159,7 +159,7 @@
       "job": "งานเครียดจากแรงกดดันหรือความคาดหวัง",
       "money": "การเงินหมดไปกับสิ่งยั่วยวน",
       "heal": "ระวังพักผ่อนไม่พอ",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/the_devil.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/the_devil.webp&output=webp"
     },
     "17": {
       "name": "The Tower",
@@ -169,7 +169,7 @@
       "job": "งานมีเรื่องเร่งด่วนหรือการเปลี่ยนแปลงกะทันหัน",
       "money": "การเงินมีค่าใช้จ่ายฉุกเฉิน",
       "heal": "ระวังอุบัติเหตุเล็กน้อย",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/the_tower.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/the_tower.webp&output=webp"
     },
     "18": {
       "name": "The Star",
@@ -179,7 +179,7 @@
       "job": "งานมีแรงบันดาลใจใหม่",
       "money": "การเงินเริ่มดีขึ้นอย่างช้า ๆ",
       "heal": "เหมาะกับการพักฟื้นทั้งกายและใจ",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/the_star.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/the_star.webp&output=webp"
     },
     "19": {
       "name": "The Moon",
@@ -189,7 +189,7 @@
       "job": "งานมีความคลุมเครือ ต้องตรวจสอบให้ดี",
       "money": "การเงินยังไม่นิ่ง",
       "heal": "ระวังความเครียดและนอนไม่หลับ",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/the_moon.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/the_moon.webp&output=webp"
     },
     "20": {
       "name": "The Sun",
@@ -199,7 +199,7 @@
       "job": "งานสำเร็จ มีข่าวดีหรือคำชม",
       "money": "การเงินดี ใช้จ่ายอย่างมีความสุข",
       "heal": "สุขภาพแข็งแรง สดชื่น",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/the_sun.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/the_sun.webp&output=webp"
     },
     "21": {
       "name": "Judgement",
@@ -209,7 +209,7 @@
       "job": "งานมีการประเมินผลหรือการตัดสินใจสำคัญ",
       "money": "การเงินขึ้นอยู่กับการเลือกของเธอ",
       "heal": "สุขภาพดีขึ้นหลังปรับพฤติกรรม",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/judgement.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/judgement.webp&output=webp"
     },
     "22": {
       "name": "The World",
@@ -219,7 +219,7 @@
       "job": "งานสำเร็จตามเป้าหมายที่ตั้งไว้",
       "money": "การเงินมั่นคงและเป็นระบบ",
       "heal": "สุขภาพดี มีความสมดุล",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/the_world.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/the_world.webp&output=webp"
     },
     "23": {
       "name": "Ace of Swords",
@@ -229,7 +229,7 @@
       "job": "ตัดสินใจเรื่องงานให้เด็ดขาด เคลียร์งานค้าง วางแผนให้เป็นระบบ",
       "money": "จัดงบใหม่ ตัดรายจ่ายที่ไม่จำเป็น เงินจะเริ่มเห็นทางชัด",
       "heal": "พักสายตาและสมอง ลดเครียด ดื่มน้ำและนอนให้พอ",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/ace_of_swords.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/ace_of_swords.webp&output=webp"
     },
     "24": {
       "name": "Two of Swords",
@@ -239,7 +239,7 @@
       "job": "งานมีตัวเลือกหรือทางแยก เลือกตามความเหมาะสมระยะยาว ไม่ใช่อารมณ์วันนี้",
       "money": "ระวังเงินรั่วจากการลังเล/ตัดสินใจช้า ทำบัญชีรายรับรายจ่ายช่วยได้",
       "heal": "ลดความตึงเครียดที่สะสม ยืดเหยียดเบา ๆ และพักผ่อนให้พอ",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/two_of_swords.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/two_of_swords.webp&output=webp"
     },
     "25": {
       "name": "Three of Swords",
@@ -249,7 +249,7 @@
       "job": "งานอาจมีคำวิจารณ์หรือความผิดพลาด ใช้เป็นบทเรียนแล้วแก้ให้ตรงจุด",
       "money": "งดใช้เงินตามอารมณ์ ปิดรูรั่วเล็ก ๆ จะช่วยลดความกังวล",
       "heal": "ดูแลใจตัวเอง ลดการคิดวน พักผ่อนและหากิจกรรมผ่อนคลาย",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/three_of_swords.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/three_of_swords.webp&output=webp"
     },
     "26": {
       "name": "Four of Swords",
@@ -259,7 +259,7 @@
       "job": "งานควรพักแผน/ทบทวนก่อนตัดสินใจ ทำทีละอย่างจะไม่ล้น",
       "money": "ชะลอการซื้อของฟุ่มเฟือย วางแผนเก็บเงินแบบง่าย ๆ",
       "heal": "นอนให้พอ ลดจอ พักสายตา ฟื้นร่างกายให้เต็มที่",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/four_of_swords.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/four_of_swords.webp&output=webp"
     },
     "27": {
       "name": "Five of Swords",
@@ -269,7 +269,7 @@
       "job": "งานเสี่ยงปะทะกับคนอื่น เลือกคุยด้วยเหตุผลและไม่เล่นการเมือง",
       "money": "ระวังเสียเงินเพราะอารมณ์หรือการเอาชนะ วางกติกาการใช้เงินชัด ๆ",
       "heal": "ลดความเครียดจากการปะทะ พักหายใจลึก ๆ และผ่อนคลายกล้ามเนื้อ",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/five_of_swords.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/five_of_swords.webp&output=webp"
     },
     "28": {
       "name": "Six of Swords",
@@ -279,7 +279,7 @@
       "job": "งานมีการเปลี่ยนทีม/ทิศทาง ปรับตัวแล้วจะดีขึ้นเรื่อย ๆ",
       "money": "จัดหนี้/ภาระให้เบา วางแผนระยะสั้นแล้วเงินจะคล่องกว่าเดิม",
       "heal": "พักผ่อนให้พอ ลดความล้า เดินเบา ๆ ช่วยให้ร่างกายและใจสงบ",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/six_of_swords.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/six_of_swords.webp&output=webp"
     },
     "29": {
       "name": "Seven of Swords",
@@ -289,7 +289,7 @@
       "job": "งานระวังข้อมูลตกหล่น/งานซ้อน เช็กรายละเอียดและเก็บหลักฐาน",
       "money": "กันเงินสำรอง ระวังรายจ่ายแอบแฝง ตรวจบิล/สัญญาให้ครบ",
       "heal": "พักสมองจากความระแวง นอนให้พอและลดคิดมาก",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/seven_of_swords.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/seven_of_swords.webp&output=webp"
     },
     "30": {
       "name": "Eight of Swords",
@@ -299,7 +299,7 @@
       "job": "งานเหมือนติดกับเพราะคิดมาก แบ่งงานเป็นขั้น ๆ แล้วทำทีละข้อ",
       "money": "จัดการเงินแบบง่าย ๆ ไม่ต้องกังวลเกินจริง เริ่มจากสรุปตัวเลขก่อน",
       "heal": "ลดความตึงเครียด พักสายตา ดื่มน้ำและยืดเหยียดเบา ๆ",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/eight_of_swords.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/eight_of_swords.webp&output=webp"
     },
     "31": {
       "name": "Nine of Swords",
@@ -309,7 +309,7 @@
       "job": "งานกดดันสูง ทำลิสต์งานและพักเป็นช่วง ๆ จะคุมได้",
       "money": "อย่าซื้อของเพราะเครียด จัดงบแล้วจะสบายใจขึ้น",
       "heal": "นอนให้พอ ลดคาเฟอีน/จอ ก่อนนอนช่วยให้หลับง่ายขึ้น",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/nine_of_swords.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/nine_of_swords.webp&output=webp"
     },
     "32": {
       "name": "Ten of Swords",
@@ -319,7 +319,7 @@
       "job": "งานถึงจุดต้องปิดงานเก่า/แก้ปัญหาใหญ่ เคลียร์ให้จบแล้วเริ่มใหม่",
       "money": "หยุดรูรั่วทางการเงิน ตัดรายจ่ายหนัก ๆ ชั่วคราวเพื่อฟื้นฐาน",
       "heal": "พักร่างกายจากความล้า อย่าฝืน นอนและกินให้เป็นเวลา",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/ten_of_swords.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/ten_of_swords.webp&output=webp"
     },
     "33": {
       "name": "Page of Swords",
@@ -329,7 +329,7 @@
       "job": "งานต้องใช้การเรียนรู้/เก็บข้อมูล ตรวจรายละเอียดก่อนส่งงาน",
       "money": "เงินเข้าออกเล็ก ๆ น้อย ๆ จดบันทึกแล้วจะเห็นภาพชัด",
       "heal": "พักสายตาและคอจากการจ้องจอ ยืดคอไหล่ช่วยได้",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/page_of_swords.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/page_of_swords.webp&output=webp"
     },
     "34": {
       "name": "Knight of Swords",
@@ -339,7 +339,7 @@
       "job": "งานเร่งด่วน ทำตามลำดับความสำคัญ แล้วจะทันแบบไม่พลาด",
       "money": "ระวังใช้เงินเพราะความรีบ/แก้ปัญหาเฉพาะหน้า วางแผนก่อนจ่าย",
       "heal": "พักหายใจลึก ๆ ลดความเครียดจากความเร่งรีบ ดื่มน้ำให้พอ",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/knight_of_swords.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/knight_of_swords.webp&output=webp"
     },
     "35": {
       "name": "Queen of Swords",
@@ -349,7 +349,7 @@
       "job": "งานเด่นเรื่องการตัดสินใจ ใช้ข้อมูลและความยุติธรรม แล้วคนจะเชื่อถือ",
       "money": "จัดการเงินด้วยระบบ ตัดรายจ่ายที่ไม่คุ้ม และวางเป้าหมายเก็บเงิน",
       "heal": "ดูแลสมองจากความเครียด พักผ่อนให้พอและอย่ากดดันตัวเองเกินไป",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/queen_of_swords.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/queen_of_swords.webp&output=webp"
     },
     "36": {
       "name": "King of Swords",
@@ -359,7 +359,7 @@
       "job": "งานเด่นเรื่องการบริหาร/วางแผน ตัดสินใจเด็ดขาดแล้วจะเห็นผล",
       "money": "การเงินควรจัดโครงสร้าง ออม-ลงทุน-สำรองให้ชัด แล้วจะมั่นคง",
       "heal": "พักผ่อนให้พอ ลดคิดหนักเกินไป และดูแลความสมดุลของร่างกาย",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/king_of_swords.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/king_of_swords.webp&output=webp"
     },
     "37": {
       "name": "Ace of Cups",
@@ -369,7 +369,7 @@
       "job": "งานมีแรงบันดาลใจใหม่ ๆ เหมาะเริ่มงานหรือไอเดียที่รัก",
       "money": "การเงินมีจ่ายเพื่อความสุขเล็ก ๆ แต่ควบคุมได้ ถ้าตั้งงบจะดี",
       "heal": "สุขภาพใจดีขึ้น พักผ่อนให้พอ ดื่มน้ำและลดเครียด",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/ace_of_cups.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/ace_of_cups.webp&output=webp"
     },
     "38": {
       "name": "Two of Cups",
@@ -379,7 +379,7 @@
       "job": "งานเด่นเรื่องพาร์ตเนอร์/ทีมเวิร์ก คุยแล้วตกลงกันได้",
       "money": "การเงินมีการแบ่งสัดส่วนหรือช่วยเหลือกัน วางแผนร่วมกันจะดี",
       "heal": "สุขภาพดีขึ้นจากอารมณ์ที่นิ่ง พักให้พอแล้วจะสดชื่น",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/two_of_cups.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/two_of_cups.webp&output=webp"
     },
     "39": {
       "name": "Three of Cups",
@@ -389,7 +389,7 @@
       "job": "งานเด่นเรื่องคอนเนคชัน การร่วมงานกับคนอื่นให้ผลดี",
       "money": "การเงินมีรายจ่ายเรื่องสังสรรค์ ตั้งงบแล้วจะไม่บานปลาย",
       "heal": "สุขภาพดีขึ้นเมื่อได้ผ่อนคลาย ระวังพักผ่อนน้อยจากกิจกรรม",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/three_of_cups.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/three_of_cups.webp&output=webp"
     },
     "40": {
       "name": "Four of Cups",
@@ -399,7 +399,7 @@
       "job": "งานอาจรู้สึกตัน ลองเปลี่ยนวิธีหรือพักแล้วจะคิดออก",
       "money": "การเงินควบคุมได้ แต่อย่าซื้อเพราะเบื่อ วางรายการก่อนจ่าย",
       "heal": "สุขภาพใจต้องพัก ลดจอและทำอะไรที่ทำให้ใจสงบ",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/four_of_cups.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/four_of_cups.webp&output=webp"
     },
     "41": {
       "name": "Five of Cups",
@@ -409,7 +409,7 @@
       "job": "งานมีสะดุดเล็ก ๆ แก้จุดพลาดแล้วจะกลับมาเดินได้",
       "money": "การเงินระวังจ่ายเพราะเครียด ทำบัญชีจะช่วยให้ใจนิ่ง",
       "heal": "สุขภาพใจอ่อนไหว พักผ่อนและหาอะไรอบอุ่นทำให้สบายใจ",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/five_of_cups.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/five_of_cups.webp&output=webp"
     },
     "42": {
       "name": "Six of Cups",
@@ -419,7 +419,7 @@
       "job": "งานเหมาะกับงานเดิมที่ถนัด หรือแก้ไขงานเก่าให้สวยขึ้น",
       "money": "การเงินมีรายจ่ายเรื่องของเก่า/ของสะสม แต่ยังคุมได้",
       "heal": "สุขภาพดีขึ้นเมื่อใจอบอุ่น ระวังนั่งนาน พักขยับร่างกาย",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/six_of_cups.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/six_of_cups.webp&output=webp"
     },
     "43": {
       "name": "Seven of Cups",
@@ -429,7 +429,7 @@
       "job": "งานมีหลายไอเดีย เลือกทำทีละอย่างจะเห็นผลชัด",
       "money": "การเงินอย่าซื้อเพราะอยากได้หลายอย่าง ตั้งงบแล้วเลือกให้คุ้ม",
       "heal": "สุขภาพระวังนอนดึกเพราะคิดเยอะ ทำใจให้นิ่งก่อนนอน",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/seven_of_cups.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/seven_of_cups.webp&output=webp"
     },
     "44": {
       "name": "Eight of Cups",
@@ -439,7 +439,7 @@
       "job": "งานเหมาะกับการเปลี่ยนแนว/ย้ายเป้าหมายไปสิ่งที่ใช่กว่า",
       "money": "การเงินตัดรายจ่ายที่ไม่จำเป็น เก็บเงินเพื่อเป้าหมายใหม่",
       "heal": "สุขภาพต้องพักใจ ลดความเครียดแล้วร่างกายจะเบาขึ้น",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/eight_of_cups.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/eight_of_cups.webp&output=webp"
     },
     "45": {
       "name": "Nine of Cups",
@@ -449,7 +449,7 @@
       "job": "งานมีข่าวดีหรือความสำเร็จเล็ก ๆ ได้ผลตอบแทนจากความพยายาม",
       "money": "การเงินมีความพอใจ ซื้อของให้รางวัลตัวเองได้แต่ต้องมีขอบเขต",
       "heal": "สุขภาพใจดีขึ้น อารมณ์เป็นบวก พักผ่อนให้พอดี",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/nine_of_cups.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/nine_of_cups.webp&output=webp"
     },
     "46": {
       "name": "Ten of Cups",
@@ -459,7 +459,7 @@
       "job": "งานราบรื่น ได้รับการสนับสนุนจากคนรอบตัว บรรยากาศดีขึ้น",
       "money": "การเงินมั่นคงขึ้นจากการวางแผน มีโอกาสจัดระบบให้ลงตัว",
       "heal": "สุขภาพดีขึ้นจากความสบายใจ รักษาสมดุลการกินนอน",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/ten_of_cups.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/ten_of_cups.webp&output=webp"
     },
     "47": {
       "name": "Page of Cups",
@@ -469,7 +469,7 @@
       "job": "งานเหมาะกับงานสร้างสรรค์ ไอเดียใหม่ ๆ จะมาแบบนุ่ม ๆ",
       "money": "การเงินมีรายจ่ายเล็ก ๆ น้อย ๆ จากความสุข แต่ยังคุมได้",
       "heal": "สุขภาพใจดีขึ้น ระวังคิดเยอะตอนกลางคืน นอนให้พอ",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/page_of_cups.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/page_of_cups.webp&output=webp"
     },
     "48": {
       "name": "Knight of Cups",
@@ -479,7 +479,7 @@
       "job": "งานมีคนช่วยเหลือหรือโอกาสจากการเจรจา คุยดีจะได้ผล",
       "money": "การเงินมีจ่ายเรื่องความสัมพันธ์/ของขวัญ ตั้งงบแล้วจะน่ารักไม่เครียด",
       "heal": "สุขภาพดีขึ้นเมื่ออารมณ์ดี ระวังหวาน/น้ำตาลเกินพอดี",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/knight_of_cups.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/knight_of_cups.webp&output=webp"
     },
     "49": {
       "name": "Queen of Cups",
@@ -489,7 +489,7 @@
       "job": "งานเด่นเรื่องบริการ/ดูแล/สื่อสาร ใช้ความเข้าใจคนจะสำเร็จ",
       "money": "การเงินใช้จ่ายเพื่อดูแลตัวเองได้ แต่ต้องกันสำรองไว้ด้วย",
       "heal": "สุขภาพใจต้องการความสงบ ทำกิจกรรมผ่อนคลายแล้วจะดีขึ้น",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/queen_of_cups.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/queen_of_cups.webp&output=webp"
     },
     "50": {
       "name": "King of Cups",
@@ -499,7 +499,7 @@
       "job": "งานเด่นเรื่องการบริหารอารมณ์และคน ค่อย ๆ ทำจะสำเร็จ",
       "money": "การเงินมั่นคงขึ้นจากการวางแผน ไม่ใช้ตามอารมณ์",
       "heal": "สุขภาพดีขึ้นเมื่อใจนิ่ง ระวังความเครียดสะสมและพักให้พอ",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/king_of_cups.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/king_of_cups.webp&output=webp"
     },
     "51": {
       "name": "Ace of Wands",
@@ -509,7 +509,7 @@
       "job": "งานมีไอเดียใหม่ เหมาะเริ่มโปรเจกต์หรือเริ่มทำสิ่งที่ดองไว้",
       "money": "การเงินมีรายจ่ายเพื่อเริ่มต้น/อุปกรณ์ ตั้งงบแล้วจะคุมอยู่",
       "heal": "สุขภาพพลังงานดีขึ้น ระวังพักผ่อนน้อยเพราะไฟติด",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/ace_of_wands.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/ace_of_wands.webp&output=webp"
     },
     "52": {
       "name": "Two of Wands",
@@ -519,7 +519,7 @@
       "job": "งานมีทางเลือก/ขยายงาน วางแผนระยะยาวแล้วจะไปได้ไกล",
       "money": "การเงินเริ่มคิดเรื่องเป้าหมายเก็บเงิน วางแผนแล้วจะมั่นคง",
       "heal": "สุขภาพระวังเครียดจากคิดเยอะ พักสมองบ้างแล้วจะโล่ง",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/two_of_wands.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/two_of_wands.webp&output=webp"
     },
     "53": {
       "name": "Three of Wands",
@@ -529,7 +529,7 @@
       "job": "งานคืบหน้า เหมาะขยายโอกาส ติดต่อคนใหม่ ๆ จะได้ผล",
       "money": "การเงินเริ่มเห็นผลจากความพยายาม วางแผนแล้วจะคล่องขึ้น",
       "heal": "สุขภาพดีขึ้นถ้าจัดเวลาให้สมดุล เดินเบา ๆ ช่วยรีเฟรช",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/three_of_wands.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/three_of_wands.webp&output=webp"
     },
     "54": {
       "name": "Four of Wands",
@@ -539,7 +539,7 @@
       "job": "งานราบรื่น บรรยากาศทีมดี ได้รับการสนับสนุน",
       "money": "การเงินมั่นคงขึ้นจากการจัดระบบ ระวังใช้จ่ายเรื่องฉลอง",
       "heal": "สุขภาพดีขึ้นเมื่อใจสบาย รักษาสมดุลการพักผ่อน",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/four_of_wands.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/four_of_wands.webp&output=webp"
     },
     "55": {
       "name": "Five of Wands",
@@ -549,7 +549,7 @@
       "job": "งานมีความวุ่นวายจากหลายเรื่อง จัดลำดับแล้วจะเอาอยู่",
       "money": "การเงินระวังรายจ่ายกระจายหลายทาง ทำงบเป็นหมวดจะช่วย",
       "heal": "สุขภาพระวังเครียดสะสม ยืดเหยียดและพักเป็นช่วง ๆ",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/five_of_wands.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/five_of_wands.webp&output=webp"
     },
     "56": {
       "name": "Six of Wands",
@@ -559,7 +559,7 @@
       "job": "งานมีข่าวดี/ความสำเร็จ ได้รับเครดิตจากผลงาน",
       "money": "การเงินดีขึ้นจากผลงานหรือโอกาสใหม่ ระวังใช้จ่ายตามใจเพราะดีใจ",
       "heal": "สุขภาพพลังงานดีขึ้น แต่อย่าหักโหม พักให้พอ",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/six_of_wands.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/six_of_wands.webp&output=webp"
     },
     "57": {
       "name": "Seven of Wands",
@@ -569,7 +569,7 @@
       "job": "งานมีคนท้าทายหรือกดดัน ยืนบนผลงานแล้วจะผ่านได้",
       "money": "การเงินต้องกันสำรอง ระวังรายจ่ายฉุกเฉิน วางแผนไว้จะปลอดภัย",
       "heal": "สุขภาพระวังความตึงเครียดจากการสู้ พักหายใจลึก ๆ และผ่อนคลาย",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/seven_of_wands.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/seven_of_wands.webp&output=webp"
     },
     "58": {
       "name": "Eight of Wands",
@@ -579,7 +579,7 @@
       "job": "งานเร่งด่วน ข่าวสารเยอะ ทำตามลำดับแล้วจะทัน",
       "money": "การเงินมีเข้าออกเร็ว ระวังจ่ายไวเกิน ตั้งกติกาก่อนซื้อ",
       "heal": "สุขภาพระวังพักผ่อนน้อยจากความ忙 นอนให้พอและดื่มน้ำ",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/eight_of_wands.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/eight_of_wands.webp&output=webp"
     },
     "59": {
       "name": "Nine of Wands",
@@ -589,7 +589,7 @@
       "job": "งานใกล้เสร็จแล้ว อดทนอีกนิด ตรวจงานละเอียดก่อนส่ง",
       "money": "การเงินระวังค่าใช้จ่ายซ้ำ ๆ ตัดที่ไม่จำเป็นแล้วจะเบาขึ้น",
       "heal": "สุขภาพระวังล้าสะสม พักกล้ามเนื้อและนอนให้พอ",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/nine_of_wands.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/nine_of_wands.webp&output=webp"
     },
     "60": {
       "name": "Ten of Wands",
@@ -599,7 +599,7 @@
       "job": "งานหนักมาก จัดตารางและมอบหมาย/ลดงานที่ไม่จำเป็น",
       "money": "การเงินระวังภาระหนี้/รายจ่ายก้อน แบ่งจ่ายและวางแผนจะรอด",
       "heal": "สุขภาพระวังปวดหลัง/ล้า พัก ยืดเหยียดและอย่าฝืน",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/ten_of_wands.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/ten_of_wands.webp&output=webp"
     },
     "61": {
       "name": "Page of Wands",
@@ -609,7 +609,7 @@
       "job": "งานเหมาะเริ่มสิ่งใหม่ ไอเดียดี แต่ต้องลงมือจริง",
       "money": "การเงินมีจ่ายกับของใหม่/ประสบการณ์ใหม่ ตั้งงบแล้วคุมได้",
       "heal": "สุขภาพพลังงานดี ระวังนอนดึกเพราะตื่นเต้นหรือเล่นมือถือ",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/page_of_wands.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/page_of_wands.webp&output=webp"
     },
     "62": {
       "name": "Knight of Wands",
@@ -619,7 +619,7 @@
       "job": "งานมีพลังลุย เหมาะลงมือเร็ว แต่ต้องเช็กความเสี่ยงก่อน",
       "money": "การเงินมีรายจ่ายตามใจ/ทริป/ของสนุก ระวังหลุดงบ",
       "heal": "สุขภาพระวังหักโหม พักให้พอและอย่าใช้พลังจนหมด",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/knight_of_wands.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/knight_of_wands.webp&output=webp"
     },
     "63": {
       "name": "Queen of Wands",
@@ -629,7 +629,7 @@
       "job": "งานเด่นมาก ได้โชว์ความสามารถ คนเห็นผลงานชัด",
       "money": "การเงินดีขึ้นจากโอกาส/งานเสริม แต่ระวังซื้อของตามใจเพราะมั่นใจ",
       "heal": "สุขภาพดีขึ้น แต่อย่าลืมพักและดื่มน้ำให้พอ",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/queen_of_wands.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/queen_of_wands.webp&output=webp"
     },
     "64": {
       "name": "King of Wands",
@@ -639,7 +639,7 @@
       "job": "งานเด่นเรื่องผู้นำ/วางแผน ลุยแล้วเห็นผลชัด",
       "money": "การเงินมั่นคงขึ้นเมื่อมีแผนลงทุน/ออมแบบจริงจัง",
       "heal": "สุขภาพระวังเครียดจากแบกหลายเรื่อง จัดเวลาพักให้สมดุล",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/king_of_wands.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/king_of_wands.webp&output=webp"
     },
     "65": {
       "name": "Ace of Pentacles",
@@ -649,7 +649,7 @@
       "job": "งานมีโอกาสใหม่/โปรเจกต์ใหม่ เริ่มแล้วจะต่อยอดได้ดี",
       "money": "การเงินมีช่องทางดีขึ้น วางแผนเก็บเงินแล้วจะเห็นผล",
       "heal": "สุขภาพดีขึ้นถ้าจัดตารางกินนอนให้เป็นระบบ",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/ace_of_pentacles.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/ace_of_pentacles.webp&output=webp"
     },
     "66": {
       "name": "Two of Pentacles",
@@ -659,7 +659,7 @@
       "job": "งานหลายอย่างชนกัน จัดลำดับก่อน-หลังแล้วจะเอาอยู่",
       "money": "การเงินเข้าออกหลายทาง ทำงบเป็นหมวดแล้วจะคุมง่าย",
       "heal": "สุขภาพระวังล้าและนอนน้อย พักเป็นช่วง ๆ จะดีขึ้น",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/two_of_pentacles.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/two_of_pentacles.webp&output=webp"
     },
     "67": {
       "name": "Three of Pentacles",
@@ -669,7 +669,7 @@
       "job": "งานเด่นเรื่องทำงานร่วมกัน ได้รับการยอมรับจากผลงาน",
       "money": "การเงินดีขึ้นจากงาน/โปรเจกต์ร่วมกัน วางแผนร่วมแล้วมั่นคง",
       "heal": "สุขภาพดีขึ้นถ้าจัดตารางชีวิตให้เป็นระบบ",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/three_of_pentacles.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/three_of_pentacles.webp&output=webp"
     },
     "68": {
       "name": "Four of Pentacles",
@@ -679,7 +679,7 @@
       "job": "งานต้องระวังยึดรูปแบบเดิมเกินไป ลองปรับวิธีเล็กน้อย",
       "money": "การเงินดีถ้าเก็บออม แต่ระวังงกจนเครียด วางแผนให้ยืดหยุ่น",
       "heal": "สุขภาพระวังเครียดจากความกังวล หายใจลึก ๆ และพักให้พอ",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/four_of_pentacles.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/four_of_pentacles.webp&output=webp"
     },
     "69": {
       "name": "Five of Pentacles",
@@ -689,7 +689,7 @@
       "job": "งานมีช่วงสะดุด อย่าท้อ ขอคำแนะนำแล้วจะผ่านได้",
       "money": "การเงินต้องรัดเข็มขัดชั่วคราว กันเงินฉุกเฉินไว้ก่อน",
       "heal": "สุขภาพระวังอ่อนล้า/ภูมิแพ้ พักผ่อนและดูแลร่างกายให้ดี",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/five_of_pentacles.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/five_of_pentacles.webp&output=webp"
     },
     "70": {
       "name": "Six of Pentacles",
@@ -699,7 +699,7 @@
       "job": "งานมีคนช่วยเหลือหรือได้โอกาสจากผู้ใหญ่ รับไว้แล้วทำให้เต็มที่",
       "money": "การเงินมีเกณฑ์ได้รับช่วยเหลือ/คืนเงิน/โบนัส แบ่งออมไว้ด้วย",
       "heal": "สุขภาพดีขึ้นเมื่อเครียดน้อยลง อย่าลืมดูแลตัวเองเหมือนดูแลคนอื่น",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/six_of_pentacles.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/six_of_pentacles.webp&output=webp"
     },
     "71": {
       "name": "Seven of Pentacles",
@@ -709,7 +709,7 @@
       "job": "งานรอผลลัพธ์จากความพยายาม ปรับจุดเล็ก ๆ แล้วจะดีขึ้น",
       "money": "การเงินค่อย ๆ ดีขึ้นจากการเก็บออม ระวังใช้จ่ายเล็ก ๆ สะสม",
       "heal": "สุขภาพดีขึ้นถ้าจัดวินัยการกินนอนและพักให้พอ",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/seven_of_pentacles.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/seven_of_pentacles.webp&output=webp"
     },
     "72": {
       "name": "Eight of Pentacles",
@@ -719,7 +719,7 @@
       "job": "งานเด่นมาก ขยันแล้วเห็นผลชัด ได้พัฒนาทักษะ",
       "money": "การเงินดีขึ้นจากความขยันและงานเสริม แต่อย่าลืมเก็บสำรอง",
       "heal": "สุขภาพระวังปวดเมื่อยจากทำงานหนัก ยืดเหยียดและพักสายตา",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/eight_of_pentacles.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/eight_of_pentacles.webp&output=webp"
     },
     "73": {
       "name": "Nine of Pentacles",
@@ -729,7 +729,7 @@
       "job": "งานสำเร็จด้วยตัวเอง เด่นเรื่องผลงานและความน่าเชื่อถือ",
       "money": "การเงินมั่นคงขึ้นจากการวางแผน ระวังใช้จ่ายให้รางวัลตัวเองเกินไป",
       "heal": "สุขภาพดีขึ้นเมื่อใจนิ่ง แต่ระวังพักผ่อนน้อยเพราะทำงานเพลิน",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/nine_of_pentacles.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/nine_of_pentacles.webp&output=webp"
     },
     "74": {
       "name": "Ten of Pentacles",
@@ -739,7 +739,7 @@
       "job": "งานมั่นคงขึ้น มีโอกาสเติบโตหรือได้รับความไว้วางใจมากขึ้น",
       "money": "การเงินเป็นระบบมากขึ้น เหมาะวางแผนออม/ลงทุนระยะยาว",
       "heal": "สุขภาพดีขึ้นถ้ารักษาวินัยและสมดุลชีวิต",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/ten_of_pentacles.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/ten_of_pentacles.webp&output=webp"
     },
     "75": {
       "name": "Page of Pentacles",
@@ -749,7 +749,7 @@
       "job": "งานมีโอกาสเรียนรู้ใหม่ ๆ เริ่มทำแล้วจะต่อยอดได้",
       "money": "การเงินเริ่มดีขึ้นจากการวางแผนเล็ก ๆ ออมวันละนิดก็เห็นผล",
       "heal": "สุขภาพดีขึ้นถ้าจัดตารางและกินให้เป็นเวลา",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/page_of_pentacles.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/page_of_pentacles.webp&output=webp"
     },
     "76": {
       "name": "Knight of Pentacles",
@@ -759,7 +759,7 @@
       "job": "งานเดินหน้าเรื่อย ๆ ทำตามระบบแล้วจะสำเร็จแน่นอน",
       "money": "การเงินมั่นคงจากวินัย ระวังจ่ายตามความเคยชินเล็ก ๆ น้อย ๆ",
       "heal": "สุขภาพต้องระวังความเมื่อยล้า พักและขยับร่างกายสม่ำเสมอ",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/knight_of_pentacles.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/knight_of_pentacles.webp&output=webp"
     },
     "77": {
       "name": "Queen of Pentacles",
@@ -769,7 +769,7 @@
       "job": "งานเด่นเรื่องความรับผิดชอบ ได้รับความไว้วางใจจากคนอื่น",
       "money": "การเงินดีขึ้นจากการบริหารจัดการ เก็บออมได้มากขึ้น",
       "heal": "สุขภาพดีขึ้นเมื่อกินนอนเป็นเวลา ระวังน้ำหนัก/หวานมัน",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/queen_of_pentacles.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/queen_of_pentacles.webp&output=webp"
     },
     "78": {
       "name": "King of Pentacles",
@@ -779,7 +779,7 @@
       "job": "งานมีโอกาสก้าวหน้า ได้รับตำแหน่ง/ความไว้วางใจมากขึ้น",
       "money": "การเงินมั่นคง เหมาะจัดระบบออม-ลงทุนและกันสำรอง",
       "heal": "สุขภาพดีขึ้นถ้ารักษาวินัย แต่ระวังเครียดจากแบกหลายเรื่อง",
-      "img": "https://orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/king_of_pentacles.webp"
+      "img": "https://wsrv.nl/?url=orbxyyjpvpbqwfssnyeq.supabase.co/storage/v1/object/public/tarot-cards/king_of_pentacles.webp&output=webp"
     }
   }
 }

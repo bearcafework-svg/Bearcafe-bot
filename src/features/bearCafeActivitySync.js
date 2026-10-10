@@ -8,7 +8,7 @@ const { Client, GatewayIntentBits } = require("discord.js");
 const { createClient } = require("@supabase/supabase-js");
 
 const BEARCAFE_GUILD_ID = process.env.GUILD_ID || "1144251788493602848";
-const SYNC_INTERVAL_MS = 2 * 60 * 1000; // ซิงค์ตามรอบทุก 2 นาที (ประหยัดโควตาและปลอดภัย 100%)
+const SYNC_INTERVAL_MS = 5 * 60 * 1000; // ซิงค์ตามรอบทุก 5 นาที (ประหยัดโควตา Egress)
 
 let isSyncing = false;
 let syncTimeout = null;

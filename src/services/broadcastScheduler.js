@@ -14,7 +14,7 @@ if (supabaseUrl && supabaseKey) {
   });
 }
 
-const CHECK_INTERVAL_MS = 60 * 1000; // Check every 60 seconds to optimize bandwidth
+const CHECK_INTERVAL_MS = 5 * 60 * 1000; // Check every 5 minutes to optimize bandwidth & Supabase Egress
 const SCHEDULE_CONFIG_ID = "00000000-0000-0000-0000-000000000001";
 let isProcessing = false;
 let hasLoggedDisabledWarning = false;
@@ -46,11 +46,11 @@ async function checkAndSendBroadcasts(client) {
   isProcessing = true;
 
   try {
-    // 1. Check if broadcast schedule config exists and is enabled (Cache for 2 minutes)
+    // 1. Check if broadcast schedule config exists and is enabled (Cache for 10 minutes)
     const nowMs = Date.now();
     let configData = cachedScheduleConfig;
 
-    if (!configData || nowMs - lastConfigFetchTime > 2 * 60 * 1000) {
+    if (!configData || nowMs - lastConfigFetchTime > 10 * 60 * 1000) {
       const { data: fetchedConfig, error: configErr } = await supabase
         .from("campaign_schedule_config")
         .select("*")

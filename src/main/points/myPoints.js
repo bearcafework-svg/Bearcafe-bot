@@ -131,7 +131,7 @@ function buildMainPayload(interaction, points, cakes, maxPoints, page = 1, daily
           type: 9,
           components: [{
             type: 10,
-            content: `## <:bagpack_icon:1522154708200849449>︲__\` 𝖬𝗒 𝗉𝗈𝗂𝗇𝗍𝗌 ₊ ${username} \`__\n-# สะสมเค้กครบ 4 ชิ้น รับฟรี 1 ยศ เลือกได้จากคลังยศกว่า **30 ยศ** เปลี่ยนสไตล์ให้โปรไฟล์ของคุณได้ตามใจ พร้อมสะสมต่อเพื่อปลดล็อกรางวัลอีกมากมาย <:cuteplant:1152834055528783872>\n\n> <:bee20000:1256669436350562355>︰แต้มตอนนี้ของคุณ \`${points.toLocaleString()}\` / \`${maxPoints.toLocaleString()}\`\n> <a:7596clock:1160230591892029510>︰แต้มรับวันนี้ \`${dailyPoints.toLocaleString()}\` / \`${dailyCap.toLocaleString()}\` แต้ม (รีเซ็ตใน <t:${resetTimestamp}:R>)\n> <a:59217leaf:1512014878796152862>︰สะสมแต้ม <:strawberryv2:1520439075100688614> **750 แต้ม** เพื่อรับเค้ก <:cake_point:1522152896035033098> **1 ชิ้น** สำหรับแลกยศฟรี!${limitedNotice}`
+            content: `## <:bagpack_icon:1522154708200849449>︲__\` 𝖬𝗒 𝗉𝗈𝗂𝗇𝗍𝗌 ₊ ${username} \`__\n-# สะสมเค้กครบ 4 ชิ้น รับฟรี 1 ยศ เลือกได้จากคลังยศกว่า **30 ยศ** เปลี่ยนสไตล์ให้โปรไฟล์ของคุณได้ตามใจ พร้อมสะสมต่อเพื่อปลดล็อกรางวัลอีกมากมาย <:cuteplant:1152834055528783872>\n\n> <:bee20000:1256669436350562355>︰แต้มตอนนี้ของคุณ \`${points.toLocaleString()}\` / \`${maxPoints.toLocaleString()}\`\n> <a:7596clock:1160230591892029510>︰แต้มรับวันนี้ \`${dailyPoints.toLocaleString()}\` / \`${dailyCap.toLocaleString()}\` แต้ม (รีเซ็ตใน <t:${resetTimestamp}:R>)\n> <a:59217leaf:1512014878796152862>︰สะสมแต้ม <:strawberryv2:1520439075100688614> **750 แต้ม** เพื่อรับเค้ก **1 ชิ้น** สำหรับแลกยศฟรี!${limitedNotice}`
           }],
           accessory: { type: 11, media: { url: avatarUrl } }
         },
@@ -226,7 +226,7 @@ function setupMyPoints(client) {
       payload.components[0].components[0].items[0].media.url = "https://cdn.discordapp.com/attachments/1524704267015819274/1524741224517472406/425f72edbda608d3.png";
 
       payload.components[0].components[2].components[0].content = payload.components[0].components[2].components[0].content.replace(
-        "> <a:59217leaf:1512014878796152862>︰สะสมแต้ม <:strawberryv2:1520439075100688614> **750 แต้ม** เพื่อรับเค้ก <:cake_point:1522152896035033098> **1 ชิ้น** สำหรับแลกยศฟรี!",
+        "> <a:59217leaf:1512014878796152862>︰สะสมแต้ม <:strawberryv2:1520439075100688614> **750 แต้ม** เพื่อรับเค้ก **1 ชิ้น** สำหรับแลกยศฟรี!",
         `> <a:59217leaf:1512014878796152862>︰คุณแลกเค้กไม่สำเร็จ แต่ได้รับแต้มคืน <:strawberryv2:1520439075100688614> **${refund.toLocaleString()} แต้ม** ลองใหม่อีกครั้งนะ!`
       );
 
@@ -303,7 +303,7 @@ function setupMyPoints(client) {
           { type: 14, spacing: 2 },
           {
             type: 10,
-            content: `## <:bee20000:1256669436350562355>︲ต้องการแลกยศ <@&${roleId}> หรือไม่?\nเมื่อยืนยันการแลกแล้ว <:cake_point:1522152896035033098> เค้กทั้งหมดของคุณจะถูกใช้จนเหลือ **0 ชิ้น** และไม่สามารถยกเลิกหรือขอคืนได้ กรุณาตรวจสอบให้แน่ใจก่อนดำเนินการ <:cuteplant:1152834055528783872>\n`
+            content: `## <:bee20000:1256669436350562355>︲ต้องการแลกยศ <@&${roleId}> หรือไม่?\nเมื่อยืนยันการแลกแล้วเค้กทั้งหมดของคุณจะถูกใช้จนเหลือ **0 ชิ้น** และไม่สามารถยกเลิกหรือขอคืนได้ กรุณาตรวจสอบให้แน่ใจก่อนดำเนินการ <:cuteplant:1152834055528783872>\n`
           },
           { type: 14, spacing: 2 },
           {

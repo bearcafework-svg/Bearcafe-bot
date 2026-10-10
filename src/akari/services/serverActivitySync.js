@@ -2,7 +2,7 @@
 // serverActivitySync.js — บริการดึงข้อมูลความเคลื่อนไหวเซิร์ฟเวอร์แบบ Periodic Sync
 // ===================================================
 
-const SYNC_INTERVAL_MS = 5 * 60 * 1000; // ทุก 5 นาที
+const SYNC_INTERVAL_MS = 15 * 60 * 1000; // ทุก 15 นาที (ประหยัด Supabase API Egress)
 
 /**
  * ติดตั้งระบบ Periodic Sync สำหรับตรวจสอบสถานะเซิร์ฟเวอร์ในสารบบของ Bear Cafe
@@ -73,18 +73,24 @@ function setupServerActivitySync(client, mainSupabase) {
             }).size;
           }
 
-          // 4. บันทึกข้อมูลกลับเข้า Main Supabase
-          await mainSupabase
-            .from("discord_servers")
-            .update({
-              has_akari_bot: true,
-              live_voice_count: voiceCount,
-              weekly_joins_count: weeklyJoins,
-              activity_synced_at: new Date().toISOString(),
-            })
-            .eq("id", server.id);
+          // 4. บันทึกข้อมูลกลับเข้า Main Supabase เฉพาะเมื่อมีการเปลี่ยนแปลงจริง (Smart Dirty Check ประหยัด Egress)
+          if (
+            server.has_akari_bot !== true ||
+            server.live_voice_count !== voiceCount ||
+            server.weekly_joins_count !== weeklyJoins
+          ) {
+            await mainSupabase
+              .from("discord_servers")
+              .update({
+                has_akari_bot: true,
+                live_voice_count: voiceCount,
+                weekly_joins_count: weeklyJoins,
+                activity_synced_at: new Date().toISOString(),
+              })
+              .eq("id", server.id);
 
-          updatedCount++;
+            updatedCount++;
+          }
         } catch (serverErr) {
           console.warn(`⚠️ [KumaBot:ActivitySync] ซิงค์กิลด์ ${server.discord_id} ผิดพลาด:`, serverErr.message);
         }

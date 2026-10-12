@@ -210,11 +210,13 @@ client.once("clientReady", async () => {
 
   // 1. ตั้งค่าสถานะบอทเริ่มต้นทันที และตั้งเวลาอัปเดตทุก 10 นาที (บอท Dev ใช้ออนไลน์ปกติ ไม่โหลดสถานะสตรีมมิ่ง)
   if (isDevMode) {
-    client.user.setPresence({
-      status: "online",
-      activities: [],
-    });
-    console.log(`[presence] 🛠️ Dev bot presence set to normal online.`);
+    if (!devAllowedFeatures.includes("healJai")) {
+      client.user.setPresence({
+        status: "online",
+        activities: [],
+      });
+      console.log(`[presence] 🛠️ Dev bot presence set to normal online.`);
+    }
   } else {
     updateBotPresence(client);
     setInterval(() => updateBotPresence(client), 10 * 60 * 1000);

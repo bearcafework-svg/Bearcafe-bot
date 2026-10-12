@@ -469,6 +469,190 @@ const MOCK_COUNSELORS = {
 };
 
 /**
+ * สร้างหน้าต้อนรับเริ่มต้นสำหรับสอบถามความต้องการก่อนสั่งเครื่องดื่ม (Step 0)
+ */
+function buildInitialWelcomePayload() {
+  return sanitizeComponentV2({
+    flags: FLAG_V2,
+    components: [
+      {
+        type: 17,
+        components: [
+          {
+            type: 12,
+            items: [
+              {
+                media: {
+                  url: "https://cdn.discordapp.com/attachments/1536267579843280987/1555726594474250270/BannerMain.png?backend=b2&ex=6acd704c&is=6acc1ecc&hm=e2156adb074205ce49bb66586bca4cd5a520b64a4d7fef28e7d926fa0b20bd1e&"
+                }
+              }
+            ]
+          },
+          {
+            type: 14,
+            spacing: 2
+          },
+          {
+            type: 10,
+            content: "## <:hj_clover:1552227021122314250>︲__` เราขอถามเธอก่อนสั่งเครื่องดื่มก่อนน้า 𓂃 `__\nเลือกบริการที่เหมาะกับความต้องการของเธอได้เลย:"
+          },
+          {
+            type: 14,
+            spacing: 1,
+            divider: false
+          },
+          {
+            type: 1,
+            components: [
+              {
+                type: 3,
+                custom_id: "heal_jai_select_intent",
+                placeholder: "เลือก . . . ",
+                min_values: 1,
+                max_values: 1,
+                options: [
+                  {
+                    label: "พร้อมสั่งเมนูแล้ว",
+                    value: "Krco1jPP16",
+                    description: "เลือกเวลาและรูปแบบการพูดคุยที่ต้องการ",
+                    emoji: {
+                      id: "1536694010780065863",
+                      name: "cupofmatcha",
+                      animated: false
+                    }
+                  },
+                  {
+                    label: "ขอคำแนะนำจากแอดมิน",
+                    value: "gEEMy7yZcO",
+                    description: "สอบถามแพ็กเกจ ขั้นตอนการใช้บริการ หรือเงื่อนไขก่อนตัดสินใจ",
+                    emoji: {
+                      id: "1547361650552737914",
+                      name: "bellpress",
+                      animated: true
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  });
+}
+
+/**
+ * สร้างหน้าจอสำหรับกรณีลูกค้าเลือกขอคำแนะนำจากแอดมิน (Inquiry Mode)
+ */
+function buildInquiryAdminPayload() {
+  return sanitizeComponentV2({
+    flags: FLAG_V2,
+    components: [
+      {
+        type: 17,
+        components: [
+          {
+            type: 12,
+            items: [
+              {
+                media: {
+                  url: "https://cdn.discordapp.com/attachments/1536267579843280987/1555726594474250270/BannerMain.png?backend=b2&ex=6acd704c&is=6acc1ecc&hm=e2156adb074205ce49bb66586bca4cd5a520b64a4d7fef28e7d926fa0b20bd1e&"
+                }
+              }
+            ]
+          },
+          {
+            type: 14,
+            spacing: 2
+          },
+          {
+            type: 10,
+            content: "## <:hj_clover:1552227021122314250>︲__` เราขอถามเธอก่อนสั่งเครื่องดื่มก่อนน้า 𓂃 `__\nเลือกบริการที่เหมาะกับความต้องการของเธอได้เลย:"
+          },
+          {
+            type: 14,
+            spacing: 1,
+            divider: false
+          },
+          {
+            type: 1,
+            components: [
+              {
+                type: 3,
+                custom_id: "heal_jai_select_intent",
+                placeholder: "เลือก . . . ",
+                min_values: 1,
+                max_values: 1,
+                options: [
+                  {
+                    label: "พร้อมสั่งเมนูแล้ว",
+                    value: "Krco1jPP16",
+                    description: "เลือกเวลาและรูปแบบการพูดคุยที่ต้องการ",
+                    emoji: {
+                      id: "1536694010780065863",
+                      name: "cupofmatcha",
+                      animated: false
+                    }
+                  },
+                  {
+                    label: "ขอคำแนะนำจากแอดมิน",
+                    value: "gEEMy7yZcO",
+                    description: "สอบถามแพ็กเกจ ขั้นตอนการใช้บริการ หรือเงื่อนไขก่อนตัดสินใจ",
+                    emoji: {
+                      id: "1547361650552737914",
+                      name: "bellpress",
+                      animated: true
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        type: 17,
+        components: [
+          {
+            type: 10,
+            content: "## <a:511398spin:1536700803732209736> <@&1536208040582316032> มีลูกค้าต้องการสอบถามรายละเอียดเครื่องดื่ม มาโต๊ะนี้หน่อยค่ะ!\n> ทางเราทำการติดต่อแอดมินให้แล้ว พิมพ์คำถามทิ้งไว้ได้เลยค่ะ อาจล่าช้าเนื่องจากพนักงานไม่เพียงพอ :>"
+          },
+          {
+            type: 14,
+            spacing: 2
+          },
+          {
+            type: 1,
+            components: [
+              {
+                type: 2,
+                style: 3,
+                custom_id: "heal_jai_btn_ready_to_order",
+                label: "พร้อมสั่งเมนูแล้ว",
+                emoji: {
+                  id: "1536694010780065863",
+                  name: "cupofmatcha",
+                  animated: false
+                }
+              },
+              {
+                type: 2,
+                style: 4,
+                custom_id: "heal_jai_btn_close_inquiry",
+                label: "เสร็จสิ้น / ปิดห้อง",
+                emoji: {
+                  name: "✖️"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  });
+}
+
+/**
  * สร้างการ์ดเลือกเมนูเครื่องดื่มแบบ 3-Step Wizard Component v2
  * @param {object} params - { step, mode, drinkId, toppingId, counselorId, counselorName, userAvatarUrl, counselorOptions }
  */
@@ -1913,6 +2097,8 @@ module.exports = {
   buildCheckoutTicketPayload,
   buildInteractiveMenuPayload,
   buildInteractiveOrderPayload,
+  buildInitialWelcomePayload,
+  buildInquiryAdminPayload,
   buildScanToPayPayload,
   buildDispatchAlertPayload,
   buildSessionDashboardPayload,

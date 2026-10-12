@@ -1954,7 +1954,12 @@ async function updateOnlineCounselorsCount(guild) {
     const ch = guild.channels.cache.get(VOICE_STATS_COUNSELORS) ||
                await guild.channels.fetch(VOICE_STATS_COUNSELORS).catch(() => null);
     if (ch) {
-      await ch.setName(`🟢︰ผู้รับฟังพร้อมให้บริการ: ${count || 0} คน`).catch(() => {});
+      const onlineCount = count || 0;
+      const statusEmoji = onlineCount > 0 ? "🟢" : "🟠";
+      const newName = `${statusEmoji}︰ผู้รับฟังพร้อมให้บริการ: ${onlineCount} คน`;
+      if (ch.name !== newName) {
+        await ch.setName(newName).catch(() => {});
+      }
     }
   } catch (err) {
     console.error("[HealJai] Failed to update counselor voice stats:", err.message);

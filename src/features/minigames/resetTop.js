@@ -20,9 +20,44 @@ const SEASON_1_PERIOD_TEXT = "1 ส.ค. 2026 – 10 ก.ย. 2026 (23:59 น.)"
 const SEASON_PERIOD_TEXT = SEASON_1_PERIOD_TEXT;
 
 // ── ตั้งค่าช่วงเวลากระดานประจำเดือน (Monthly Leaderboard) ───
-const MONTHLY_START_ISO = "2026-09-01T00:00:00+07:00";
-const MONTHLY_END_ISO = "2026-09-30T23:59:59+07:00";
-const MONTHLY_PERIOD_TEXT = "1 ก.ย. 2026 – 30 ก.ย. 2026 (23:59 น.)";
+const THAI_MONTH_NAMES_FULL = [
+  "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
+  "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"
+];
+const THAI_MONTH_NAMES_SHORT = [
+  "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
+  "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."
+];
+
+/**
+ * คำนวณช่วงเวลากระดานประจำเดือนปัจจุบันแบบ Dynamic (เวลาประเทศไทย Asia/Bangkok UTC+7)
+ */
+function getBangkokCurrentMonthPeriod(targetDate = new Date()) {
+  const year = parseInt(targetDate.toLocaleDateString("en-US", { timeZone: "Asia/Bangkok", year: "numeric" }), 10);
+  const month = parseInt(targetDate.toLocaleDateString("en-US", { timeZone: "Asia/Bangkok", month: "numeric" }), 10);
+
+  const monthStr = String(month).padStart(2, "0");
+  const lastDay = new Date(year, month, 0).getDate();
+  const lastDayStr = String(lastDay).padStart(2, "0");
+
+  const startTime = `${year}-${monthStr}-01T00:00:00+07:00`;
+  const endTime = `${year}-${monthStr}-${lastDayStr}T23:59:59+07:00`;
+
+  const monthFull = THAI_MONTH_NAMES_FULL[month - 1] || "";
+  const monthShort = THAI_MONTH_NAMES_SHORT[month - 1] || "";
+  const periodText = `1 ${monthShort} ${year} – ${lastDay} ${monthShort} ${year} (23:59 น.)`;
+
+  return {
+    isMonthly: true,
+    monthName: monthFull,
+    monthShort,
+    startTime,
+    endTime,
+    periodText,
+    title: `## <:bee20000:1256669436350562355>︲__\` 𝖬𝗈𝗇𝗍𝗁𝗅𝗒 𝖫𝖾𝖺𝖽𝖾𝗋𝖻𝗈𝖺𝗋𝖽 ₊ จัดอันดับประจำเดือน${monthFull} 𓂃 \`__`,
+    periodLabel: `📅 **ระยะเวลากระดานประจำเดือน:** \` ${periodText} \`\n`
+  };
+}
 
 // ── Channel & Message Constants ───
 const EVENT_ANNOUNCE_CHANNEL_ID = "1524123305471115287"; // 🎀︰ประกาศอีเว้นท์
@@ -36,17 +71,11 @@ const LEADERBOARD_BANNER_URL = "https://cdn.discordapp.com/attachments/152470426
 function getCurrentActivePeriod() {
   const isPastSeason1 = Date.now() >= new Date(SEASON_1_END_ISO).getTime();
   if (isPastSeason1) {
-    return {
-      isMonthly: true,
-      startTime: MONTHLY_START_ISO,
-      endTime: MONTHLY_END_ISO,
-      periodText: MONTHLY_PERIOD_TEXT,
-      title: "## <:bee20000:1256669436350562355>︲__` 𝖬𝗈𝗇𝗍𝗁𝗅𝗒 𝖫𝖾𝖺𝖽𝖾𝗋𝖻𝗈𝖺𝗋𝖽 ₊ จัดอันดับประจำเดือนกันยายน 𓂃 `__",
-      periodLabel: `📅 **ระยะเวลากระดานประจำเดือน:** \` ${MONTHLY_PERIOD_TEXT} \`\n`
-    };
+    return getBangkokCurrentMonthPeriod();
   }
   return {
     isMonthly: false,
+    monthName: "Season 1",
     startTime: SEASON_1_START_ISO,
     endTime: SEASON_1_END_ISO,
     periodText: SEASON_1_PERIOD_TEXT,
@@ -550,14 +579,7 @@ const GAME_LIST = [
 // ── สร้าง Component V2 Payload + รูปภาพแบนเนอร์ สำหรับกระดานจัดอันดับ ───────────────
 async function buildTopLeaderboardPayload(guild, supabase, options = {}) {
   const activePeriod = options.isMonthly
-    ? {
-        isMonthly: true,
-        startTime: MONTHLY_START_ISO,
-        endTime: MONTHLY_END_ISO,
-        periodText: MONTHLY_PERIOD_TEXT,
-        title: "## <:bee20000:1256669436350562355>︲__` 𝖬𝗈𝗇𝗍𝗁𝗅𝗒 𝖫𝖾𝖺𝖽𝖾𝗋𝖻𝗈𝖺𝗋𝖽 ₊ จัดอันดับประจำเดือนกันยายน 𓂃 `__",
-        periodLabel: `📅 **ระยะเวลากระดานประจำเดือน:** \` ${MONTHLY_PERIOD_TEXT} \`\n`
-      }
+    ? getBangkokCurrentMonthPeriod()
     : getCurrentActivePeriod();
 
   const effectiveStart = options.startTime || activePeriod.startTime;
@@ -985,7 +1007,7 @@ function setupResetTop(client, supabaseClient) {
 
     try {
       const activePeriod = getCurrentActivePeriod();
-      const periodName = activePeriod.isMonthly ? "ประจำเดือนกันยายน" : "Season 1";
+      const periodName = activePeriod.isMonthly ? `ประจำเดือน${activePeriod.monthName || "นี้"}` : "Season 1";
       const userRank = await getUserMinigameRank(supabase, interaction.user.id);
       const pi = sharedConfig.point_icon;
       const pointEmojiStr = pi && pi.id ? `<:${pi.name}:${pi.id}>` : `🍓`;
@@ -1154,5 +1176,7 @@ module.exports = {
   buildSeasonFinalAnnouncementPayload,
   buildTopLeaderboardPayload,
   fetchTopMinigameWins,
-  getUserMinigameRank
+  getUserMinigameRank,
+  getBangkokCurrentMonthPeriod,
+  getCurrentActivePeriod
 };

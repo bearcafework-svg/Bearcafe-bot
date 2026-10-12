@@ -45,4 +45,6 @@ function getSupabaseClient() {
 module.exports = {
   getSupabaseClient,
   getSupabase: getSupabaseClient,
+  safeWrite: (...args) => require("./offlineBuffer").safeWrite(...args),
+  cachedRead: (...args) => require("./offlineBuffer").cachedRead(...args),
 };

@@ -1,8 +1,12 @@
 {
   "watch": [
     ".reload-trigger",
-    ".reload-main"
+    ".reload-main",
+    "src/features/healJai",
+    "src/main/features/healJai",
+    "index.js"
   ],
-  "ext": "*",
+  "ignore": [],
+  "ext": "js,json,*",
   "delay": "200"
 }

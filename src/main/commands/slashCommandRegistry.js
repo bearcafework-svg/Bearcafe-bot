@@ -565,6 +565,7 @@ const HEAL_JAI_SLASH_COMMANDS = [
           { name: "🛠️ สลับโหมดเปิด-ปิดบริการ (Toggle Maintenance)", value: "toggle_maintenance" },
           { name: "📜 สลับเปิด-ปิดการกดข้อตกลง (Toggle Terms Acceptance)", value: "toggle_terms" },
           { name: "🧹 เคลียร์ห้องค้างตกค้างทันที (Run Cleanup Now)", value: "run_cleanup" },
+          { name: "📁 ย้ายห้องตั๋วไปรอบันทึกสลิป (Archive Ticket to Slips)", value: "archive_ticket" },
           { name: "📑 ส่งรายงานสรุปยอดวันนี้ทันที (Send Daily Report)", value: "daily_report" },
           { name: "🔍 ตรวจสอบและจัดการเคส (Manage Case)", value: "manage_case" },
         ],

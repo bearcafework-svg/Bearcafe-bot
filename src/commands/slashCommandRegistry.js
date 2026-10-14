@@ -568,6 +568,41 @@ const HEAL_JAI_SLASH_COMMANDS = [
           { name: "📁 ย้ายห้องตั๋วไปรอบันทึกสลิป (Archive Ticket to Slips)", value: "archive_ticket" },
           { name: "📑 ส่งรายงานสรุปยอดวันนี้ทันที (Send Daily Report)", value: "daily_report" },
           { name: "🔍 ตรวจสอบและจัดการเคส (Manage Case)", value: "manage_case" },
+          { name: "⭐ ปรับสถิติที่ปรึกษา (Adjust Counselor Stats)", value: "adjust_counselor_stats" },
+        ],
+      },
+      {
+        name: "counselor",
+        description: "เลือกที่ปรึกษา/ผู้รับฟังที่ต้องการปรับสถิติ",
+        type: ApplicationCommandOptionType.User,
+        required: false,
+      },
+      {
+        name: "sessions",
+        description: "ปรับจำนวนบริการสำเร็จ (เช่น +1, -1 หรือระบุตัวเลข)",
+        type: ApplicationCommandOptionType.Integer,
+        required: false,
+      },
+      {
+        name: "reviews",
+        description: "ปรับจำนวนรีวิว (เช่น +1, -1 หรือระบุตัวเลข)",
+        type: ApplicationCommandOptionType.Integer,
+        required: false,
+      },
+      {
+        name: "rating",
+        description: "กำหนดคะแนนเฉลี่ยใหม่ (1.00 - 5.00) (ไม่บังคับ)",
+        type: ApplicationCommandOptionType.Number,
+        required: false,
+      },
+      {
+        name: "mode",
+        description: "โหมดการปรับ: เพิ่ม/ลด จากค่าเดิม (Add/Sub) หรือ กำหนดค่าใหม่ตรงๆ (Set)",
+        type: ApplicationCommandOptionType.String,
+        required: false,
+        choices: [
+          { name: "➕ เพิ่ม/ลด จากค่าปัจจุบัน (Add / Subtract)", value: "add" },
+          { name: "✏️ กำหนดค่าใหม่ตรงๆ (Set Exact Value)", value: "set" },
         ],
       },
       {

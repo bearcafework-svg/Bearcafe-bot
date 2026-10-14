@@ -2406,6 +2406,149 @@ function setupHealJai(client) {
 
       return interaction.reply(buildAdminManageCasePayload(order));
     }
+
+    if (action === "adjust_counselor_stats") {
+      const targetUser = interaction.options.getUser("counselor");
+      if (!targetUser) {
+        return interaction.reply({
+          content: "⚠️ กรุณาระบุที่ปรึกษา (`counselor`) ที่ต้องการปรับสถิติค่ะ",
+          flags: FLAG_EPHEMERAL
+        });
+      }
+
+      const sessionsInput = interaction.options.getInteger("sessions");
+      const reviewsInput = interaction.options.getInteger("reviews");
+      const ratingInput = interaction.options.getNumber("rating");
+      const mode = interaction.options.getString("mode") || "add";
+
+      if (sessionsInput === null && reviewsInput === null && ratingInput === null) {
+        return interaction.reply({
+          content: "⚠️ กรุณาระบุอย่างน้อยหนึ่งค่าที่ต้องการปรับค่ะ:\n" +
+                   "> • `sessions`: ปรับจำนวนบริการสำเร็จ (เช่น `1`, `-1` หรือค่าใหม่)\n" +
+                   "> • `reviews`: ปรับจำนวนรีวิว (เช่น `1`, `-1` หรือค่าใหม่)\n" +
+                   "> • `rating`: กำหนดคะแนนเฉลี่ยใหม่ (เช่น `5.00` หรือ `4.80`)",
+          flags: FLAG_EPHEMERAL
+        });
+      }
+
+      const supabase = getSupabase();
+      if (!supabase) {
+        return interaction.reply({
+          content: "❌ ไม่สามารถเชื่อมต่อฐานข้อมูลได้ในขณะนี้ค่ะ",
+          flags: FLAG_EPHEMERAL
+        });
+      }
+
+      await interaction.deferReply({ flags: FLAG_EPHEMERAL }).catch(() => {});
+
+      // 1. ดึงข้อมูลที่ปรึกษาปัจจุบัน
+      const { data: counselor, error: fetchErr } = await supabase
+        .from("heal_jai_counselors")
+        .select("*")
+        .eq("user_id", targetUser.id)
+        .maybeSingle();
+
+      if (fetchErr) {
+        return interaction.editReply({
+          content: `❌ เกิดข้อผิดพลาดในการค้นหาข้อมูลที่ปรึกษา: ${fetchErr.message}`
+        });
+      }
+
+      if (!counselor) {
+        return interaction.editReply({
+          content: `⚠️ ไม่พบข้อมูลของที่ปรึกษา <@${targetUser.id}> ในระบบ Heal Jai ค่ะ (กรุณาให้ที่ปรึกษากดรับบทบาทหรือลงทะเบียนก่อนนะคะ)`
+        });
+      }
+
+      // 2. คำนวณค่าใหม่
+      const prevSessions = counselor.total_sessions || 0;
+      const prevReviews = counselor.total_reviews || 0;
+      const prevRating = Number(counselor.average_rating || 5.0).toFixed(2);
+
+      let newSessions = prevSessions;
+      let newReviews = prevReviews;
+      let newRating = parseFloat(prevRating);
+
+      if (sessionsInput !== null) {
+        if (mode === "set") {
+          newSessions = Math.max(0, sessionsInput);
+        } else {
+          newSessions = Math.max(0, prevSessions + sessionsInput);
+        }
+      }
+
+      if (reviewsInput !== null) {
+        if (mode === "set") {
+          newReviews = Math.max(0, reviewsInput);
+        } else {
+          newReviews = Math.max(0, prevReviews + reviewsInput);
+        }
+      }
+
+      if (ratingInput !== null) {
+        newRating = Math.min(5, Math.max(0, parseFloat(ratingInput.toFixed(2))));
+      }
+
+      // 3. บันทึกลงฐานข้อมูล Supabase
+      const updatePayload = {
+        total_sessions: newSessions,
+        total_reviews: newReviews,
+        average_rating: newRating,
+        updated_at: new Date().toISOString()
+      };
+
+      const { error: updateErr } = await supabase
+        .from("heal_jai_counselors")
+        .update(updatePayload)
+        .eq("user_id", targetUser.id);
+
+      if (updateErr) {
+        return interaction.editReply({
+          content: `❌ ไม่สามารถอัปเดตสถิติในฐานข้อมูลได้: ${updateErr.message}`
+        });
+      }
+
+      // 4. อัปเดตไปยัง Component V2 บน Discord ทันที
+      const targetGuildId = counselor.guild_id || config.healJai?.guildId || interaction.guild?.id || "1536199707922141254";
+      const targetGuild = interaction.client.guilds.cache.get(targetGuildId) ||
+                          await interaction.client.guilds.fetch(targetGuildId).catch(() => null) ||
+                          interaction.guild;
+
+      if (targetGuild) {
+        await updateCounselorCardMessage(targetGuild, targetUser.id);
+      }
+
+      const targetMember = targetGuild ? await targetGuild.members.fetch(targetUser.id).catch(() => null) : null;
+      const counselorName = counselor.display_name || targetMember?.displayName || targetUser.username;
+
+      // สรุปผลการเปลี่ยนแปลง
+      const changes = [];
+      if (sessionsInput !== null) {
+        const diffText = mode === "set" ? `กำหนดเป็น ${newSessions}` : (sessionsInput >= 0 ? `+${sessionsInput}` : `${sessionsInput}`);
+        changes.push(`> ☕ **บริการสำเร็จ:** \`${prevSessions}\` ➔ **\`${newSessions}\` คน** (${diffText})`);
+      }
+      if (reviewsInput !== null) {
+        const diffText = mode === "set" ? `กำหนดเป็น ${newReviews}` : (reviewsInput >= 0 ? `+${reviewsInput}` : `${reviewsInput}`);
+        changes.push(`> 📝 **จำนวนรีวิว:** \`${prevReviews}\` ➔ **\`${newReviews}\` รีวิว** (${diffText})`);
+      }
+      if (ratingInput !== null) {
+        changes.push(`> ⭐ **คะแนนเฉลี่ย:** \`${prevRating}\` ➔ **\`${newRating.toFixed(2)}\` / 5.00**`);
+      }
+
+      const cardLink = counselor.card_channel_id && counselor.card_message_id
+        ? `\n> 🔗 **การ์ดโปรไฟล์:** <#${counselor.card_channel_id}>`
+        : "";
+
+      return interaction.editReply({
+        content: `### <:chalkcrown:1536708801481412689>︲__\` ปรับสถิติที่ปรึกษาสำเร็จ \`__\n` +
+                 `👤 **ที่ปรึกษา:** <@${targetUser.id}> (\`${counselorName}\`)\n` +
+                 `⚙️ **โหมดการปรับ:** \`${mode === "set" ? "กำหนดค่าใหม่ตรงๆ (Set Exact Value)" : "เพิ่ม/ลด จากค่าปัจจุบัน (Add / Subtract)"}\`\n\n` +
+                 `**รายการที่อัปเดต:**\n` +
+                 changes.join("\n") +
+                 `\n\n` +
+                 `> ✅ บันทึกลงฐานข้อมูลและซิงก์อัปเดต Component V2 ของที่ปรึกษาเรียบร้อยแล้วค่ะ! ✨${cardLink}`
+      });
+    }
   });
 
   /**

@@ -1419,37 +1419,56 @@ function buildAdminManageCasePayload(order) {
 }
 
 /**
- * 22. รายงานสรุปยอดประจำวัน (Daily Summary Report Payload)
+/**
+ * 22. รายงานสรุปยอดประจำวัน (Daily Summary Report Payload) - Discord Component v2
  * @param {object} reportData - { dateStr, totalOrders, totalRevenue, platformShare, counselorShare, counselorBreakdown }
  */
 function buildDailyReportPayload(reportData) {
   const breakdownLines = (reportData.counselorBreakdown && reportData.counselorBreakdown.length > 0)
     ? reportData.counselorBreakdown.map((c) => `* <@${c.counselorId}> ┆ **${c.sessionCount}** เคส ┆ รวม: **${c.earnedAmount}** บาท`).join("\n")
-    : "* ไม่มีข้อมูลเคสที่ปรึกษาในวันนี้";
+    : "* ไม่มีข้อมูลเคสที่ปรึกษาในเมื่อวานนี้";
 
-  return {
-    embeds: [
+  return sanitizeComponentV2({
+    flags: FLAG_V2,
+    components: [
       {
-        title: `📊  รายงานสรุปยอดประจำวัน — Bear Cafe ฮีลใจ`,
-        description: [
-          `-# ประจำวันที่ **${reportData.dateStr}** 🍵\n`,
-          `### 📈 ภาพรวมการให้บริการ`,
-          `* ✅⠀**จำนวนเคสที่สำเร็จทั้งหมด:** **${reportData.totalOrders || 0}** เคส`,
-          `* 💰⠀**ยอดเงินรวมสะพัด:** **${reportData.totalRevenue || 0}** บาท`,
-          `* 🏢⠀**ส่วนแบ่งคาเฟ่ (30%):** **${reportData.platformShare || 0}** บาท`,
-          `* 👥⠀**ส่วนแบ่งที่ปรึกษาทั้งหมด (70%):** **${reportData.counselorShare || 0}** บาท\n`,
-          `### 👥 รายได้สะสมของที่ปรึกษาประจำวัน (70%)`,
-          breakdownLines,
-          `\n> 💡 *ข้อมูลนี้ถูกสรุปและบันทึกอัตโนมัติประจำวันเพื่อความโปร่งใสของทีมงานค่ะ*`
-        ].join("\n"),
-        color: 0x57F287,
-        footer: {
-          text: "Bear Cafe • Financial & Session Daily Report"
-        },
-        timestamp: new Date().toISOString()
+        type: 17,
+        components: [
+          {
+            type: 10,
+            content: `## 📊︲รายงานสรุปยอดประจำวัน — Bear Cafe ฮีลใจ\n-# ยอดสรุปปิดบัญชีของเมื่อวาน ประจำวันที่ **${reportData.dateStr}** 🍵`
+          },
+          {
+            type: 14,
+            spacing: 2
+          },
+          {
+            type: 10,
+            content: [
+              `### 📈 ภาพรวมการให้บริการ`,
+              `* ✅ **จำนวนเคสที่สำเร็จทั้งหมด:** **${reportData.totalOrders || 0}** เคส`,
+              `* 💰 **ยอดเงินรวมสะพัด:** **${reportData.totalRevenue || 0}** บาท`,
+              `* 🏢 **ส่วนแบ่งคาเฟ่ (30%):** **${reportData.platformShare || 0}** บาท`,
+              `* 👥 **ส่วนแบ่งที่ปรึกษาทั้งหมด (70%):** **${reportData.counselorShare || 0}** บาท`
+            ].join("\n")
+          },
+          {
+            type: 14,
+            spacing: 2
+          },
+          {
+            type: 10,
+            content: [
+              `### 👥 รายได้สะสมของที่ปรึกษาประจำวัน (70%)`,
+              breakdownLines,
+              `\n> 💡 *ข้อมูลนี้ถูกสรุปและบันทึกอัตโนมัติประจำวันเพื่อความโปร่งใสของทีมงานค่ะ*`
+            ].join("\n")
+          }
+        ],
+        accent_color: null
       }
     ]
-  };
+  });
 }
 
 /**

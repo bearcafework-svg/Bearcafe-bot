@@ -116,6 +116,7 @@ const ORDER_HISTORY_CHANNEL_ID = "1549710698702184539"; // 📁︰ประส�
 const TRANSCRIPTS_CHANNEL_ID = process.env.HEALJAI_TRANSCRIPTS_CHANNEL_ID || "1545240025111990423"; // 📁︰บันทึก-transcripts (Auto-resolved)
 const SESSION_CATEGORY_ID = "1545237654612869201"; // หมวดหมู่ห้อง Session (ฮีลใจ)
 const CHAT_ARCHIVE_CATEGORY_ID = "1555776168798720031"; // หมวดหมู่จัดเก็บประวัติห้องแชทหลังจบเคส (Chat Archive)
+const COUNSELOR_ALERTS_CHANNEL_ID = "1560278981960409210"; // ห้องแจ้งเตือนที่ปรึกษา (Inactivity Guard Alerts)
 
 const TIMEOUT_MS = (config.healJai && config.healJai.timeoutMinutes ? config.healJai.timeoutMinutes : 15) * 60 * 1000;
 
@@ -291,17 +292,22 @@ async function sendDailyReport(guild) {
     const now = new Date();
     const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
     const bangkokNow = new Date(utc + (3600000 * 7));
-    const dateStr = `${bangkokNow.getDate().toString().padStart(2, '0')}/${(bangkokNow.getMonth() + 1).toString().padStart(2, '0')}/${bangkokNow.getFullYear()}`;
 
-    const bangkokTodayStart = new Date(bangkokNow.getFullYear(), bangkokNow.getMonth(), bangkokNow.getDate(), 0, 0, 0);
-    const startIso = bangkokTodayStart.toISOString();
+    // วันที่เมื่อวานในเวลาประเทศไทย (UTC+7)
+    const bangkokYesterday = new Date(bangkokNow.getFullYear(), bangkokNow.getMonth(), bangkokNow.getDate() - 1);
+    const dateStr = `${bangkokYesterday.getDate().toString().padStart(2, '0')}/${(bangkokYesterday.getMonth() + 1).toString().padStart(2, '0')}/${bangkokYesterday.getFullYear()}`;
+
+    // ช่วงเวลา 00:00:00 ถึงก่อน 00:00:00 ของวันนี้ (เวลาไทยแปลงเป็น UTC สำหรับ Query ใน Supabase)
+    const startIso = new Date(Date.UTC(bangkokYesterday.getFullYear(), bangkokYesterday.getMonth(), bangkokYesterday.getDate(), -7, 0, 0, 0)).toISOString();
+    const endIso = new Date(Date.UTC(bangkokYesterday.getFullYear(), bangkokYesterday.getMonth(), bangkokYesterday.getDate() + 1, -7, 0, 0, 0)).toISOString();
 
     const { data: todayOrders } = await supabase
       .from("heal_jai_orders_sessions")
       .select("counselor_id, total_price, platform_share, counselor_share, session_status, created_at, ended_at")
       .eq("guild_id", guild.id)
       .eq("session_status", "COMPLETED")
-      .gte("created_at", startIso);
+      .gte("created_at", startIso)
+      .lt("created_at", endIso);
 
     const totalOrders = todayOrders ? todayOrders.length : 0;
     const totalRevenue = todayOrders ? todayOrders.reduce((acc, o) => acc + Number(o.total_price || 0), 0) : 0;
@@ -1025,8 +1031,8 @@ function scheduleSessionRoomCleanup(client, guild, orderId, textChannelId, remai
             }
           }
 
-          if (serviceMode === "chat") {
-            // บริการแชท: ล้างสิทธิ์เฉพาะทั้งหมด ย้ายไปหมวดหมู่ประวัติ และซิงค์สิทธิ์ตามหมวดหมู่
+          if (textCh.type === ChannelType.GuildText || serviceMode === "chat") {
+            // บริการแชท / ห้องข้อความ: ล้างสิทธิ์เฉพาะทั้งหมด ย้ายไปหมวดหมู่ประวัติ และซิงค์สิทธิ์ตามหมวดหมู่
             await textCh.permissionOverwrites.set([]).catch(() => {});
             await textCh.setParent(CHAT_ARCHIVE_CATEGORY_ID, { lockPermissions: true }).catch(async (e) => {
               console.error("[HealJai] Failed to set parent category for completed chat session:", e.message);
@@ -1034,7 +1040,7 @@ function scheduleSessionRoomCleanup(client, guild, orderId, textChannelId, remai
             });
             console.log(`[HealJai] 📦 ย้ายห้องแชทเสร็จสิ้น #${textCh.name} (${textCh.id}) ไปยังหมวดหมู่ ${CHAT_ARCHIVE_CATEGORY_ID} เรียบร้อยแล้ว`);
           } else {
-            // บริการคอลเสียง: ลบห้องตามเดิม
+            // บริการคอลเสียง / ห้องเสียง: ลบห้องตามเดิมหลังครบ 10 นาที
             await textCh.delete("HealJai voice session 10-minute retention expired").catch(() => {});
             console.log(`[HealJai] 🗑️ ลบห้องเสียง/แชทคู่สายที่เสร็จสิ้น #${textCh.name} (${textCh.id}) เรียบร้อยแล้ว`);
           }
@@ -1073,7 +1079,8 @@ async function cleanStaleChannels(client) {
     VOICE_STATS_COUNSELORS,
     VOICE_STATS_CUPS,
     PUBLIC_REVIEW_CHANNEL,
-    ORDER_HISTORY_CHANNEL_ID
+    ORDER_HISTORY_CHANNEL_ID,
+    COUNSELOR_ALERTS_CHANNEL_ID
   ]);
 
   try {
@@ -1216,6 +1223,14 @@ async function cleanStaleChannels(client) {
         // กฎความปลอดภัย 4: ถ้าเป็นตั๋วชำระเงินที่ยังไม่เกิน 1 ชั่วโมง (PENDING Payment) และมีลูกค้าใช้งานอยู่ ห้ามลบ
         if (orderRecord && orderRecord.payment_status === "PENDING" && channelAgeMs < 60 * 60 * 1000) {
           continue;
+        }
+
+        // กฎความปลอดภัย 4.1: ถ้าห้องนี้มีลูกค้าส่งสลิปแล้ว (waiting_verification หรือมี slip_url หรือขึ้นต้นด้วย ⏳︰รอตรวจสลิป) ห้ามลบเด็ดขาด!
+        const hasSlipWaiting = ticketRecord?.status === "waiting_verification" ||
+                               Boolean(orderRecord?.slip_url) ||
+                               ch.name.startsWith("⏳︰รอตรวจสลิป");
+        if (hasSlipWaiting) {
+          continue; // ปล่อยให้ห้องรอแอดมินมาตรวจ ห้ามลบเด็ดขาด
         }
 
         // ถ้าตั๋วเป็น expired/cancelled หรือไม่มีความเคลื่อนไหวเกิน 45 นาทีขึ้นไป และไม่มีออเดอร์ที่ใช้งานอยู่
@@ -1552,9 +1567,25 @@ async function notifySessionWarning(guild, orderId, minutesLeft) {
                await guild.channels.fetch(targetChId).catch(() => null);
 
     if (ch) {
-      await ch.send({
-        content: `⏰ <@${order.customer_id}> <@${order.counselor_id}> เหลือเวลาบริการอีก **${minutesLeft} นาที** นะคะ 🍵`
-      }).catch(() => {});
+      const payload = sanitizeComponentV2({
+        flags: FLAG_V2,
+        components: [
+          {
+            type: 17,
+            components: [
+              {
+                type: 10,
+                content: `## <a:7596clock:1160230591892029510>︲<@${order.customer_id}> <@${order.counselor_id}> เหลือเวลาบริการอีก **${minutesLeft} นาที**\n`
+              }
+            ]
+          }
+        ]
+      });
+
+      const sentMsg = await ch.send(payload).catch(() => {});
+      if (sentMsg) {
+        setTimeout(() => sentMsg.delete().catch(() => {}), 15 * 1000);
+      }
     }
   } catch (err) {
     console.error(`[HealJai] Error sending ${minutesLeft}-min warning:`, err.message);
@@ -1585,16 +1616,41 @@ async function notifySessionTimeUp(client, guild, orderId) {
                await guild.channels.fetch(targetChId).catch(() => null);
 
     if (ch) {
-      await ch.send({
-        content: [
-          `## ⏰︲__\` ครบกำหนดเวลาให้บริการตามแพ็กเกจแล้วค่ะ \`__ 🍵`,
-          `> <@${order.customer_id}> <@${order.counselor_id}> เซสชันนี้ครบกำหนดเวลาตามแพ็กเกจเรียบร้อยแล้วนะคะ`,
-          `> `,
-          `> 💬 **ระบบจะไม่ปิดห้องหรือตัดสิทธิ์การพิมพ์ค่ะ** ทุกท่านสามารถพูดคุยสรุปส่งท้ายได้ตามสบายนะคะ`,
-          `> 📢 เมื่อพูดคุยเสร็จสิ้นแล้ว ให้ **ผู้รับฟัง/พนักงาน พิมพ์คำสั่ง \`/จบเคส\`** เพื่อสิ้นสุดการให้บริการ ส่งการ์ดรีวิว และจัดเก็บห้องค่ะ ✨`,
-          `-# (หากต้องการเวลาพูดคุยเพิ่มเติม สามารถติดต่อแอดมินเพื่อใช้คำสั่ง /healjai-admin ขยายเวลาได้ค่ะ)`
-        ].join("\n")
-      }).catch(() => {});
+      const payload = sanitizeComponentV2({
+        flags: FLAG_V2,
+        components: [
+          {
+            type: 17,
+            components: [
+              {
+                type: 12,
+                items: [
+                  {
+                    media: {
+                      url: "https://cdn.discordapp.com/attachments/1536267579843280987/1547369073455800360/NewsBoard_-_bearcafe_35.png?ex=6ad1f87f&is=6ad0a6ff&hm=b688633cb32de031654a6df4cf00f71b1496045d2764a91cf693eb9136fe4a14&"
+                    }
+                  }
+                ]
+              },
+              {
+                type: 10,
+                content: "## <:matchamochi:1536695320174534699>︲ขอบคุณที่ใช้บริการฮิลใจนะคะ"
+              },
+              {
+                type: 14,
+                spacing: 2
+              },
+              {
+                type: 10,
+                content: `> <@${order.customer_id}> <@${order.counselor_id}> เซสชันการพูดคุยในครั้งนี้สิ้นสุดลงแล้วค่ะ\n\n> ขอบคุณที่ไว้วางใจให้ฮิลใจได้เป็นส่วนหนึ่งของช่วงเวลานี้นะคะ หวังว่าการพูดคุยในวันนี้จะช่วยให้รู้สึกสบายใจขึ้นไม่มากก็น้อย ขอให้หลังจากนี้มีวันที่ดี และอย่าลืมใจดีกับตัวเองด้วยนะคะ\n\n> หากสะดวก สามารถแบ่งปันความคิดเห็นผ่าน <#1545240537089703986> เพื่อเป็นกำลังใจและช่วยให้เราพัฒนาบริการต่อไปได้ค่ะ`
+              }
+            ],
+            accent_color: null
+          }
+        ]
+      });
+
+      await ch.send(payload).catch(() => {});
     }
   } catch (err) {
     console.error("[HealJai] Error sending time-up notification:", err.message);
@@ -1685,7 +1741,7 @@ async function handleSessionExpiry(client, guild, orderId, { isEarly = false } =
     await updateCounselorCardMessage(guild, order.counselor_id);
   }
 
-  // 3. จัดการ Session Channel (ห้องสนทนา): ส่งข้อความขอบคุณ และลบห้องหลัง 5 วินาที
+  // 3. จัดการ Session Channel (ห้องสนทนา): ปรับเป็นโหมดอ่านอย่างเดียว และตั้งเวลา 10 นาทีเพื่อย้ายไปจัดเก็บ
   const textChannelId = order.session_channel_id || order.ticket_channel_id;
   const sessionChannel = textChannelId
     ? (guild.channels.cache.get(textChannelId) || await guild.channels.fetch(textChannelId).catch(() => null))
@@ -1695,59 +1751,60 @@ async function handleSessionExpiry(client, guild, orderId, { isEarly = false } =
     const thankYouMessage = [
       `## <@${order.customer_id}> ขอบคุณที่ใช้บริการกับเราในครั้งนี้นะคะ <a:heartoutlines:1536268541144076369>`,
       `> หากสะดวก ฝากทุกท่านช่วยรีวิวหรือแชร์ฟีดแบ็กเกี่ยวกับการใช้บริการได้ที่ <#1545240537089703986> เพื่อให้เราได้นำความคิดเห็นไปพัฒนาและปรับปรุงการทำงานให้ดียิ่งขึ้นนะคะ ขอบคุณมาก ๆ ค่ะ <a:511398spin:1536700803732209736>\n`,
-      `-# ⏱️ ห้องสนทนานี้จะถูกปิดและลบอัตโนมัติใน 5 วินาทีค่ะ`
+      `-# ⏱️ ห้องสนทนานี้ถูกปรับเป็นโหมดอ่านอย่างเดียว และจะถูกจัดเก็บอัตโนมัติใน 10 นาทีค่ะ`
     ].join("\n");
 
     await sessionChannel.send({ content: thankYouMessage }).catch(() => {});
 
-    // ล็อกสิทธิ์การพิมพ์และการคุยเสียงทันที
+    // ล็อกสิทธิ์: อนุญาตให้อ่านและดูประวัติข้อความได้เท่านั้น (ห้ามพิมพ์/ห้ามพูด/ห้ามต่อสาย) เพื่อให้ลูกค้าเห็นข้อความและไปรีวิว
     try {
-      const lockPerms = {
+      const readOnlyPerms = {
+        ViewChannel: true,
+        ReadMessageHistory: true,
         SendMessages: false,
         SendMessagesInThreads: false,
         CreatePublicThreads: false,
         CreatePrivateThreads: false,
+        AddReactions: false,
         Connect: false,
         Speak: false
       };
       if (order.customer_id) {
-        await sessionChannel.permissionOverwrites.edit(order.customer_id, lockPerms).catch(() => {});
+        await sessionChannel.permissionOverwrites.edit(order.customer_id, readOnlyPerms).catch(() => {});
       }
       if (order.counselor_id) {
-        await sessionChannel.permissionOverwrites.edit(order.counselor_id, lockPerms).catch(() => {});
+        await sessionChannel.permissionOverwrites.edit(order.counselor_id, readOnlyPerms).catch(() => {});
       }
 
-      // ถ้าเป็นห้องเสียง ตัดการเชื่อมต่อผู้ใช้ที่ยังอยู่ในห้อง
+      // ถ้าเป็นห้องเสียง ตัดการเชื่อมต่อผู้ใช้ที่ยังอยู่ในห้องทันที
       if (sessionChannel.type === ChannelType.GuildVoice && sessionChannel.members) {
         for (const [, m] of sessionChannel.members) {
           await m.voice?.disconnect("HealJai session completed").catch(() => {});
         }
       }
     } catch (permErr) {
-      console.error("[HealJai] Failed to lock permissions on session end:", permErr.message);
+      console.error("[HealJai] Failed to set read-only permissions on session end:", permErr.message);
     }
 
-    // ลบห้องสนทนาเซสชันหลังแจ้งเตือน 5 วินาที
-    setTimeout(async () => {
-      try {
-        await sessionChannel.delete("HealJai session completed - delete session room").catch(() => {});
-        console.log(`[HealJai] 🗑️ ลบห้องสนทนาเซสชัน #${sessionChannel.id} เรียบร้อยแล้ว`);
-      } catch (delErr) {
-        console.error("[HealJai] Failed to delete session channel:", delErr.message);
-      }
-    }, 5000);
+    // หน่วงเวลา 10 นาที: หลังครบ 10 นาที ย้ายห้องไปหมวดหมู่อาร์ไคฟ์และล้างสิทธิ์ตามระบบ
+    scheduleSessionRoomCleanup(client, guild, order.id, sessionChannel.id, SESSION_RETENTION_MS);
   }
 
-  // 4. ลบ Voice Channel ที่แยกต่างหาก (ถ้ามีและไม่ใช่ห้องตั๋ว)
-  if (order.session_voice_id && order.session_voice_id !== order.ticket_channel_id) {
+  // 4. จัดการ Voice Channel ที่แยกต่างหาก (ถ้ามีและไม่ใช่ห้องเดียวกันกับ sessionChannel)
+  if (order.session_voice_id && order.session_voice_id !== textChannelId && order.session_voice_id !== order.ticket_channel_id) {
     try {
       const voiceCh = guild.channels.cache.get(order.session_voice_id) ||
                       await guild.channels.fetch(order.session_voice_id).catch(() => null);
       if (voiceCh) {
-        await voiceCh.delete("HealJai session completed voice cleanup").catch(() => {});
+        if (voiceCh.members) {
+          for (const [, m] of voiceCh.members) {
+            await m.voice?.disconnect("HealJai session completed").catch(() => {});
+          }
+        }
+        scheduleSessionRoomCleanup(client, guild, order.id, voiceCh.id, SESSION_RETENTION_MS);
       }
     } catch (voiceErr) {
-      console.error("[HealJai] Failed to delete voice room on session end:", voiceErr.message);
+      console.error("[HealJai] Failed to handle voice room retention on session end:", voiceErr.message);
     }
   }
 
@@ -1835,22 +1892,9 @@ async function startSessionInternal(client, guild, order, options = {}) {
   // เคลียร์ประวัติการพิมพ์แชทในหน่วยความจำ
   sessionMessageActivity.delete(order.id);
 
-  // 2. คำนวณเวลาเริ่มต้นจริงและ Late-Start Deduction
+  // 2. กำหนดเวลาเริ่มต้นจริง — ไม่หักเวลาแพ็กเกจ (ให้เวลาเต็มจำนวนตามที่ลูกค้าซื้อเสมอ)
   const now = Date.now();
-  const claimedAt = order.claimed_at ? new Date(order.claimed_at).getTime() : (order.updated_at ? new Date(order.updated_at).getTime() : now);
-  const waitedMs = Math.max(0, now - claimedAt);
-  const waitedMinutes = Math.floor(waitedMs / (60 * 1000));
-  const originalDuration = order.duration_minutes || 30;
-
-  let actualDurationMinutes = originalDuration;
-  let isLate = false;
-
-  // Grace Period 2 นาที (หากเริ่มช้าเกิน 2 นาที ให้หักเวลาตามที่ช้าไปจริง เช่น 5 นาทีตัด 5 นาที เหลือ 10 นาที)
-  if (waitedMinutes > 2) {
-    isLate = true;
-    const lateMinutes = waitedMinutes;
-    actualDurationMinutes = Math.max(5, originalDuration - lateMinutes);
-  }
+  const actualDurationMinutes = order.duration_minutes || 15;
 
   const startedAt = new Date(now);
   const expiresAt = new Date(now + actualDurationMinutes * 60 * 1000);
@@ -1869,7 +1913,7 @@ async function startSessionInternal(client, guild, order, options = {}) {
       .eq("id", order.id);
   }
 
-  // 4. เริ่ม Session Timer (แจ้งเตือน 5 นาที, 1 นาที และ Auto-Lock)
+  // 4. เริ่ม Session Timer (แจ้งเตือน 5 นาที, 1 นาที)
   const targetChannelId = order.session_channel_id || options.channel?.id;
   scheduleSessionTimer(client, guild, {
     ...order,
@@ -1883,17 +1927,35 @@ async function startSessionInternal(client, guild, order, options = {}) {
                         (targetChannelId ? (guild.channels.cache.get(targetChannelId) || await guild.channels.fetch(targetChannelId).catch(() => null)) : null);
 
   if (targetChannel) {
-    let announcement = "";
-    if (options.isAutoStart) {
-      const reasonText = options.triggerBy === "voice" ? "เชื่อมต่อห้องเสียงพร้อมกันทั้งสองฝ่าย" : "เริ่มพิมพ์บทสนทนาจากทั้งสองฝ่าย";
-      announcement = `✨ **ระบบตรวจพบว่ามีการ${reasonText}แล้ว!**\n> ⏱️ เริ่มต้นนับเวลาให้บริการอัตโนมัติ **${actualDurationMinutes} นาที** (ขอให้เป็นช่วงเวลาที่อบอุ่นและสบายใจนะคะ 🍵)\n-# ระบบจะแจ้งเตือนเมื่อเหลือ 5 นาที / 1 นาที และปิดห้องอัตโนมัติเมื่อครบเวลาค่ะ`;
-    } else if (isLate) {
-      announcement = `⏱️ **เซสชันสนทนาเริ่มต้นขึ้นแล้ว!**\n> ⚠️ *เนื่องจากเซสชันเริ่มล่าช้าไปประมาณ ${waitedMinutes} นาที ระบบจึงปรับเวลาให้บริการคงเหลือจริงเป็น **${actualDurationMinutes} นาที** (จากแพ็กเกจ ${originalDuration} นาที) เพื่อความถูกต้องและเป็นธรรมค่ะ 🍵*\n-# ระบบจะแจ้งเตือนเมื่อเหลือ 5 นาที / 1 นาที และปิดห้องอัตโนมัติเมื่อครบเวลาค่ะ`;
-    } else {
-      announcement = `⏱️ **เซสชันสนทนาเริ่มต้นขึ้นแล้ว!** เวลาให้บริการ **${actualDurationMinutes} นาที** ขอให้เป็นช่วงเวลาที่อบอุ่นและสบายใจนะคะ ระบบจะแจ้งเตือนเมื่อเหลือ 5 นาที / 1 นาที และปิดห้องอัตโนมัติเมื่อครบเวลาค่ะ 🍵`;
-    }
+    const finishTimestamp = Math.floor(expiresAt.getTime() / 1000);
+    const payload = sanitizeComponentV2({
+      flags: FLAG_V2,
+      components: [
+        {
+          type: 17,
+          components: [
+            {
+              type: 10,
+              content: "## <:cupofmatcha:1536694010780065863>︲__` 𝖲𝗍𝖺𝗋𝗍 𝖺 𝖼𝗈𝗇𝗌𝗎𝗅𝗍𝖺𝗍𝗂𝗈𝗇 ₊ เริ่มต้นการให้คำปรึกษา 𓂃 `__"
+            },
+            {
+              type: 14,
+              spacing: 2
+            },
+            {
+              type: 10,
+              content: `> <a:7596clock:1160230591892029510> — **เวลาสิ้นสุดโดยประมาณ:** <t:${finishTimestamp}:t> (<t:${finishTimestamp}:R>)`
+            }
+          ],
+          accent_color: null
+        }
+      ]
+    });
 
-    await targetChannel.send({ content: announcement }).catch(() => {});
+    const sentMsg = await targetChannel.send(payload).catch(() => {});
+    if (sentMsg) {
+      setTimeout(() => sentMsg.delete().catch(() => {}), 15 * 1000);
+    }
   }
 
   return true;
@@ -1960,16 +2022,35 @@ async function extendSessionTime(client, guild, order, minutesToAdd, adminUser, 
                await guild.channels.fetch(targetChannelId).catch(() => null);
     if (ch) {
       const unixTimestamp = Math.floor(newExpiresAt.getTime() / 1000);
-      await ch.send({
-        content: [
-          `### ⏱️︲__\` ขยายเวลาให้บริการเป็นพิเศษ \`__ 🍵`,
-          `> 🎁 แอดมิน <@${adminUser.id}> ได้เพิ่มเวลาให้กับเคสนี้ **+${mins} นาที** เรียบร้อยแล้วค่ะ!`,
-          `> ⏳ **เวลาสิ้นสุดใหม่:** <t:${unixTimestamp}:T> (<t:${unixTimestamp}:R>)`,
-          `> ☕ **เวลารวมทั้งหมด:** \`${newDuration}\` นาที`,
-          reason ? `> 💬 **หมายเหตุ:** ${reason}` : "",
-          `-# ขอให้เป็นช่วงเวลาที่อบอุ่น ผ่อนคลาย และสบายใจนะคะ ✨`
-        ].filter(Boolean).join("\n")
-      }).catch(() => {});
+      const reasonText = reason || "ขยายเวลาให้บริการเป็นพิเศษ";
+      const payload = sanitizeComponentV2({
+        flags: FLAG_V2,
+        components: [
+          {
+            type: 17,
+            components: [
+              {
+                type: 10,
+                content: "## <a:7596clock:1160230591892029510>︲ขยายเวลาให้บริการเป็นพิเศษ *!*"
+              },
+              {
+                type: 14,
+                spacing: 2
+              },
+              {
+                type: 10,
+                content: `> <@${order.customer_id}> ลูกค้าได้เวลาเพิ่ม **+${mins} นาที** เรียบร้อยแล้วค่ะ!\n\n>  **เวลาสิ้นสุดใหม่:** <t:${unixTimestamp}:T> (<t:${unixTimestamp}:R>)\n> **หมายเหตุ:** ${reasonText}\n\n`
+              }
+            ],
+            accent_color: null
+          }
+        ]
+      });
+
+      const sentMsg = await ch.send(payload).catch(() => {});
+      if (sentMsg) {
+        setTimeout(() => sentMsg.delete().catch(() => {}), 15 * 1000);
+      }
     }
   }
 
@@ -2031,14 +2112,53 @@ function scheduleProviderReadyTimeout(client, guild, orderId, sessionChannelId) 
 
       if (!order || order.session_status !== "WAITING_FOR_PROVIDER") return;
 
-      if (sessionChannelId) {
-        const sessionCh = guild.channels.cache.get(sessionChannelId) ||
-                          await guild.channels.fetch(sessionChannelId).catch(() => null);
-        if (sessionCh) {
-          await sessionCh.send({
-            content: `⚠️ <@${order.counselor_id}> **แจ้งเตือน:** ลูกค้า <@${order.customer_id}> กำลังรออยู่ในห้องแล้วค่ะ อย่าลืมทักทายและกดปุ่ม **'เริ่มเซสชัน'** เพื่อเริ่มนับเวลาให้บริการนะคะ 🍵\n> 💡 *หมายเหตุ: หากทั้งสองฝ่ายเริ่มพิมพ์สนทนาหรือเข้าห้องเสียงพร้อมกัน ระบบจะเริ่มจับเวลาอัตโนมัติให้ทันทีค่ะ*`
-          }).catch(() => {});
-        }
+      const targetCh = guild.channels.cache.get(COUNSELOR_ALERTS_CHANNEL_ID) ||
+                       await guild.channels.fetch(COUNSELOR_ALERTS_CHANNEL_ID).catch(() => null) ||
+                       (sessionChannelId ? (guild.channels.cache.get(sessionChannelId) || await guild.channels.fetch(sessionChannelId).catch(() => null)) : null);
+
+      if (targetCh) {
+        const roomLink = `https://discord.com/channels/${guild.id}/${sessionChannelId || ""}`;
+        const payload = sanitizeComponentV2({
+          flags: FLAG_V2,
+          components: [
+            {
+              type: 17,
+              components: [
+                {
+                  type: 10,
+                  content: `## <:greenalert:1537037333847605278>︲แจ้งเตือนที่ปรึกษา <@${order.counselor_id}>`
+                },
+                {
+                  type: 14,
+                  spacing: 2
+                },
+                {
+                  type: 10,
+                  content: `> ลูกค้า <@${order.customer_id}> เข้ามารอในห้อง <#${sessionChannelId}> แล้วค่ะ <a:heartoutlines:1536268541144076369>\n\n1. ทักทายลูกค้าเพื่อเริ่มต้นการให้บริการ\n2. กดปุ่ม **เริ่มเซสชัน** เพื่อเริ่มนับเวลาให้บริการ\n\n-# 💡 **หมายเหตุ:** หากทั้งสองฝ่ายเริ่มสนทนาผ่านแชทหรือเข้าห้องเสียงพร้อมกัน ระบบจะเริ่มจับเวลาให้อัตโนมัติทันทีค่ะ`
+                },
+                {
+                  type: 14,
+                  spacing: 2
+                },
+                {
+                  type: 1,
+                  components: [
+                    {
+                      type: 2,
+                      style: 5,
+                      url: roomLink,
+                      label: "คลิกไปที่ห้อง"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        });
+
+        await targetCh.send(payload).catch((err) => {
+          console.error("[HealJai] Stage 1 Alert send error:", err.message);
+        });
       }
     } catch (e) {
       console.error("[HealJai] Stage 1 Provider Timeout Error:", e.message);
@@ -2060,14 +2180,38 @@ function scheduleProviderReadyTimeout(client, guild, orderId, sessionChannelId) 
 
       if (!order || order.session_status !== "WAITING_FOR_PROVIDER") return;
 
-      if (sessionChannelId) {
-        const sessionCh = guild.channels.cache.get(sessionChannelId) ||
-                          await guild.channels.fetch(sessionChannelId).catch(() => null);
-        if (sessionCh) {
-          await sessionCh.send({
-            content: `🚨 <@${order.counselor_id}> **แจ้งเตือนเร่งด่วน:** ผ่านไป 4 นาทีแล้วยังไม่มีการเริ่มเซสชัน หากเริ่มช้าเวลาให้บริการจะถูกตัดทอนตามจริง กรุณาติดต่อลูกค้าทันทีนะคะ 🍵`
-          }).catch(() => {});
-        }
+      const targetCh = guild.channels.cache.get(COUNSELOR_ALERTS_CHANNEL_ID) ||
+                       await guild.channels.fetch(COUNSELOR_ALERTS_CHANNEL_ID).catch(() => null) ||
+                       (sessionChannelId ? (guild.channels.cache.get(sessionChannelId) || await guild.channels.fetch(sessionChannelId).catch(() => null)) : null);
+
+      if (targetCh) {
+        const payload = sanitizeComponentV2({
+          flags: FLAG_V2,
+          components: [
+            {
+              type: 17,
+              accent_color: 16711680,
+              components: [
+                {
+                  type: 10,
+                  content: `## 🚨︲<@${order.counselor_id}>  ผ่านไป 4 นาทีแล้วยังไม่มีการเริ่มเซสชัน!\n\n`
+                },
+                {
+                  type: 14,
+                  spacing: 2
+                },
+                {
+                  type: 10,
+                  content: `> ลูกค้า <@${order.customer_id}> กำลังรออยู่ กรุณาทักทายลูกค้าหรือกดปุ่มเริ่มเซสชันนะคะ <a:heartoutlines:1536268541144076369>`
+                }
+              ]
+            }
+          ]
+        });
+
+        await targetCh.send(payload).catch((err) => {
+          console.error("[HealJai] Stage 2 Alert send error:", err.message);
+        });
       }
 
       sendOrderHistoryLog(guild, {
@@ -2085,7 +2229,6 @@ function scheduleProviderReadyTimeout(client, guild, orderId, sessionChannelId) 
 
   // ── Stage 3: หากผ่านไป 7 นาทีแล้วยังไม่มีกิจกรรมใดๆ -> คืนเคส PROVIDER_NO_SHOW
   const timerStage3 = setTimeout(async () => {
-    providerReadyTimers.delete(orderId);
     const supabase = getSupabase();
     if (!supabase || !guild) return;
 
@@ -2098,6 +2241,36 @@ function scheduleProviderReadyTimeout(client, guild, orderId, sessionChannelId) 
 
       if (!order || order.session_status !== "WAITING_FOR_PROVIDER") return;
 
+      const activitySet = sessionMessageActivity.get(orderId);
+      const counselorSpoke = activitySet && activitySet.has(order.counselor_id);
+      if (counselorSpoke) {
+        // กรณีที่ 1: ผู้รับฟังเข้ามาพิมพ์ทักทายแล้ว แต่ลูกค้ายังไม่เริ่ม ไม่นับเป็น Provider No-Show
+        const targetCh = guild.channels.cache.get(COUNSELOR_ALERTS_CHANNEL_ID) ||
+                         await guild.channels.fetch(COUNSELOR_ALERTS_CHANNEL_ID).catch(() => null) ||
+                         (sessionChannelId ? (guild.channels.cache.get(sessionChannelId) || await guild.channels.fetch(sessionChannelId).catch(() => null)) : null);
+
+        if (targetCh) {
+          const payload = sanitizeComponentV2({
+            flags: FLAG_V2,
+            components: [
+              {
+                type: 17,
+                components: [
+                  {
+                    type: 10,
+                    content: `## <a:7596clock:1160230591892029510>︲<@${order.counselor_id}> ผ่านไป 7 นาทีแล้ว\n> ลูกค้า <@${order.customer_id}> ยังไม่ได้เริ่มตอบกลับหรือเข้าห้องเสียง หากครบ 10 นาทีระบบจะมีปุ่มให้กดยกเลิกเคสได้ค่ะ <a:heartoutlines:1536268541144076369>`
+                  }
+                ]
+              }
+            ]
+          });
+
+          await targetCh.send(payload).catch(() => {});
+        }
+        return;
+      }
+
+      providerReadyTimers.delete(orderId);
       const prevCounselorId = order.counselor_id;
       if (prevCounselorId) {
         const existingDropped = Array.isArray(order.dropped_counselor_ids) ? order.dropped_counselor_ids : [];
@@ -2144,14 +2317,27 @@ function scheduleProviderReadyTimeout(client, guild, orderId, sessionChannelId) 
         }
       }
 
-      // แจ้งเตือนลูกค้าในห้อง Session
+      // กรณีที่ 2: ผู้รับฟังไม่เข้ามาเลย -> แจ้งเตือนลูกค้าในห้อง Session ด้วย Component v2
       if (sessionChannelId) {
         const sessionCh = guild.channels.cache.get(sessionChannelId) ||
                           await guild.channels.fetch(sessionChannelId).catch(() => null);
         if (sessionCh) {
-          await sessionCh.send({
-            content: `⚠️ <@${order.customer_id}> ขออภัยค่ะ ผู้รับฟังไม่ได้เข้าเริ่มเซสชันภายในเวลาที่กำหนด ระบบกำลังส่งต่อเคสของคุณไปยังผู้รับฟังท่านอื่นอย่างเร่งด่วนนะคะ 🍵`
-          }).catch(() => {});
+          const payload = sanitizeComponentV2({
+            flags: FLAG_V2,
+            components: [
+              {
+                type: 17,
+                components: [
+                  {
+                    type: 10,
+                    content: `## <a:hj_kittypaw:1552270687295643709>︲<@${order.customer_id}> ขออภัยค่ะ\n> ผู้รับฟังไม่ได้เข้าเริ่มเซสชันภายในเวลาที่กำหนด ระบบกำลังส่งต่อเคสของคุณไปยังผู้รับฟังท่านอื่นอย่างเร่งด่วน กรุณารอสักครู่นะคะ . . .\n\n\n`
+                  }
+                ]
+              }
+            ]
+          });
+
+          await sessionCh.send(payload).catch(() => {});
         }
       }
 
@@ -2188,6 +2374,73 @@ function scheduleProviderReadyTimeout(client, guild, orderId, sessionChannelId) 
     }
   }, 7 * 60 * 1000);
   timers.push(timerStage3);
+
+  // ── Stage 4: หากผ่านไป 10 นาทีแล้วยังไม่มีการเริ่มเซสชัน (Customer No-Show Guard) ──
+  const timerStage4 = setTimeout(async () => {
+    const supabase = getSupabase();
+    if (!supabase || !guild) return;
+
+    try {
+      const { data: order } = await supabase
+        .from("heal_jai_orders_sessions")
+        .select("*")
+        .eq("id", orderId)
+        .maybeSingle();
+
+      if (!order || order.session_status !== "WAITING_FOR_PROVIDER") return;
+
+      const targetCh = guild.channels.cache.get(COUNSELOR_ALERTS_CHANNEL_ID) ||
+                       await guild.channels.fetch(COUNSELOR_ALERTS_CHANNEL_ID).catch(() => null) ||
+                       (sessionChannelId ? (guild.channels.cache.get(sessionChannelId) || await guild.channels.fetch(sessionChannelId).catch(() => null)) : null);
+
+      if (targetCh) {
+        const payload = sanitizeComponentV2({
+          flags: FLAG_V2,
+          components: [
+            {
+              type: 17,
+              components: [
+                {
+                  type: 10,
+                  content: `## <:greenalert:1537037333847605278>︲<@${order.counselor_id}> ลูกค้าไม่มีตอบกลับ (10 นาที)`
+                },
+                {
+                  type: 14,
+                  spacing: 2
+                },
+                {
+                  type: 10,
+                  content: `> ลูกค้า <@${order.customer_id}> ยังไม่ได้เริ่มเซสชันหรือเข้าร่วมการสนทนาภายใน 10 นาทีค่ะ\n\n> หากผู้รับฟังไม่สามารถติดต่อลูกค้าได้ สามารถกดปุ่มด้านล่างเพื่อ **ยกเลิกเคส** และกลับสู่สถานะ **ONLINE** เพื่อรับเคสใหม่ได้เลยค่ะ <a:heartoutlines:1536268541144076369> `
+                },
+                {
+                  type: 14,
+                  spacing: 2
+                },
+                {
+                  type: 1,
+                  components: [
+                    {
+                      type: 2,
+                      style: 4,
+                      custom_id: `heal_jai_customer_noshow_${order.id}`,
+                      label: "ยกเลิกเคส (ลูกค้าไม่มาตามนัด)"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        });
+
+        await targetCh.send(payload).catch((err) => {
+          console.error("[HealJai] Stage 4 Alert send error:", err.message);
+        });
+      }
+    } catch (e) {
+      console.error("[HealJai] Stage 4 Customer No-Show Check Error:", e.message);
+    }
+  }, 10 * 60 * 1000);
+  timers.push(timerStage4);
 
   providerReadyTimers.set(orderId, timers);
 }
@@ -2869,9 +3122,23 @@ function setupHealJai(client) {
       note: noteInput
     });
 
-    return interaction.editReply({
-      content: `✅ **สิ้นสุดการให้บริการเคส #${order.order_code || order.id} เรียบร้อยแล้วค่ะ**\n> 🍵 ขอบคุณสำหรับการดูแลและส่งมอบความอบอุ่นให้ลูกค้านะคะ ระบบได้ส่งการ์ดรีวิวและจัดเก็บห้องเรียบร้อยแล้วค่ะ ✨`
+    const replyPayload = sanitizeComponentV2({
+      flags: FLAG_V2 | FLAG_EPHEMERAL,
+      components: [
+        {
+          type: 17,
+          components: [
+            {
+              type: 10,
+              content: `## <:50121checkmark:1358584609087946867>︲**สิ้นสุดการให้บริการเคส #${order.order_code || order.id} เรียบร้อยแล้วค่ะ**\n> ขอบคุณสำหรับการดูแลและส่งมอบความอบอุ่นให้ลูกค้านะคะ ระบบได้ส่งการ์ดรีวิวและจัดเก็บห้องเรียบร้อยแล้วค่ะ <a:heartoutlines:1536268541144076369> \n`
+            }
+          ],
+          accent_color: null
+        }
+      ]
     });
+
+    return interaction.editReply(replyPayload);
   });
 
   /**
@@ -3158,11 +3425,17 @@ function setupHealJai(client) {
 
       console.log(`[HealJai] 📸 Received slip upload from <@${message.author.id}> in ticket channel <#${message.channel.id}>`);
 
-      // หมายเหตุ: ปล่อยให้ slip_url ว่างไว้ในฐานข้อมูลตามที่กำหนด เพื่อให้แอดมินเป็นผู้กรอก/อัปโหลดผ่านแดชบอร์ดเอง
+      // 1. ยกเลิกตัวนับเวลาลบห้อง 15 นาทีทันที (ห้ามลบห้องเด็ดขาด)
+      clearAutoDeleteTimer(message.channel.id);
+
+      // 2. อัปเดตข้อมูลลงฐานข้อมูล Supabase
       if (pendingOrder) {
         await supabase
           .from("heal_jai_orders_sessions")
-          .update({ updated_at: new Date().toISOString() })
+          .update({
+            slip_url: imageAttachment.url,
+            updated_at: new Date().toISOString()
+          })
           .eq("id", pendingOrder.id);
 
         analyticsService.trackEvent({
@@ -3181,7 +3454,17 @@ function setupHealJai(client) {
         });
       }
 
-      // ปรับ permission ของลูกค้าในห้อง ticket ไม่ให้ส่งข้อความ/แนบไฟล์หลังส่งสลิปแล้ว
+      if (ticketData) {
+        await supabase
+          .from("heal_jai_tickets")
+          .update({
+            status: "waiting_verification",
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", ticketData.id);
+      }
+
+      // 3. ปรับ permission ของลูกค้าในห้อง ticket ไม่ให้ส่งข้อความ/แนบไฟล์หลังส่งสลิปแล้ว
       const targetUserId = customerId || message.author.id;
       if (targetUserId && message.channel?.permissionOverwrites) {
         await message.channel.permissionOverwrites.edit(targetUserId, {
@@ -3192,13 +3475,57 @@ function setupHealJai(client) {
         });
       }
 
-      // ใส่ Reaction แจ้งรับสลิปแล้ว
+      // 4. เปลี่ยนชื่อห้องเป็น "⏳︰รอตรวจสลิป・ชื่อลูกค้า"
+      const customerMember = message.guild.members.cache.get(message.author.id) ||
+                             await message.guild.members.fetch(message.author.id).catch(() => null);
+      const customerUsername = customerMember?.displayName || message.author.username || "user";
+      await message.channel.setName(`⏳︰รอตรวจสลิป・${customerUsername}`).catch((err) => {
+        console.error("[HealJai] Failed to rename ticket room on slip upload:", err.message);
+      });
+
+      // 5. ใส่ Reaction แจ้งรับสลิปแล้ว
       await message.react("📩").catch(() => {});
 
-      // แจ้งเตือนทีมงานเข้ามาตรวจสอบสลิปแบบคนตรวจสอบ (Manual Check)
+      // 6. แจ้งเตือนลูกค้าในห้องตั๋ว (สร้างความมั่นใจว่าห้องจะไม่ถูกลบ และกำลังรอแอดมิน)
       await message.reply({
-        content: `## <a:bellpress:1547361650552737914> <@&${STAFF_ROLE_ID}> คุณ <@${message.author.id}> ได้แนบรูปภาพสลิปเรียบร้อยแล้ว รอทีมงานเข้ามาดำเนินการสักครู่นะคะ!`
+        content: [
+          `## <:50121checkmark:1358584609087946867>︲__\` ได้รับสลิปเรียบร้อยแล้วค่ะ \`__ 🍵`,
+          `> <@${message.author.id}> ระบบได้รับหลักฐานการชำระเงินเรียบร้อยแล้วนะคะ`,
+          `> 🛡️ **ห้องนี้จะไม่ถูกลบอัตโนมัติ** ระบบกำลังรอทีมงานแอดมินเข้ามาตรวจสอบความถูกต้องและประสานงานผู้รับฟังให้นะคะ กรุณารอสักครู่ค่ะ ✨`,
+          `-# <@&${STAFF_ROLE_ID}> มีสลิปใหม่รอการตรวจสอบค่ะ`
+        ].join("\n")
       }).catch(() => {});
+
+      // 7. ส่ง DM แจ้งเตือนไปยัง Owner พร้อมรูปภาพสลิปและลิงก์ห้อง
+      const ownerId = process.env.OWNER_ID || message.guild.ownerId;
+      if (ownerId) {
+        try {
+          const ownerUser = await client.users.fetch(ownerId).catch(() => null);
+          if (ownerUser) {
+            const ticketUrl = `https://discord.com/channels/${message.guild.id}/${message.channel.id}`;
+            await ownerUser.send({
+              content: [
+                `## 💵︲แจ้งเตือนลูกค้าแนบสลิปใหม่ (Heal Jai)`,
+                `> **รหัสออเดอร์:** \`#${pendingOrder?.order_code || "N/A"}\``,
+                `> **ลูกค้า:** <@${message.author.id}> (${message.author.tag || message.author.id})`,
+                `> **แพ็กเกจ:** ${pendingOrder?.package_name || "เครื่องดื่มพักใจ"} (${pendingOrder?.duration_minutes || 15} นาที)`,
+                `> **ยอดชำระ:** ${pendingOrder?.total_price || 39} บาท`,
+                `> **ห้องตั๋ว:** <#${message.channel.id}> ([คลิกเพื่อเปิดห้องตั๋ว](${ticketUrl}))\n`,
+                `💡 *ลูกค้าได้แนบรูปสลิปในห้องตั๋วเรียบร้อยแล้ว ระบบได้ยกเลิกการลบห้องให้อัตโนมัติ สามารถเข้าไปตรวจสอบและใช้คำสั่ง \`/อนุมัติสลิป\` ในเซิร์ฟเวอร์ได้เลยค่ะ 🍵*`
+              ].join("\n"),
+              embeds: [
+                {
+                  title: "🧾 รูปภาพสลิปที่ลูกค้าแนบมา",
+                  image: { url: imageAttachment.url },
+                  color: 0x57F287
+                }
+              ]
+            }).catch(() => {});
+          }
+        } catch (dmErr) {
+          console.error("[HealJai] Failed to send DM to owner on slip upload:", dmErr.message);
+        }
+      }
     } catch (err) {
       console.error("[HealJai] Error handling slip message upload:", err);
     }
@@ -5337,13 +5664,24 @@ function setupHealJai(client) {
     // ── 2.6 กดปุ่ม "ส่งหลักฐานชำระเงินแล้ว" (Legacy Paid Confirm) ─────
     if (customId === CUSTOM_IDS.PAID_CONFIRM) {
       try {
-        await channel.send({
-          content: `<@&${STAFF_ROLE_ID}> 🔔 **<@${user.id}> ได้แจ้งโอนเงินแล้วค่ะ!** (แนะนำให้ใช้คำสั่ง \`/ยืนยันการโอน\` เพื่อตรวจสลิปอัตโนมัติ)`
-        });
         clearAutoDeleteTimer(channel.id);
 
+        const customerName = member?.displayName || user.username || "user";
+        await channel.setName(`⏳︰รอตรวจสลิป・${customerName}`).catch(() => {});
+
+        if (supabase) {
+          await supabase
+            .from("heal_jai_tickets")
+            .update({ status: "waiting_verification", updated_at: new Date().toISOString() })
+            .eq("channel_id", channel.id);
+        }
+
+        await channel.send({
+          content: `<@&${STAFF_ROLE_ID}> 🔔 **<@${user.id}> ได้แจ้งโอนเงินแล้วค่ะ!** (แนะนำให้ใช้คำสั่ง \`/ยืนยันการโอน\` เพื่อตรวจสลิปอัตโนมัติ หรือแอดมินใช้ \`/อนุมัติสลิป\`)`
+        });
+
         return interaction.reply({
-          content: `## <:50121checkmark:1358584609087946867>︲แจ้งทีมงานเรียบร้อยแล้วค่ะ\n> 💡 คุณสามารถใช้คำสั่ง **\`/ยืนยันการโอน\`** พร้อมแนบรูปสลิปในห้องนี้ เพื่อให้ระบบเริ่มค้นหาผู้รับฟังได้ทันทีโดยไม่ต้องรอแอดมินนะคะ 🍵`,
+          content: `## <:50121checkmark:1358584609087946867>︲แจ้งทีมงานเรียบร้อยแล้วค่ะ\n> 🛡️ **ห้องนี้จะไม่ถูกลบอัตโนมัติ** ระบบกำลังรอทีมงานเข้ามาตรวจสอบสลิปนะคะ\n> 💡 คุณสามารถใช้คำสั่ง **\`/ยืนยันการโอน\`** พร้อมแนบรูปสลิปในห้องนี้ เพื่อให้ระบบเริ่มค้นหาผู้รับฟังได้ทันทีโดยไม่ต้องรอแอดมินนะคะ 🍵`,
           flags: FLAG_EPHEMERAL
         });
       } catch (err) {
@@ -6007,23 +6345,52 @@ function setupHealJai(client) {
       }
 
       // แสดงปุ่มยืนยันการจบบริการก่อนเวลาอีกครั้ง
-      const confirmRow = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId(`heal_jai_confirm_end_${order.id}`)
-          .setLabel("︲ยืนยันจบบริการ")
-          .setEmoji("🔴")
-          .setStyle(ButtonStyle.Danger),
-        new ButtonBuilder()
-          .setCustomId("heal_jai_cancel_end_session")
-          .setLabel("︲ยกเลิก")
-          .setEmoji("⚪")
-          .setStyle(ButtonStyle.Secondary)
-      );
-
-      return interaction.editReply({
-        content: `### ⚠️︲ยืนยันการจบบริการ (ก่อนเวลา)\n> คุณต้องการสิ้นสุดเซสชันนี้ก่อนเวลาที่กำหนดใช่หรือไม่?\n> *เมื่อกดยืนยัน ระบบจะล็อกห้องสนทนา บันทึกสถิติ และส่งการ์ดให้คะแนนบริการแก่ลูกค้าทันทีค่ะ*`,
-        components: [confirmRow]
+      const confirmPayload = sanitizeComponentV2({
+        flags: FLAG_V2 | FLAG_EPHEMERAL,
+        components: [
+          {
+            type: 17,
+            components: [
+              {
+                type: 10,
+                content: "## <:greenalert:1537037333847605278>︲ยืนยันการจบบริการ (ก่อนเวลา)\n"
+              },
+              {
+                type: 14,
+                spacing: 2
+              },
+              {
+                type: 10,
+                content: "> คุณต้องการสิ้นสุดเซสชันนี้ก่อนเวลาที่กำหนดใช่หรือไม่?\n\n> เมื่อกดยืนยัน ระบบจะล็อกห้องสนทนา บันทึกสถิติ และส่งการ์ดให้คะแนนบริการแก่ลูกค้าทันทีค่ะ"
+              },
+              {
+                type: 14,
+                spacing: 2
+              },
+              {
+                type: 1,
+                components: [
+                  {
+                    style: 2,
+                    type: 2,
+                    custom_id: "heal_jai_cancel_end_session",
+                    label: "ยกเลิก"
+                  },
+                  {
+                    style: 4,
+                    type: 2,
+                    custom_id: `heal_jai_confirm_end_${order.id}`,
+                    label: "ยืนยันจบบริการ"
+                  }
+                ]
+              }
+            ],
+            accent_color: null
+          }
+        ]
       });
+
+      return interaction.editReply(confirmPayload);
     }
 
     // ยืนยันการจบบริการก่อนเวลา
@@ -6065,18 +6432,164 @@ function setupHealJai(client) {
       // Early End (จบบริการก่อนเวลา): mark ended_early = true (เป็น data point สำหรับ audit log)
       await handleSessionExpiry(client, guild, order.id, { isEarly: true });
 
-      return interaction.editReply({
-        content: "✅ บันทึกการจบบริการเรียบร้อยแล้วค่ะ ระบบได้ส่งแบบประเมินความพึงพอใจให้ลูกค้าแล้ว ขอบคุณสำหรับการปฏิบัติหน้าที่นะคะ 🍵",
-        components: []
-      });
+      return interaction.editReply(sanitizeComponentV2({
+        flags: FLAG_V2 | FLAG_EPHEMERAL,
+        components: [
+          {
+            type: 17,
+            components: [
+              {
+                type: 10,
+                content: "## <:50121checkmark:1358584609087946867>︲บันทึกการจบบริการเรียบร้อยแล้วค่ะ\n> ระบบได้ส่งแบบประเมินความพึงพอใจให้ลูกค้าแล้ว ขอบคุณสำหรับการปฏิบัติหน้าที่นะคะ <a:heartoutlines:1536268541144076369>"
+              }
+            ],
+            accent_color: null
+          }
+        ]
+      }));
     }
 
     // ยกเลิกการจบบริการก่อนเวลา
     if (customId === "heal_jai_cancel_end_session") {
-      return interaction.update({
-        content: "ยกเลิกการจบบริการแล้วค่ะ เซสชันยังคงดำเนินต่อไปตามปกติ 🍵",
-        components: []
-      }).catch(() => {});
+      return interaction.update(sanitizeComponentV2({
+        flags: FLAG_V2 | FLAG_EPHEMERAL,
+        components: [
+          {
+            type: 17,
+            components: [
+              {
+                type: 10,
+                content: "## <:cupofmatcha:1536694010780065863>︲ยกเลิกการจบบริการแล้วค่ะ\n> เซสชันยังคงดำเนินต่อไปตามปกติค่ะ 🍵"
+              }
+            ],
+            accent_color: null
+          }
+        ]
+      })).catch(() => {});
+    }
+
+    // ── 2.11 กดยกเลิกเคสเนื่องจากลูกค้าไม่มาตามนัด (Customer No-Show) ────────
+    if (customId.startsWith("heal_jai_customer_noshow_")) {
+      const orderId = customId.replace("heal_jai_customer_noshow_", "");
+      const isAuthorized = member?.roles?.cache?.has(STAFF_ROLE_ID) ||
+                           member?.roles?.cache?.has(COUNSELOR_ROLE_ID) ||
+                           (process.env.OWNER_ID && user.id === process.env.OWNER_ID);
+
+      if (!isAuthorized) {
+        return interaction.reply({
+          content: "❌ ขออภัยค่ะ เฉพาะผู้ให้คำปรึกษาประจำเคสนี้หรือทีมงานเท่านั้นที่สามารถกดยกเลิกเคสได้ค่ะ",
+          flags: FLAG_EPHEMERAL
+        }).catch(() => {});
+      }
+
+      let order = null;
+      if (supabase) {
+        const { data: ord } = await supabase
+          .from("heal_jai_orders_sessions")
+          .select("*")
+          .eq("id", orderId)
+          .maybeSingle();
+        order = ord;
+      }
+
+      if (!order) {
+        return interaction.reply({
+          content: "❌ ไม่พบข้อมูลเคสหรือออเดอร์ในระบบค่ะ",
+          flags: FLAG_EPHEMERAL
+        }).catch(() => {});
+      }
+
+      if (order.counselor_id && order.counselor_id !== user.id && !member?.roles?.cache?.has(STAFF_ROLE_ID) && user.id !== process.env.OWNER_ID) {
+        return interaction.reply({
+          content: `⚠️ เฉพาะผู้รับฟังประจำเคส (<@${order.counselor_id}>) หรือทีมงานเท่านั้นที่สามารถดำเนินการได้ค่ะ`,
+          flags: FLAG_EPHEMERAL
+        }).catch(() => {});
+      }
+
+      if (order.session_status !== "WAITING_FOR_PROVIDER") {
+        return interaction.reply({
+          content: `⚠️ สถานะของเคสนี้ไม่ใช่การรอเริ่มเซสชันแล้วค่ะ (สถานะปัจจุบัน: \`${order.session_status}\`)`,
+          flags: FLAG_EPHEMERAL
+        }).catch(() => {});
+      }
+
+      await interaction.deferUpdate().catch(() => {});
+
+      // 1. เคลียร์ Timers ประจำออเดอร์
+      if (providerReadyTimers.has(order.id)) {
+        const activeTimeouts = providerReadyTimers.get(order.id);
+        if (Array.isArray(activeTimeouts)) {
+          activeTimeouts.forEach((t) => clearTimeout(t));
+        } else {
+          clearTimeout(activeTimeouts);
+        }
+        providerReadyTimers.delete(order.id);
+      }
+      sessionMessageActivity.delete(order.id);
+
+      // 2. ปรับสถานะออเดอร์เป็น CANCELLED
+      if (supabase) {
+        await supabase
+          .from("heal_jai_orders_sessions")
+          .update({
+            session_status: "CANCELLED",
+            notes: "CUSTOMER_NO_SHOW",
+            ended_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", order.id);
+
+        // 3. คืนสถานะผู้รับฟังเป็น ONLINE
+        if (order.counselor_id) {
+          await supabase
+            .from("heal_jai_counselors")
+            .update({
+              status: "ONLINE",
+              updated_at: new Date().toISOString()
+            })
+            .eq("user_id", order.counselor_id);
+          await updateOnlineCounselorsCount(guild);
+          await updateCounselorCardMessage(guild, order.counselor_id);
+        }
+      }
+
+      // 4. บันทึก Order History Log
+      sendOrderHistoryLog(guild, {
+        status: "CUSTOMER_NO_SHOW",
+        orderCode: order.order_code,
+        customerId: order.customer_id,
+        counselorId: order.counselor_id,
+        packageName: order.package_name,
+        totalPrice: order.total_price,
+        extraInfo: `ลูกค้ารอเกิน 10 นาทีไม่เข้าห้องสนทนา ผู้รับฟัง <@${order.counselor_id}> กดยกเลิกเคส (คืนสถานะ ONLINE เรียบร้อย)`
+      });
+
+      // 5. อัปเดตข้อความในห้องแจ้งยกเลิกเป็น Component v2
+      if (interaction.message) {
+        await interaction.message.edit(sanitizeComponentV2({
+          flags: FLAG_V2,
+          components: [
+            {
+              type: 17,
+              components: [
+                {
+                  type: 10,
+                  content: "## <:50121checkmark:1358584609087946867>︲ยกเลิกเคสเรียบร้อยแล้ว (ลูกค้าไม่มาตามนัด)"
+                },
+                {
+                  type: 14,
+                  spacing: 2
+                },
+                {
+                  type: 10,
+                  content: `> ผู้รับฟัง <@${order.counselor_id}> ได้รับการคืนสถานะกลับสู่ **🟢 ONLINE** เรียบร้อยแล้วค่ะ`
+                }
+              ]
+            }
+          ]
+        })).catch(() => {});
+      }
+      return;
     }
 
     // ── 2.6 ระบบตอกบัตรเข้ากะ (Shift Panel Handlers) ─────────────────

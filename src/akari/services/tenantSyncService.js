@@ -15,6 +15,35 @@ const SYNC_INTERVAL_MS = 30 * 60 * 1000; // ทุก 30 นาที
 const lastSyncedCache = new Map();
 
 /**
+ * ลองสร้าง Invite Link ของเซิร์ฟเวอร์แบบถาวร
+ * @param {import('discord.js').Guild} guild
+ */
+async function generateGuildInvite(guild) {
+  try {
+    if (!guild?.channels?.cache) return null;
+    const botMember = guild.members?.me;
+    if (!botMember) return null;
+
+    const channel = guild.channels.cache.find(
+      (ch) => ch.isTextBased() && ch.permissionsFor(botMember)?.has("CreateInstantInvite")
+    );
+
+    if (!channel) return null;
+
+    const invite = await channel.createInvite({
+      maxAge: 0,
+      maxUses: 0,
+      unique: false,
+      reason: "Kuma Bot Dashboard Invite",
+    });
+
+    return invite.url;
+  } catch (err) {
+    return null;
+  }
+}
+
+/**
  * ซิงค์ข้อมูลเซิร์ฟเวอร์ทั้งหมดที่บอทสถิตอยู่เข้าสู่ tenant_configs แบบ Batch
  * @param {import('discord.js').Client} client
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase
@@ -30,7 +59,7 @@ async function syncAllTenants(client, supabase) {
     // 2. ดึงข้อมูลกิลด์ที่มีอยู่ใน DB ปัจจุบัน เพื่อรักษา plan และ expires_at เดิม
     const { data: existingConfigs, error: fetchErr } = await supabase
       .from("tenant_configs")
-      .select("guild_id, plan, expires_at, status");
+      .select("guild_id, plan, expires_at, status, invite_url");
 
     if (fetchErr) {
       console.warn("⚠️ [KumaBot:TenantSync] ดึงข้อมูล tenant_configs ไม่สำเร็จ:", fetchErr.message);
@@ -56,15 +85,22 @@ async function syncAllTenants(client, supabase) {
       const ownerMember = ownerId ? guild.members.cache.get(ownerId) : null;
       const ownerName = ownerMember?.user?.tag || ownerMember?.user?.username || null;
 
+      const existing = existingMap.get(guildId);
+      let inviteUrl = existing?.invite_url || null;
+
+      // ถ้ายังไม่มี invite_url ให้บอทลองสร้างลิงก์เชิญอัตโนมัติ
+      if (!inviteUrl) {
+        inviteUrl = await generateGuildInvite(guild);
+      }
+
       // ตรวจสอบ Dirty Cache: ถ้าข้อมูลเหมือนเดิมทุกประการ ให้ข้ามการเขียนลง DB
-      const cacheKey = `${name}|${iconUrl}|${memberCount}|${ownerId}|${ownerName}`;
+      const cacheKey = `${name}|${iconUrl}|${memberCount}|${ownerId}|${ownerName}|${inviteUrl}`;
       const prevKey = lastSyncedCache.get(guildId);
       if (prevKey === cacheKey && existingMap.has(guildId) && existingMap.get(guildId)?.status === "active") {
         skippedCount++;
         continue;
       }
 
-      const existing = existingMap.get(guildId);
       const row = {
         guild_id: guildId,
         guild_name: name,
@@ -75,6 +111,7 @@ async function syncAllTenants(client, supabase) {
         status: "active",
         plan: existing?.plan || "standard",
         expires_at: existing?.expires_at || null,
+        invite_url: inviteUrl,
         updated_at: nowIso,
       };
 
@@ -183,6 +220,8 @@ function setupTenantSync(client, supabase) {
       const ownerMember = ownerId ? guild.members.cache.get(ownerId) : null;
       const ownerName = ownerMember?.user?.tag || ownerMember?.user?.username || null;
 
+      const inviteUrl = await generateGuildInvite(guild);
+
       await supabase.from("tenant_configs").upsert(
         {
           guild_id: guild.id,
@@ -193,6 +232,7 @@ function setupTenantSync(client, supabase) {
           owner_name: ownerName,
           status: "active",
           plan: "standard",
+          invite_url: inviteUrl,
           updated_at: new Date().toISOString(),
         },
         { onConflict: "guild_id" }

@@ -121,7 +121,7 @@ function initInteractionRouter(client) {
           cmdName.startsWith("ฮิลใจ") ||
           cmdName === "clear" ||
           allowedDevCommands.includes(cmdName) ||
-          ["heal-component", "แก้ไขพนักงาน", "แก้ไขที่ปรึกษา", "บัตรพนักงาน", "ยืนยันการโอน", "อนุมัติสลิป", "clear"].includes(cmdName);
+          ["heal-component", "แก้ไขพนักงาน", "แก้ไขที่ปรึกษา", "บัตรพนักงาน", "ยืนยันการโอน", "อนุมัติสลิป", "clear", "healjai-admin", "จบเคส"].includes(cmdName);
 
         if (chId && !devAllowedChannels.includes(chId) && !isHealJaiInteraction) {
           return;

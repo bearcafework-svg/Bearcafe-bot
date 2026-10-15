@@ -1348,6 +1348,7 @@ function buildAdminManageCasePayload(order) {
           `* 💰⠀**ยอดเงิน:** ${order.total_price || 0} บาท (ที่ปรึกษา: ${order.counselor_share || 0} บ. | ร้าน: ${order.platform_share || 0} บ.)`,
           `* 💳⠀**สถานะการชำระเงิน:** \`${order.payment_status || "PENDING"}\``,
           `* 🔄⠀**สถานะเซสชัน:** \`${order.session_status || "WAITING"}\``,
+          order.expires_at ? `* ⏳⠀**เวลาสิ้นสุด:** <t:${Math.floor(new Date(order.expires_at).getTime() / 1000)}:T> (<t:${Math.floor(new Date(order.expires_at).getTime() / 1000)}:R>)` : "",
           channelLink ? `* 📍⠀**ห้องที่เกี่ยวข้อง:** <#${channelLink}>` : ""
         ].filter(Boolean).join("\n"),
         color: isCompleted ? 0x57F287 : (isCancelled ? 0xED4245 : 0xFEE75C),
@@ -1384,7 +1385,35 @@ function buildAdminManageCasePayload(order) {
             custom_id: `heal_jai_admin_delete_room_${channelLink || order.id}`
           }
         ]
-      }
+      },
+      ...(!isCompleted && !isCancelled ? [
+        {
+          type: 1,
+          components: [
+            {
+              type: 2,
+              style: 1,
+              label: "+15 นาที",
+              emoji: { name: "⏱️" },
+              custom_id: `heal_jai_admin_extend_${order.id}_15`
+            },
+            {
+              type: 2,
+              style: 1,
+              label: "+30 นาที",
+              emoji: { name: "⏱️" },
+              custom_id: `heal_jai_admin_extend_${order.id}_30`
+            },
+            {
+              type: 2,
+              style: 1,
+              label: "+60 นาที",
+              emoji: { name: "⏱️" },
+              custom_id: `heal_jai_admin_extend_${order.id}_60`
+            }
+          ]
+        }
+      ] : [])
     ]
   };
 }

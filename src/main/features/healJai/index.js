@@ -1490,7 +1490,7 @@ function scheduleSessionTimer(client, guild, order) {
   const totalRemaining = expiresAt - Date.now();
 
   if (totalRemaining <= 0) {
-    handleSessionExpiry(client, guild, order.id, { isEarly: false });
+    notifySessionTimeUp(client, guild, order.id);
     return;
   }
 
@@ -1512,9 +1512,9 @@ function scheduleSessionTimer(client, guild, order) {
     }, oneMinMs);
   }
 
-  // ครบเวลาบริการ (Auto-Complete)
+  // ครบเวลาบริการ: แจ้งเตือนว่าหมดเวลาแล้ว ให้พนักงานใช้คำสั่ง /จบเคส (ไม่ส่งรีวิว/ไม่ล็อกสิทธิ์/ไม่ลบห้องอัตโนมัติ)
   timers.expiry = setTimeout(async () => {
-    await handleSessionExpiry(client, guild, order.id, { isEarly: false });
+    await notifySessionTimeUp(client, guild, order.id);
   }, totalRemaining);
 
   sessionTimers.set(order.id, timers);
@@ -1558,6 +1558,46 @@ async function notifySessionWarning(guild, orderId, minutesLeft) {
     }
   } catch (err) {
     console.error(`[HealJai] Error sending ${minutesLeft}-min warning:`, err.message);
+  }
+}
+
+/**
+ * แจ้งเตือนเมื่อครบกำหนดเวลาให้บริการตามแพ็กเกจ
+ * (แจ้งเตือนแต่ไม่ล็อกสิทธิ์ ไม่ตัดการเชื่อมต่อ และไม่ส่งรีวิว รอให้พนักงานใช้ /จบเคส เมื่อพร้อม)
+ */
+async function notifySessionTimeUp(client, guild, orderId) {
+  const supabase = getSupabase();
+  if (!supabase || !guild) return;
+
+  try {
+    const { data: order } = await supabase
+      .from("heal_jai_orders_sessions")
+      .select("*")
+      .eq("id", orderId)
+      .maybeSingle();
+
+    if (!order || order.session_status !== "IN_PROGRESS") return;
+
+    const targetChId = order.session_channel_id || order.ticket_channel_id;
+    if (!targetChId) return;
+
+    const ch = guild.channels.cache.get(targetChId) ||
+               await guild.channels.fetch(targetChId).catch(() => null);
+
+    if (ch) {
+      await ch.send({
+        content: [
+          `## ⏰︲__\` ครบกำหนดเวลาให้บริการตามแพ็กเกจแล้วค่ะ \`__ 🍵`,
+          `> <@${order.customer_id}> <@${order.counselor_id}> เซสชันนี้ครบกำหนดเวลาตามแพ็กเกจเรียบร้อยแล้วนะคะ`,
+          `> `,
+          `> 💬 **ระบบจะไม่ปิดห้องหรือตัดสิทธิ์การพิมพ์ค่ะ** ทุกท่านสามารถพูดคุยสรุปส่งท้ายได้ตามสบายนะคะ`,
+          `> 📢 เมื่อพูดคุยเสร็จสิ้นแล้ว ให้ **ผู้รับฟัง/พนักงาน พิมพ์คำสั่ง \`/จบเคส\`** เพื่อสิ้นสุดการให้บริการ ส่งการ์ดรีวิว และจัดเก็บห้องค่ะ ✨`,
+          `-# (หากต้องการเวลาพูดคุยเพิ่มเติม สามารถติดต่อแอดมินเพื่อใช้คำสั่ง /healjai-admin ขยายเวลาได้ค่ะ)`
+        ].join("\n")
+      }).catch(() => {});
+    }
+  } catch (err) {
+    console.error("[HealJai] Error sending time-up notification:", err.message);
   }
 }
 
@@ -1857,6 +1897,112 @@ async function startSessionInternal(client, guild, order, options = {}) {
   }
 
   return true;
+}
+
+/**
+ * ขยาย/เพิ่มเวลาการให้บริการของเคสลูกค้า (Admin Session Time Extension)
+ * @param {import('discord.js').Client} client
+ * @param {import('discord.js').Guild} guild
+ * @param {object} order
+ * @param {number} minutesToAdd
+ * @param {import('discord.js').User} adminUser
+ * @param {string} reason
+ * @returns {Promise<{ success: boolean, message?: string, newDuration?: number, newExpiresAt?: Date }>}
+ */
+async function extendSessionTime(client, guild, order, minutesToAdd, adminUser, reason = "") {
+  const supabase = getSupabase();
+  if (!supabase) return { success: false, message: "ไม่สามารถเชื่อมต่อฐานข้อมูล Supabase ได้" };
+
+  if (!order) {
+    return { success: false, message: "ไม่พบข้อมูลเคสหรือออเดอร์ในระบบค่ะ" };
+  }
+
+  if (["COMPLETED", "CANCELLED"].includes(order.session_status)) {
+    return {
+      success: false,
+      message: `เคส #${order.order_code || order.id} อยู่ในสถานะ \`${order.session_status}\` (สิ้นสุดไปแล้ว) ไม่สามารถเพิ่มเวลาได้ค่ะ`
+    };
+  }
+
+  const mins = Math.max(1, parseInt(minutesToAdd, 10) || 15);
+  const now = Date.now();
+  const currentExpires = order.expires_at ? new Date(order.expires_at).getTime() : now;
+  const baseTime = Math.max(currentExpires, now);
+  const newExpiresAt = new Date(baseTime + mins * 60 * 1000);
+  const newDuration = (Number(order.duration_minutes) || 0) + mins;
+  const nowIso = new Date().toISOString();
+
+  // 1. อัปเดตข้อมูลลงฐานข้อมูล Supabase
+  const { error: updateErr } = await supabase
+    .from("heal_jai_orders_sessions")
+    .update({
+      expires_at: newExpiresAt.toISOString(),
+      duration_minutes: newDuration,
+      updated_at: nowIso
+    })
+    .eq("id", order.id);
+
+  if (updateErr) {
+    return { success: false, message: `อัปเดตข้อมูลใน Supabase ล้มเหลว: ${updateErr.message}` };
+  }
+
+  // 2. ปรับตัวนับเวลาถอยหลัง (Timer) ใหม่
+  scheduleSessionTimer(client, guild, {
+    ...order,
+    duration_minutes: newDuration,
+    expires_at: newExpiresAt.toISOString()
+  });
+
+  // 3. ส่งข้อความแจ้งเตือนในห้องบริการ (Text Room หรือ Ticket)
+  const targetChannelId = order.session_channel_id || order.ticket_channel_id;
+  if (targetChannelId && guild) {
+    const ch = guild.channels.cache.get(targetChannelId) ||
+               await guild.channels.fetch(targetChannelId).catch(() => null);
+    if (ch) {
+      const unixTimestamp = Math.floor(newExpiresAt.getTime() / 1000);
+      await ch.send({
+        content: [
+          `### ⏱️︲__\` ขยายเวลาให้บริการเป็นพิเศษ \`__ 🍵`,
+          `> 🎁 แอดมิน <@${adminUser.id}> ได้เพิ่มเวลาให้กับเคสนี้ **+${mins} นาที** เรียบร้อยแล้วค่ะ!`,
+          `> ⏳ **เวลาสิ้นสุดใหม่:** <t:${unixTimestamp}:T> (<t:${unixTimestamp}:R>)`,
+          `> ☕ **เวลารวมทั้งหมด:** \`${newDuration}\` นาที`,
+          reason ? `> 💬 **หมายเหตุ:** ${reason}` : "",
+          `-# ขอให้เป็นช่วงเวลาที่อบอุ่น ผ่อนคลาย และสบายใจนะคะ ✨`
+        ].filter(Boolean).join("\n")
+      }).catch(() => {});
+    }
+  }
+
+  // 4. บันทึกประวัติใน Order History Log
+  sendOrderHistoryLog(guild, {
+    status: "ADMIN_EXTEND_TIME",
+    orderCode: order.order_code || `HJ-${order.id}`,
+    customerId: order.customer_id,
+    extraInfo: `⏰ แอดมิน <@${adminUser.id}> เพิ่มเวลา +${mins} นาที (รวมเป็น ${newDuration} นาที) หมดเวลาใหม่ที่ <t:${Math.floor(newExpiresAt.getTime() / 1000)}:T>`
+  });
+
+  analyticsService.trackEvent({
+    eventName: "ADMIN_EXTEND_SESSION_TIME",
+    eventCategory: "SESSION",
+    status: "SUCCESS",
+    idempotencyKey: `session:extend:${order.id}:${now}`,
+    actorId: adminUser.id,
+    guildId: guild?.id,
+    orderId: order.id,
+    orderCode: order.order_code,
+    metadata: {
+      addedMinutes: mins,
+      totalDuration: newDuration,
+      reason
+    }
+  });
+
+  return {
+    success: true,
+    newDuration,
+    newExpiresAt,
+    order
+  };
 }
 
 /**
@@ -2209,6 +2355,88 @@ function setupHealJai(client) {
       return interaction.reply(buildAdminDashboardPayload(stats));
     }
 
+    if (action === "extend_time") {
+      await interaction.deferReply({ flags: FLAG_EPHEMERAL }).catch(() => {});
+
+      const minutesInput = interaction.options.getInteger("minutes") || 15;
+      const orderCodeInput = interaction.options.getString("order_code");
+      const customerInput = interaction.options.getUser("customer");
+      const reasonInput = interaction.options.getString("reason") || "Admin Time Extension";
+
+      const supabase = getSupabase();
+      if (!supabase) {
+        return interaction.editReply({
+          content: "❌ ไม่สามารถเชื่อมต่อฐานข้อมูลได้ในขณะนี้ค่ะ"
+        });
+      }
+
+      let order = null;
+
+      // 1. ค้นหาจาก order_code หรือ id
+      if (orderCodeInput) {
+        const cleanCode = orderCodeInput.trim();
+        const { data } = await supabase
+          .from("heal_jai_orders_sessions")
+          .select("*")
+          .or(`order_code.eq.${cleanCode},id.eq.${isNaN(cleanCode) ? -1 : Number(cleanCode)}`)
+          .maybeSingle();
+        order = data;
+      }
+
+      // 2. ค้นหาจาก customer user (เคสล่าสุดที่กำลังดำเนินการอยู่)
+      if (!order && customerInput) {
+        const { data } = await supabase
+          .from("heal_jai_orders_sessions")
+          .select("*")
+          .eq("customer_id", customerInput.id)
+          .eq("session_status", "IN_PROGRESS")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        order = data;
+      }
+
+      // 3. ค้นหาจากห้องที่กำลังพิมพ์คำสั่งอยู่ (ถ้าพิมพ์ในห้องเคส)
+      if (!order && interaction.channelId) {
+        const { data } = await supabase
+          .from("heal_jai_orders_sessions")
+          .select("*")
+          .or(`session_channel_id.eq.${interaction.channelId},session_voice_id.eq.${interaction.channelId},ticket_channel_id.eq.${interaction.channelId}`)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        order = data;
+      }
+
+      if (!order) {
+        return interaction.editReply({
+          content: "⚠️ **ไม่พบเคสหรือเซสชันที่ต้องการเพิ่มเวลาค่ะ**\n> 💡 *กรุณาระบุ `order_code` (เช่น `HJ-...`), หรือระบุ `customer` (ลูกค้าที่กำลังอยู่ในเซสชัน), หรือพิมพ์คำสั่งนี้ในห้องเซสชันโดยตรงค่ะ*"
+        });
+      }
+
+      const extendResult = await extendSessionTime(client, interaction.guild, order, minutesInput, interaction.user, reasonInput);
+      if (!extendResult.success) {
+        return interaction.editReply({
+          content: `❌ ${extendResult.message}`
+        });
+      }
+
+      const unixTimestamp = Math.floor(extendResult.newExpiresAt.getTime() / 1000);
+      return interaction.editReply({
+        content: [
+          `### <:chalkcrown:1536708801481412689>︲__\` เพิ่มเวลาเคสสำเร็จเรียบร้อยแล้ว \`__`,
+          `> 🔖 **รหัสออเดอร์:** \`#${order.order_code || order.id}\``,
+          `> 👤 **ลูกค้า:** <@${order.customer_id}>`,
+          `> 🎯 **ผู้ให้คำปรึกษา:** ${order.counselor_id ? `<@${order.counselor_id}>` : "รอรับเคส"}`,
+          `> ➕ **เวลาที่เพิ่ม:** **+${minutesInput} นาที**`,
+          `> ☕ **เวลารวมทั้งหมด:** \`${extendResult.newDuration}\` นาที`,
+          `> ⏳ **เวลาสิ้นสุดใหม่:** <t:${unixTimestamp}:T> (<t:${unixTimestamp}:R>)`,
+          `> 💬 **เหตุผล/หมายเหตุ:** ${reasonInput}`,
+          `\n✅ ปรับปรุงเวลาในฐานข้อมูล Supabase, ตั้งเวลานับถอยหลังใหม่ และส่งข้อความแจ้งเตือนไปยังห้องบริการเรียบร้อยแล้วค่ะ! 🍵`
+        ].join("\n")
+      });
+    }
+
     if (action === "toggle_maintenance") {
       isMaintenanceMode = !isMaintenanceMode;
       await saveSystemSettings(interaction.user.id);
@@ -2549,6 +2777,101 @@ function setupHealJai(client) {
                  `> ✅ บันทึกลงฐานข้อมูลและซิงก์อัปเดต Component V2 ของที่ปรึกษาเรียบร้อยแล้วค่ะ! ✨${cardLink}`
       });
     }
+  });
+
+  // ── 1.2 Slash Command: /จบเคส (ผู้รับฟัง/พนักงาน สิ้นสุดการให้บริการเคส) ────────
+  registerCommand("จบเคส", async (interaction) => {
+    await interaction.deferReply({ flags: FLAG_EPHEMERAL }).catch(() => {});
+
+    const supabase = getSupabase();
+    if (!supabase) {
+      return interaction.editReply({
+        content: "❌ ไม่สามารถเชื่อมต่อฐานข้อมูลได้ในขณะนี้ค่ะ"
+      });
+    }
+
+    const orderCodeInput = interaction.options.getString("order_code");
+    const noteInput = interaction.options.getString("note");
+
+    let order = null;
+
+    // 1. ค้นหาจาก order_code หรือ id หากระบุ
+    if (orderCodeInput) {
+      const cleanCode = orderCodeInput.trim();
+      const { data } = await supabase
+        .from("heal_jai_orders_sessions")
+        .select("*")
+        .or(`order_code.eq.${cleanCode},id.eq.${isNaN(cleanCode) ? -1 : Number(cleanCode)}`)
+        .maybeSingle();
+      order = data;
+    }
+
+    // 2. ค้นหาจากห้องที่กำลังพิมพ์คำสั่งอยู่ (session_channel_id, session_voice_id, ticket_channel_id)
+    if (!order && interaction.channelId) {
+      const { data } = await supabase
+        .from("heal_jai_orders_sessions")
+        .select("*")
+        .or(`session_channel_id.eq.${interaction.channelId},session_voice_id.eq.${interaction.channelId},ticket_channel_id.eq.${interaction.channelId}`)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      order = data;
+    }
+
+    // 3. ค้นหาจากเคส active ของพนักงานที่พิมพ์คำสั่ง
+    if (!order) {
+      const { data } = await supabase
+        .from("heal_jai_orders_sessions")
+        .select("*")
+        .eq("counselor_id", interaction.user.id)
+        .in("session_status", ["IN_PROGRESS", "WAITING_FOR_PROVIDER"])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      order = data;
+    }
+
+    if (!order) {
+      return interaction.editReply({
+        content: "⚠️ **ไม่พบเคสหรือเซสชันที่กำลังดำเนินการค่ะ**\n> 💡 *กรุณาพิมพ์คำสั่งนี้ในห้องบริการของเคส หรือระบุ `order_code` ค่ะ*"
+      });
+    }
+
+    if (order.session_status === "COMPLETED" || order.session_status === "CANCELLED") {
+      return interaction.editReply({
+        content: `⚠️ เคส #${order.order_code || order.id} อยู่ในสถานะ \`${order.session_status}\` (สิ้นสุดไปแล้ว) ค่ะ`
+      });
+    }
+
+    // ตรวจสอบสิทธิ์: ผู้รับฟังประจำเคส หรือแอดมิน/Owner
+    const isAssignedCounselor = order.counselor_id && order.counselor_id === interaction.user.id;
+    const isStaff = (process.env.OWNER_ID && interaction.user.id === process.env.OWNER_ID) ||
+                    (interaction.guild && interaction.guild.ownerId === interaction.user.id) ||
+                    interaction.member?.roles?.cache?.some((r) => [STAFF_ROLE_ID, "1144701361448038512", "1144697989986791576", "1144698080239829092"].includes(r.id)) ||
+                    interaction.member?.permissions?.has(PermissionFlagsBits.ManageGuild) ||
+                    interaction.member?.permissions?.has(PermissionFlagsBits.Administrator) ||
+                    process.env.DEV_MODE === "true";
+
+    if (!isAssignedCounselor && !isStaff) {
+      return interaction.editReply({
+        content: `❌ ขออภัยค่ะ เฉพาะผู้ให้คำปรึกษาประจำเคสนี้ (<@${order.counselor_id}>) หรือทีมงานแอดมินเท่านั้นที่สามารถใช้คำสั่งนี้ได้นะคะ`
+      });
+    }
+
+    // เรียก handleSessionExpiry ซึ่งจะ:
+    // - ส่งข้อความรีวิวและขอบคุณลูกค้า
+    // - ล็อกสิทธิ์ / ย้ายห้องเข้าหมวดหมู่อาร์ไคฟ์
+    // - อัปเดตสถิติและรายได้ของผู้รับฟัง
+    // - อัปเดตสถานะใน DB เป็น COMPLETED
+    await handleSessionExpiry(client, interaction.guild, order.id, {
+      isEarly: false,
+      endedBy: interaction.user.id,
+      note: noteInput
+    });
+
+    return interaction.editReply({
+      content: `✅ **สิ้นสุดการให้บริการเคส #${order.order_code || order.id} เรียบร้อยแล้วค่ะ**\n> 🍵 ขอบคุณสำหรับการดูแลและส่งมอบความอบอุ่นให้ลูกค้านะคะ ระบบได้ส่งการ์ดรีวิวและจัดเก็บห้องเรียบร้อยแล้วค่ะ ✨`
+    });
   });
 
   /**
@@ -6306,6 +6629,36 @@ function setupHealJai(client) {
       });
     }
 
+    if (customId.startsWith("heal_jai_admin_extend_")) {
+      const parts = customId.replace("heal_jai_admin_extend_", "").split("_");
+      const orderId = parts[0];
+      const minutes = parseInt(parts[1], 10) || 15;
+
+      const supabase = getSupabase();
+      if (!supabase) return interaction.reply({ content: "❌ ไม่สามารถเชื่อมต่อฐานข้อมูลได้", flags: FLAG_EPHEMERAL });
+
+      const { data: order } = await supabase
+        .from("heal_jai_orders_sessions")
+        .select("*")
+        .eq("id", orderId)
+        .maybeSingle();
+
+      if (!order) {
+        return interaction.reply({ content: "⚠️ ไม่พบข้อมูลเคสหรือออเดอร์นี้ในระบบค่ะ", flags: FLAG_EPHEMERAL });
+      }
+
+      const extendResult = await extendSessionTime(client, guild, order, minutes, user, "Admin Quick Button Extension");
+      if (!extendResult.success) {
+        return interaction.reply({ content: `❌ ${extendResult.message}`, flags: FLAG_EPHEMERAL });
+      }
+
+      const unixTimestamp = Math.floor(extendResult.newExpiresAt.getTime() / 1000);
+      return interaction.reply({
+        content: `⏱️ **เพิ่มเวลาเคส #${order.order_code || order.id} สำเร็จ!**\n> ➕ เพิ่ม: **+${minutes} นาที** (รวมเป็น \`${extendResult.newDuration}\` นาที)\n> ⏳ เวลาสิ้นสุดใหม่: <t:${unixTimestamp}:T> (<t:${unixTimestamp}:R>)`,
+        flags: FLAG_EPHEMERAL
+      });
+    }
+
     if (customId.startsWith("heal_jai_admin_delete_room_")) {
       const targetId = customId.replace("heal_jai_admin_delete_room_", "");
       const ch = guild.channels.cache.get(targetId) || await guild.channels.fetch(targetId).catch(() => null);
@@ -6542,5 +6895,6 @@ module.exports = {
   buildDailyReportPayload,
   analyticsService,
   shiftService,
-  financeService
+  financeService,
+  extendSessionTime
 };

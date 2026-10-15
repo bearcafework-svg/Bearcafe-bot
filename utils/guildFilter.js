@@ -403,7 +403,7 @@ function setupGuildFilter(client) {
           const cmdName = (interaction?.commandName || "").toLowerCase();
           const customId = interaction?.customId || "";
           // ป้องกัน Heal Jai slash commands และคำสั่ง dev-only บนกิลด์ Bear Cafe เมื่อไม่ใช่บอท Dev
-          if (["heal-component", "อนุมัติสลิป", "บัตรพนักงาน", "แก้ไขพนักงาน", "healjai-admin"].includes(cmdName)) {
+          if (["heal-component", "อนุมัติสลิป", "บัตรพนักงาน", "แก้ไขพนักงาน", "healjai-admin", "จบเคส"].includes(cmdName)) {
             return false;
           }
           if (process.env.DEV_MODE !== "true" && cmdName === "clear") {

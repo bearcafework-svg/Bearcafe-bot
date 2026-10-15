@@ -562,6 +562,7 @@ const HEAL_JAI_SLASH_COMMANDS = [
         required: true,
         choices: [
           { name: "📊 แผงควบคุม & สรุปสถานะ (Dashboard)", value: "dashboard" },
+          { name: "⏱️ เพิ่ม/ขยายเวลาเคสลูกค้า (Extend Case Time)", value: "extend_time" },
           { name: "🛠️ สลับโหมดเปิด-ปิดบริการ (Toggle Maintenance)", value: "toggle_maintenance" },
           { name: "📜 สลับเปิด-ปิดการกดข้อตกลง (Toggle Terms Acceptance)", value: "toggle_terms" },
           { name: "🧹 เคลียร์ห้องค้างตกค้างทันที (Run Cleanup Now)", value: "run_cleanup" },
@@ -570,6 +571,32 @@ const HEAL_JAI_SLASH_COMMANDS = [
           { name: "🔍 ตรวจสอบและจัดการเคส (Manage Case)", value: "manage_case" },
           { name: "⭐ ปรับสถิติที่ปรึกษา (Adjust Counselor Stats)", value: "adjust_counselor_stats" },
         ],
+      },
+      {
+        name: "minutes",
+        description: "จำนวนนาทีที่ต้องการเพิ่มให้เคส (เช่น 15, 30, 60 หรือระบุเองตามใจชอบ)",
+        type: ApplicationCommandOptionType.Integer,
+        required: false,
+        minValue: 1,
+        maxValue: 480,
+      },
+      {
+        name: "order_code",
+        description: "รหัสออเดอร์ (เช่น HJ-...) สำหรับคำสั่งจัดการเคส/เพิ่มเวลา",
+        type: ApplicationCommandOptionType.String,
+        required: false,
+      },
+      {
+        name: "customer",
+        description: "เลือกลูกค้าเจ้าของเคสที่ต้องการเพิ่มเวลา",
+        type: ApplicationCommandOptionType.User,
+        required: false,
+      },
+      {
+        name: "reason",
+        description: "เหตุผลหรือบันทึกเพิ่มเติมในการเพิ่มเวลา (ไม่บังคับ)",
+        type: ApplicationCommandOptionType.String,
+        required: false,
       },
       {
         name: "counselor",
@@ -605,9 +632,23 @@ const HEAL_JAI_SLASH_COMMANDS = [
           { name: "✏️ กำหนดค่าใหม่ตรงๆ (Set Exact Value)", value: "set" },
         ],
       },
+    ],
+  },
+
+  // 6. /จบเคส (End Case - Counselor & Staff)
+  {
+    name: "จบเคส",
+    description: "[ผู้รับฟัง/แอดมิน] สิ้นสุดการให้บริการเคส ส่งการ์ดรีวิว และจัดเก็บห้อง",
+    options: [
       {
         name: "order_code",
-        description: "รหัสออเดอร์ (เช่น HJ-...) สำหรับคำสั่งจัดการเคส",
+        description: "รหัสออเดอร์ (เช่น HJ-...) (เว้นว่างได้หากพิมพ์ในห้องเคสโดยตรง)",
+        type: ApplicationCommandOptionType.String,
+        required: false,
+      },
+      {
+        name: "note",
+        description: "บันทึกเพิ่มเติมจากผู้รับฟัง (ไม่บังคับ)",
         type: ApplicationCommandOptionType.String,
         required: false,
       },

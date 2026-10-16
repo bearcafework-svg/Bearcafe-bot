@@ -82,8 +82,8 @@ function buildCheckoutTicketPayload(orderInfo = {}) {
     const summaryLines = [
       `### <:matchamochi:1536695320174534699>︲__\` สรุปรายการคำสั่งซื้อของคุณ \`__`,
       `* 🍵⠀**แพ็กเกจ:** ${orderInfo.packageName} (${orderInfo.duration} นาที)`,
-      orderInfo.isSilent ? `* 🌙⠀**ท็อปปิ้ง:** นั่งเงียบเป็นเพื่อน (+15 บาท)` : null,
-      orderInfo.isSpecific && orderInfo.counselorName ? `* 🎯⠀**ระบุตัวผู้รับฟัง:** ${orderInfo.counselorName} (+30 บาท)` : null,
+      orderInfo.isSilent ? `* 🌙⠀**ท็อปปิ้ง:** นั่งเงียบเป็นเพื่อน (+19 บาท)` : null,
+      orderInfo.isSpecific && orderInfo.counselorName ? `* 🎯⠀**ระบุตัวผู้รับฟัง:** ${orderInfo.counselorName} (+39 บาท)` : null,
       orderInfo.isBooster ? `* <:boosthand:1536707497174507620>⠀**สิทธิพิเศษ:** Server Booster (+5 นาทีฟรี)` : null,
       `# ยอดชำระสุทธิ: ${orderInfo.totalPrice || 0} บาท`,
       ``,
@@ -1248,34 +1248,53 @@ function buildEditProfileModal(currentBio = "", currentImageUrl = "") {
 }
 
 /**
- * 20. แผงควบคุมหลังบ้าน Heal Jai (Admin Control Hub Dashboard)
- * @param {object} stats - { isMaintenance, onlineCounselors, activeSessions, completedToday, totalRevenueToday, platformShareToday, counselorShareToday }
+ * 20. แผงควบคุมหลังบ้าน Heal Jai (Admin Control Hub Dashboard - Button Menu)
+ * @param {object} stats - { isMaintenance, isTermsDisabled, operatingHours, isCurrentlyOpen, onlineCounselors, activeSessions, completedToday, totalRevenueToday, platformShareToday, counselorShareToday }
  */
 function buildAdminDashboardPayload(stats) {
-  const statusEmoji = stats.isMaintenance ? "🔴" : "🟢";
-  const statusText = stats.isMaintenance ? "**ปิดปรับปรุงชั่วคราว (Maintenance Mode)**" : "**เปิดให้บริการตามปกติ (Online)**";
-  const maintenanceBtnStyle = stats.isMaintenance ? 3 : 4; // Green to Open, Red to Close
-  const maintenanceBtnLabel = stats.isMaintenance ? "🟢 เปิดให้บริการระบบ" : "🔴 ปิดปรับปรุงระบบชั่วคราว";
+  const isMaintenance = Boolean(stats.isMaintenance);
+  const isTermsDisabled = Boolean(stats.isTermsDisabled);
+  const opHours = stats.operatingHours || { enabled: false, openTime: "18:00", closeTime: "02:00" };
+  const isOpen = stats.isCurrentlyOpen !== undefined ? Boolean(stats.isCurrentlyOpen) : (!isMaintenance);
+
+  // Status badges
+  const shopStatusEmoji = isMaintenance ? "🔴" : (isOpen ? "🟢" : "🌙");
+  const shopStatusText = isMaintenance
+    ? "**ปิดปรับปรุงชั่วคราว (Maintenance Mode)**"
+    : (isOpen
+        ? "**เปิดให้บริการตามปกติ (Open)**"
+        : `**นอกเวลาทำการ (Closed)** (เปิด ${opHours.openTime} - ${opHours.closeTime} น.)`);
+
+  const scheduleStatusText = opHours.enabled
+    ? `\`${opHours.openTime} - ${opHours.closeTime} น.\` (${isOpen ? "🟢 ในเวลาทำการ" : "🔴 นอกเวลาทำการ"})`
+    : `🟢 **เปิด 24 ชั่วโมง** (ปิดระบบจำกัดเวลา)`;
+
+  const termsStatusText = isTermsDisabled
+    ? "🔴 **ปิดรับชั่วคราว**"
+    : "🟢 **เปิดรับการยินยอมตามปกติ**";
 
   return {
     flags: FLAG_EPHEMERAL,
     embeds: [
       {
-        title: "⚙️  Heal Jai — แผงควบคุมหลังบ้านสำหรับทีมงาน",
+        title: "⚙️  Bear Cafe ฮีลใจ — แผงควบคุมระบบสำหรับทีมงาน",
         description: [
-          `-# ยินดีต้อนรับสู่ระบบควบคุมและตรวจสอบการทำงานของ Bear Cafe ฮีลใจ\n`,
-          `### 📡 สถานะระบบปัจจุบัน`,
-          `* ${statusEmoji}⠀**โหมดบริการ:** ${statusText}`,
-          `* 🟢⠀**ผู้รับฟังออนไลน์:** **${stats.onlineCounselors || 0}** คน`,
-          `* 🍵⠀**เคสที่กำลังดูแลอยู่:** **${stats.activeSessions || 0}** เซสชัน\n`,
+          `-# เมนูควบคุมการทำงาน ตรวจสอบสถานะร้าน และจัดการเคสแบบเรียลไทม์\n`,
+          `### 🏪 สถานะการเปิด-ปิดร้าน & เวลาทำการ`,
+          `* ${shopStatusEmoji}⠀**สถานะการรับงาน:** ${shopStatusText}`,
+          `* ⏰⠀**ตารางเวลาทำการ:** ${scheduleStatusText}`,
+          `* 📜⠀**การรับข้อตกลงและนโยบาย:** ${termsStatusText}\n`,
+          `### 👥 ทีมงาน & เซสชันสด`,
+          `* 🟢⠀**ผู้รับฟังพร้อมให้บริการ (Online):** **${stats.onlineCounselors || 0}** คน`,
+          `* 🍵⠀**เคสที่กำลังดูแลอยู่ขณะนี้:** **${stats.activeSessions || 0}** เซสชัน\n`,
           `### 📊 สรุปยอดวันนี้ (Today's Statistics)`,
           `* ✅⠀**เซสชันสำเร็จวันนี้:** **${stats.completedToday || 0}** เคส`,
           `* 💰⠀**ยอดเงินสะพัดรวม:** **${stats.totalRevenueToday || 0}** บาท`,
           `* 🏢⠀**ส่วนแบ่งคาเฟ่ (30%):** **${stats.platformShareToday || 0}** บาท`,
           `* 👥⠀**ส่วนแบ่งที่ปรึกษา (70%):** **${stats.counselorShareToday || 0}** บาท\n`,
-          `> 💡 *คลิกปุ่มด้านล่างเพื่อจัดการและควบคุมการทำงานได้ทันที*`
+          `> 💡 *เลือกกดปุ่มเมนูด้านล่างเพื่อตั้งค่าหรือสั่งการระบบได้ทันทีค่ะ*`
         ].join("\n"),
-        color: stats.isMaintenance ? 0xED4245 : 0x57F287,
+        color: isMaintenance ? 0xED4245 : (isOpen ? 0x57F287 : 0xFEE75C),
         footer: {
           text: "Bear Cafe • Heal Jai Admin Control Hub"
         },
@@ -1283,26 +1302,59 @@ function buildAdminDashboardPayload(stats) {
       }
     ],
     components: [
+      // Row 1: ควบคุมเวลาเปิด-ปิด และสถานะการรับงาน
       {
         type: 1,
         components: [
           {
             type: 2,
-            style: maintenanceBtnStyle,
-            label: maintenanceBtnLabel,
+            style: 2,
+            label: "🕒 ตั้งเวลาเปิด-ปิด",
+            emoji: { name: "⏰" },
+            custom_id: "heal_jai_admin_set_hours"
+          },
+          {
+            type: 2,
+            style: opHours.enabled ? 3 : 2,
+            label: opHours.enabled ? "⏰ โหมดเวลา: เปิดอยู่" : "⏰ โหมดเวลา: ปิด (24 ชม.)",
+            custom_id: "heal_jai_admin_toggle_hours"
+          },
+          {
+            type: 2,
+            style: isMaintenance ? 3 : 4,
+            label: isMaintenance ? "🟢 เปิดร้านทันที" : "🔴 ปิดร้านทันที",
             custom_id: "heal_jai_admin_toggle_maintenance"
           },
           {
             type: 2,
+            style: isTermsDisabled ? 3 : 2,
+            label: isTermsDisabled ? "📜 เปิดรับข้อตกลง" : "📜 ปิดรับข้อตกลง",
+            custom_id: "heal_jai_admin_toggle_terms"
+          }
+        ]
+      },
+      // Row 2: จัดการเคส & ซ่อมบำรุง
+      {
+        type: 1,
+        components: [
+          {
+            type: 2,
+            style: 1,
+            label: "⏱️ เพิ่มเวลาเคส",
+            emoji: { name: "⏳" },
+            custom_id: "heal_jai_admin_open_extend_modal"
+          },
+          {
+            type: 2,
             style: 2,
-            label: "🧹 ล้างห้องค้างทันที",
+            label: "🧹 ล้างห้องค้าง",
             emoji: { name: "🧹" },
             custom_id: "heal_jai_admin_run_cleanup"
           },
           {
             type: 2,
             style: 1,
-            label: "📑 ส่งสรุปยอดประจำวัน",
+            label: "📑 ส่งสรุปยอดวันนี้",
             emoji: { name: "📊" },
             custom_id: "heal_jai_admin_send_report"
           },
@@ -1317,6 +1369,82 @@ function buildAdminDashboardPayload(stats) {
       }
     ]
   };
+}
+
+/**
+ * Modal สำหรับตั้งเวลาเปิด-ปิดการสั่งเมนู (Operating Hours Modal)
+ * @param {object} currentHours - { openTime, closeTime }
+ */
+function buildOperatingHoursModal(currentHours = {}) {
+  const modal = new ModalBuilder()
+    .setCustomId("heal_jai_admin_modal_hours")
+    .setTitle("⏰ ตั้งเวลาเปิด-ปิดการสั่งเมนู");
+
+  const openInput = new TextInputBuilder()
+    .setCustomId("open_time")
+    .setLabel("เวลาเปิดให้บริการ (เช่น 18:00)")
+    .setStyle(TextInputStyle.Short)
+    .setValue(currentHours.openTime || "18:00")
+    .setPlaceholder("18:00")
+    .setRequired(true)
+    .setMinLength(4)
+    .setMaxLength(5);
+
+  const closeInput = new TextInputBuilder()
+    .setCustomId("close_time")
+    .setLabel("เวลาปิดให้บริการ (เช่น 02:00)")
+    .setStyle(TextInputStyle.Short)
+    .setValue(currentHours.closeTime || "02:00")
+    .setPlaceholder("02:00")
+    .setRequired(true)
+    .setMinLength(4)
+    .setMaxLength(5);
+
+  modal.addComponents(
+    new ActionRowBuilder().addComponents(openInput),
+    new ActionRowBuilder().addComponents(closeInput)
+  );
+
+  return modal;
+}
+
+/**
+ * Modal สำหรับเพิ่มเวลาเคสลูกค้า (Admin Extend Case Time Modal)
+ */
+function buildAdminExtendModal() {
+  const modal = new ModalBuilder()
+    .setCustomId("heal_jai_admin_modal_extend")
+    .setTitle("⏱️ เพิ่ม/ขยายเวลาเคสลูกค้า");
+
+  const orderInput = new TextInputBuilder()
+    .setCustomId("order_code")
+    .setLabel("รหัสออเดอร์ (เช่น HJ-... หรือตัวเลข ID)")
+    .setStyle(TextInputStyle.Short)
+    .setPlaceholder("HJ-XXXX หรือ พิมพ์เลข ID เคส")
+    .setRequired(true);
+
+  const minutesInput = new TextInputBuilder()
+    .setCustomId("minutes")
+    .setLabel("จำนวนนาทีที่ต้องการเพิ่ม (เช่น 15, 30, 60)")
+    .setStyle(TextInputStyle.Short)
+    .setValue("15")
+    .setPlaceholder("15")
+    .setRequired(true);
+
+  const reasonInput = new TextInputBuilder()
+    .setCustomId("reason")
+    .setLabel("เหตุผล / บันทึกเพิ่มเติม (ไม่บังคับ)")
+    .setStyle(TextInputStyle.Short)
+    .setPlaceholder("แอดมินชดเชยเวลา / ลูกค้าขอต่อเวลา")
+    .setRequired(false);
+
+  modal.addComponents(
+    new ActionRowBuilder().addComponents(orderInput),
+    new ActionRowBuilder().addComponents(minutesInput),
+    new ActionRowBuilder().addComponents(reasonInput)
+  );
+
+  return modal;
 }
 
 /**
@@ -1886,6 +2014,8 @@ module.exports = {
   buildAdminEditCounselorModal,
   buildCounselorWalletHistoryPayload,
   buildIncompleteOrderWarningPayload,
+  buildOperatingHoursModal,
+  buildAdminExtendModal,
   ALL_SPECIALTIES
 };
 

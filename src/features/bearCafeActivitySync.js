@@ -4,7 +4,7 @@
 // อภิสิทธิ์เฉพาะเซิร์ฟเวอร์หลัก Bear Cafe โดยใช้บอทหลัก
 // ===================================================
 
-const { Client, GatewayIntentBits } = require("discord.js");
+const { Client, GatewayIntentBits, Events } = require("discord.js");
 const { createClient } = require("@supabase/supabase-js");
 
 const BEARCAFE_GUILD_ID = process.env.GUILD_ID || "1144251788493602848";
@@ -174,7 +174,8 @@ function setupBearCafeActivitySync(client) {
       ],
     });
 
-    fallbackBotClient.once("ready", () => {
+    const clientReadyEvent = Events.ClientReady || "clientReady";
+    fallbackBotClient.once(clientReadyEvent, () => {
       const guild = fallbackBotClient.guilds.cache.get(BEARCAFE_GUILD_ID);
       if (guild) {
         console.log(`[bearCafeActivitySync] Dedicated Main Bot watcher connected to ${guild.name}`);
@@ -191,7 +192,8 @@ function setupBearCafeActivitySync(client) {
   }
 
   // รอจนกว่า client จะพร้อม (ready event)
-  client.once("ready", () => {
+  const clientReadyEvent = Events.ClientReady || "clientReady";
+  client.once(clientReadyEvent, () => {
     const guild = client.guilds.cache.get(BEARCAFE_GUILD_ID);
     if (guild) {
       startTrackingWithGuild(guild);

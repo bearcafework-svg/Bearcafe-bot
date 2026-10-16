@@ -49,26 +49,30 @@ class ShiftService {
     newStatus,
     reason = "MANUAL_ACTION",
     orderId = null,
+    previousStatus = null,
     metadata = {}
   }) {
     if (!supabase || !counselorId || !newStatus) return null;
 
     try {
-      // 1. Fetch current status
-      const { data: current, error: fetchErr } = await supabase
-        .from("heal_jai_counselors")
-        .select("status, display_name")
-        .eq("user_id", counselorId)
-        .maybeSingle();
+      // 1. Fetch current status if previousStatus not provided
+      let prevStatus = previousStatus;
+      if (!prevStatus) {
+        const { data: current, error: fetchErr } = await supabase
+          .from("heal_jai_counselors")
+          .select("status, display_name")
+          .eq("user_id", counselorId)
+          .maybeSingle();
 
-      if (fetchErr) {
-        console.error(`[HealJai-Shift] Error fetching status for ${counselorId}:`, fetchErr.message);
+        if (fetchErr) {
+          console.error(`[HealJai-Shift] Error fetching status for ${counselorId}:`, fetchErr.message);
+        }
+
+        prevStatus = current?.status || "UNKNOWN";
       }
 
-      const prevStatus = current?.status || "UNKNOWN";
-
       // 2. Prevent redundant transition if status is already identical
-      if (prevStatus === newStatus && reason !== "FORCE_SYNC") {
+      if (prevStatus === newStatus && reason !== "FORCE_SYNC" && reason !== "MIDNIGHT_RESET") {
         return { unchanged: true, status: newStatus };
       }
 
@@ -90,7 +94,7 @@ class ShiftService {
       }
 
       // 4. Record audit log into heal_jai_counselor_shifts
-      await supabase
+      const { error: shiftLogErr } = await supabase
         .from("heal_jai_counselor_shifts")
         .insert({
           counselor_id: counselorId,
@@ -100,10 +104,11 @@ class ShiftService {
           reason: reason,
           order_id: orderId ? Number(orderId) : null,
           metadata: metadata
-        })
-        .catch(err => {
-          console.error(`[HealJai-Shift] Failed to insert shift log:`, err.message);
         });
+
+      if (shiftLogErr) {
+        console.error(`[HealJai-Shift] Failed to insert shift log:`, shiftLogErr.message);
+      }
 
       // 5. Emit Analytics Event
       const idempotencyKey = `shift:${counselorId}:${prevStatus}:${newStatus}:${Date.now()}`;

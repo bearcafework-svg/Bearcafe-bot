@@ -46,6 +46,8 @@ const {
   buildAdminEditCounselorModal,
   buildCounselorWalletHistoryPayload,
   buildIncompleteOrderWarningPayload,
+  buildOperatingHoursModal,
+  buildAdminExtendModal,
   ALL_SPECIALTIES
 } = require("./healJaiPayloads");
 
@@ -212,6 +214,44 @@ let isMaintenanceMode = false;
 // สวิตช์สถานะเปิด-ปิดการกดข้อตกลงและนโยบาย (Terms Acceptance Toggle)
 let isTermsDisabled = false;
 
+// การตั้งค่าช่วงเวลาเปิด-ปิดการให้บริการสั่งเมนู (Operating Hours)
+let operatingHours = {
+  enabled: false,
+  openTime: "18:00",
+  closeTime: "02:00"
+};
+
+/**
+ * ตรวจสอบว่าขณะนี้อยู่ในเวลาทำการหรือไม่ (อิงเวลาประเทศไทย Asia/Bangkok UTC+7)
+ */
+function isOperatingHoursOpen() {
+  if (isMaintenanceMode) return false;
+  if (!operatingHours || !operatingHours.enabled) return true;
+
+  const now = new Date();
+  const bkkTime = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Bangkok",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  }).format(now);
+
+  const [curH, curM] = bkkTime.split(":").map(Number);
+  const [openH, openM] = (operatingHours.openTime || "18:00").split(":").map(Number);
+  const [closeH, closeM] = (operatingHours.closeTime || "02:00").split(":").map(Number);
+
+  const curMin = curH * 60 + curM;
+  const openMin = openH * 60 + openM;
+  const closeMin = closeH * 60 + closeM;
+
+  if (openMin < closeMin) {
+    return curMin >= openMin && curMin < closeMin;
+  } else {
+    // ข้ามวัน/ข้ามเที่ยงคืน เช่น 18:00 - 02:00
+    return curMin >= openMin || curMin < closeMin;
+  }
+}
+
 /**
  * คำนวณสถิติภาพรวมสำหรับแผงควบคุมแอดมิน (Admin Stats)
  */
@@ -219,6 +259,9 @@ async function getAdminStats(guild) {
   const supabase = getSupabase();
   const stats = {
     isMaintenance: isMaintenanceMode,
+    isTermsDisabled: isTermsDisabled,
+    operatingHours: operatingHours,
+    isCurrentlyOpen: isOperatingHoursOpen(),
     onlineCounselors: 0,
     activeSessions: 0,
     completedToday: 0,
@@ -411,10 +454,11 @@ async function resetAllCounselorStatuses(guild = null) {
 
     console.log(`[HealJai] ✅ Successfully reset working status to OFFLINE for ${userIdsToReset.length} counselors.`);
 
-    for (const uid of userIdsToReset) {
+    for (const c of counselorsToReset) {
       shiftService.updateCounselorStatus(supabase, {
-        counselorId: uid,
+        counselorId: c.user_id,
         guildId: guild?.id || "1536199707922141254",
+        previousStatus: c.status,
         newStatus: "OFFLINE",
         reason: "MIDNIGHT_RESET"
       }).catch(() => {});
@@ -730,7 +774,14 @@ async function loadSystemSettings() {
       if (typeof data.value.terms_disabled === "boolean") {
         isTermsDisabled = data.value.terms_disabled;
       }
-      console.log(`[HealJai] ⚙️ Loaded system settings from site_settings: Maintenance=${isMaintenanceMode}, TermsDisabled=${isTermsDisabled}`);
+      if (data.value.operating_hours && typeof data.value.operating_hours === "object") {
+        operatingHours = {
+          enabled: Boolean(data.value.operating_hours.enabled),
+          openTime: data.value.operating_hours.openTime || "18:00",
+          closeTime: data.value.operating_hours.closeTime || "02:00"
+        };
+      }
+      console.log(`[HealJai] ⚙️ Loaded system settings: Maintenance=${isMaintenanceMode}, TermsDisabled=${isTermsDisabled}, OperatingHours=${JSON.stringify(operatingHours)}`);
     }
   } catch (err) {
     console.error("[HealJai] Error loading system settings:", err.message);
@@ -747,6 +798,7 @@ async function saveSystemSettings(userId = null) {
     const payload = {
       maintenance_mode: isMaintenanceMode,
       terms_disabled: isTermsDisabled,
+      operating_hours: operatingHours,
       updated_by: userId || null,
       updated_at: new Date().toISOString()
     };
@@ -1031,19 +1083,13 @@ function scheduleSessionRoomCleanup(client, guild, orderId, textChannelId, remai
             }
           }
 
-          if (textCh.type === ChannelType.GuildText || serviceMode === "chat") {
-            // บริการแชท / ห้องข้อความ: ล้างสิทธิ์เฉพาะทั้งหมด ย้ายไปหมวดหมู่ประวัติ และซิงค์สิทธิ์ตามหมวดหมู่
-            await textCh.permissionOverwrites.set([]).catch(() => {});
-            await textCh.setParent(CHAT_ARCHIVE_CATEGORY_ID, { lockPermissions: true }).catch(async (e) => {
-              console.error("[HealJai] Failed to set parent category for completed chat session:", e.message);
-              await textCh.lockPermissions().catch(() => {});
-            });
-            console.log(`[HealJai] 📦 ย้ายห้องแชทเสร็จสิ้น #${textCh.name} (${textCh.id}) ไปยังหมวดหมู่ ${CHAT_ARCHIVE_CATEGORY_ID} เรียบร้อยแล้ว`);
-          } else {
-            // บริการคอลเสียง / ห้องเสียง: ลบห้องตามเดิมหลังครบ 10 นาที
-            await textCh.delete("HealJai voice session 10-minute retention expired").catch(() => {});
-            console.log(`[HealJai] 🗑️ ลบห้องเสียง/แชทคู่สายที่เสร็จสิ้น #${textCh.name} (${textCh.id}) เรียบร้อยแล้ว`);
-          }
+          // เก็บห้องไว้ทั้งสองห้อง (ทั้งแชทและคอลเสียง): ห้ามลบเด็ดขาด ให้ย้ายไปหมวดหมู่ประวัติ 1555776168798720031
+          await textCh.permissionOverwrites.set([]).catch(() => {});
+          await textCh.setParent(CHAT_ARCHIVE_CATEGORY_ID, { lockPermissions: true }).catch(async (e) => {
+            console.error("[HealJai] Failed to set parent category for completed session:", e.message);
+            await textCh.lockPermissions().catch(() => {});
+          });
+          console.log(`[HealJai] 📦 ย้ายห้องเซสชันเสร็จสิ้น #${textCh.name} (${textCh.id}) ไปยังหมวดหมู่ ${CHAT_ARCHIVE_CATEGORY_ID} เรียบร้อยแล้ว (เก็บประวัติ)`);
         }
       }
     } catch (err) {
@@ -1124,24 +1170,17 @@ async function cleanStaleChannels(client) {
 
           // กฎความปลอดภัย 3: เซสชันที่จบแล้ว (COMPLETED)
           if (order.session_status === "COMPLETED") {
-            if (order.service_mode === "chat") {
-              // บริการแชท: ห้ามลบห้องเด็ดขาด! ย้ายไปหมวดหมู่ 1555776168798720031 ล้างสิทธิ์ทั้งหมด แล้วซิงค์ตามหมวดหมู่
-              if (ch.parentId !== CHAT_ARCHIVE_CATEGORY_ID) {
-                const endedAt = order.ended_at ? new Date(order.ended_at).getTime() : ch.createdTimestamp;
-                if (now - endedAt >= SESSION_RETENTION_MS) {
-                  await ch.permissionOverwrites.set([]).catch(() => {});
-                  await ch.setParent(CHAT_ARCHIVE_CATEGORY_ID, { lockPermissions: true }).catch(async () => {
-                    await ch.lockPermissions().catch(() => {});
-                  });
-                }
+            // ห้ามลบห้องเด็ดขาด (ทั้งแชทและคอลเสียง): ย้ายไปหมวดหมู่ CHAT_ARCHIVE_CATEGORY_ID ล้างสิทธิ์ทั้งหมด แล้วซิงค์ตามหมวดหมู่
+            if (ch.parentId !== CHAT_ARCHIVE_CATEGORY_ID) {
+              const endedAt = order.ended_at ? new Date(order.ended_at).getTime() : ch.createdTimestamp;
+              if (now - endedAt >= SESSION_RETENTION_MS) {
+                await ch.permissionOverwrites.set([]).catch(() => {});
+                await ch.setParent(CHAT_ARCHIVE_CATEGORY_ID, { lockPermissions: true }).catch(async () => {
+                  await ch.lockPermissions().catch(() => {});
+                });
               }
-              continue;
             }
-
-            const endedAt = order.ended_at ? new Date(order.ended_at).getTime() : ch.createdTimestamp;
-            if (now - endedAt < RETENTION_24H_MS) {
-              continue; // คอลเสียง: ยังไม่ครบ 24 ชม. ห้ามลบ
-            }
+            continue;
           }
         } else {
           // ถ้าไม่มีข้อมูลใน DB (Orphaned room) ต้องมีอายุอย่างน้อย 2 ชั่วโมงขึ้นไป
@@ -1547,6 +1586,18 @@ function clearSessionTimer(orderId) {
   }
 }
 
+function clearProviderReadyTimers(orderId) {
+  if (providerReadyTimers.has(orderId)) {
+    const activeTimeouts = providerReadyTimers.get(orderId);
+    if (Array.isArray(activeTimeouts)) {
+      activeTimeouts.forEach((t) => clearTimeout(t));
+    } else {
+      clearTimeout(activeTimeouts);
+    }
+    providerReadyTimers.delete(orderId);
+  }
+}
+
 async function notifySessionWarning(guild, orderId, minutesLeft) {
   const supabase = getSupabase();
   if (!supabase || !guild) return;
@@ -1669,10 +1720,7 @@ async function handleSessionExpiry(client, guild, orderId, { isEarly = false } =
   if (!supabase) return;
 
   clearSessionTimer(orderId);
-  if (providerReadyTimers.has(orderId)) {
-    clearTimeout(providerReadyTimers.get(orderId));
-    providerReadyTimers.delete(orderId);
-  }
+  clearProviderReadyTimers(orderId);
 
   // Guard: ถ้าจบไปแล้ว ไม่ทำซ้ำ
   const { data: order } = await supabase
@@ -1748,13 +1796,50 @@ async function handleSessionExpiry(client, guild, orderId, { isEarly = false } =
     : null;
 
   if (sessionChannel && sessionChannel.id !== order.ticket_channel_id) {
-    const thankYouMessage = [
-      `## <@${order.customer_id}> ขอบคุณที่ใช้บริการกับเราในครั้งนี้นะคะ <a:heartoutlines:1536268541144076369>`,
-      `> หากสะดวก ฝากทุกท่านช่วยรีวิวหรือแชร์ฟีดแบ็กเกี่ยวกับการใช้บริการได้ที่ <#1545240537089703986> เพื่อให้เราได้นำความคิดเห็นไปพัฒนาและปรับปรุงการทำงานให้ดียิ่งขึ้นนะคะ ขอบคุณมาก ๆ ค่ะ <a:511398spin:1536700803732209736>\n`,
-      `-# ⏱️ ห้องสนทนานี้ถูกปรับเป็นโหมดอ่านอย่างเดียว และจะถูกจัดเก็บอัตโนมัติใน 10 นาทีค่ะ`
-    ].join("\n");
+    const thankYouPayload = sanitizeComponentV2({
+      flags: FLAG_V2,
+      components: [
+        {
+          type: 17,
+          components: [
+            {
+              type: 10,
+              content: `## <@${order.customer_id}> ขอบคุณที่ใช้บริการกับเราในครั้งนี้นะคะ <a:heartoutlines:1536268541144076369>`
+            },
+            {
+              type: 14,
+              spacing: 2
+            },
+            {
+              type: 10,
+              content: `> หากสะดวก ฝากทุกท่านช่วยรีวิวหรือแชร์ฟีดแบ็กเกี่ยวกับการใช้บริการได้ที่ห้อง <#1545240537089703986> เพื่อให้เราได้นำความคิดเห็นไปพัฒนาและปรับปรุงการทำงานให้ดียิ่งขึ้นนะคะ ขอบคุณมาก ๆ ค่ะ <a:511398spin:1536700803732209736>\n\n-# ⏱️ ห้องสนทนานี้ถูกปรับเป็นโหมดอ่านอย่างเดียว และจะถูกจัดเก็บอัตโนมัติใน 10 นาทีค่ะ`
+            },
+            {
+              type: 14,
+              spacing: 2
+            },
+            {
+              type: 1,
+              components: [
+                {
+                  type: 2,
+                  style: 5,
+                  url: `https://discord.com/channels/${guild.id}/1545240537089703986`,
+                  label: "︲คลิกเพื่อไปเขียนรีวิว",
+                  emoji: {
+                    id: "1536268541144076369",
+                    name: "heartoutlines",
+                    animated: true
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    });
 
-    await sessionChannel.send({ content: thankYouMessage }).catch(() => {});
+    await sessionChannel.send(thankYouPayload).catch(() => {});
 
     // ล็อกสิทธิ์: อนุญาตให้อ่านและดูประวัติข้อความได้เท่านั้น (ห้ามพิมพ์/ห้ามพูด/ห้ามต่อสาย) เพื่อให้ลูกค้าเห็นข้อความและไปรีวิว
     try {
@@ -1850,8 +1935,8 @@ async function handleSessionExpiry(client, guild, orderId, { isEarly = false } =
     packageName: order.package_name,
     totalPrice: order.total_price,
     extraInfo: isEarly
-      ? `จบบริการก่อนเวลา (Early End: true) — ลบห้องสนทนา และย้ายห้องตั๋วไปรอบันทึกสลิป`
-      : `ครบกำหนดเวลาบริการ (Auto-Timer Expiry) — ลบห้องสนทนา และย้ายห้องตั๋วไปรอบันทึกสลิป`
+      ? `จบบริการก่อนเวลา (Early End: true) — ย้ายทั้งห้องสนทนาและห้องตั๋วไปหมวดหมู่อาร์ไคฟ์ (เก็บไว้ทั้ง 2 ห้อง)`
+      : `ครบกำหนดเวลาบริการ (Auto-Timer Expiry) — ย้ายทั้งห้องสนทนาและห้องตั๋วไปหมวดหมู่อาร์ไคฟ์ (เก็บไว้ทั้ง 2 ห้อง)`
   });
 }
 
@@ -4198,6 +4283,99 @@ function setupHealJai(client) {
 
         return interaction.editReply(buildAdminCounselorEditPayload(updated || {}, targetMember)).catch(() => {});
       }
+
+      // จัดการ Modal ตั้งเวลาเปิด-ปิดร้าน
+      if (customId === "heal_jai_admin_modal_hours") {
+        const isOwner = (process.env.OWNER_ID && user.id === process.env.OWNER_ID) ||
+                        (guild && guild.ownerId === user.id);
+        const hasStaffRole = member?.roles?.cache?.some((r) =>
+          [STAFF_ROLE_ID, "1144701361448038512", "1144697989986791576", "1144698080239829092"].includes(r.id)
+        );
+        if (!isOwner && !hasStaffRole && !member?.permissions?.has(PermissionFlagsBits.Administrator)) {
+          return interaction.reply({ content: "❌ คุณไม่มีสิทธิ์ตั้งค่านี้ค่ะ", flags: FLAG_EPHEMERAL });
+        }
+
+        const openTime = interaction.fields.getTextInputValue("open_time")?.trim();
+        const closeTime = interaction.fields.getTextInputValue("close_time")?.trim();
+
+        const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
+        if (!timeRegex.test(openTime) || !timeRegex.test(closeTime)) {
+          return interaction.reply({
+            content: "⚠️ รูปแบบเวลาไม่ถูกต้องค่ะ กรุณากรอกเป็นรูปแบบ `HH:MM` เช่น `18:00` หรือ `02:00` นะคะ",
+            flags: FLAG_EPHEMERAL
+          });
+        }
+
+        operatingHours.openTime = openTime;
+        operatingHours.closeTime = closeTime;
+        operatingHours.enabled = true;
+        await saveSystemSettings(user.id);
+
+        return interaction.reply({
+          content: `🕒 **บันทึกเวลาเปิด-ปิดร้านเรียบร้อยแล้วค่ะ!**\n> ⏰ ช่วงเวลาเปิดให้บริการ: \`${openTime} - ${closeTime}\` น.\n> 🟢 สถานะระบบจำกัดเวลา: **เปิดใช้งาน (ACTIVE)**\n\n*(คุณสามารถกดปุ่ม "🔄 รีเฟรช" ใน Dashboard เพื่ออัปเดตสถานะล่าสุดได้ทันทีค่ะ)*`,
+          flags: FLAG_EPHEMERAL
+        });
+      }
+
+      // จัดการ Modal เพิ่มเวลาเคส
+      if (customId === "heal_jai_admin_modal_extend") {
+        const isOwner = (process.env.OWNER_ID && user.id === process.env.OWNER_ID) ||
+                        (guild && guild.ownerId === user.id);
+        const hasStaffRole = member?.roles?.cache?.some((r) =>
+          [STAFF_ROLE_ID, "1144701361448038512", "1144697989986791576", "1144698080239829092"].includes(r.id)
+        );
+        if (!isOwner && !hasStaffRole && !member?.permissions?.has(PermissionFlagsBits.Administrator)) {
+          return interaction.reply({ content: "❌ คุณไม่มีสิทธิ์ใช้งานคำสั่งนี้ค่ะ", flags: FLAG_EPHEMERAL });
+        }
+
+        const orderCodeInput = interaction.fields.getTextInputValue("order_code")?.trim();
+        const minutesInput = interaction.fields.getTextInputValue("minutes")?.trim();
+        const minutes = parseInt(minutesInput, 10);
+
+        if (isNaN(minutes) || minutes <= 0) {
+          return interaction.reply({
+            content: "⚠️ กรุณากรอกจำนวนนาทีเป็นตัวเลขที่มากกว่า 0 ค่ะ เช่น `15` หรือ `30`",
+            flags: FLAG_EPHEMERAL
+          });
+        }
+
+        if (!supabase) {
+          return interaction.reply({ content: "❌ ระบบฐานข้อมูลไม่พร้อมใช้งานในขณะนี้ค่ะ", flags: FLAG_EPHEMERAL });
+        }
+
+        let query = supabase.from("heal_jai_orders_sessions").select("*");
+        if (orderCodeInput.startsWith("HJ-")) {
+          query = query.eq("order_code", orderCodeInput);
+        } else if (/^\d+$/.test(orderCodeInput) && orderCodeInput.length > 15) {
+          query = query.or(`session_channel_id.eq.${orderCodeInput},ticket_channel_id.eq.${orderCodeInput}`);
+        } else if (/^\d+$/.test(orderCodeInput)) {
+          query = query.eq("id", parseInt(orderCodeInput, 10));
+        } else {
+          query = query.eq("order_code", orderCodeInput);
+        }
+
+        const { data: order } = await query.order("id", { ascending: false }).limit(1).maybeSingle();
+
+        if (!order) {
+          return interaction.reply({
+            content: `❌ ไม่พบข้อมูลออเดอร์จากรหัสหรือห้อง \`${orderCodeInput}\` ค่ะ กรุณาตรวจสอบรหัสออเดอร์อีกครั้ง`,
+            flags: FLAG_EPHEMERAL
+          });
+        }
+
+        const extendResult = await extendSessionTime(client, guild, order, minutes, user, "Admin Modal Extension");
+        if (extendResult.success) {
+          return interaction.reply({
+            content: `✅ **เพิ่มเวลาสำเร็จ!** เคส #${order.order_code} ได้รับการเพิ่มเวลาอีก \`${minutes}\` นาที เรียบร้อยแล้วค่ะ\n> ⏳ เวลาสิ้นสุดใหม่: <t:${Math.floor(new Date(extendResult.newExpiresAt).getTime() / 1000)}:T>`,
+            flags: FLAG_EPHEMERAL
+          });
+        } else {
+          return interaction.reply({
+            content: `⚠️ ไม่สามารถเพิ่มเวลาได้: ${extendResult.message || "เกิดข้อผิดพลาดไม่ทราบสาเหตุ"}`,
+            flags: FLAG_EPHEMERAL
+          });
+        }
+      }
     }
 
     // ── 2.0 จัดการ Select Menu (เลือกผู้รับฟัง & เลือกความถนัดเฉพาะ) ─────
@@ -5128,6 +5306,26 @@ function setupHealJai(client) {
         });
       }
 
+      if (!isOperatingHoursOpen()) {
+        const hoursNotice = operatingHours.enabled
+          ? `เปิดให้บริการทุกวัน เวลา **${operatingHours.openTime} - ${operatingHours.closeTime} น.** (เวลาประเทศไทย)`
+          : `ระบบงดรับเคสชั่วคราวค่ะ`;
+        return interaction.editReply({
+          flags: FLAG_V2,
+          components: [
+            {
+              type: 17,
+              components: [
+                {
+                  type: 10,
+                  content: `## 🌙︲__\` ขออภัยค่ะ ขณะนี้อยู่นอกเวลาให้บริการ \`__\n\n> ร้าน **Bear Cafe ฮีลใจ** ${hoursNotice} 🍵\n\nคุณสามารถแวะมาสั่งเมนูเครื่องดื่มและพูดคุยกับผู้รับฟังได้ใหม่ในเวลาทำการนะคะ <a:heartoutlines:1536268541144076369>`
+                }
+              ]
+            }
+          ]
+        });
+      }
+
       try {
         if (supabase) {
           // ตรวจสอบห้อง Ticket ที่ยัง pending อยู่
@@ -5937,8 +6135,13 @@ function setupHealJai(client) {
           }
         });
 
-        await updateOnlineCounselorsCount(guild);
-        await updateCounselorCardMessage(guild, user.id);
+        // อัปเดตสถิติห้องเสียงและการ์ดหน้าเวรแบบ Background ไม่บล็อกการส่งการ์ดต้อนรับ
+        updateOnlineCounselorsCount(guild).catch((err) => {
+          console.warn("[HealJai] Non-blocking updateOnlineCounselorsCount error:", err.message);
+        });
+        updateCounselorCardMessage(guild, user.id).catch((err) => {
+          console.warn("[HealJai] Non-blocking updateCounselorCardMessage error:", err.message);
+        });
       }
 
       // ส่ง Log ประวัติ CLAIMED ไปยังห้อง 1549710698702184539
@@ -5952,7 +6155,7 @@ function setupHealJai(client) {
         extraInfo: `ผู้ให้คำปรึกษา <@${user.id}> กดรับเคสเรียบร้อย ${isReusedRoom ? "เข้าดูแลต่อในห้องเดิม" : "เปิดห้องสนทนา"} <#${sessionChannelId}>`
       });
 
-      // ส่ง Session Dashboard ในห้อง Session (Voice Text หรือ Text Channel)
+      // ส่ง Session Dashboard ในห้อง Session (Voice Text หรือ Text Channel) ทันที
       if (targetSessionChannel) {
         await targetSessionChannel.send(buildSessionDashboardPayload({
           customerId: order.customer_id,
@@ -5963,29 +6166,18 @@ function setupHealJai(client) {
           packageName: order.package_name,
           serviceMode,
           voiceChannelId: voiceChannel?.id || sessionChannelId
-        })).catch(() => {});
+        })).catch((sendErr) => {
+          console.error("[HealJai] Error sending session dashboard payload:", sendErr.message);
+        });
       }
 
-      // แจ้งลูกค้าในห้อง Ticket เดิม (ลบข้อความเดิมและส่งการ์ดพร้อมให้บริการ)
+      // แจ้งลูกค้าในห้อง Ticket เดิม (ส่งการ์ดพร้อมให้บริการทันที และลบข้อความเดิมในแบ็คกราวด์)
       if (order.ticket_channel_id) {
         const ticketCh = guild.channels.cache.get(order.ticket_channel_id) ||
                          await guild.channels.fetch(order.ticket_channel_id).catch(() => null);
         if (ticketCh) {
-          try {
-            const fetchedTicketMsgs = await ticketCh.messages.fetch({ limit: 10 }).catch(() => null);
-            if (fetchedTicketMsgs) {
-              for (const m of fetchedTicketMsgs.values()) {
-                if (m.author.id === client.user.id && !m.pinned) {
-                  await m.delete().catch(() => {});
-                }
-              }
-            }
-          } catch (delErr) {
-            console.warn("[HealJai] Failed to delete previous ticket messages:", delErr.message);
-          }
-
           const serviceIcon = serviceMode === "voice" ? "☎️" : "💌";
-          await ticketCh.send({
+          const newWelcomeMsg = await ticketCh.send({
             flags: FLAG_V2,
             components: [
               {
@@ -6016,7 +6208,26 @@ function setupHealJai(client) {
                 ]
               }
             ]
-          }).catch(() => {});
+          }).catch((err) => {
+            console.error("[HealJai] Error sending customer ready card:", err.message);
+            return null;
+          });
+
+          // เคลียร์ข้อความเดิมของบอทในห้อง Ticket ในแบ็คกราวด์ เพื่อไม่ให้หน่วงการตอบสนอง
+          (async () => {
+            try {
+              const fetchedTicketMsgs = await ticketCh.messages.fetch({ limit: 10 }).catch(() => null);
+              if (fetchedTicketMsgs) {
+                for (const m of fetchedTicketMsgs.values()) {
+                  if (m.author.id === client.user.id && !m.pinned && (!newWelcomeMsg || m.id !== newWelcomeMsg.id)) {
+                    await m.delete().catch(() => {});
+                  }
+                }
+              }
+            } catch (delErr) {
+              console.warn("[HealJai] Failed to delete previous ticket messages:", delErr.message);
+            }
+          })();
         }
       }
 
@@ -7026,6 +7237,35 @@ function setupHealJai(client) {
     }
 
     // ── 2.8 ปุ่มแอดมินจัดการหลังบ้าน (Admin Action Buttons) ───────────────────
+    if (customId === "heal_jai_admin_set_hours") {
+      const isOwner = (process.env.OWNER_ID && interaction.user.id === process.env.OWNER_ID) ||
+                      (interaction.guild && interaction.guild.ownerId === interaction.user.id);
+      const hasStaffRole = interaction.member?.roles?.cache?.some((r) =>
+        [STAFF_ROLE_ID, "1144701361448038512", "1144697989986791576", "1144698080239829092"].includes(r.id)
+      );
+      if (!isOwner && !hasStaffRole && !interaction.member?.permissions?.has(PermissionFlagsBits.Administrator)) {
+        return interaction.reply({ content: "❌ คุณไม่มีสิทธิ์กดปุ่มนี้ค่ะ", flags: FLAG_EPHEMERAL });
+      }
+
+      return interaction.showModal(buildOperatingHoursModal(operatingHours));
+    }
+
+    if (customId === "heal_jai_admin_toggle_hours") {
+      const isOwner = (process.env.OWNER_ID && interaction.user.id === process.env.OWNER_ID) ||
+                      (interaction.guild && interaction.guild.ownerId === interaction.user.id);
+      const hasStaffRole = interaction.member?.roles?.cache?.some((r) =>
+        [STAFF_ROLE_ID, "1144701361448038512", "1144697989986791576", "1144698080239829092"].includes(r.id)
+      );
+      if (!isOwner && !hasStaffRole && !interaction.member?.permissions?.has(PermissionFlagsBits.Administrator)) {
+        return interaction.reply({ content: "❌ คุณไม่มีสิทธิ์กดปุ่มนี้ค่ะ", flags: FLAG_EPHEMERAL });
+      }
+
+      operatingHours.enabled = !operatingHours.enabled;
+      await saveSystemSettings(interaction.user.id);
+      const stats = await getAdminStats(guild);
+      return interaction.update(buildAdminDashboardPayload(stats));
+    }
+
     if (customId === "heal_jai_admin_toggle_maintenance") {
       const isOwner = (process.env.OWNER_ID && interaction.user.id === process.env.OWNER_ID) ||
                       (interaction.guild && interaction.guild.ownerId === interaction.user.id);
@@ -7042,6 +7282,35 @@ function setupHealJai(client) {
       return interaction.update(buildAdminDashboardPayload(stats));
     }
 
+    if (customId === "heal_jai_admin_toggle_terms") {
+      const isOwner = (process.env.OWNER_ID && interaction.user.id === process.env.OWNER_ID) ||
+                      (interaction.guild && interaction.guild.ownerId === interaction.user.id);
+      const hasStaffRole = interaction.member?.roles?.cache?.some((r) =>
+        [STAFF_ROLE_ID, "1144701361448038512", "1144697989986791576", "1144698080239829092"].includes(r.id)
+      );
+      if (!isOwner && !hasStaffRole && !interaction.member?.permissions?.has(PermissionFlagsBits.Administrator)) {
+        return interaction.reply({ content: "❌ คุณไม่มีสิทธิ์กดปุ่มนี้ค่ะ", flags: FLAG_EPHEMERAL });
+      }
+
+      isTermsDisabled = !isTermsDisabled;
+      await saveSystemSettings(interaction.user.id);
+      const stats = await getAdminStats(guild);
+      return interaction.update(buildAdminDashboardPayload(stats));
+    }
+
+    if (customId === "heal_jai_admin_open_extend_modal") {
+      const isOwner = (process.env.OWNER_ID && interaction.user.id === process.env.OWNER_ID) ||
+                      (interaction.guild && interaction.guild.ownerId === interaction.user.id);
+      const hasStaffRole = interaction.member?.roles?.cache?.some((r) =>
+        [STAFF_ROLE_ID, "1144701361448038512", "1144697989986791576", "1144698080239829092"].includes(r.id)
+      );
+      if (!isOwner && !hasStaffRole && !interaction.member?.permissions?.has(PermissionFlagsBits.Administrator)) {
+        return interaction.reply({ content: "❌ คุณไม่มีสิทธิ์กดปุ่มนี้ค่ะ", flags: FLAG_EPHEMERAL });
+      }
+
+      return interaction.showModal(buildAdminExtendModal());
+    }
+
     if (customId === "heal_jai_admin_refresh_dashboard") {
       await loadSystemSettings().catch(() => {});
       const stats = await getAdminStats(guild);
@@ -7049,12 +7318,30 @@ function setupHealJai(client) {
     }
 
     if (customId === "heal_jai_admin_run_cleanup") {
+      const isOwner = (process.env.OWNER_ID && interaction.user.id === process.env.OWNER_ID) ||
+                      (interaction.guild && interaction.guild.ownerId === interaction.user.id);
+      const hasStaffRole = interaction.member?.roles?.cache?.some((r) =>
+        [STAFF_ROLE_ID, "1144701361448038512", "1144697989986791576", "1144698080239829092"].includes(r.id)
+      );
+      if (!isOwner && !hasStaffRole && !interaction.member?.permissions?.has(PermissionFlagsBits.Administrator)) {
+        return interaction.reply({ content: "❌ คุณไม่มีสิทธิ์กดปุ่มนี้ค่ะ", flags: FLAG_EPHEMERAL });
+      }
+
       await interaction.deferReply({ flags: FLAG_EPHEMERAL }).catch(() => {});
       await cleanStaleChannels(client);
       return interaction.editReply({ content: "🧹 ทำการสแกนและเคลียร์ห้องค้าง/ห้องตกค้างเรียบร้อยแล้วค่ะ!" });
     }
 
     if (customId === "heal_jai_admin_send_report") {
+      const isOwner = (process.env.OWNER_ID && interaction.user.id === process.env.OWNER_ID) ||
+                      (interaction.guild && interaction.guild.ownerId === interaction.user.id);
+      const hasStaffRole = interaction.member?.roles?.cache?.some((r) =>
+        [STAFF_ROLE_ID, "1144701361448038512", "1144697989986791576", "1144698080239829092"].includes(r.id)
+      );
+      if (!isOwner && !hasStaffRole && !interaction.member?.permissions?.has(PermissionFlagsBits.Administrator)) {
+        return interaction.reply({ content: "❌ คุณไม่มีสิทธิ์กดปุ่มนี้ค่ะ", flags: FLAG_EPHEMERAL });
+      }
+
       await interaction.deferReply({ flags: FLAG_EPHEMERAL }).catch(() => {});
       const msg = await sendDailyReport(guild);
       return interaction.editReply({
@@ -7084,6 +7371,35 @@ function setupHealJai(client) {
           updated_at: new Date().toISOString()
         })
         .eq("id", orderId);
+
+      // บันทึกธุรกรรมลงใน Financial Ledger สำหรับแอดมินอนุมัติสลิปแบบแมนนวล
+      const counselorShare = order.counselor_share ?? Number(((order.total_price || 0) * 0.70).toFixed(2));
+      const platformShare = order.platform_share ?? Number(((order.total_price || 0) * 0.30).toFixed(2));
+      await financeService.recordPayment(supabase, {
+        orderId: order.id,
+        orderCode: order.order_code,
+        guildId: guild.id,
+        totalPrice: order.total_price,
+        counselorShare,
+        platformShare,
+        createdBy: user?.id,
+        metadata: { manualApproval: true, approvedBy: user?.id, ticketChannelId: order.ticket_channel_id }
+      });
+
+      analyticsService.trackEvent({
+        eventName: "TICKET_PAID",
+        eventCategory: "PAYMENT",
+        status: "SUCCESS",
+        idempotencyKey: `ticket:paid:manual:${order.id}`,
+        actorId: user?.id,
+        guildId: guild.id,
+        orderId: order.id,
+        orderCode: order.order_code,
+        metadata: {
+          manualApproval: true,
+          totalPrice: order.total_price
+        }
+      });
 
       // ส่ง Dispatch Alert
       const expireTimestamp = Math.floor((Date.now() + 3 * 60 * 1000) / 1000);
@@ -7284,17 +7600,14 @@ function setupHealJai(client) {
           const endedAt = new Date(session.ended_at).getTime();
           const elapsed = Date.now() - endedAt;
           if (elapsed >= SESSION_RETENTION_MS) {
-            const ch = guild.channels.cache.get(session.session_channel_id) || await guild.channels.fetch(session.session_channel_id).catch(() => null);
-            if (ch) {
-              if (session.service_mode === "chat") {
-                if (ch.parentId !== CHAT_ARCHIVE_CATEGORY_ID) {
-                  await ch.permissionOverwrites.set([]).catch(() => {});
-                  await ch.setParent(CHAT_ARCHIVE_CATEGORY_ID, { lockPermissions: true }).catch(async () => {
-                    await ch.lockPermissions().catch(() => {});
-                  });
-                }
-              } else {
-                await ch.delete("HealJai session 24h retention expired (post-restart)").catch(() => {});
+            const channelsToArchive = [session.session_channel_id, session.session_voice_id].filter(Boolean);
+            for (const chId of channelsToArchive) {
+              const ch = guild.channels.cache.get(chId) || await guild.channels.fetch(chId).catch(() => null);
+              if (ch && ch.parentId !== CHAT_ARCHIVE_CATEGORY_ID) {
+                await ch.permissionOverwrites.set([]).catch(() => {});
+                await ch.setParent(CHAT_ARCHIVE_CATEGORY_ID, { lockPermissions: true }).catch(async () => {
+                  await ch.lockPermissions().catch(() => {});
+                });
               }
             }
           } else {

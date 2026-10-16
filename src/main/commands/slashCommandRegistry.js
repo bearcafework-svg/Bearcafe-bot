@@ -557,9 +557,9 @@ const HEAL_JAI_SLASH_COMMANDS = [
     options: [
       {
         name: "action",
-        description: "เลือกการทำงานที่ต้องการ",
+        description: "เลือกการทำงานที่ต้องการ (เว้นว่างไว้เพื่อเปิด Button Menu Dashboard)",
         type: ApplicationCommandOptionType.String,
-        required: true,
+        required: false,
         choices: [
           { name: "📊 แผงควบคุม & สรุปสถานะ (Dashboard)", value: "dashboard" },
           { name: "⏱️ เพิ่ม/ขยายเวลาเคสลูกค้า (Extend Case Time)", value: "extend_time" },

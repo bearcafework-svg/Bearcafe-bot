@@ -1102,16 +1102,22 @@ async function restoreTenantChannelsOnStartup(client, supabase) {
           }
         }
       }
-      console.log(`[akari-minigames] ⚡ โหลด ${activeTenantSessions.size} เซสชันเกมที่ถูกต้องจาก DB เข้าสู่ RAM`);
+      console.log(`[kuma-minigames] ⚡ โหลด ${activeTenantSessions.size} เซสชันเกมที่ถูกต้องจาก DB เข้าสู่ RAM`);
     }
 
     if (orphanChannelIds.length > 0) {
-      console.log(`[akari-minigames] 🧹 [Startup] ตรวจพบเซสชันค้างเก่าที่ไม่มีการผูกห้อง ${orphanChannelIds.length} รายการ — กำลังลบออกจาก DB...`);
-      await supabase
-        .from('tenant_minigame_active_sessions')
-        .delete()
-        .in('channel_id', orphanChannelIds)
-        .catch(delErr => console.error('[akari-minigames] Error cleaning up orphan sessions:', delErr.message));
+      console.log(`[kuma-minigames] 🧹 [Startup] ตรวจพบเซสชันค้างเก่าที่ไม่มีการผูกห้อง ${orphanChannelIds.length} รายการ — กำลังลบออกจาก DB...`);
+      try {
+        const { error: delErr } = await supabase
+          .from('tenant_minigame_active_sessions')
+          .delete()
+          .in('channel_id', orphanChannelIds);
+        if (delErr) {
+          console.error('[kuma-minigames] Error cleaning up orphan sessions:', delErr.message);
+        }
+      } catch (delErr) {
+        console.error('[kuma-minigames] Error cleaning up orphan sessions:', delErr.message);
+      }
     }
 
     if (Array.isArray(channels) && channels.length > 0) {
@@ -1133,16 +1139,16 @@ async function restoreTenantChannelsOnStartup(client, supabase) {
           const session = await spawnQuestion(client, channel, game_id, guild_id, supabase);
           if (session) newlySpawned++;
         } catch (chErr) {
-          console.error(`[akari-minigames] Restore error for channel ${channel_id}:`, chErr.message);
+          console.error(`[kuma-minigames] Restore error for channel ${channel_id}:`, chErr.message);
         }
       }
 
       if (newlySpawned > 0) {
-        console.log(`[akari-minigames] ✅ สปอว์นโจทย์ครั้งแรกสำหรับช่องใหม่สำเร็จ ${newlySpawned} ช่อง`);
+        console.log(`[kuma-minigames] ✅ สปอว์นโจทย์ครั้งแรกสำหรับช่องใหม่สำเร็จ ${newlySpawned} ช่อง`);
       }
     }
   } catch (err) {
-    console.error('[akari-minigames] Startup restoration error:', err.message);
+    console.error('[kuma-minigames] Startup restoration error:', err.message);
   }
 }
 
@@ -1784,7 +1790,7 @@ function setupAkariMinigames(client, supabase) {
     }
   });
 
-  console.log('🐻 [AkariMinigames] ระบบมินิเกม Component V2 (สไตล์บอทหลัก 100% + Anti-Cheat Guard) พร้อมใช้งานแล้ว!');
+  console.log('🐻 [KumaMinigames] ระบบมินิเกม Component V2 (สไตล์บอทหลัก 100% + Anti-Cheat Guard) พร้อมใช้งานแล้ว!');
 }
 
 // ─── Utils สำหรับ Commands ─────────────────────────────────────────────

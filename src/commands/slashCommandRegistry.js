@@ -707,19 +707,23 @@ async function registerAllGuildCommands(guild) {
         // 🛑 บนกิลด์ Bear Cafe (1144251788493602848): ห้ามมีคำสั่ง /slash ของบอท Dev โดยเด็ดขาด
         targetCommands = [];
       } else {
-        // บนเซิร์ฟเวอร์อื่นๆ: บอท Dev ลงทะเบียนเฉพาะคำสั่งเทสต์ที่อนุญาต (ไม่รวม send-component)
-        const allowedDevCommands = (process.env.DEV_SLASH_COMMANDS || "test_bee,หมุนกาชา,clear")
-          .split(",")
-          .map((s) => s.trim().toLowerCase())
-          .filter(Boolean);
+        // บนเซิร์ฟเวอร์อื่นๆ: หากมีการระบุ DEV_SLASH_COMMANDS ให้กรองตามนั้น หากไม่ระบุให้ลงทะเบียนคำสั่งทั้งหมด
+        if (process.env.DEV_SLASH_COMMANDS) {
+          const allowedDevCommands = process.env.DEV_SLASH_COMMANDS
+            .split(",")
+            .map((s) => s.trim().toLowerCase())
+            .filter(Boolean);
 
-        targetCommands = [...targetCommands, ...DEV_ONLY_SLASH_COMMANDS].filter((cmd) =>
-          allowedDevCommands.includes(cmd.name.toLowerCase())
-        );
+          targetCommands = [...targetCommands, ...DEV_ONLY_SLASH_COMMANDS].filter((cmd) =>
+            allowedDevCommands.includes(cmd.name.toLowerCase())
+          );
+        } else {
+          targetCommands = [...targetCommands, ...DEV_ONLY_SLASH_COMMANDS];
+        }
       }
       if (guild.id !== "1144251788493602848") {
         console.log(
-          `🛠️ [slash] DEV_MODE is active: Synchronizing only [${targetCommands.map((c) => c.name).join(", ")}] on "${guild.name}"`
+          `🛠️ [slash] DEV_MODE is active: Synchronizing [${targetCommands.map((c) => c.name).join(", ")}] on "${guild.name}"`
         );
       }
     }

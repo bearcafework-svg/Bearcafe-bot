@@ -339,11 +339,15 @@ function setupGuildFilter(client) {
 
               // 1. คำสั่งทดสอบ เช่น /test_bee, /send-component, /หมุนกาชา อนุญาตให้ทำงานได้ในทุกห้อง
               if (interaction && typeof interaction.isChatInputCommand === "function" && interaction.isChatInputCommand()) {
-                const allowedDevCommands = (process.env.DEV_SLASH_COMMANDS || "test_bee,heal-component,ยืนยันการโอน,อนุมัติสลิป,บัตรพนักงาน,แก้ไขพนักงาน,แก้ไขที่ปรึกษา,หมุนกาชา,gacha,clear")
-                  .split(",")
-                  .map((s) => s.trim().toLowerCase())
-                  .filter(Boolean);
-                if (allowedDevCommands.includes((interaction.commandName || "").toLowerCase())) {
+                if (process.env.DEV_SLASH_COMMANDS) {
+                  const allowedDevCommands = process.env.DEV_SLASH_COMMANDS
+                    .split(",")
+                    .map((s) => s.trim().toLowerCase())
+                    .filter(Boolean);
+                  if (allowedDevCommands.includes((interaction.commandName || "").toLowerCase())) {
+                    return originalEmit.apply(this, [eventName, ...args]);
+                  }
+                } else {
                   return originalEmit.apply(this, [eventName, ...args]);
                 }
               }

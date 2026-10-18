@@ -34,18 +34,16 @@ if (!activeBotToken) {
   process.exit(1);
 }
 
-const devAllowedFeatures = (process.env.DEV_FEATURES || "bees,healJai,voiceBoard,gachapon,sendComponent,mainQuest,clearMessages")
-  .split(",")
-  .map((s) => s.trim())
-  .filter(Boolean);
+const devAllowedFeatures = process.env.DEV_FEATURES
+  ? process.env.DEV_FEATURES.split(",").map((s) => s.trim()).filter(Boolean)
+  : null;
 
 if (isDevMode) {
   console.log("=========================================================");
   console.log("🛠️  [DEV SANDBOX MODE ACTIVATED]");
   console.log("   - Running using SECONDARY_BOT_TOKEN (Zero-Downtime)");
-  console.log(`   - Allowed Channel IDs: ${process.env.DEV_CHANNEL_IDS || "ALL"}`);
-  console.log(`   - Active Features: ${devAllowedFeatures.join(", ")}`);
-  console.log("   - Voice state, General chat & unselected features are muted");
+  console.log(`   - Allowed Channel IDs: ${process.env.DEV_CHANNEL_IDS || "ALL (Unrestricted)"}`);
+  console.log(`   - Active Features: ${devAllowedFeatures ? devAllowedFeatures.join(", ") : "ALL (Unrestricted)"}`);
   console.log("=========================================================");
 }
 
@@ -140,7 +138,7 @@ function setupFeature(name, modulePath, setupName, requiredEnv = []) {
     return;
   }
 
-  if (isDevMode && name !== "sendComponent" && name !== "clearMessages" && !devAllowedFeatures.includes(name)) {
+  if (isDevMode && devAllowedFeatures && name !== "sendComponent" && name !== "clearMessages" && !devAllowedFeatures.includes(name)) {
     return;
   }
 
@@ -210,7 +208,7 @@ client.once("clientReady", async () => {
 
   // 1. ตั้งค่าสถานะบอทเริ่มต้นทันที และตั้งเวลาอัปเดตทุก 10 นาที (บอท Dev ใช้ออนไลน์ปกติ ไม่โหลดสถานะสตรีมมิ่ง)
   if (isDevMode) {
-    if (!devAllowedFeatures.includes("healJai")) {
+    if (devAllowedFeatures && !devAllowedFeatures.includes("healJai")) {
       client.user.setPresence({
         status: "online",
         activities: [],

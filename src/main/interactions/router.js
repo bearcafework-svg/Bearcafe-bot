@@ -106,13 +106,12 @@ function initInteractionRouter(client) {
         const guildId = interaction.guildId || interaction.guild?.id;
         const isHealJaiGuild = guildId && (guildId === process.env.HEALJAI_GUILD_ID || guildId === "1536199707922141254");
         const customId = interaction.customId || "";
-        const cmdName = (interaction.commandName || "").toLowerCase();
-        const allowedDevCommands = (process.env.DEV_SLASH_COMMANDS || "test_bee,heal-component,ยืนยันการโอน,อนุมัติสลิป,บัตรพนักงาน,แก้ไขพนักงาน,แก้ไขที่ปรึกษา,หมุนกาชา,gacha,clear")
-          .split(",")
-          .map((s) => s.trim().toLowerCase())
-          .filter(Boolean);
+        const allowedDevCommands = process.env.DEV_SLASH_COMMANDS
+          ? process.env.DEV_SLASH_COMMANDS.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean)
+          : null;
 
         const isHealJaiInteraction =
+          !allowedDevCommands ||
           isHealJaiGuild ||
           customId.startsWith("heal_jai_") ||
           customId.startsWith("btn_cancel_order") ||

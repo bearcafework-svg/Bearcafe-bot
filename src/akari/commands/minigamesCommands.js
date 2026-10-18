@@ -53,6 +53,7 @@ const {
   handlePreviewCommand,
   handlePreviewButtonInteraction,
 } = require("./previewCommands");
+const { SETTING_VOICE_SLASH_COMMAND } = require("./voiceCommands");
 
 const FLAG_V2 = MessageFlags.IsComponentsV2 || 32768;
 
@@ -213,6 +214,7 @@ const AKARI_SLASH_COMMANDS = [
   },
   ...POINTS_SLASH_COMMANDS,
   ...HELP_SLASH_COMMANDS,
+  // SETTING_VOICE_SLASH_COMMAND, // ซ่อนคำสั่ง /setting-voice
   // ...STORE_SLASH_COMMANDS, // ปิดระบบร้านค้าชั่วคราวตามคำสั่ง
 ];
 
@@ -267,13 +269,13 @@ async function registerAkariCommands(client) {
     try {
       if (!client.application) return;
 
-      // 1. ตรวจสอบและลงทะเบียน Global Slash Commands ของ Akari/Kuma
+      // 1. ตรวจสอบและลงทะเบียน Global Slash Commands ของ Kuma
       const existingGlobal = await client.application.commands.fetch().catch(() => null);
       if (!existingGlobal || !areCommandsEqual(existingGlobal, AKARI_SLASH_COMMANDS)) {
         await client.application.commands.set(AKARI_SLASH_COMMANDS);
-        console.log(`🏮 [AkariCommands] ลงทะเบียน Global Slash Commands (${AKARI_SLASH_COMMANDS.length} คำสั่ง) สำเร็จแล้ว!`);
+        console.log(`🏮 [KumaCommands] ลงทะเบียน Global Slash Commands (${AKARI_SLASH_COMMANDS.length} คำสั่ง) สำเร็จแล้ว!`);
       } else {
-        console.log("⚡ [AkariCommands] Global Slash Commands เป็นปัจจุบันแล้ว (ข้ามการ sync ซ้ำ)");
+        console.log("⚡ [KumaCommands] Global Slash Commands เป็นปัจจุบันแล้ว (ข้ามการ sync ซ้ำ)");
       }
 
       // 2. ลงทะเบียนคำสั่งเฉพาะเซิร์ฟเวอร์ (Guild-Scoped Only)
@@ -291,14 +293,14 @@ async function registerAkariCommands(client) {
                               await client.guilds.fetch(gId).catch(() => null);
           if (targetGuild) {
             await targetGuild.commands.set(cmds);
-            console.log(`🏮 [AkariCommands] ลงทะเบียน Guild Commands (${cmds.map((c) => c.name).join(", ")}) ให้กิลด์ ${gId} เรียบร้อยแล้ว!`);
+            console.log(`🏮 [KumaCommands] ลงทะเบียน Guild Commands (${cmds.map((c) => c.name).join(", ")}) ให้กิลด์ ${gId} เรียบร้อยแล้ว!`);
           }
         } catch (guildCmdErr) {
-          console.warn(`⚠️ [AkariCommands] Failed to register guild-specific commands for ${gId}:`, guildCmdErr.message);
+          console.warn(`⚠️ [KumaCommands] Failed to register guild-specific commands for ${gId}:`, guildCmdErr.message);
         }
       }
     } catch (e) {
-      console.error("❌ [AkariCommands] Register Slash Commands Error:", e.message);
+      console.error("❌ [KumaCommands] Register Slash Commands Error:", e.message);
     }
   };
 
@@ -582,6 +584,52 @@ function parseEmojiObject(emojiStr) {
 }
 
 /**
+ * สร้าง Payload สำหรับแจ้งเตือนเกมพรีเมี่ยม (Ephemeral Component V2)
+ */
+function buildPremiumUpsellPayload() {
+  return {
+    flags: FLAG_V2 | MessageFlags.Ephemeral,
+    components: [
+      {
+        type: 17,
+        components: [
+          {
+            type: 12,
+            items: [
+              {
+                media: {
+                  url: "https://media.discordapp.net/attachments/1493110433534574655/1557800492283723796/59_.png?ex=6ad5a483&is=6ad45303&hm=4e228f626824ed477a2546988d927e2e336bd5607da4dd7b1264e46e9dc2eaef&=&format=webp&quality=lossless&width=384&height=384",
+                },
+              },
+            ],
+          },
+          {
+            type: 14,
+            spacing: 2,
+          },
+          {
+            type: 1,
+            components: [
+              {
+                type: 2,
+                style: 5,
+                url: "https://discord.gg/2XqGPgYDN8",
+                label: "︲ปลดล็อคพรีเมี่ยมเลย!",
+                emoji: {
+                  id: "1521245223311769673",
+                  name: "618492diamond",
+                  animated: false,
+                },
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+}
+
+/**
  * สร้าง Payload แดชบอร์ดสำหรับ /setting-games
  */
 async function buildSettingGamesPayload(guild, supabase) {
@@ -680,7 +728,7 @@ async function buildSettingGamesPayload(guild, supabase) {
 
   const resetOptions = [
     {
-      label: "︲สปอว์นโจทย์ใหม่ทุกเกมที่เปิดอยู่ (Reset All Games)",
+      label: "สปอว์นโจทย์ใหม่ทุกเกมที่เปิดอยู่ (Reset All Games)",
       description: "รีเซ็ตและส่งการ์ดโจทย์ใหม่ลงทุกช่องมินิเกมของเซิร์ฟเวอร์",
       value: "reset_all",
       emoji: { name: "🔄" },
@@ -688,7 +736,7 @@ async function buildSettingGamesPayload(guild, supabase) {
     ...activeGameIds.map((idStr) => {
       const gId = parseInt(idStr, 10);
       return {
-        label: `︲รีเซ็ตโจทย์ใหม่: ${AKARI_GAME_NAMES[gId]}`,
+        label: `รีเซ็ตโจทย์ใหม่: ${AKARI_GAME_NAMES[gId]}`,
         description: `ส่งการ์ดโจทย์ข้อใหม่ลงในช่องมินิเกม #${gId}`,
         value: `reset_${gId}`,
         emoji: { name: "🔄" },
@@ -699,20 +747,19 @@ async function buildSettingGamesPayload(guild, supabase) {
   const storeConfig = await getTenantStoreConfig(supabase, guild.id);
   const currencyEmoji = storeConfig?.currency_emoji || "<:strawberryv2:1548976664090779650>";
 
-  const planText = isPremium ? "👑⠀**แผนสมาชิก:** Premium (พรีเมียม)" : "📦⠀**แผนสมาชิก:** Standard (ฟรี)";
-  const quotaText = isPremium ? `🎮⠀**โควตาที่ใช้:** **ไม่จำกัด** (${activeCount} เกม)` : `🎮⠀**โควตาที่ใช้:** **${activeCount}/${FREE_QUOTA_LIMIT}** เกม`;
+  const planText = isPremium ? "Premium (พรีเมียม)" : "Standard (ฟรี)";
+  const quotaText = isPremium ? `ไม่จำกัด (${activeCount} เกม)` : `${activeCount}/${FREE_QUOTA_LIMIT} เกม`;
 
   const totalDisplayGames = displayableGameIds.length;
   const disabledCount = totalDisplayGames - activeCount - missingCount;
 
-  const contentText =
-    `## <:bee20000:1256669436350562355>︲__\` 𝖲𝖾𝗍𝗍𝗂𝗇𝗀𝗌 ₊ จัดการมินิเกม 𓂃 \`__\n` +
-    `> ${planText}\n` +
-    `> ${quotaText}\n` +
-    `## 📊︲สถานะห้อง\n` +
-    `- <:goodconektion:1548760301762121801> พร้อมเล่น **${activeCount}** เกม\n` +
-    `- <:conektionokay:1548760281675599964> ห้องหาย **${missingCount}** เกม\n` +
-    `- <:conektionbad:1548760143192260689> ปิดอยู่ **${Math.max(0, disabledCount)}** เกม`;
+  const sectionContent =
+    `<:nerdybearplush:1396431213127794768>⠀**แพ็กเกจ**︰\` ${planText} \`\n` +
+    `<:vintagetv:1561395222934458428>⠀**โควตาที่ใช้**︰\` ${quotaText} \`\n` +
+    `### <a:28630coffee:1561396115436216513> ︲สถานะห้อง\n` +
+    `>>> <:goodconektion:1548760301762121801> พร้อมเล่น **${activeCount}** เกม\n` +
+    `<:conektionokay:1548760281675599964> ห้องหาย **${missingCount}** เกม\n` +
+    `<:conektionbad:1548760143192260689> ปิดอยู่ **${Math.max(0, disabledCount)}** เกม`;
 
   const guildIconUrl = guild.iconURL({ size: 256 }) || "https://cdn.discordapp.com/embed/avatars/0.png";
 
@@ -723,8 +770,16 @@ async function buildSettingGamesPayload(guild, supabase) {
         type: 17,
         components: [
           {
+            type: 10,
+            content: "## <:bee20000:1256669436350562355>︲__` 𝖲𝖾𝗍𝗍𝗂𝗇𝗀𝗌 ₊ จัดการมินิเกม 𓂃 `__",
+          },
+          {
+            type: 14,
+            spacing: 2,
+          },
+          {
             type: 9,
-            components: [{ type: 10, content: contentText }],
+            components: [{ type: 10, content: sectionContent }],
             accessory: {
               type: 11,
               media: {
@@ -732,7 +787,10 @@ async function buildSettingGamesPayload(guild, supabase) {
               },
             },
           },
-          { type: 14, spacing: 2 },
+          {
+            type: 14,
+            spacing: 2,
+          },
           {
             type: 1,
             components: [
@@ -952,6 +1010,12 @@ async function handleSettingToggle(interaction, supabase) {
     });
   }
 
+  // 0. ตรวจสอบสถานะ Premium: หากกดเกมที่ติดพรีเมี่ยม และเซิร์ฟเวอร์ยังไม่ได้เป็น Premium ให้แสดงการ์ดแบบ Ephemeral ทันที
+  const planInfo = await getTenantPlan(guildId, supabase);
+  if (HEAVYWEIGHT_GAMES.includes(gameId) && !planInfo.isPremium) {
+    return interaction.reply(buildPremiumUpsellPayload());
+  }
+
   // 1. ตรวจสอบว่าเกมนี้ห้องหาย หรือยังไม่ได้ผูกห้องหรือไม่
   let boundChannelId = null;
   if (supabase) {
@@ -1056,25 +1120,7 @@ async function handleSettingToggle(interaction, supabase) {
 
       const access = await validateGameAccess(guildId, gameId, supabase, enabledCount);
       if (!access.allowed) {
-        const lockedText =
-          `## <:lowwarning:1548772721679278180>︲__\` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ ไม่สามารถเปิดใช้งานเกมนี้ได้ 𓂃 \`__\n` +
-          `# ${access.message || 'มินิเกมนี้เป็นเกมพิเศษ (มีรูปภาพการ์ด/ไฟล์เสียง) สำหรับสมาชิก Premium เท่านั้น'}\n` +
-          `-# <<< หากต้องการปลดล็อกทุกมินิเกมไม่จำกัด กรุณาติดต่อผู้พัฒนาเพื่ออัปเกรดเป็น Premium ครับ >>>`;
-
-        return interaction.reply({
-          flags: FLAG_V2 | MessageFlags.Ephemeral,
-          components: [
-            {
-              type: 17,
-              components: [
-                {
-                  type: 10,
-                  content: lockedText,
-                },
-              ],
-            },
-          ],
-        });
+        return interaction.reply(buildPremiumUpsellPayload());
       }
     }
 

@@ -19,6 +19,7 @@ const { setupAkariMinigames, flushAllTenantPoints } = require("./src/akari/minig
 const { setupServerActivitySync } = require("./src/akari/services/serverActivitySync");
 const { setupWelcomeService } = require("./src/akari/services/welcomeService");
 const { setupTenantSync } = require("./src/akari/services/tenantSyncService");
+const { setupKumaPresence } = require("./src/akari/services/kumaPresenceService");
 const {
   registerAkariCommands,
   handleSetupGames,
@@ -43,6 +44,11 @@ const {
   handleHelpCommand,
   handlePreviewButtonInteraction,
 } = require("./src/akari/commands/minigamesCommands");
+const {
+  handleSettingVoiceCommand,
+  handleVoiceCategorySelect,
+  handleVoiceCategoryClear,
+} = require("./src/akari/commands/voiceCommands");
 
 const botToken = process.env.KUMA_BOT_TOKEN || process.env.AKARI_BOT_TOKEN;
 
@@ -131,6 +137,9 @@ client.on("interactionCreate", async (interaction) => {
       if (interaction.commandName === "help") {
         return await handleHelpCommand(interaction, client);
       }
+      if (interaction.commandName === "setting-voice") {
+        return await handleSettingVoiceCommand(interaction, kumaSupabase);
+      }
     }
 
     // Button Interactions
@@ -162,6 +171,9 @@ client.on("interactionCreate", async (interaction) => {
       ) {
         return await handleStoreButtonInteraction(interaction, kumaSupabase, client);
       }
+      if (interaction.customId === "kuma_voice_category_clear") {
+        return await handleVoiceCategoryClear(interaction, kumaSupabase);
+      }
     }
 
     // Modal Submissions
@@ -183,6 +195,9 @@ client.on("interactionCreate", async (interaction) => {
 
     // Select Menus (String, Role, Channel)
     if (typeof interaction.isAnySelectMenu === "function" && interaction.isAnySelectMenu()) {
+      if (interaction.customId === "kuma_voice_category_select") {
+        return await handleVoiceCategorySelect(interaction, kumaSupabase);
+      }
       if (
         interaction.customId.startsWith("kuma_store_") ||
         interaction.customId.startsWith("akari_store_") ||
@@ -203,6 +218,9 @@ client.on("interactionCreate", async (interaction) => {
         return await handleSettingReset(interaction, kumaSupabase, client);
       }
     } else if (interaction.isStringSelectMenu()) {
+      if (interaction.customId === "kuma_voice_category_select") {
+        return await handleVoiceCategorySelect(interaction, kumaSupabase);
+      }
       if (
         interaction.customId.startsWith("kuma_store_") ||
         interaction.customId.startsWith("akari_store_") ||
@@ -244,16 +262,8 @@ client.on("interactionCreate", async (interaction) => {
 client.once("clientReady", () => {
   console.log(`🐻 Kuma Public Bot "${client.user.tag}" พร้อมใช้งานแล้ว! (ID: ${client.user.id})`);
 
-  client.user.setPresence({
-    activities: [
-      {
-        name: "custom",
-        type: ActivityType.Custom,
-        state: "🎮 บอทมินิเกมอันดับ #1 — พัฒนาโดย Bear Cafe ครับ",
-      },
-    ],
-    status: "online",
-  });
+  // 7.0 เริ่มระบบหมุนเวียนสถานะ Presence อัตโนมัติ (5 รูปแบบ)
+  setupKumaPresence(client, kumaSupabase);
 
   // 7.1 เริ่มการทำงานของ Server Activity Sync (ซิงค์ Live Voice & Joins ทุก 5 นาที)
   if (kumaSupabase) {

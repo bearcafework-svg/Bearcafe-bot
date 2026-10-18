@@ -613,7 +613,7 @@ function buildPremiumUpsellPayload() {
               {
                 type: 2,
                 style: 5,
-                url: "https://discord.gg/2XqGPgYDN8",
+                url: "https://discord.gg/EHHybsbHxD",
                 label: "︲ปลดล็อคพรีเมี่ยมเลย!",
                 emoji: {
                   id: "1521245223311769673",

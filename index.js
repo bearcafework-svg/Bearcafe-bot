@@ -3,6 +3,7 @@
 // ===================================================
 
 require("dotenv").config();
+require("./src/services/supabaseEnvGuard");
 
 const http = require("http");
 const { Client, GatewayIntentBits, ActivityType, Events, Partials } = require("discord.js");

@@ -655,8 +655,8 @@ async function syncGameSettings(supabase) {
  */
 function setupMinigames(client) {
   const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY,
+    process.env.POINTS_SUPABASE_URL || process.env.SUPABASE_URL,
+    process.env.POINTS_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY,
     { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
   );
 
@@ -669,9 +669,17 @@ function setupMinigames(client) {
     await syncGameSettings(supabase);
 
     // 2. Restore active game sessions from Supabase Database
-    await restoreActiveSessions(supabase);
+    await restoreActiveSessions(supabase, client);
 
-    // (Slash command /เปิดเกม ลงทะเบียนรวมที่ slashCommandRegistry)
+    // 3. Auto-spawn questions immediately on startup if missing active session
+    for (const [gId, gInfo] of Object.entries(GAME_CHANNELS)) {
+      const gameId = parseInt(gId, 10);
+      const channelId = gInfo.id;
+      if (gInfo.isEnabled !== false && !activeSessions.has(channelId)) {
+        console.log(`[minigames] 🚀 Startup Auto-Start: Spawning game ${gameId} (${gInfo.name}) in channel ${channelId}`);
+        await sendNextGameQuestion(client, supabase, channelId, gameId).catch(() => { });
+      }
+    }
 
     // 4. Background Health Check Keeper: Automatically heal games every 5 minutes if missing active session
     setInterval(async () => {

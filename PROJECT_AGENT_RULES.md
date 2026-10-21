@@ -91,7 +91,7 @@ The agent has access to a structured hierarchy of tools and skills. Follow these
 - **`@supabase-postgres-best-practices`**: Mandatory guide for schema migrations, indexing, locking, foreign keys, JSONB queries, and query performance.
 
 ### 2.3 Supabase MCP Server Tools (`mcpServers.supabase`)
-Connected to live Supabase project `orbxyyjpvpbqwfssnyeq`:
+Connected to live Supabase project `fqzhcpzxdlnvhvlqspgc`:
 - **`execute_sql`**: Execute raw SQL queries (SELECT, INSERT, UPDATE, DELETE). Use for data inspection and DML.
 - **`apply_migration`**: Apply DDL migrations (CREATE TABLE, ALTER TABLE, CREATE INDEX).
 - **`list_tables` / `list_migrations` / `list_extensions`**: Inspect database schema state.

@@ -963,8 +963,8 @@ function scheduleSeasonTransition(client, supabase) {
 // ══════════════════════════════════════════════════════════════
 function setupResetTop(client, supabaseClient) {
   const supabase = supabaseClient || createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY,
+    process.env.POINTS_SUPABASE_URL || process.env.SUPABASE_URL,
+    process.env.POINTS_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY,
     { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
   );
 

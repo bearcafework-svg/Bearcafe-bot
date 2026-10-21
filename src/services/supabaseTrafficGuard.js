@@ -29,7 +29,19 @@ class SupabaseTrafficGuard {
 
     return async (url, options = {}) => {
       const now = Date.now();
-      const urlStr = typeof url === "string" ? url : url?.toString() || "";
+      let urlStr = typeof url === "string" ? url : (url instanceof URL ? url.toString() : url?.url || url?.toString() || "");
+
+      // 🛡️ Guard: Rewrite any legacy Supabase 1 URL to Supabase 2
+      if (urlStr.includes("orbxyyjpvpbqwfssnyeq.supabase.co") || urlStr.includes("itulsrbsluwdqwakldjs.supabase.co")) {
+        const rewritten = urlStr
+          .replace("orbxyyjpvpbqwfssnyeq.supabase.co", "fqzhcpzxdlnvhvlqspgc.supabase.co")
+          .replace("itulsrbsluwdqwakldjs.supabase.co", "fqzhcpzxdlnvhvlqspgc.supabase.co");
+        console.warn(`[SupabaseTrafficGuard] 🛡️ Rerouting legacy request to Supabase 2: ${rewritten}`);
+        if (typeof url === "string") url = rewritten;
+        else if (url instanceof URL) url = new URL(rewritten);
+        else if (url && typeof url === "object" && url.url) url = new Request(rewritten, url);
+        urlStr = rewritten;
+      }
       
       // ดึง endpoint แบบย่อ (เช่น /rest/v1/daily_quest_sets)
       let endpoint = "unknown";

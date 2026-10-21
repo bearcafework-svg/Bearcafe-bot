@@ -52,9 +52,11 @@ async function addPoints(supabase, userId, pointsDelta) {
 }
 
 function setupBoostNotification(client) {
+  const supabaseUrl = process.env.POINTS_SUPABASE_URL || process.env.SUPABASE_URL;
+  const supabaseKey = process.env.POINTS_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
   const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY,
+    supabaseUrl,
+    supabaseKey,
     { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
   );
 

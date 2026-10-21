@@ -1,6 +1,7 @@
 // src/services/supabaseClient.js
 // ศูนย์กลางเชื่อมต่อ Supabase แบบ Singleton เพื่อแชร์ Connection Pool และประหยัด RAM
 
+require("./supabaseEnvGuard");
 const { createClient } = require("@supabase/supabase-js");
 const ws = require("ws");
 const { getGuardedFetch } = require("./supabaseTrafficGuard");

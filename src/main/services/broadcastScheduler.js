@@ -4,8 +4,8 @@ const { isSupabaseQuotaError, shouldLogThrottledError } = require("../../../util
 const chatActivityBridge = require("../shared/chatActivityBridge");
 if (!global.WebSocket) global.WebSocket = require("ws");
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseUrl = process.env.POINTS_SUPABASE_URL || process.env.SUPABASE_URL;
+const supabaseKey = process.env.POINTS_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 let supabase = null;
 if (supabaseUrl && supabaseKey) {

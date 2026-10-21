@@ -99,8 +99,10 @@ let supabaseClient = null;
 
 // Helper: ดึง/สร้าง Supabase Client
 function getSupabase() {
-  if (!supabaseClient && process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    supabaseClient = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
+  const url = process.env.POINTS_SUPABASE_URL || process.env.SUPABASE_URL;
+  const key = process.env.POINTS_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseClient && url && key) {
+    supabaseClient = createClient(url, key, {
       auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
     });
   }

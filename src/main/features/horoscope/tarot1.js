@@ -62,7 +62,9 @@ async function addPoints(supabase, userId, pointsDelta, tarotPointDelta = 0) {
     return { newPoints, newTarotPoint };
   }
   const row = data?.[0] ?? { new_points: 0, new_tarot_point: 0 };
-  return { newPoints: row.new_points, newTarotPoint: row.new_tarot_point };
+  const newPoints = row.new_points ?? row.points ?? 0;
+  const newTarotPoint = row.new_tarot_point ?? row.tarot_point ?? 0;
+  return { newPoints, newTarotPoint };
 }
 
 // ─── Helper: Progress Bar ─────────────────────────────────────────────────────
@@ -233,9 +235,11 @@ function buildCombinedPayload(card, earnedPoints, tarotPoint, isComplete) {
 // ─── Setup ──────────────────────────────────────────────────────────–
 function setupTarot1(client) {
 
+  const supabaseUrl = process.env.POINTS_SUPABASE_URL || process.env.SUPABASE_URL;
+  const supabaseKey = process.env.POINTS_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
   const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY,
+    supabaseUrl,
+    supabaseKey,
     { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
   );
 

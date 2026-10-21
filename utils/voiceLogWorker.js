@@ -69,6 +69,7 @@ async function startVoiceLogWorker() {
       // จัดระเบียบข้อมูลเตรียมส่งเข้า Supabase
       const rows = batch.map(item => ({
         user_id: item.user_id,
+        discord_id: item.user_id,
         username: item.username,
         channel_id: item.channel_id,
         channel_name: item.channel_name,

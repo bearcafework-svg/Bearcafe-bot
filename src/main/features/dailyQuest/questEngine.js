@@ -161,7 +161,7 @@ async function getOrInitDailyQuestSet(supabase, targetDate = getBangkokTodayDate
       .eq("active", true);
 
     if (tErr || !allTemplates || allTemplates.length === 0) {
-      console.error("[dailyQuest] No active templates found in database.");
+      console.error("[dailyQuest] No active templates found in database:", tErr?.message || "(empty table)");
       return { set: null, quests: [] };
     }
 

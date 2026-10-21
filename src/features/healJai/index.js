@@ -656,8 +656,12 @@ async function sendConsentAuditLog(guild, { user, channelId, version = "v1.0", r
 
 let supabaseClient;
 function getSupabase() {
-  if (!supabaseClient && process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    supabaseClient = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+  if (!supabaseClient) {
+    const url = process.env.HEALJAI_SUPABASE_URL || process.env.SUPABASE_URL;
+    const key = process.env.HEALJAI_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (url && key) {
+      supabaseClient = createClient(url, key);
+    }
   }
   return supabaseClient;
 }

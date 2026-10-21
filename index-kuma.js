@@ -49,6 +49,12 @@ const {
   handleVoiceCategorySelect,
   handleVoiceCategoryClear,
 } = require("./src/akari/commands/voiceCommands");
+const {
+  handleSetWelcCommand,
+  handleSetGoodbyeCommand,
+  handleWelcomeInteraction,
+  setupMemberWelcomeListener,
+} = require("./src/akari/services/memberWelcomeService");
 
 const botToken = process.env.KUMA_BOT_TOKEN || process.env.AKARI_BOT_TOKEN;
 
@@ -140,7 +146,20 @@ client.on("interactionCreate", async (interaction) => {
       if (interaction.commandName === "setting-voice") {
         return await handleSettingVoiceCommand(interaction, kumaSupabase);
       }
+      if (interaction.commandName === "set") {
+        const sub = interaction.options.getSubcommand(false);
+        if (sub === "welc") {
+          return await handleSetWelcCommand(interaction, kumaSupabase);
+        }
+        if (sub === "goodbye") {
+          return await handleSetGoodbyeCommand(interaction, kumaSupabase);
+        }
+      }
     }
+
+    // Welcome System Interactions (Buttons, Modals, Select Menus)
+    const handledWelc = await handleWelcomeInteraction(interaction, kumaSupabase);
+    if (handledWelc) return;
 
     // Button Interactions
     if (interaction.isButton()) {
@@ -270,6 +289,9 @@ client.once("clientReady", () => {
     setupServerActivitySync(client, kumaSupabase);
     setupTenantSync(client, kumaSupabase);
   }
+
+  // 7.2 เริ่มระบบส่งข้อความต้อนรับสมาชิกใหม่ (guildMemberAdd)
+  setupMemberWelcomeListener(client, kumaSupabase);
 });
 
 // 8. Login เข้า Discord Gateway

@@ -54,6 +54,10 @@ const {
   handlePreviewButtonInteraction,
 } = require("./previewCommands");
 const { SETTING_VOICE_SLASH_COMMAND } = require("./voiceCommands");
+const {
+  WELCOME_ALLOWED_GUILD_ID,
+  SET_SLASH_COMMAND,
+} = require("../services/memberWelcomeService");
 
 const FLAG_V2 = MessageFlags.IsComponentsV2 || 32768;
 
@@ -286,6 +290,7 @@ async function registerAkariCommands(client) {
       };
       addGuildCommand(KUMA_CLEAR_ALLOWED_GUILD_ID, KUMA_CLEAR_SLASH_COMMAND);
       addGuildCommand(KUMA_REVEAL_ALLOWED_GUILD_ID, KUMA_REVEAL_SLASH_COMMAND);
+      addGuildCommand(WELCOME_ALLOWED_GUILD_ID, SET_SLASH_COMMAND);
 
       for (const [gId, cmds] of guildCommandsMap.entries()) {
         try {
@@ -297,6 +302,26 @@ async function registerAkariCommands(client) {
           }
         } catch (guildCmdErr) {
           console.warn(`⚠️ [KumaCommands] Failed to register guild-specific commands for ${gId}:`, guildCmdErr.message);
+        }
+      }
+
+      // ล้างคำสั่งที่อาจค้างอยู่ในกิลด์เก่าที่ยกเลิกการทดสอบ
+      const staleGuildsToClear = ["1536199707922141254"];
+      for (const staleGuildId of staleGuildsToClear) {
+        if (!guildCommandsMap.has(staleGuildId)) {
+          try {
+            const staleGuild = client.guilds.cache.get(staleGuildId) ||
+                               await client.guilds.fetch(staleGuildId).catch(() => null);
+            if (staleGuild) {
+              const currentGuildCmds = await staleGuild.commands.fetch().catch(() => null);
+              if (currentGuildCmds && currentGuildCmds.size > 0) {
+                await staleGuild.commands.set([]);
+                console.log(`🧹 [KumaCommands] ล้างคำสั่ง Guild เก่าออกจากกิลด์ ${staleGuildId} เรียบร้อยแล้ว`);
+              }
+            }
+          } catch (staleErr) {
+            // ignore
+          }
         }
       }
     } catch (e) {

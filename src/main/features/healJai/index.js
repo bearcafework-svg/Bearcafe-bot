@@ -48,7 +48,8 @@ const {
   buildIncompleteOrderWarningPayload,
   buildOperatingHoursModal,
   buildAdminExtendModal,
-  ALL_SPECIALTIES
+  ALL_SPECIALTIES,
+  isHealJaiPromoActive
 } = require("./healJaiPayloads");
 
 const analyticsService = require("./services/analyticsService");
@@ -119,6 +120,7 @@ const TRANSCRIPTS_CHANNEL_ID = process.env.HEALJAI_TRANSCRIPTS_CHANNEL_ID || "15
 const SESSION_CATEGORY_ID = "1545237654612869201"; // หมวดหมู่ห้อง Session (ฮีลใจ)
 const CHAT_ARCHIVE_CATEGORY_ID = "1555776168798720031"; // หมวดหมู่จัดเก็บประวัติห้องแชทหลังจบเคส (Chat Archive)
 const COUNSELOR_ALERTS_CHANNEL_ID = "1560278981960409210"; // ห้องแจ้งเตือนที่ปรึกษา (Inactivity Guard Alerts)
+const HEALJAI_WELCOME_CHANNEL_ID = "1562347242981957713"; // ห้องต้อนรับสมาชิกใหม่ (Welcome Component V2)
 
 const TIMEOUT_MS = (config.healJai && config.healJai.timeoutMinutes ? config.healJai.timeoutMinutes : 15) * 60 * 1000;
 
@@ -651,6 +653,103 @@ async function sendConsentAuditLog(guild, { user, channelId, version = "v1.0", r
     console.log(`[HealJai] 📜 Sent consent audit log for ${user.tag || user.id} to #${transcriptChannel.name}`);
   } catch (err) {
     console.error("[HealJai] Error in sendConsentAuditLog:", err.message);
+  }
+}
+
+/**
+ * ส่งข้อความต้อนรับสมาชิกใหม่แบบ Component V2 ไปยังห้องต้อนรับ (เมื่อกดยอมรับข้อตกลงครั้งแรก)
+ * @param {import("discord.js").Guild} guild
+ * @param {import("discord.js").GuildMember} member
+ */
+async function sendHealJaiWelcomeMessage(guild, member) {
+  if (!guild || !member) return;
+  try {
+    const welcomeChannel = guild.channels.cache.get(HEALJAI_WELCOME_CHANNEL_ID) ||
+                           await guild.channels.fetch(HEALJAI_WELCOME_CHANNEL_ID).catch(() => null);
+
+    if (!welcomeChannel) {
+      console.warn("[HealJai] Welcome channel not found:", HEALJAI_WELCOME_CHANNEL_ID);
+      return;
+    }
+
+    const user = member.user || member;
+    const avatarUrl = user.displayAvatarURL ? user.displayAvatarURL({ dynamic: true, size: 256, extension: "png" }) : "https://cdn.discordapp.com/embed/avatars/0.png";
+    const joinedUnix = Math.floor((member.joinedTimestamp || Date.now()) / 1000);
+
+    const welcomePayload = {
+      flags: FLAG_V2,
+      components: [
+        {
+          type: 17,
+          components: [
+            {
+              type: 9,
+              components: [
+                {
+                  type: 10,
+                  content: "## <:hj_clover:1552227021122314250>︲__` 𝖧𝗂 𝗐𝖾𝗅𝖼𝗈𝗆𝖾 ₊ ยินดีต้อนรับนะคะ 𓂃 `__\n-# บางครั้งการเริ่มต้นพูดคุย ก็ไม่จำเป็นต้องรอให้พร้อมเสมอไป หากมีเรื่องไม่สบายใจระบายได้นะ เดี๋ยวอยู่เพื่อนเอง <a:heartoutlines:1536268541144076369>\n\n"
+                }
+              ],
+              accessory: {
+                type: 11,
+                media: {
+                  url: avatarUrl
+                }
+              }
+            },
+            {
+              type: 14,
+              spacing: 2
+            },
+            {
+              type: 10,
+              content: `<@${user.id}> เข้าร่วมเมื่อวันที่ <t:${joinedUnix}:F> (<t:${joinedUnix}:R>)\n### เริ่มใช้บริการ:\n- <:cupofmatcha:1536694010780065863>︲__\`วิธีการใช้บริการ\`__: <#1536206516359532665>\n- <a:bellpress:1547361650552737914>︲__\`สอบถามการใช้บริการ\`__: <#1536207517120466964>\n- <a:hj_kittypaw:1552270687295643709>︲__\`เช็กรีวิวจากลูกค้าท่านอื่น ๆ\`__: <#1545240537089703986>`
+            },
+            {
+              type: 14,
+              spacing: 1,
+              divider: false
+            },
+            {
+              type: 12,
+              items: [
+                {
+                  media: {
+                    url: "https://cdn.discordapp.com/attachments/1536228557901004980/1562360337943109723/1.png?ex=6ad9b4f3&is=6ad86373&hm=d1623196fc72ea6417a40e965090a5c407d63d6f987bc38f27a33e0b286071b5&"
+                  }
+                }
+              ]
+            },
+            {
+              type: 14,
+              spacing: 1,
+              divider: false
+            },
+            {
+              type: 1,
+              components: [
+                {
+                  type: 2,
+                  style: 5,
+                  url: "https://discord.com/channels/1536199707922141254/1536206516359532665",
+                  label: "สนใจโปรโมชั่น",
+                  emoji: {
+                    id: "1537038266010837003",
+                    name: "greenarrow",
+                    animated: true
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    };
+
+    await welcomeChannel.send(welcomePayload);
+    console.log(`[HealJai] 👋 Sent welcome message for ${user.tag || user.id} to #${welcomeChannel.name || welcomeChannel.id}`);
+  } catch (err) {
+    console.error("[HealJai] Failed to send welcome message:", err.message);
   }
 }
 
@@ -3280,9 +3379,16 @@ function setupHealJai(client) {
         const isSpecific = toppingKey === "specific_39" || toppingKey === "specific_30";
         const isSilent = toppingKey === "silent_19" || toppingKey === "silent_15";
         const counselorId = state.counselorId || state.selectedCounselor;
-        const totalPrice = drink.price + (topping ? topping.price : 0);
-        const counselorShare = Number((totalPrice * 0.70).toFixed(2));
-        const platformShare = Number((totalPrice * 0.30).toFixed(2));
+        const isPromo = isHealJaiPromoActive() && (drinkKey === "tea_39" || drink.duration === 15);
+        const drinkPrice = isPromo ? 19 : drink.price;
+        const toppingPrice = topping ? topping.price : 0;
+        const totalPrice = drinkPrice + toppingPrice;
+        const counselorShare = isPromo
+          ? Number((19 + (toppingPrice * 0.70)).toFixed(2))
+          : Number((totalPrice * 0.70).toFixed(2));
+        const platformShare = isPromo
+          ? Number((toppingPrice * 0.30).toFixed(2))
+          : Number((totalPrice * 0.30).toFixed(2));
         const orderCode = `HJ-${Date.now().toString(36).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
 
         const { data: createdOrder } = await supabase
@@ -3292,7 +3398,7 @@ function setupHealJai(client) {
             guild_id: guild.id,
             customer_id: user.id,
             package_tier: drink.tier || "S",
-            package_name: drink.name,
+            package_name: isPromo ? "[PROMO] 15 นาที — 19 บาท" : drink.name,
             duration_minutes: drink.duration,
             service_mode: state.mode || "chat",
             is_silent: isSilent,
@@ -4691,15 +4797,17 @@ function setupHealJai(client) {
         ticketSelections.set(channel.id, state);
 
         const drink = DRINK_OPTIONS[state.drinkId] || DRINK_OPTIONS.tea_39;
+        const isPromo = isHealJaiPromoActive() && (state.drinkId === "tea_39" || drink.duration === 15);
+        const drinkPrice = isPromo ? 19 : drink.price;
         if (supabase) {
           try {
             await supabase
               .from("heal_jai_orders_sessions")
               .update({
                 package_tier: drink.tier || "S",
-                package_name: drink.name,
+                package_name: isPromo ? "[PROMO] 15 นาที — 19 บาท" : drink.name,
                 duration_minutes: drink.duration,
-                total_price: drink.price,
+                total_price: drinkPrice,
                 updated_at: new Date().toISOString()
               })
               .eq("ticket_channel_id", channel.id)
@@ -5232,6 +5340,13 @@ function setupHealJai(client) {
             isReconfirmed: hadVerifiedRole || !isNewConsent
           });
 
+          // 4. ส่ง Welcome Component V2 ไปยังห้องต้อนรับ (เฉพาะเมื่อกดยอมรับครั้งแรก)
+          if (!hadVerifiedRole) {
+            sendHealJaiWelcomeMessage(guild, member).catch((e) => {
+              console.warn("[HealJai] Error sending welcome message:", e.message);
+            });
+          }
+
           return interaction.reply({
             flags: FLAG_V2 | FLAG_EPHEMERAL,
             components: [
@@ -5644,10 +5759,11 @@ function setupHealJai(client) {
 
       const drinkKey = state.drinkId || "tea_39";
       const drink = DRINK_OPTIONS[drinkKey] || DRINK_OPTIONS.tea_39;
+      const isPromo = isHealJaiPromoActive() && (drinkKey === "tea_39" || drink.duration === 15);
 
-      const totalPrice = drink.price;
-      const counselorShare = Number((totalPrice * 0.70).toFixed(2));
-      const platformShare = Number((totalPrice * 0.30).toFixed(2));
+      const totalPrice = isPromo ? 19 : drink.price;
+      const counselorShare = isPromo ? 19 : Number((totalPrice * 0.70).toFixed(2));
+      const platformShare = isPromo ? 0 : Number((totalPrice * 0.30).toFixed(2));
       const isBooster = Boolean(member?.premiumSince);
 
       let orderCode = `HJ-${Date.now().toString(36).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
@@ -5666,7 +5782,7 @@ function setupHealJai(client) {
             .update({
               topics: state.topics || [],
               package_tier: drink.tier || "S",
-              package_name: drink.name,
+              package_name: isPromo ? "[PROMO] 15 นาที — 19 บาท" : drink.name,
               duration_minutes: drink.duration,
               service_mode: state.mode || "chat",
               is_silent: false,
@@ -5691,7 +5807,7 @@ function setupHealJai(client) {
               guild_id: guild.id,
               customer_id: user.id,
               package_tier: drink.tier || "S",
-              package_name: drink.name,
+              package_name: isPromo ? "[PROMO] 15 นาที — 19 บาท" : drink.name,
               duration_minutes: drink.duration,
               service_mode: state.mode || "chat",
               is_silent: false,
@@ -5715,7 +5831,7 @@ function setupHealJai(client) {
       const scanToPayPayload = buildScanToPayPayload({
         customerId: user.id,
         mode: state.mode || "chat",
-        packageName: drink.label,
+        packageName: isPromo ? "[PROMO] 15 นาที — 19 บาท (จากปกติ 39.-)" : drink.label,
         duration: drink.duration,
         totalPrice: totalPrice,
         isBooster: isBooster
@@ -7377,8 +7493,9 @@ function setupHealJai(client) {
         .eq("id", orderId);
 
       // บันทึกธุรกรรมลงใน Financial Ledger สำหรับแอดมินอนุมัติสลิปแบบแมนนวล
-      const counselorShare = order.counselor_share ?? Number(((order.total_price || 0) * 0.70).toFixed(2));
-      const platformShare = order.platform_share ?? Number(((order.total_price || 0) * 0.30).toFixed(2));
+      const isPromoOrder = isHealJaiPromoActive() && (order.duration_minutes === 15 || order.package_tier === "S");
+      const counselorShare = order.counselor_share ?? (isPromoOrder ? (order.total_price || 19) : Number(((order.total_price || 0) * 0.70).toFixed(2)));
+      const platformShare = order.platform_share ?? (isPromoOrder ? 0 : Number(((order.total_price || 0) * 0.30).toFixed(2)));
       await financeService.recordPayment(supabase, {
         orderId: order.id,
         orderCode: order.order_code,

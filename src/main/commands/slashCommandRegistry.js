@@ -429,6 +429,48 @@ const GUILD_SLASH_COMMANDS = [
     description: "ตรวจสอบสถานะการทำงาน, Daily Budget และ Cache ของระบบ AI (เฉพาะ Admin)",
     defaultMemberPermissions: PermissionFlagsBits.Administrator,
   },
+
+  // 28. /จัดการแต้ม (Manage Points - Owner Only)
+  {
+    name: "จัดการแต้ม",
+    description: "จัดการแต้มหรือเค้กของสมาชิก (เฉพาะ Owner เท่านั้น)",
+    defaultMemberPermissions: PermissionFlagsBits.Administrator,
+    options: [
+      {
+        name: "user",
+        description: "เลือกสมาชิกที่ต้องการจัดการ",
+        type: ApplicationCommandOptionType.User,
+        required: true,
+      },
+      {
+        name: "action",
+        description: "เลือกการกระทำ (เพิ่ม / ลด)",
+        type: ApplicationCommandOptionType.String,
+        required: true,
+        choices: [
+          { name: "➕ เพิ่ม (add)", value: "add" },
+          { name: "➖ ลด (remove)", value: "remove" },
+        ],
+      },
+      {
+        name: "type",
+        description: "เลือกประเภทที่ต้องการจัดการ (แต้ม / เค้ก)",
+        type: ApplicationCommandOptionType.String,
+        required: true,
+        choices: [
+          { name: "🍵 แต้ม (point)", value: "point" },
+          { name: "🍰 เค้ก (cake)", value: "cake" },
+        ],
+      },
+      {
+        name: "amount",
+        description: "จำนวนที่ต้องการเพิ่มหรือลด (ขั้นต่ำ 1)",
+        type: ApplicationCommandOptionType.Integer,
+        required: true,
+        minValue: 1,
+      },
+    ],
+  },
 ];
 
 /**

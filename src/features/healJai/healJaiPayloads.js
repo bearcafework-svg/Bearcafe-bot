@@ -471,6 +471,14 @@ const MODE_OPTIONS = [
   }
 ];
 
+/**
+ * ตรวจสอบสถานะโปรโมชั่นชั่วคราวของ Heal-Jai (15 นาที 19 บาท จนถึง 31/10/2026 23:59:59 เวลาไทย)
+ */
+function isHealJaiPromoActive() {
+  const PROMO_END = new Date("2026-10-31T23:59:59+07:00").getTime();
+  return Date.now() <= PROMO_END;
+}
+
 const DURATION_OPTIONS = [
   {
     label: "15 นาที — 39 บาท",
@@ -793,12 +801,23 @@ function buildInteractiveOrderPayload({
   }));
 
   // 3. SelectMenu 3: เลือกระยะเวลาปรึกษา (Single-select)
-  const durationMenuOptions = DURATION_OPTIONS.map((opt) => ({
-    label: opt.label,
-    value: opt.value,
-    emoji: opt.emoji,
-    default: selectedDrinkId === opt.value
-  }));
+  const isPromo = isHealJaiPromoActive();
+  const durationMenuOptions = DURATION_OPTIONS.map((opt) => {
+    if (opt.value === "tea_39" && isPromo) {
+      return {
+        label: "[PROMO] 15 นาที — 19 บาท (จากปกติ 39.-)",
+        value: opt.value,
+        emoji: { name: "🎁" },
+        default: selectedDrinkId === opt.value
+      };
+    }
+    return {
+      label: opt.label,
+      value: opt.value,
+      emoji: opt.emoji,
+      default: selectedDrinkId === opt.value
+    };
+  });
 
   return sanitizeComponentV2({
     flags: FLAG_V2,
@@ -1006,7 +1025,8 @@ function buildScanToPayPayload(orderInfo = {}) {
 
   const duration = orderInfo.duration || 30;
   const durationText = `${duration} นาที`;
-  const totalPrice = orderInfo.totalPrice || (duration === 15 ? 39 : (duration === 60 ? 129 : 69));
+  const defaultPrice = (isHealJaiPromoActive() && duration === 15) ? 19 : (duration === 15 ? 39 : (duration === 60 ? 129 : 69));
+  const totalPrice = orderInfo.totalPrice !== undefined ? orderInfo.totalPrice : defaultPrice;
 
   return sanitizeComponentV2({
     flags: FLAG_V2,
@@ -2016,6 +2036,8 @@ module.exports = {
   buildIncompleteOrderWarningPayload,
   buildOperatingHoursModal,
   buildAdminExtendModal,
-  ALL_SPECIALTIES
+  ALL_SPECIALTIES,
+  DURATION_OPTIONS,
+  isHealJaiPromoActive
 };
 

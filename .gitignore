@@ -4,3 +4,8 @@ node_modules/
 .merge-source/
 .reload-*
 __pycache__/
+scripts/migration/
+scripts/check_target_db.js
+scripts/inspect_target_rows.js
+scripts/list_all_target_tables.js
+

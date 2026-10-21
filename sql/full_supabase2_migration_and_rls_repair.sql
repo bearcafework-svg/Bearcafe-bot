@@ -407,7 +407,8 @@ DECLARE
     'heal_jai_counselor_shifts',
     'heal_jai_financial_transactions',
     'heal_jai_consents',
-    'heal_jai_analytics_events'
+    'heal_jai_analytics_events',
+    'heal_jai_reviews'
   ];
 BEGIN
   FOREACH t IN ARRAY heal_jai_tables LOOP

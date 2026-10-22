@@ -6,6 +6,9 @@
 
 const { Client, GatewayIntentBits, Events } = require("discord.js");
 const { createClient } = require("@supabase/supabase-js");
+const { getSupabaseClient } = require("../services/supabaseClient");
+const { SUPA2_URL, SUPA2_SERVICE_KEY } = require("../services/supabaseEnvGuard");
+const logger = require("../../utils/logger");
 
 const BEARCAFE_GUILD_ID = process.env.GUILD_ID || "1144251788493602848";
 const SYNC_INTERVAL_MS = 5 * 60 * 1000; // ซิงค์ตามรอบทุก 5 นาที (ประหยัดโควตา Egress)
@@ -16,12 +19,28 @@ let fallbackBotClient = null;
 let lastSyncedSignature = ""; // Smart Cache: ข้ามการยิง Supabase หากข้อมูลห้องและจำนวนคนไม่มีการเปลี่ยนแปลง
 
 /**
+ * รับอินสแตนซ์ Supabase Client ที่รับประกันว่าใช้งานได้
+ */
+function resolveSupabase(client) {
+  if (client) return client;
+  const central = getSupabaseClient();
+  if (central) return central;
+
+  const supabaseUrl = process.env.SUPABASE_URL || SUPA2_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || SUPA2_SERVICE_KEY;
+  return createClient(supabaseUrl, supabaseKey, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+}
+
+/**
  * ฟังก์ชันหลักในการรวบรวมห้องเสียงที่กำลังเอคทีฟและบันทึกลง Supabase
  * @param {import('discord.js').Guild} guild
- * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @param {import('@supabase/supabase-js').SupabaseClient} [supabase]
  */
 async function syncBearCafeLiveVoice(guild, supabase) {
-  if (!guild || !supabase || isSyncing) return;
+  const db = resolveSupabase(supabase);
+  if (!guild || !db || isSyncing) return;
   isSyncing = true;
 
   try {
@@ -68,7 +87,7 @@ async function syncBearCafeLiveVoice(guild, supabase) {
     lastSyncedSignature = signature;
 
     // ดึง server_profile เดิมเพื่อทำการ merge ข้อมูล
-    const { data: currentData } = await supabase
+    const { data: currentData } = await db
       .from("discord_servers")
       .select("server_profile")
       .eq("discord_id", BEARCAFE_GUILD_ID)
@@ -83,7 +102,7 @@ async function syncBearCafeLiveVoice(guild, supabase) {
       active_voice_updated_at: new Date().toISOString(),
     };
 
-    const { error: updateErr } = await supabase
+    const { error: updateErr } = await db
       .from("discord_servers")
       .update({
         live_voice_count: totalInVoice,
@@ -93,14 +112,15 @@ async function syncBearCafeLiveVoice(guild, supabase) {
       .eq("discord_id", BEARCAFE_GUILD_ID);
 
     if (updateErr) {
-      console.warn("[bearCafeActivitySync] Failed to update discord_servers:", updateErr.message);
+      logger.warn("VOICE_SYNC", `Failed to update discord_servers: ${updateErr.message}`);
     } else {
-      console.log(
-        `📡 [bearCafeActivitySync] ซิงค์ข้อมูลเสียง Bear Cafe สำเร็จ: ${totalInVoice} คนใน ${activeRooms.length} ห้อง`
+      logger.success(
+        "VOICE_SYNC",
+        `ซิงค์ข้อมูลเสียง Bear Cafe สำเร็จ: ${totalInVoice} คนใน ${activeRooms.length} ห้อง`
       );
     }
   } catch (err) {
-    console.error("[bearCafeActivitySync] Error syncing live voice:", err.message);
+    logger.error("VOICE_SYNC", `Error syncing live voice: ${err.message}`);
   } finally {
     isSyncing = false;
   }
@@ -121,25 +141,15 @@ function debouncedTriggerSync(guild, supabase, delayMs = 15000) {
  * @param {import('discord.js').Client} client
  */
 function setupBearCafeActivitySync(client) {
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabase = resolveSupabase();
 
-  if (!supabaseUrl || !supabaseKey) {
-    console.warn("⚠️ [bearCafeActivitySync] ขาด SUPABASE_URL หรือ SUPABASE_SERVICE_ROLE_KEY ระบบจะไม่ทำงาน");
-    return;
-  }
-
-  const supabase = createClient(supabaseUrl, supabaseKey, {
-    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-  });
-
-  console.log("[bearCafeActivitySync] 🎙️ Initializing Bear Cafe Live Voice Sync service...");
+  logger.info("VOICE_SYNC", "🎙️ Initializing Bear Cafe Live Voice Sync service...");
 
   const startTrackingWithGuild = (guild) => {
     // 1. ซิงค์ครั้งแรกทันที
     syncBearCafeLiveVoice(guild, supabase);
 
-    // 2. ตั้งเวลา Periodic Sync ทุก 60 วินาที
+    // 2. ตั้งเวลา Periodic Sync ทุก 5 นาที
     setInterval(() => {
       syncBearCafeLiveVoice(guild, supabase);
     }, SYNC_INTERVAL_MS);
@@ -156,7 +166,7 @@ function setupBearCafeActivitySync(client) {
   };
 
   // ตรวจสอบว่า client ที่รันอยู่มีกิลด์ Bear Cafe หรือไม่
-  const existingGuild = client.guilds.cache.get(BEARCAFE_GUILD_ID);
+  const existingGuild = client.guilds?.cache?.get(BEARCAFE_GUILD_ID);
   if (existingGuild) {
     startTrackingWithGuild(existingGuild);
     return;
@@ -165,7 +175,7 @@ function setupBearCafeActivitySync(client) {
   // หากไม่มี (เช่น ใน DEV_MODE ที่บอทหลักรันด้วย SECONDARY_BOT_TOKEN / HealJai token)
   // ให้ใช้ BOT_TOKEN เพื่อเชื่อมต่อ Bear Cafe โดยเฉพาะ
   if (process.env.BOT_TOKEN && process.env.BOT_TOKEN !== client.token) {
-    console.log("[bearCafeActivitySync] Client does not have Bear Cafe guild, starting dedicated Main Bot watcher...");
+    logger.info("VOICE_SYNC", "Client does not have Bear Cafe guild, starting dedicated Main Bot watcher...");
     fallbackBotClient = new Client({
       intents: [
         GatewayIntentBits.Guilds,
@@ -178,15 +188,15 @@ function setupBearCafeActivitySync(client) {
     fallbackBotClient.once(clientReadyEvent, () => {
       const guild = fallbackBotClient.guilds.cache.get(BEARCAFE_GUILD_ID);
       if (guild) {
-        console.log(`[bearCafeActivitySync] Dedicated Main Bot watcher connected to ${guild.name}`);
+        logger.success("VOICE_SYNC", `Dedicated Main Bot watcher connected to ${guild.name}`);
         startTrackingWithGuild(guild);
       } else {
-        console.warn(`[bearCafeActivitySync] Guild ${BEARCAFE_GUILD_ID} not found on Main Bot client`);
+        logger.warn("VOICE_SYNC", `Guild ${BEARCAFE_GUILD_ID} not found on Main Bot client`);
       }
     });
 
     fallbackBotClient.login(process.env.BOT_TOKEN).catch((err) => {
-      console.error("[bearCafeActivitySync] Failed to login dedicated Main Bot client:", err.message);
+      logger.error("VOICE_SYNC", `Failed to login dedicated Main Bot client: ${err.message}`);
     });
     return;
   }

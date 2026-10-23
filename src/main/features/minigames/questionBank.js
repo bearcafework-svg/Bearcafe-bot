@@ -552,7 +552,8 @@ function invalidateQuestionCache(tableName = null) {
  * Fetch Next Question for any game (1-10) with Shared Vocabulary Pool & Dynamic 3-Choice Generation
  */
 async function getNextQuestion(supabase, gameId, gameSettings = null, queryOptions = {}) {
-  if (gameId === 3) {
+  const targetId = Number(gameId);
+  if (targetId === 3) {
     return generateMathProblem();
   }
 
@@ -562,14 +563,14 @@ async function getNextQuestion(supabase, gameId, gameSettings = null, queryOptio
 
   if (supabase) {
     // Determine target game_id filters for standalone & shared vocabulary pools
-    let targetGameIds = [gameId];
-    if (gameId === 1) targetGameIds = [1];   // Standalone Game 1 (Fill-in-the-Blank Thai)
-    if (gameId === 6) targetGameIds = [6];   // Standalone Game 6 (Fast Typing Thai)
-    if (gameId === 2) targetGameIds = [2];   // Standalone Game 2 (Fill-in-the-Blank English)
-    if (gameId === 7) targetGameIds = [7];   // Standalone Game 7 (Fast Typing English)
-    if (gameId === 5) targetGameIds = [5];   // Standalone Game 5 (Audio English)
-    if (gameId === 11) targetGameIds = [11]; // Standalone Game 11 (Audio Thai)
-    if (gameId === 8 || gameId === 9) targetGameIds = [8, 9];
+    let targetGameIds = [targetId];
+    if (targetId === 1) targetGameIds = [1];   // Standalone Game 1 (Fill-in-the-Blank Thai)
+    if (targetId === 6) targetGameIds = [6];   // Standalone Game 6 (Fast Typing Thai)
+    if (targetId === 2) targetGameIds = [2];   // Standalone Game 2 (Fill-in-the-Blank English)
+    if (targetId === 7) targetGameIds = [7];   // Standalone Game 7 (Fast Typing English)
+    if (targetId === 5) targetGameIds = [5];   // Standalone Game 5 (Audio English)
+    if (targetId === 11) targetGameIds = [11]; // Standalone Game 11 (Audio Thai)
+    if (targetId === 8 || targetId === 9) targetGameIds = [8, 9];
 
     const sortedIds = [...targetGameIds].sort((a, b) => a - b).join('_');
     const cacheKey = `${tableName}:${sortedIds}`;

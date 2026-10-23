@@ -1094,9 +1094,12 @@ async function restoreTenantChannelsOnStartup(client, supabase) {
         if (row && row.guild_id && row.channel_id && row.session_data) {
           const sessionKey = `${row.guild_id}:${row.channel_id}`;
           if (validChannelKeys.has(sessionKey)) {
-            const planInfo = await getTenantPlan(row.guild_id, supabase);
-            row.session_data.isPremium = planInfo.isPremium;
-            activeTenantSessions.set(sessionKey, row.session_data);
+            const hasAnswer = String(row.session_data?.answer || row.session_data?.displayAnswer || '').trim() !== '';
+            if (hasAnswer) {
+              const planInfo = await getTenantPlan(row.guild_id, supabase);
+              row.session_data.isPremium = planInfo.isPremium;
+              activeTenantSessions.set(sessionKey, row.session_data);
+            }
           } else {
             orphanChannelIds.push(row.channel_id);
           }
@@ -1208,6 +1211,13 @@ function setupAkariMinigames(client, supabase) {
 
     const userText = message.content.trim();
     if (!userText) return;
+
+    const answerStr = String(session.answer || session.displayAnswer || '').trim();
+    if (!answerStr) {
+      console.warn(`[akari-minigames] ⚠️ Session for Game ${session.gameId} (${message.channel.id}) missing answer. Auto-healing with fresh question...`);
+      spawnQuestion(client, message.channel, session.gameId, guildId, supabase).catch(() => {});
+      return;
+    }
 
     const isThaiGame = session.gameId === 1 || session.gameId === 4 || session.gameId === 6 || session.gameId === 11;
     const isCorrect = isThaiGame

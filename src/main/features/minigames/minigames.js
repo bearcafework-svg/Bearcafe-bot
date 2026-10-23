@@ -193,7 +193,7 @@ async function getAudioBuffer(word, lang = 'th') {
 }
 
 /**
- * Restores active game sessions from Supabase DB or Discord Channel History on bot restart
+ * Restores active game sessions from Supabase DB on bot restart
  */
 async function restoreActiveSessions(supabase, client) {
   if (supabase) {
@@ -201,47 +201,20 @@ async function restoreActiveSessions(supabase, client) {
       const { data, error } = await supabase.from('minigame_active_sessions').select('*');
       if (!error && data && data.length > 0) {
         for (const row of data) {
-          activeSessions.set(row.channel_id, {
-            gameId: row.game_id,
-            questionData: row.current_question,
-            messageId: row.message_id,
-            channelId: row.channel_id
-          });
+          const hasValidAnswer = row.current_question && String(row.current_question.answer || '').trim() !== '';
+          if (hasValidAnswer) {
+            activeSessions.set(row.channel_id, {
+              gameId: row.game_id,
+              questionData: row.current_question,
+              messageId: row.message_id,
+              channelId: row.channel_id
+            });
+          }
         }
-        console.log(`[minigames] ✅ Restored ${data.length} active game sessions from Supabase.`);
+        console.log(`[minigames] ✅ Restored ${activeSessions.size} active game sessions with valid answers from Supabase.`);
       }
     } catch (err) {
       console.error('[minigames] Error restoring active sessions:', err.message);
-    }
-  }
-
-  // Smart Recovery: Attach to existing bot messages on Discord without posting new questions
-  if (client) {
-    for (const [gId, gInfo] of Object.entries(GAME_CHANNELS)) {
-      const gameId = parseInt(gId, 10);
-      const channelId = gInfo.id;
-      if (!activeSessions.has(channelId)) {
-        try {
-          const channel = client.channels.cache.get(channelId) || await client.channels.fetch(channelId).catch(() => null);
-          if (channel && typeof channel.messages?.fetch === 'function') {
-            const recentMsgs = await channel.messages.fetch({ limit: 5 }).catch(() => null);
-            if (recentMsgs && recentMsgs.size > 0) {
-              const lastBotMsg = recentMsgs.find(m => m.author.id === client.user.id);
-              if (lastBotMsg) {
-                activeSessions.set(channelId, {
-                  gameId,
-                  questionData: { wordOrQuestion: 'โจทย์ปัจจุบัน', answer: '', rewardPoints: 3 },
-                  messageId: lastBotMsg.id,
-                  channelId
-                });
-                console.log(`[minigames] 🔗 Smart Recovered & Attached to existing message in Game ${gameId} (${channelId})`);
-              }
-            }
-          }
-        } catch (e) {
-          // ignore fetch error
-        }
-      }
     }
   }
 }
@@ -1287,8 +1260,15 @@ function setupMinigames(client) {
     }
 
     const userText = message.content.trim();
-    const correctAnswer = String(session.questionData.answer).trim();
+    const correctAnswer = String(session.questionData?.answer || '').trim();
     const userId = message.author.id;
+
+    // ── Guard: ถ้าเซสชันไม่มีคำตอบ หรือคำตอบเป็นค่าว่าง ห้ามหักแต้มเด็ดขาด ให้สปอว์นข้อใหม่ทันที ──
+    if (!correctAnswer) {
+      console.warn(`[minigames] ⚠️ Session for Game ${matchedGameId} (${message.channelId}) missing answer. Auto-healing with fresh question...`);
+      sendNextGameQuestion(client, supabase, message.channelId, matchedGameId).catch(() => { });
+      return;
+    }
 
     // ── Cross-Channel Feasibility Guard ─────────────────────────────
     const feasibility = checkCrossChannelFeasibility(userId, message.channelId, matchedGameId);

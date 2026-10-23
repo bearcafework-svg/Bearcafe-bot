@@ -1,144 +1,49 @@
-// Features: Horoscope/healing.js
-// คำสั่ง "ขอกำลังใจ" — สุ่มคำให้กำลังใจจากระบบบอร์ด healing_messages
+// src/features/horoscope/healing.js
+// ระบบ Slash Command /ขอกำลังใจ สำหรับบอทหลัก (Bear Café)
+// นำระบบการสุ่มข้อความ Component V2, จัดการ Modal 3 ช่อง, และ In-Memory Cooldown แบบเดียวกับบอท Kuma มาใช้งาน
 
-const { createClient } = require('@supabase/supabase-js');
-const { MessageFlags } = require('discord.js');
-const sharedConfig = require('../../sharedSettings.json');
-const { blacklistPayload } = require('../shared/tarotComponents');
-
-const FLAG_V2 = MessageFlags.IsComponentsV2 || 32768;
-const TARGET_CHANNEL_ID = "1524123478431895692";
+const { getSupabaseClient } = require("../../services/supabaseClient");
+const { registerCommand, registerButton, registerModal } = require("../../interactions/router");
+const {
+  handleKumaHealingCommand,
+  handleKumaHealingButton,
+  handleKumaHealingModalSubmit,
+} = require("../../akari/commands/healingCommands");
+const sharedConfig = require("../../sharedSettings.json");
+const { blacklistPayload } = require("../shared/tarotComponents");
 
 function setupHealing(client) {
-  // Initialize Supabase using service key env variables
-  const supabaseUrl = process.env.POINTS_SUPABASE_URL || process.env.SUPABASE_URL;
-  const supabaseKey = process.env.POINTS_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const supabase = createClient(
-    supabaseUrl,
-    supabaseKey,
-    { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
-  );
+  const supabase = getSupabaseClient();
 
-  client.on('messageCreate', async (message) => {
-    if (!message.guild) return;
-    if (message.author.bot) return;
-
-    // Trigger only in specified channel
-    if (message.channel.id !== TARGET_CHANNEL_ID) return;
-
-    // Trigger word: "ขอกำลังใจ"
-    if (message.content.trim() !== 'ขอกำลังใจ') return;
-
-    const member = message.member;
-    const userId = message.author.id;
-
-    // ── Check Blacklist Roles ──
-    const isBlacklisted = sharedConfig.role_blacklist.some(id => member.roles.cache.has(id));
-    if (isBlacklisted) {
-      const sent = await message.reply(blacklistPayload(userId));
-      setTimeout(() => sent.delete().catch(() => { }), 5000);
-      return;
+  // 1. ลงทะเบียน Slash Command /ขอกำลังใจ (แทนที่คำสั่งข้อความธรรมดาเดิม)
+  registerCommand("ขอกำลังใจ", async (interaction) => {
+    // ตรวจสอบ role_blacklist ในเซิร์ฟเวอร์หลัก
+    if (interaction.member && sharedConfig.role_blacklist) {
+      const isBlacklisted = sharedConfig.role_blacklist.some((id) =>
+        interaction.member.roles?.cache?.has(id)
+      );
+      if (isBlacklisted) {
+        return interaction.reply({
+          ...blacklistPayload(interaction.user.id),
+          flags: 32768 | 64, // Component V2 + Ephemeral
+        });
+      }
     }
 
-    try {
-      // Fetch approved healing messages with author profiles
-      const { data, error } = await supabase
-        .from('healing_messages')
-        .select(`
-          message,
-          profiles:author_id (
-            username,
-            avatar_url,
-            discord_id
-          )
-        `)
-        .eq('status', 'approved');
-
-      if (error) throw error;
-
-      // Filter: random from table but not of the user using the command
-      let candidates = (data || []).filter(r => r.profiles?.discord_id !== userId);
-
-      // Fallback A: If no candidates by other users, fallback to any approved messages
-      if (candidates.length === 0) {
-        candidates = data || [];
-      }
-
-      let selectedMsg = null;
-      if (candidates.length > 0) {
-        const randomIndex = Math.floor(Math.random() * candidates.length);
-        selectedMsg = candidates[randomIndex];
-      } else {
-        // Fallback B: Default fallback cozy message
-        selectedMsg = {
-          message: "เธอทำดีที่สุดแล้วน้า หมีเป็นกำลังใจให้เสมอค่ะ สู้ๆ นะคะ! 🧸💛",
-          profiles: {
-            username: "Bear Café Mascot",
-            avatar_url: "https://cdn.discordapp.com/embed/avatars/0.png",
-            discord_id: ""
-          }
-        };
-      }
-
-      const avatarUrl = selectedMsg.profiles?.avatar_url || "https://cdn.discordapp.com/embed/avatars/0.png";
-      const username = selectedMsg.profiles?.username || "ผู้ใช้ไม่ระบุชื่อ";
-
-      // Send the Component V2 reply
-      await message.reply({
-        flags: FLAG_V2,
-        components: [
-          {
-            type: 17,
-            components: [
-              {
-                type: 14,
-                spacing: 1,
-                divider: false
-              },
-              {
-                type: 9,
-                components: [
-                  {
-                    type: 10,
-                    content: `## <a:28457gameoverheart:1372833851092504637>︲__\` 𝖬𝖾𝗌𝗌𝖺𝖿𝖾 𝟦 𝗎 ₊ ข้อความนี้ของเธอ 𓂃 \`__\n### ${selectedMsg.message}\n-# - เจ้าของข้อความ: **__${username}__** <:cuteplant:1152834055528783872>\n\n`
-                  }
-                ],
-                accessory: {
-                  type: 11,
-                  media: {
-                    url: avatarUrl
-                  }
-                }
-              },
-              {
-                type: 14,
-                spacing: 2
-              },
-              {
-                type: 1,
-                components: [
-                  {
-                    type: 2,
-                    style: 5,
-                    label: "︲เพิ่มข้อความของคุณเอง!",
-                    emoji: {
-                      id: "1518217054711189644",
-                      name: "27073hispeechbubble",
-                      animated: true
-                    },
-                    url: "https://bearcafe4commu.vercel.app/healing-message"
-                  }
-                ]
-              }
-            ]
-          }
-        ]
-      });
-    } catch (err) {
-      console.error('[Healing Command] Error:', err.message);
-      await message.reply({ content: "เกิดข้อผิดพลาดในการดึงข้อความให้กำลังใจ โปรดลองอีกครั้งค่ะ", flags: MessageFlags.Ephemeral });
-    }
+    return await handleKumaHealingCommand(interaction, supabase, client);
   });
+
+  // 2. ลงทะเบียนปุ่ม "เพิ่มข้อความของคุณเอง!" เพื่อเปิด Modal 3 ช่อง
+  registerButton("kuma_healing_open_modal", async (interaction) => {
+    return await handleKumaHealingButton(interaction, supabase);
+  });
+
+  // 3. ลงทะเบียนเมื่อส่งแบบฟอร์ม Modal 3 ช่อง
+  registerModal("kuma_healing_modal_submit", async (interaction) => {
+    return await handleKumaHealingModalSubmit(interaction, supabase);
+  });
+
+  console.log("🧸 [Healing] ✅ ระบบ Slash Command /ขอกำลังใจ (Kuma Style) ติดตั้งเรียบร้อยแล้ว");
 }
 
 module.exports = { setupHealing };

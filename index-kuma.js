@@ -30,6 +30,7 @@ const {
   handleClearCategory,
   handleSetGame,
   handleRemoveGame,
+  handleRemoveGameAutocomplete,
   handleKumaAdmin,
   handleRevealAnswer,
   handleSettingStore,
@@ -56,6 +57,11 @@ const {
   handleWelcomeInteraction,
   setupMemberWelcomeListener,
 } = require("./src/akari/services/memberWelcomeService");
+const {
+  handleKumaHealingCommand,
+  handleKumaHealingButton,
+  handleKumaHealingModalSubmit,
+} = require("./src/akari/commands/healingCommands");
 
 const botToken = process.env.KUMA_BOT_TOKEN || process.env.AKARI_BOT_TOKEN;
 
@@ -116,6 +122,13 @@ registerAkariCommands(client);
 // 7. ดักฟัง Slash Commands และ Interactions
 client.on("interactionCreate", async (interaction) => {
   try {
+    if (interaction.isAutocomplete()) {
+      if (interaction.commandName === "remove-game") {
+        return await handleRemoveGameAutocomplete(interaction, kumaSupabase);
+      }
+      return;
+    }
+
     if (interaction.isChatInputCommand()) {
       if (interaction.commandName === "setup-games") {
         return await handleSetupGames(interaction, kumaSupabase, client);
@@ -156,6 +169,9 @@ client.on("interactionCreate", async (interaction) => {
           return await handleSetGoodbyeCommand(interaction, kumaSupabase);
         }
       }
+      if (interaction.commandName === "ขอกำลังใจ") {
+        return await handleKumaHealingCommand(interaction, kumaSupabase, client);
+      }
     }
 
     // Welcome System Interactions (Buttons, Modals, Select Menus)
@@ -164,6 +180,9 @@ client.on("interactionCreate", async (interaction) => {
 
     // Button Interactions
     if (interaction.isButton()) {
+      if (interaction.customId === "kuma_healing_open_modal") {
+        return await handleKumaHealingButton(interaction, kumaSupabase);
+      }
       if (
         interaction.customId === "kuma_view_leaderboard" ||
         interaction.customId === "akari_view_leaderboard" ||
@@ -198,6 +217,9 @@ client.on("interactionCreate", async (interaction) => {
 
     // Modal Submissions
     if (interaction.isModalSubmit()) {
+      if (interaction.customId === "kuma_healing_modal_submit") {
+        return await handleKumaHealingModalSubmit(interaction, kumaSupabase);
+      }
       if (
         interaction.customId.startsWith("kuma_currency_modal_submit") ||
         interaction.customId.startsWith("akari_currency_modal_submit")

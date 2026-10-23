@@ -140,111 +140,14 @@ const GAME_DESCRIPTIONS = {
   13: "เลือกคำศัพท์ภาษาอังกฤษมาเรียงให้เป็นประโยคที่ถูกต้อง",
 };
 
-const AKARI_SLASH_COMMANDS = [
-  {
-    name: "setup-games",
-    description: "ติดตั้งระบบมินิเกมอัตโนมัติ สร้างช่องและเริ่มสปอว์นโจทย์ข้อแรกทันที (เฉพาะผู้ดูแลระบบ)",
-    default_member_permissions: PermissionFlagsBits.ManageChannels.toString(),
-    options: [
-      {
-        name: "preset",
-        description: "เลือกกลุ่มมินิเกมที่ต้องการเปิดใช้งาน",
-        type: 3, // STRING
-        required: true,
-        choices: [
-          { name: "🏆 ทุกมินิเกม (เปิดครบทั้ง 11 เกม)", value: "all" },
-          { name: "🔥 มินิเกมยอดฮิต (Top 5 Games)", value: "popular" },
-          { name: "🔤 เกมเน้นภาษาและความรู้ (Language & Quiz)", value: "language" },
-        ],
-      },
-      {
-        name: "category",
-        description: "เลือก Category ที่ต้องการให้สร้างช่องมินิเกมไว้ข้างใน (หากไม่เลือกจะสร้างใหม่ให้อัตโนมัติ)",
-        type: 7, // CHANNEL
-        channel_types: [ChannelType.GuildCategory],
-        required: false,
-      },
-    ],
-  },
-  {
-    name: "setting-games",
-    description: "เปิด/ปิด การใช้งานมินิเกมแต่ละเกมย่อยในเซิร์ฟเวอร์ (เฉพาะผู้ดูแลระบบ)",
-    default_member_permissions: PermissionFlagsBits.ManageChannels.toString(),
-  },
-  {
-    name: "set-game",
-    description: "ผูกมินิเกมที่ต้องการลงในห้องที่ระบุ และเริ่มเล่นทันที (เฉพาะผู้ดูแลระบบ)",
-    default_member_permissions: PermissionFlagsBits.ManageChannels.toString(),
-    options: [
-      {
-        name: "game",
-        description: "เลือกมินิเกมที่ต้องการผูกลงห้องนี้",
-        type: 4, // INTEGER
-        required: true,
-        choices: Object.entries(AKARI_GAME_NAMES)
-          .filter(([id]) => !TEMPORARY_DISABLED_GAME_IDS.includes(parseInt(id, 10)))
-          .map(([id, name]) => ({
-            name: name,
-            value: parseInt(id, 10),
-          })),
-      },
-      {
-        name: "channel",
-        description: "เลือกห้องข้อความที่ต้องการให้เล่นมินิเกมนี้",
-        type: 7, // CHANNEL
-        channel_types: [ChannelType.GuildText],
-        required: true,
-      },
-    ],
-  },
-  {
-    name: "remove-game",
-    description: "ยกเลิกการผูกมินิเกมออกจากห้อง (เฉพาะผู้ดูแลระบบ)",
-    default_member_permissions: PermissionFlagsBits.ManageChannels.toString(),
-    options: [
-      {
-        name: "game",
-        description: "เลือกมินิเกมที่ต้องการยกเลิกการผูกห้อง",
-        type: 4, // INTEGER
-        required: true,
-        choices: Object.entries(AKARI_GAME_NAMES)
-          .filter(([id]) => !TEMPORARY_DISABLED_GAME_IDS.includes(parseInt(id, 10)))
-          .map(([id, name]) => ({
-            name: name,
-            value: parseInt(id, 10),
-          })),
-      },
-    ],
-  },
-  ...POINTS_SLASH_COMMANDS,
-  ...HELP_SLASH_COMMANDS,
-  // SETTING_VOICE_SLASH_COMMAND, // ซ่อนคำสั่ง /setting-voice
-  // ...STORE_SLASH_COMMANDS, // ปิดระบบร้านค้าชั่วคราวตามคำสั่ง
-];
-
-// คำสั่งเฉพาะเซิร์ฟเวอร์ (Guild-Scoped Only)
-const KUMA_CLEAR_ALLOWED_GUILD_ID = "1038378858958815272";
-const KUMA_CLEAR_SLASH_COMMAND = {
-  name: "clear",
-  description: "ลบช่องทุกประเภทภายในหมวดหมู่ที่กำหนด (เฉพาะนักพัฒนาบอท Kuma)",
-  default_member_permissions: "0",
-  options: [
-    {
-      name: "category",
-      description: "เลือกหมวดหมู่ (Category) ที่ต้องการลบช่องข้างใน",
-      type: 7, // CHANNEL
-      channel_types: [ChannelType.GuildCategory],
-      required: true,
-    },
-  ],
-};
-
-const KUMA_REVEAL_ALLOWED_GUILD_ID = "1493110432347459627";
-const KUMA_REVEAL_SLASH_COMMAND = {
-  name: "reveal-answer",
-  description: "🔍 ดูเฉลยของมินิเกมที่กำลังเปิดเล่นอยู่ในห้องนี้ (เฉพาะผู้ดูแลระบบ)",
-  default_member_permissions: PermissionFlagsBits.ManageChannels.toString(),
-};
+const {
+  KUMA_SLASH_COMMANDS,
+  AKARI_SLASH_COMMANDS,
+  KUMA_CLEAR_SLASH_COMMAND,
+  KUMA_REVEAL_SLASH_COMMAND,
+  KUMA_CLEAR_ALLOWED_GUILD_ID,
+  KUMA_REVEAL_ALLOWED_GUILD_ID,
+} = require("../../commands/kumaSlashCommands");
 
 /**
  * เปรียบเทียบชุดคำสั่งที่มีอยู่ใน Discord กับคำสั่งเป้าหมายว่าตรงกันหรือไม่
@@ -254,12 +157,18 @@ function areCommandsEqual(existingCollection, targetCommands) {
   for (const cmd of targetCommands) {
     const existingCmd = existingCollection.find((c) => c.name === cmd.name);
     if (!existingCmd) return false;
+    if (existingCmd.description !== cmd.description) return false;
     const existingOpts = existingCmd.options || [];
     const targetOpts = cmd.options || [];
     if (existingOpts.length !== targetOpts.length) return false;
     const existingPerm = existingCmd.defaultMemberPermissions?.bitfield?.toString() || null;
     const targetPerm = cmd.default_member_permissions ? BigInt(cmd.default_member_permissions).toString() : null;
     if (existingPerm !== targetPerm) return false;
+    for (let i = 0; i < targetOpts.length; i++) {
+      const tOpt = targetOpts[i];
+      const eOpt = existingOpts[i];
+      if (!eOpt || Boolean(tOpt.autocomplete) !== Boolean(eOpt.autocomplete)) return false;
+    }
   }
   return true;
 }
@@ -290,7 +199,6 @@ async function registerAkariCommands(client) {
       };
       addGuildCommand(KUMA_CLEAR_ALLOWED_GUILD_ID, KUMA_CLEAR_SLASH_COMMAND);
       addGuildCommand(KUMA_REVEAL_ALLOWED_GUILD_ID, KUMA_REVEAL_SLASH_COMMAND);
-      addGuildCommand(WELCOME_ALLOWED_GUILD_ID, SET_SLASH_COMMAND);
 
       for (const [gId, cmds] of guildCommandsMap.entries()) {
         try {
@@ -1662,9 +1570,27 @@ async function handleRemoveGame(interaction, supabase) {
         .eq("game_id", gameId)
         .maybeSingle();
 
-      if (data && data.channel_id) {
-        boundChannelId = data.channel_id;
+      if (!data || !data.channel_id) {
+        return interaction.editReply({
+          flags: FLAG_V2,
+          components: [
+            {
+              type: 17,
+              components: [
+                {
+                  type: 10,
+                  content:
+                    `## <:lowwarning:1548772721679278180>︲__\` 𝖴𝗇𝗅𝗂𝗇𝗄 𝗀𝖺𝗆𝖾 𝖼𝗁𝖺𝗇𝗇𝖾𝗅 𓂃 \`__\n` +
+                    `# มินิเกม **${gameName}** ไม่ได้เปิดใช้งานอยู่ในห้องใดเลยในเซิร์ฟเวอร์นี้ค่ะ\n` +
+                    `-# <<< กรุณาเลือกมินิเกมที่เปิดใช้งานอยู่จากรายการที่แนะนำ >>>`,
+                },
+              ],
+            },
+          ],
+        });
       }
+
+      boundChannelId = data.channel_id;
 
       // ลบออกจาก tenant_minigame_channels
       await supabase
@@ -1728,6 +1654,53 @@ async function handleRemoveGame(interaction, supabase) {
         },
       ],
     });
+  }
+}
+
+/**
+ * จัดการ Autocomplete สำหรับคำสั่ง /remove-game
+ * แสดงเฉพาะมินิเกมที่กำลังเปิดใช้งานและผูกห้องอยู่ในกิลด์นี้เท่านั้น
+ */
+async function handleRemoveGameAutocomplete(interaction, supabase) {
+  try {
+    const focusedOption = interaction.options.getFocused(true);
+    if (focusedOption.name !== "game") return;
+
+    if (!supabase || !interaction.guildId) {
+      return await interaction.respond([]);
+    }
+
+    // ดึงเฉพาะเกมที่มีการผูกห้องไว้ในเซิร์ฟเวอร์นี้
+    const { data, error } = await supabase
+      .from("tenant_minigame_channels")
+      .select("game_id, channel_id")
+      .eq("guild_id", interaction.guildId);
+
+    if (error || !data || data.length === 0) {
+      return await interaction.respond([]);
+    }
+
+    const focusedText = String(focusedOption.value || "").trim().toLowerCase();
+
+    const choices = data
+      .map((row) => {
+        const gameName = AKARI_GAME_NAMES[row.game_id] || `มินิเกม #${row.game_id}`;
+        const channel = interaction.guild?.channels?.cache.get(row.channel_id);
+        const channelLabel = channel ? ` (ห้อง #${channel.name})` : "";
+        return {
+          name: `${gameName}${channelLabel}`.slice(0, 100),
+          value: Number(row.game_id),
+        };
+      })
+      .filter((c) => !focusedText || c.name.toLowerCase().includes(focusedText))
+      .slice(0, 25);
+
+    await interaction.respond(choices);
+  } catch (err) {
+    console.error("[handleRemoveGameAutocomplete] Error:", err.message);
+    try {
+      await interaction.respond([]);
+    } catch {}
   }
 }
 
@@ -2163,6 +2136,7 @@ module.exports = {
   handleClearCategory,
   handleSetGame,
   handleRemoveGame,
+  handleRemoveGameAutocomplete,
   handleKumaAdmin,
   handleAkariAdmin: handleKumaAdmin,
   isKumaAdmin,

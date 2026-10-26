@@ -429,11 +429,10 @@ const BEARCAFE_SLASH_COMMANDS = [
     defaultMemberPermissions: PermissionFlagsBits.Administrator,
   },
 
-  // 23. /จัดการแต้ม (Manage Points - Owner Only)
+  // 23. /จัดการแต้ม (Manage Points - Owner & Staff)
   {
     name: "จัดการแต้ม",
-    description: "จัดการแต้มหรือเค้กของสมาชิก (เฉพาะ Owner เท่านั้น)",
-    defaultMemberPermissions: PermissionFlagsBits.Administrator,
+    description: "จัดการแต้มหรือเค้กของสมาชิก (เฉพาะทีมงานและผู้ดูแล)",
     options: [
       {
         name: "user",

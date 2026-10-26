@@ -1,6 +1,6 @@
 // src/commands/managePoints.js
 // ระบบจัดการแต้ม (Points) และเค้ก (Cakes) ในตาราง user_points บน Supabase 2
-// สิทธิ์: เฉพาะ Server Owner หรือ Bot Owner เท่านั้น
+// สิทธิ์: Server Owner, Bot Owner หรือทีมงานยศที่ได้รับอนุญาต
 // การแสดงผล: Ephemeral (ehp)
 
 const { EmbedBuilder } = require("discord.js");
@@ -32,18 +32,38 @@ function getSupabase2Client() {
   return supabase2Instance;
 }
 
+const ALLOWED_STAFF_ROLE_IDS = [
+  "1144697989986791576",
+  "1144698080239829092",
+];
+
 /**
- * ตรวจสอบสิทธิ์ว่าเป็น Owner หรือไม่
+ * ตรวจสอบสิทธิ์ว่ามีสิทธิ์จัดการแต้มหรือไม่ (Owner หรือ Staff ยศที่กำหนด)
  * @param {import("discord.js").ChatInputCommandInteraction} interaction 
  */
-function isOwnerUser(interaction) {
+function canManagePoints(interaction) {
   const userId = interaction.user?.id;
   if (!userId) return false;
 
   const botOwnerId = process.env.OWNER_ID || "944920660759707658";
   const guildOwnerId = interaction.guild?.ownerId;
 
-  return userId === botOwnerId || (Boolean(guildOwnerId) && userId === guildOwnerId);
+  // 1. ตรวจสอบ Owner (Bot Owner หรือ Server Owner)
+  if (userId === botOwnerId || (Boolean(guildOwnerId) && userId === guildOwnerId)) {
+    return true;
+  }
+
+  // 2. ตรวจสอบยศ Staff ที่ได้รับอนุญาต (1144697989986791576, 1144698080239829092)
+  const member = interaction.member;
+  if (member?.roles) {
+    if (member.roles.cache && typeof member.roles.cache.some === "function") {
+      if (member.roles.cache.some((r) => ALLOWED_STAFF_ROLE_IDS.includes(r.id))) return true;
+    } else if (Array.isArray(member.roles)) {
+      if (member.roles.some((rId) => ALLOWED_STAFF_ROLE_IDS.includes(rId))) return true;
+    }
+  }
+
+  return false;
 }
 
 /**
@@ -52,10 +72,10 @@ function isOwnerUser(interaction) {
  */
 function setupManagePoints(client) {
   registerCommand("จัดการแต้ม", async (interaction) => {
-    // 1. ตรวจสอบสิทธิ์ — เฉพาะ Owner เท่านั้น
-    if (!isOwnerUser(interaction)) {
+    // 1. ตรวจสอบสิทธิ์ — เฉพาะ Owner หรือ Staff ยศที่ได้รับอนุญาต
+    if (!canManagePoints(interaction)) {
       return interaction.reply({
-        content: "❌ ขออภัยค่ะ เฉพาะ **Server Owner** เท่านั้นที่สามารถใช้คำสั่งนี้ได้",
+        content: "❌ ขออภัยค่ะ เฉพาะ **Server Owner** หรือ **ทีมงานที่ได้รับอนุญาต** เท่านั้นที่สามารถใช้คำสั่งนี้ได้",
         ephemeral: true,
       });
     }
@@ -152,6 +172,10 @@ function setupManagePoints(client) {
       const oldVal = type === "point" ? currentPoints : currentCakes;
       const newVal = type === "point" ? newPoints : newCakes;
 
+      const isOwner = (interaction.user?.id === (process.env.OWNER_ID || "944920660759707658")) ||
+                      (Boolean(interaction.guild?.ownerId) && interaction.user?.id === interaction.guild?.ownerId);
+      const operatorRoleText = isOwner ? "(Owner)" : "(Staff)";
+
       const embed = new EmbedBuilder()
         .setTitle("🐻︲จัดการแต้มสำเร็จ (Supabase 2)")
         .setColor(isAdd ? 0x57F287 : 0xED4245)
@@ -163,13 +187,13 @@ function setupManagePoints(client) {
           { name: "📊 ยอดเดิม", value: `\`${oldVal.toLocaleString()}\` ${unit}`, inline: true },
           { name: "🔄 การปรับปรุง", value: `\`${changeText}\` ${unit}`, inline: true },
           { name: "✨ ยอดคงเหลือใหม่", value: `\`${newVal.toLocaleString()}\` ${unit}`, inline: true },
-          { name: "👑 ผู้ดำเนินการ", value: `<@${interaction.user.id}> (Owner)`, inline: false }
+          { name: "👑 ผู้ดำเนินการ", value: `<@${interaction.user.id}> ${operatorRoleText}`, inline: false }
         )
         .setFooter({ text: "Bear Cafe • Points Management (Supabase 2) • Ephemeral" })
         .setTimestamp();
 
       await interaction.editReply({ embeds: [embed] });
-      console.log(`[managePoints] 👑 Owner ${interaction.user.tag || interaction.user.id} ${action} ${amount} ${type} for user ${targetUser.id} (${oldVal} -> ${newVal})`);
+      console.log(`[managePoints] 👑 User ${interaction.user.tag || interaction.user.id} (${operatorRoleText}) ${action} ${amount} ${type} for user ${targetUser.id} (${oldVal} -> ${newVal})`);
     } catch (err) {
       console.error("[managePoints] Unexpected error:", err);
       return interaction.editReply({
@@ -178,7 +202,7 @@ function setupManagePoints(client) {
     }
   });
 
-  console.log("[managePoints] ✅ ลงทะเบียนคำสั่ง /จัดการแต้ม (Owner Only) เรียบร้อย");
+  console.log("[managePoints] ✅ ลงทะเบียนคำสั่ง /จัดการแต้ม (Owner & Staff) เรียบร้อย");
 }
 
 module.exports = { setupManagePoints };

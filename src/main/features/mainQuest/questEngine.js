@@ -1,4 +1,4 @@
-// src/main/features/mainQuest/questEngine.js
+// src/features/mainQuest/questEngine.js
 // ระบบคำนวณ ตรรกะฐานข้อมูล และการแจกรางวัลเควสใหญ่ (Main Community Quest)
 
 const {
@@ -49,11 +49,29 @@ async function updateUserPoints(supabase, userId, delta) {
   }
 }
 
+// ─────────────────────────────────────────────────────────────
+// 🚀 IN-MEMORY CACHE (Guard against Supabase Egress & Log Bloat)
+// ─────────────────────────────────────────────────────────────
+let cachedMainQuest = null;
+let cachedMainQuestExpiresAt = 0;
+
+function invalidateMainQuestCache() {
+  cachedMainQuest = null;
+  cachedMainQuestExpiresAt = 0;
+}
+
 /**
- * ดึงเควสใหญ่ที่กำลังดำเนินอยู่ หรือสร้างเควสใหม่อัตโนมัติ 7 วัน (เก็บบน Database 100% ไม่เก็บใน Memory)
+ * ดึงเควสใหญ่ที่กำลังดำเนินอยู่ หรือสร้างเควสใหม่อัตโนมัติ 7 วัน (พร้อม In-Memory Cache 5 นาที)
+ * @param {object} supabase
+ * @param {boolean} forceRefresh
  */
-async function getActiveOrCreateMainQuest(supabase) {
+async function getActiveOrCreateMainQuest(supabase, forceRefresh = false) {
   if (!supabase) return null;
+
+  const now = Date.now();
+  if (!forceRefresh && cachedMainQuest && cachedMainQuestExpiresAt > now) {
+    return cachedMainQuest;
+  }
 
   try {
     // 1. ค้นหาเควสใหญ่ที่กำลัง Active และยังไม่สิ้นสุด
@@ -70,6 +88,8 @@ async function getActiveOrCreateMainQuest(supabase) {
     }
 
     if (existing) {
+      cachedMainQuest = existing;
+      cachedMainQuestExpiresAt = Date.now() + 5 * 60 * 1000; // 5 min TTL
       return existing;
     }
 
@@ -106,6 +126,8 @@ async function getActiveOrCreateMainQuest(supabase) {
     }
 
     console.log(`[mainQuest] 🌟 Initialized new 7-Day Main Community Quest (ID: ${created.id})`);
+    cachedMainQuest = created;
+    cachedMainQuestExpiresAt = Date.now() + 5 * 60 * 1000;
     return created;
   } catch (err) {
     console.error("[mainQuest] getActiveOrCreateMainQuest exception:", err.message);
@@ -114,8 +136,9 @@ async function getActiveOrCreateMainQuest(supabase) {
 }
 
 /**
- * ดึงรายชื่อหมีที่เพิ่งมาช่วยสะสมเวลาล่าสุด (Recent Active Contributors)
- * เรียงตามเวลาที่มีความเคลื่อนไหวล่าสุด (last_active_at DESC) เพื่อแสดงผลการช่วยเหลือแบบเรียลไทม์
+ * ดึงรายชื่อหมีที่เพิ่งมาช่วยสะสมเวลาล่าสุด (Dynamic Recent Contributors)
+ * ดึง Pool สมาชิกที่เพิ่ง Active 25 คนล่าสุด แล้วทำการสลับหมุนเวียน (Smart Rotation & Shuffle)
+ * เพื่อให้รายชื่อบนบอร์ดหมุนเวียนโชว์สมาชิกใหม่ๆ อย่างต่อเนื่อง ไม่ซ้ำกับคนเดิมตลอดเวลา
  */
 async function getRecentContributors(supabase, questId, limit = 5) {
   if (!supabase || !questId) return [];
@@ -215,12 +238,13 @@ async function recordBatchVoiceMinutes(client, supabase, voiceMembers) {
 
   for (const vm of voiceMembers) {
     try {
+      const minutesToAdd = Number(vm.minutes) || 1;
       // เรียก RPC Atomic increment
       const { data, error } = await supabase.rpc("increment_main_quest_minutes", {
         p_quest_id: quest.id,
         p_user_id: vm.userId,
         p_username: vm.username,
-        p_minutes: 1
+        p_minutes: minutesToAdd
       });
 
       if (error) {
@@ -232,7 +256,7 @@ async function recordBatchVoiceMinutes(client, supabase, voiceMembers) {
           .eq("user_id", vm.userId)
           .maybeSingle();
 
-        const newMins = (participant?.total_minutes || 0) + 1;
+        const newMins = (participant?.total_minutes || 0) + minutesToAdd;
         await supabase.from("main_community_quest_participants").upsert({
           quest_id: quest.id,
           user_id: vm.userId,
@@ -245,21 +269,23 @@ async function recordBatchVoiceMinutes(client, supabase, voiceMembers) {
         await supabase
           .from("main_community_quests")
           .update({
-            current_minutes: Number(quest.current_minutes || 0) + 1,
+            current_minutes: Number(quest.current_minutes || 0) + minutesToAdd,
             updated_at: new Date().toISOString()
           })
           .eq("id", quest.id);
       }
 
-      totalAddedMinutes++;
+      totalAddedMinutes += minutesToAdd;
     } catch (e) {
       console.error(`[mainQuest] Failed to record voice minute for ${vm.username}:`, e.message);
     }
   }
 
   if (totalAddedMinutes > 0) {
+    // ล้างแคชเพื่อให้แน่ใจว่าการอ่านข้อมูลครั้งถัดไปได้ค่าล่าสุด
+    invalidateMainQuestCache();
     // ตรวจสอบสถานะการผ่านเควสแบบเรียลไทม์
-    const updatedQuest = await getActiveOrCreateMainQuest(supabase);
+    const updatedQuest = await getActiveOrCreateMainQuest(supabase, true);
     const targetMinutes = Number(updatedQuest.target_hours || DEFAULT_TARGET_HOURS) * 60;
     const currentMinutes = Number(updatedQuest.current_minutes || 0);
 
@@ -431,6 +457,7 @@ async function completeAndAwardMainQuest(client, supabase, quest) {
 module.exports = {
   updateUserPoints,
   getActiveOrCreateMainQuest,
+  invalidateMainQuestCache,
   getRecentContributors,
   getTopParticipants: getRecentContributors,
   recordBatchVoiceMinutes,

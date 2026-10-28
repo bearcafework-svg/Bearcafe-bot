@@ -69,6 +69,77 @@ function generateMathProblem() {
   };
 }
 
+// Load countries dataset for Game 15 (Flag Guessing)
+let countriesData = null;
+function getCountriesData() {
+  if (!countriesData) {
+    try {
+      countriesData = require('./data/countries.json');
+    } catch {
+      countriesData = [];
+    }
+  }
+  return countriesData;
+}
+
+// Generate Flag Guessing Problem (Game 15)
+function generateFlagProblem() {
+  const countries = getCountriesData();
+  if (!countries || countries.length === 0) {
+    return {
+      gameId: 15,
+      id: `flag_${Date.now()}`,
+      wordOrQuestion: 'ธงในรูปนี้คือประเทศอะไร?',
+      answer: 'ไทย',
+      options: ['ไทย', 'ญี่ปุ่น', 'เกาหลีใต้'],
+      flagUrl: 'https://flagcdn.com/w320/th.png',
+      category: 'ทายธงประเทศ',
+      difficulty: 'ปานกลาง',
+      rewardPoints: 15
+    };
+  }
+
+  // Avoid consecutive repeats using askedHistory
+  const historyKey = 'game_15';
+  let history = askedHistory.get(historyKey) || [];
+  let availableCountries = countries.filter(c => !history.includes(c.code));
+  if (availableCountries.length === 0) {
+    history = [];
+    availableCountries = countries;
+  }
+
+  const target = availableCountries[Math.floor(Math.random() * availableCountries.length)];
+
+  // Record into askedHistory (track up to 50% of the pool ~ 124 countries before repeats)
+  history.push(target.code);
+  const maxHistorySize = Math.floor(countries.length / 2);
+  if (history.length > maxHistorySize) {
+    history.shift();
+  }
+  askedHistory.set(historyKey, history);
+
+  // Pick 2 distinct distractors from all countries (different from target)
+  const remainingForDistractors = countries.filter(c => c.code !== target.code);
+  const shuffledDistractors = shuffleArray(remainingForDistractors);
+  const d1 = shuffledDistractors[0];
+  const d2 = shuffledDistractors[1];
+
+  const shuffledOptions = shuffleArray([target.nameTh, d1.nameTh, d2.nameTh]);
+
+  return {
+    gameId: 15,
+    id: `flag_${target.code}_${Date.now()}`,
+    wordOrQuestion: 'ธงในรูปนี้คือประเทศอะไร?',
+    answer: target.nameTh,
+    options: shuffledOptions,
+    flagUrl: target.flagUrl,
+    countryCode: target.code,
+    category: 'ทายธงประเทศ',
+    difficulty: 'ปานกลาง',
+    rewardPoints: 15
+  };
+}
+
 // Common affixes with high/medium ambiguity in Thai Fill-in-the-Blank
 const HIGH_AMBIGUITY_PREFIXES = ['ความ', 'การ', 'นัก', 'ผู้', 'โรง', 'ทาง', 'สถานี', 'ร้าน', 'เครื่อง', 'ของ', 'ที่', 'ใจ', 'คน', 'วัน', 'น้ำ', 'ช่าง', 'ฝ่าย'];
 const HIGH_AMBIGUITY_SUFFIXES = ['แล้ว', 'ใส', 'ใหม่', 'คิด', 'หมาย', 'ชี', 'ชา', 'ผ่อน', 'สละ', 'สด', 'แข่ง', 'น้ำ', 'เรือ', 'ไฟ', 'รถ', 'ใจ', 'งาน', 'คน', 'ตา', 'ตัว', 'วัน', 'ทำ', 'ดี', 'ไป', 'มา'];
@@ -555,6 +626,9 @@ async function getNextQuestion(supabase, gameId, gameSettings = null, queryOptio
   const targetId = Number(gameId);
   if (targetId === 3) {
     return generateMathProblem();
+  }
+  if (targetId === 15) {
+    return generateFlagProblem();
   }
 
   const tableName = queryOptions.tableName || gameSettings?.tableName || 'minigame_questions';

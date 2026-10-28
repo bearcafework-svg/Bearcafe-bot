@@ -119,6 +119,7 @@ const AKARI_GAME_NAMES = {
   11: "🔊︲ฟังเสียงตอบ-ไทย",
   12: "⚖️︲จริงหรือเท็จ",
   13: "🧩︲เรียงประโยค-อังกฤษ",
+  15: "🚩︲ทายธงประเทศ",
 };
 
 // รายการมินิเกมที่ปิดปรับปรุงชั่วคราว (ซ่อนออกจาก /setting-games และตัวเลือกคำสั่ง)
@@ -138,6 +139,7 @@ const GAME_DESCRIPTIONS = {
   11: "ฟังเสียงภาษาไทยแล้วพิมพ์ตอบให้ถูกต้อง",
   12: "ทายข้อความโจทย์ว่าจริงหรือเท็จ",
   13: "เลือกคำศัพท์ภาษาอังกฤษมาเรียงให้เป็นประโยคที่ถูกต้อง",
+  15: "เลือกทายชื่อประเทศจากภาพธงชาติ ใครตอบถูกคนแรกชนะ",
 };
 
 const {
@@ -145,8 +147,10 @@ const {
   AKARI_SLASH_COMMANDS,
   KUMA_CLEAR_SLASH_COMMAND,
   KUMA_REVEAL_SLASH_COMMAND,
+  KUMA_STORE_SLASH_COMMANDS,
   KUMA_CLEAR_ALLOWED_GUILD_ID,
   KUMA_REVEAL_ALLOWED_GUILD_ID,
+  KUMA_STORE_ALLOWED_GUILD_ID,
 } = require("../../commands/kumaSlashCommands");
 
 /**
@@ -199,6 +203,11 @@ async function registerAkariCommands(client) {
       };
       addGuildCommand(KUMA_CLEAR_ALLOWED_GUILD_ID, KUMA_CLEAR_SLASH_COMMAND);
       addGuildCommand(KUMA_REVEAL_ALLOWED_GUILD_ID, KUMA_REVEAL_SLASH_COMMAND);
+      if (Array.isArray(KUMA_STORE_SLASH_COMMANDS) && KUMA_STORE_ALLOWED_GUILD_ID) {
+        for (const storeCmd of KUMA_STORE_SLASH_COMMANDS) {
+          addGuildCommand(KUMA_STORE_ALLOWED_GUILD_ID, storeCmd);
+        }
+      }
 
       for (const [gId, cmds] of guildCommandsMap.entries()) {
         try {
@@ -265,7 +274,7 @@ async function handleSetupGames(interaction, supabase, client) {
   let selectedGameIds = [];
   if (preset === "all") {
     // เกม 1 และ 2 ปิดปรับปรุงชั่วคราว -> เริ่มต้นด้วย [3, 4, 8, 9, 10, 12] สำหรับเกมทั่วไป
-    selectedGameIds = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
+    selectedGameIds = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15];
   } else if (preset === "popular") {
     selectedGameIds = [3, 4, 8, 9, 10];
   } else if (preset === "language") {
@@ -2093,7 +2102,7 @@ async function handleRevealAnswer(interaction, supabase) {
     if (hints && Array.isArray(hints)) {
       extraLines = `\n> 💡 **คำใบ้:**\n> 1. ${hints[0] || '-'}\n> 2. ${hints[1] || '-'}\n> 3. ${hints[2] || '-'}`;
     }
-  } else if (gameId === 8 || gameId === 9 || gameId === 10) {
+  } else if (gameId === 8 || gameId === 9 || gameId === 10 || gameId === 15) {
     const options = session.questionData?.options || session.questionObj?.options;
     if (options && Array.isArray(options)) {
       extraLines = `\n> 🔘 **ตัวเลือก:** ${options.join(', ')}`;
@@ -2165,4 +2174,6 @@ module.exports = {
   AKARI_SLASH_COMMANDS,
   KUMA_SLASH_COMMANDS: AKARI_SLASH_COMMANDS,
   KUMA_REVEAL_ALLOWED_GUILD_ID,
+  KUMA_STORE_ALLOWED_GUILD_ID,
+  KUMA_STORE_SLASH_COMMANDS,
 };

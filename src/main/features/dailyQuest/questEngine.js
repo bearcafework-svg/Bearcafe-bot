@@ -119,7 +119,7 @@ async function getOrInitDailyQuestSet(supabase, targetDate = getBangkokTodayDate
     // 1. ตรวจสอบว่ามีชุดเควสของวันนี้ในตารางแล้วหรือไม่
     const { data: existingSet, error: fetchErr } = await supabase
       .from("daily_quest_sets")
-      .select("*")
+      .select("id, quest_date, quest_ids, created_at")
       .eq("quest_date", targetDate)
       .maybeSingle();
 
@@ -266,7 +266,7 @@ async function getUserDailyProgress(supabase, userId, targetDate = getBangkokTod
   try {
     const { data: progressList } = await supabase
       .from("daily_quest_progress")
-      .select("*")
+      .select("quest_id, current_progress, target_count, is_completed")
       .eq("user_id", userId)
       .eq("quest_date", targetDate);
 

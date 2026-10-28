@@ -1,3 +1,8 @@
+---
+name: skill-refactor
+description: Systematically refactors code to reduce technical debt, eliminate duplication, and separate concerns without altering behavior.
+---
+
 # Skill: Code Refactoring (`skill-refactor`)
 
 ## Objective

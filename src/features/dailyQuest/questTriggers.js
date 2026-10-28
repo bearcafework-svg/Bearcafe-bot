@@ -2,7 +2,7 @@
 // ตัวดักจับและส่งผ่าน Event ของ Discord ไปยัง Daily Quest Engine
 
 const { Events } = require("discord.js");
-const { processTriggerEvent } = require("./questEngine");
+const { processTriggerEvent, getOrInitDailyQuestSet } = require("./questEngine");
 const sharedSettings = require("../../sharedSettings.json");
 
 const AFK_CATEGORY_OR_CHANNEL_ID = "1524122689604816986";
@@ -172,22 +172,77 @@ function setupQuestTriggers(client, supabase) {
   });
 
   // ─── 3. ดักจับการใช้งาน Voice Channel (Voice Duration & Join) ───────
+  // In-Memory Accumulator: เก็บสะสมนาทีเสียงใน RAM เพื่อลด Supabase Writes/Logs 80%+
+  const pendingDailyVoiceMinutes = new Map(); // userId -> { user, channelId, parentId, memberCount, member, minutes }
+  let lastDailyVoiceFlush = Date.now();
+  const DAILY_VOICE_FLUSH_INTERVAL_MS = 5 * 60 * 1000; // Flush ลง Supabase ทุกๆ 5 นาที
+  let isDailyFlushing = false;
 
-  // 3.1 ตรวจจับเมื่อผู้ใช้เข้าห้องเสียงใหม่ (voice_join)
+  async function flushPendingDailyVoice(force = false) {
+    if (isDailyFlushing || pendingDailyVoiceMinutes.size === 0) return;
+
+    const now = Date.now();
+    if (!force && now - lastDailyVoiceFlush < DAILY_VOICE_FLUSH_INTERVAL_MS) {
+      return;
+    }
+
+    isDailyFlushing = true;
+    try {
+      const items = Array.from(pendingDailyVoiceMinutes.values());
+      pendingDailyVoiceMinutes.clear();
+      lastDailyVoiceFlush = Date.now();
+
+      for (const item of items) {
+        if (!item.user || item.minutes <= 0) continue;
+        await processTriggerEvent(client, supabase, item.user, "voice_duration", {
+          channelId: item.channelId,
+          parentId: item.parentId,
+          memberCount: item.memberCount,
+          amount: item.minutes,
+          member: item.member
+        });
+      }
+    } catch (err) {
+      console.error("[dailyQuest] flushPendingDailyVoice error:", err.message);
+    } finally {
+      isDailyFlushing = false;
+    }
+  }
+
+  // 3.1 ตรวจจับเมื่อผู้ใช้เข้าห้องเสียงใหม่ (voice_join) หรือ ออกห้องเสียง (flush ทันที)
   client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
     try {
       const member = newState.member || oldState.member;
       if (!member || member.user?.bot) return;
 
+      const userId = member.id;
+
       // 🚫 ข้ามสมาชิกที่ติด role_blacklist
       const isBlacklisted = member.roles?.cache?.some((r) => roleBlacklist.includes(r.id));
       if (isBlacklisted) return;
 
+      const channel = newState.channel || (newState.channelId ? newState.guild?.channels?.cache?.get(newState.channelId) : null);
+      const parentId = channel?.parentId || null;
+
+      // ถ้าออกจากห้องเสียง หรือย้ายเข้าห้อง AFK ให้ flush นาทีที่ค้างอยู่ทันที ไม่ให้แต้มหาย
+      const isLeft = oldState.channelId && (!newState.channelId || newState.channelId === AFK_CATEGORY_OR_CHANNEL_ID || parentId === AFK_CATEGORY_OR_CHANNEL_ID);
+      if (isLeft && pendingDailyVoiceMinutes.has(userId)) {
+        const item = pendingDailyVoiceMinutes.get(userId);
+        pendingDailyVoiceMinutes.delete(userId);
+        if (item && item.minutes > 0) {
+          await processTriggerEvent(client, supabase, item.user, "voice_duration", {
+            channelId: item.channelId,
+            parentId: item.parentId,
+            memberCount: item.memberCount,
+            amount: item.minutes,
+            member: item.member
+          });
+        }
+      }
+
+      // ถ้าเพิ่งเข้าห้องเสียงใหม่ที่ไม่ใช่ AFK
       const isJoined = !oldState.channelId && Boolean(newState.channelId);
-      if (isJoined) {
-        // ทริกเกอร์เควสแวะห้องเสียง (voice_join)
-        const channel = newState.channel || (newState.channelId ? newState.guild?.channels?.cache?.get(newState.channelId) : null);
-        const parentId = channel?.parentId || null;
+      if (isJoined && newState.channelId !== AFK_CATEGORY_OR_CHANNEL_ID && parentId !== AFK_CATEGORY_OR_CHANNEL_ID) {
         await processTriggerEvent(client, supabase, member.user, "voice_join", {
           channelId: newState.channelId,
           parentId,
@@ -199,11 +254,18 @@ function setupQuestTriggers(client, supabase) {
     }
   });
 
-  // 3.2 Loop ตรวจและสะสมเวลานาทีเสียงทุก ๆ 1 นาที (Minute Tick)
-  // ตรวจจับจาก guild.voiceStates.cache โดยตรง เพื่อให้รองรับสมาชิกที่อยู่ในห้องเสียงอยู่แล้วก่อนบอทเริ่มทำงาน
+  // 3.2 Loop ตรวจและสะสมเวลานาทีเสียงใน RAM ทุกๆ 1 นาที แล้ว Batch Flush ลง Supabase ทุกๆ 5 นาที
   setInterval(async () => {
     try {
       if (!client.isReady()) return;
+
+      // ⚡ FAST GUARD: ถ้าวันนี้ไม่มีเควส voice_duration ในชุดประจำวัน ไม่ต้องวน loop หรือสะสม
+      const { quests } = await getOrInitDailyQuestSet(supabase);
+      const hasVoiceQuest = Array.isArray(quests) && quests.some((q) => q.trigger_type === "voice_duration");
+      if (!hasVoiceQuest) {
+        if (pendingDailyVoiceMinutes.size > 0) pendingDailyVoiceMinutes.clear();
+        return;
+      }
 
       for (const guild of client.guilds.cache.values()) {
         // ข้ามเซิร์ฟเวอร์ฮิลใจ
@@ -234,16 +296,29 @@ function setupQuestTriggers(client, supabase) {
           const user = vs.member?.user || (await client.users.fetch(userId).catch(() => null));
           if (!user) continue;
 
-          // บันทึกสะสม 1 นาที
-          await processTriggerEvent(client, supabase, user, "voice_duration", {
-            channelId: vs.channelId,
-            parentId,
-            memberCount,
-            amount: 1,
-            member: vs.member
-          });
+          // สะสมนาทีลง RAM
+          const existing = pendingDailyVoiceMinutes.get(userId);
+          if (existing) {
+            existing.minutes += 1;
+            existing.channelId = vs.channelId;
+            existing.parentId = parentId;
+            existing.memberCount = memberCount;
+            existing.member = vs.member;
+          } else {
+            pendingDailyVoiceMinutes.set(userId, {
+              user,
+              channelId: vs.channelId,
+              parentId,
+              memberCount,
+              member: vs.member,
+              minutes: 1
+            });
+          }
         }
       }
+
+      // Flush ข้อมูลเมื่อครบ 5 นาที
+      await flushPendingDailyVoice(false);
     } catch (err) {
       console.error("[dailyQuest] Voice minute ticker error:", err);
     }

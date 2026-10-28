@@ -1,3 +1,8 @@
+---
+name: skill-inquire-refine
+description: Formulates critical hypotheses, gathers workspace evidence, and resolves ambiguities before executing complex tasks.
+---
+
 # Skill: Hypothesis-Driven Inquiry & Refinement (`skill-inquire-refine`)
 
 ## Objective

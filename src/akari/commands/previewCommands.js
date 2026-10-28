@@ -31,6 +31,7 @@ const AKARI_GAME_NAMES = {
   11: "🔊︲ฟังเสียงตอบ-ไทย",
   12: "⚖️︲จริงหรือเท็จ",
   13: "🧩︲เรียงประโยค-อังกฤษ",
+  15: "🚩︲ทายธงประเทศ",
 };
 
 // ตัวอย่างโจทย์พรีวิวคุณภาพสูงสำหรับกรณีไม่มีข้อมูลใน DB
@@ -107,6 +108,14 @@ const SAMPLE_PREVIEW_QUESTIONS = {
     englishTemplate: "The bear loves drinking coffee in the morning",
     options: ["The", "bear", "loves", "drinking", "coffee", "in", "the", "morning"],
     answer: "The bear loves drinking coffee in the morning",
+    difficulty: "medium",
+  },
+  15: {
+    wordOrQuestion: "ธงในรูปนี้คือประเทศอะไร?",
+    answer: "ญี่ปุ่น",
+    options: ["เกาหลีใต้", "ญี่ปุ่น", "จีน"],
+    imageUrl: "https://flagcdn.com/w320/jp.png",
+    category: "ภูมิศาสตร์และธงชาติ",
     difficulty: "medium",
   },
 };

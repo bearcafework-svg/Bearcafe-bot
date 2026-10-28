@@ -154,6 +154,12 @@ client.on("interactionCreate", async (interaction) => {
       if (interaction.commandName === "reveal-answer") {
         return await handleRevealAnswer(interaction, kumaSupabase);
       }
+      if (interaction.commandName === "setting-store") {
+        return await handleSettingStore(interaction, kumaSupabase);
+      }
+      if (interaction.commandName === "open-store") {
+        return await handleOpenStore(interaction, kumaSupabase, client);
+      }
       if (interaction.commandName === "help") {
         return await handleHelpCommand(interaction, client);
       }

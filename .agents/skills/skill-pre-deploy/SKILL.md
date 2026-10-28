@@ -1,3 +1,8 @@
+---
+name: skill-pre-deploy
+description: Pre-deploy gatekeeper auditing codebase for leftover debug code and secrets, and executing clean Git commits and push.
+---
+
 # Skill: Pre-Deploy & Git Sync (`skill-pre-deploy`)
 
 ## Objective

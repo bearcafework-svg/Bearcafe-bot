@@ -379,3 +379,34 @@ content: `### ${title}\n> ทำเควสที่ <#1524124012492619847>`
 - [`src/main/features/verification/index.js`](file:///d:/bearcafe-bot/src/main/features/verification/index.js)
 - [`src/features/healJai/index.js`](file:///d:/bearcafe-bot/src/features/healJai/index.js)
 
+---
+
+### 14. Supabase Egress & Log Ingestion Optimization (In-Memory Accumulator & Selective Projection SOP)
+**Date:** 2026-10-28  
+**Domain:** Database Performance / Supabase Quota / Log Ingestion / Outbound Egress  
+**Description of Issue:**  
+โควต้า Log Ingestion และ Outbound Egress ของ Supabase พุ่งสูงอย่างรวดเร็วผิดปกติ ส่งผลกระทบต่อค่าใช้จ่ายและเสี่ยงติด 402 Payment Required
+
+**Root Cause:**  
+1. **High-Frequency Voice Minute Tickers**: ระบบตรวจจับเสียงรัน `setInterval` ทุก 60 วินาที โดยแต่ละรอบส่ง HTTP Upsert / RPC (`increment_main_quest_minutes`, `daily_quest_progress`) แยกรายคนแบบ 1 ต่อ 1 หากมีคนในห้องเสียง 40 คน = 40-80 HTTP requests/นาที = 57,000-115,000 logs/วัน
+2. **Uncached Polling Loops**: มีการเรียก `.from("main_community_quests").select("*")` ทุกๆ 60 วินาทีตลอด 24 ชม. แม้ว่าเควสใหญ่จะมีอายุ 7 วันและไม่ได้เปลี่ยนข้อมูลทุกนาที
+3. **Wide `SELECT *` Projection**: การดึงคอลัมน์ที่ไม่จำเป็นหรือคอลัมน์ JSON ขนาดใหญ่ผ่าน wire ส่งผลให้ขนาด Payload Egress สะสมสูง
+
+**Resolution & Standard Implementation:**  
+1. **In-Memory Accumulator Pattern**: 
+   - เปลี่ยนจากการยิง DB ทุกนาที มาเป็นการสะสมแต้ม/นาทีลง `Map` ใน RAM ของบอท
+   - **Batch Flush**: รวบรวมส่ง DB ครั้งเดียวทุกๆ 5 นาที (ลดจำนวน Requests และ Log Ingestion ลงทันที 80%)
+   - **Leave Flush (`VoiceStateUpdate`)**: เมื่อผู้ใช้ออกจากห้องเสียงหรือย้ายไป AFK ให้ Flush นาทีที่สะสมใน RAM ทันที เพื่อรับประกันว่าไม่มีแต้มหรือนาทีตกหล่น
+2. **Fast Guard & In-Memory TTL Cache**:
+   - สำหรับ Daily Quest ให้ตรวจสอบก่อนว่าวันนี้มีเควสที่ตรงกับประเภท (`voice_duration`) หรือไม่ หากไม่มี ให้ข้าม Loop ทันที (0 requests)
+   - สำหรับ Main Quest ให้แคชข้อมูล Active Quest ใน RAM ด้วย TTL 5 นาที และ Invalidate เมื่อมีการจบเควส
+3. **Selective Column Projection**:
+   - หลีกเลี่ยง `.select("*")` ให้ระบุเฉพาะคอลัมน์ที่จำเป็น เช่น `.select("quest_id, current_progress, target_count, is_completed")`
+
+**Related Files:**  
+- [`src/features/dailyQuest/questTriggers.js`](file:///d:/bearcafe-bot/src/features/dailyQuest/questTriggers.js)
+- [`src/features/dailyQuest/questEngine.js`](file:///d:/bearcafe-bot/src/features/dailyQuest/questEngine.js)
+- [`src/features/mainQuest/questTriggers.js`](file:///d:/bearcafe-bot/src/features/mainQuest/questTriggers.js)
+- [`src/features/mainQuest/questEngine.js`](file:///d:/bearcafe-bot/src/features/mainQuest/questEngine.js)
+
+

@@ -1,3 +1,8 @@
+---
+name: skill-learn
+description: Captures technical nuances, incident post-mortems, third-party API quirks, and architectural rules into knowledge documentation.
+---
+
 # Skill: Knowledge Acquisition & Documentation (`skill-learn`)
 
 ## Objective

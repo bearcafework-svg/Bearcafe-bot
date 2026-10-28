@@ -45,7 +45,8 @@ const GAME_CHANNELS = {
   10: { id: '1536934025187295232', name: 'เกมต่อคำ' },
   11: { id: '1544201245974073405', name: 'ฟังเสียงแล้วพิมพ์ตอบ (ไทย)' },
   12: { id: '1536934867256868885', name: 'จริงหรือเท็จ' },
-  13: { id: process.env.GAME_13_CHANNEL_ID || '1524123413122125964', name: 'เรียงประโยคภาษาอังกฤษ' }
+  13: { id: process.env.GAME_13_CHANNEL_ID || '1524123413122125964', name: 'เรียงประโยคภาษาอังกฤษ' },
+  15: { id: process.env.GAME_15_CHANNEL_ID || '', name: 'ทายธงประเทศ' }
 };
 
 // Memory cache for active game session per channel ID
@@ -320,6 +321,14 @@ function buildGamePayload(gameId, questionData) {
       mediaItem = { media: { url: 'attachment://sentence_card.png' } };
       break;
     }
+    case 15: { // ทายธงประเทศ
+      contentText = `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ ธงในรูปนี้คือประเทศอะไร? 𓂃 \`__\n` +
+        `- เลือกทายชื่อประเทศจากภาพธงด้านบน ใครตอบถูกคนแรกชนะ!<:cuteplant:1152834055528783872>`;
+      if (questionData.flagUrl) {
+        mediaItem = { media: { url: questionData.flagUrl } };
+      }
+      break;
+    }
   }
 
   const containerComponents = [];
@@ -347,7 +356,7 @@ function buildGamePayload(gameId, questionData) {
   }
 
   // 3. Choice Buttons (for Games 8, 9, 10, 12, 13)
-  if ([8, 9, 10, 12, 13].includes(gameId) && Array.isArray(questionData.options) && questionData.options.length > 0) {
+  if ([8, 9, 10, 12, 13, 15].includes(gameId) && Array.isArray(questionData.options) && questionData.options.length > 0) {
     containerComponents.push({ type: 14, spacing: 2 });
     let buttonComponents = [];
 
@@ -382,6 +391,19 @@ function buildGamePayload(gameId, questionData) {
           components: allButtons.slice(i, i + 5)
         });
       }
+    } else if (gameId === 15) {
+      // เกม 15: ทายธงประเทศ -> สไตล์ปุ่มตรงตามเทมเพลต [1 (Primary), 4 (Danger), 3 (Success)]
+      const choiceStyles = [1, 4, 3];
+      buttonComponents = questionData.options.map((optionLabel, idx) => ({
+        style: choiceStyles[idx % choiceStyles.length],
+        type: 2,
+        label: optionLabel,
+        custom_id: `mg_opt_${gameId}_${idx}_${Date.now()}`
+      }));
+      containerComponents.push({
+        type: 1,
+        components: buttonComponents
+      });
     } else {
       const choiceStyles = [1, 4, 3, 2];
       buttonComponents = questionData.options.map((optionLabel, idx) => ({
@@ -430,6 +452,7 @@ function buildWinnerPayload(gameId, questionData, winnerDisplayName) {
   else if (gameId === 11) titleText = 'ฟังเสียงแล้วพิมพ์ตอบ (ไทย)';
   else if (gameId === 12) titleText = 'จริงหรือเท็จ';
   else if (gameId === 13) titleText = 'เรียงประโยคภาษาอังกฤษ';
+  else if (gameId === 15) titleText = 'ทายธงประเทศ';
 
   let contentText = '';
   if (gameId === 10) {
@@ -450,33 +473,55 @@ function buildWinnerPayload(gameId, questionData, winnerDisplayName) {
     contentText = `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ ${titleText} 𓂃 \`__\n` +
       `# ${questionData.wordOrQuestion}\n` +
       `> 🔤 ${fullSentence}`;
+  } else if (gameId === 15) {
+    contentText = `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ ธงในรูปนี้คือประเทศอะไร? 𓂃 \`__\n` +
+      `- เลือกทายชื่อประเทศจากภาพธงด้านบน ใครตอบถูกคนแรกชนะ!<:cuteplant:1152834055528783872>`;
   } else {
     contentText = `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ ${titleText} 𓂃 \`__\n` +
       `# ${questionData.wordOrQuestion} = ${questionData.answer}`;
   }
 
+  const winnerComponents = [];
+  if (gameId === 15 && questionData.flagUrl) {
+    winnerComponents.push({
+      type: 12,
+      items: [{ media: { url: questionData.flagUrl } }]
+    });
+    winnerComponents.push({ type: 14, spacing: 1, divider: false });
+  }
+  winnerComponents.push({
+    type: 9,
+    components: [{ type: 10, content: contentText }],
+    accessory: accessoryButton
+  });
+  winnerComponents.push({ type: 14, spacing: 2 });
+
+  const actionButtons = (gameId === 15 && Array.isArray(questionData.options))
+    ? questionData.options.map((optionLabel, idx) => ({
+      style: [1, 4, 3][idx % 3],
+      type: 2,
+      label: optionLabel,
+      custom_id: `mg_opt_done_${gameId}_${idx}_${Date.now()}`,
+      disabled: true
+    }))
+    : [{
+      style: 3,
+      type: 2,
+      label: `@${winnerDisplayName} ตอบถูก`,
+      custom_id: `mg_winner_disabled_${Date.now()}`,
+      disabled: true
+    }];
+
+  winnerComponents.push({
+    type: 1,
+    components: actionButtons
+  });
+
   return {
     flags: FLAG_V2,
     components: [{
       type: 17,
-      components: [
-        {
-          type: 9,
-          components: [{ type: 10, content: contentText }],
-          accessory: accessoryButton
-        },
-        { type: 14, spacing: 2 },
-        {
-          type: 1,
-          components: [{
-            style: 3,
-            type: 2,
-            label: `@${winnerDisplayName} ตอบถูก`,
-            custom_id: `mg_winner_disabled_${Date.now()}`,
-            disabled: true
-          }]
-        }
-      ]
+      components: winnerComponents
     }]
   };
 }

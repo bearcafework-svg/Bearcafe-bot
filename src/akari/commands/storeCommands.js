@@ -36,6 +36,8 @@ const {
 
 const FLAG_V2 = MessageFlags.IsComponentsV2 || 32768;
 
+const KUMA_STORE_ALLOWED_GUILD_ID = "1493110432347459627";
+
 const STORE_SLASH_COMMANDS = [
   {
     name: "setting-store",
@@ -67,6 +69,17 @@ function hasAdminPermission(interaction) {
  */
 async function checkAdminAndPremium(interaction, supabase) {
   if (isExcludedGuild(interaction.guildId)) return { allowed: false, reason: "excluded" };
+
+  if (KUMA_STORE_ALLOWED_GUILD_ID && interaction.guildId !== KUMA_STORE_ALLOWED_GUILD_ID) {
+    return {
+      allowed: false,
+      reason: "guild_not_allowed",
+      payload: {
+        content: "❌ คำสั่งระบบร้านค้าเปิดให้ใช้งานเฉพาะในเซิร์ฟเวอร์ที่ได้รับอนุญาตเท่านั้นครับ",
+        flags: MessageFlags.Ephemeral,
+      },
+    };
+  }
 
   if (!hasAdminPermission(interaction)) {
     return {
@@ -108,6 +121,13 @@ async function checkAdminAndPremium(interaction, supabase) {
  */
 async function handleSettingStore(interaction, supabase) {
   if (isExcludedGuild(interaction.guildId)) return;
+
+  if (KUMA_STORE_ALLOWED_GUILD_ID && interaction.guildId !== KUMA_STORE_ALLOWED_GUILD_ID) {
+    return interaction.reply({
+      content: "❌ คำสั่งนี้เปิดให้ใช้งานเฉพาะในเซิร์ฟเวอร์ที่กำหนดเท่านั้นครับ",
+      flags: MessageFlags.Ephemeral,
+    });
+  }
 
   if (!hasAdminPermission(interaction)) {
     return interaction.reply({
@@ -554,13 +574,164 @@ async function handleStoreButtonInteraction(interaction, supabase, client) {
       ],
     });
   }
+
+  // 8. ปุ่มเปิด Modal ตั้งค่าธีมหน้าร้าน (Custom JSON): akari_store_theme_btn
+  if (customId === "akari_store_theme_btn") {
+    if (KUMA_STORE_ALLOWED_GUILD_ID && interaction.guildId !== KUMA_STORE_ALLOWED_GUILD_ID) {
+      return interaction.reply({
+        content: "❌ ฟีเจอร์นี้เปิดให้ใช้งานเฉพาะในเซิร์ฟเวอร์ที่กำหนดเท่านั้นครับ",
+        flags: MessageFlags.Ephemeral,
+      });
+    }
+
+    const currentConfig = await getTenantStoreConfig(supabase, interaction.guildId);
+    let existingJsonStr = "";
+    if (currentConfig?.custom_layout_json) {
+      try {
+        existingJsonStr = typeof currentConfig.custom_layout_json === "string"
+          ? currentConfig.custom_layout_json
+          : JSON.stringify(currentConfig.custom_layout_json, null, 2);
+      } catch (_) {}
+    }
+
+    const modal = new ModalBuilder()
+      .setCustomId("akari_store_theme_modal_submit")
+      .setTitle("🎨 ปรับแต่งธีมหน้าร้าน (Discohook)");
+
+    const jsonInput = new TextInputBuilder()
+      .setCustomId("theme_json")
+      .setLabel("JSON จาก Discohook (เว้นว่างเพื่อรีเซ็ต)")
+      .setStyle(TextInputStyle.Paragraph)
+      .setPlaceholder("วางโค้ด JSON จาก discohook.app ที่นี่ หรือเว้นว่างเพื่อกลับไปใช้ธีมเริ่มต้น...")
+      .setRequired(false)
+      .setMaxLength(4000);
+
+    if (existingJsonStr && existingJsonStr.length <= 4000) {
+      jsonInput.setValue(existingJsonStr);
+    }
+
+    modal.addComponents(new ActionRowBuilder().addComponents(jsonInput));
+    return interaction.showModal(modal);
+  }
 }
 
 /**
- * จัดการ Modal Submit สำหรับแก้ไขข้อมูลไอเทม
+ * จัดการ Modal Submit สำหรับแก้ไขข้อมูลไอเทมและธีมหน้าร้าน
  */
 async function handleStoreModalSubmit(interaction, supabase) {
   const customId = interaction.customId;
+
+  // 1. จัดการบันทึกธีมหน้าร้าน (Custom JSON): akari_store_theme_modal_submit
+  if (customId === "akari_store_theme_modal_submit") {
+    if (KUMA_STORE_ALLOWED_GUILD_ID && interaction.guildId !== KUMA_STORE_ALLOWED_GUILD_ID) {
+      return interaction.reply({
+        content: "❌ ฟีเจอร์นี้เปิดให้ใช้งานเฉพาะในเซิร์ฟเวอร์ที่กำหนดเท่านั้นครับ",
+        flags: MessageFlags.Ephemeral,
+      });
+    }
+
+    await interaction.deferUpdate().catch(() => {});
+
+    const rawJson = interaction.fields.getTextInputValue("theme_json")?.trim();
+
+    // 1.1 ถ้าเว้นว่าง หรือพิมพ์ว่า "reset" -> รีเซ็ตกลับเป็นค่าเริ่มต้น
+    if (!rawJson || rawJson.toLowerCase() === "reset") {
+      await saveTenantStoreConfig(supabase, interaction.guildId, {
+        custom_layout_json: null,
+      });
+
+      const storeConfig = await getTenantStoreConfig(supabase, interaction.guildId);
+      const items = await getTenantStoreItems(supabase, interaction.guildId);
+      const updatedDashboard = buildStoreSettingsDashboard(interaction.guild, storeConfig, items);
+      await interaction.editReply(updatedDashboard);
+
+      return interaction.followUp({
+        flags: FLAG_V2 | MessageFlags.Ephemeral,
+        components: [
+          {
+            type: 17,
+            components: [
+              {
+                type: 10,
+                content: "## <:50121checkmark:1358584609087946867>︲__` Reset ₊ รีเซ็ตธีมหน้าร้านสำเร็จ 𓂃 `__\n" +
+                  "> ระบบได้ทำการรีเซ็ตธีมหน้าร้านกลับเป็น **เทมเพลตมาตรฐานของบอท Kuma** เรียบร้อยแล้วครับ ✨",
+              },
+            ],
+          },
+        ],
+      });
+    }
+
+    // 1.2 ตรวจสอบความถูกต้องของ JSON
+    let parsedJson = null;
+    try {
+      parsedJson = JSON.parse(rawJson);
+    } catch (parseErr) {
+      return interaction.followUp({
+        flags: FLAG_V2 | MessageFlags.Ephemeral,
+        components: [
+          {
+            type: 17,
+            components: [
+              {
+                type: 10,
+                content: `## <:lowwarning:1548772721679278180>︲__\` Error ₊ รูปแบบ JSON ไม่ถูกต้อง 𓂃 \`__\n` +
+                  `> โค้ดที่คุณวางไม่สามารถแปลงเป็น JSON ได้ กรุณาคัดลอก JSON ทั้งหมดจาก **discohook.app** แล้วลองใหม่อีกครั้งนะครับ! 💡\n\n` +
+                  `-# รายละเอียด: ${parseErr.message}`,
+              },
+            ],
+          },
+        ],
+      });
+    }
+
+    if (!parsedJson || !Array.isArray(parsedJson.components) || parsedJson.components.length === 0) {
+      return interaction.followUp({
+        flags: FLAG_V2 | MessageFlags.Ephemeral,
+        components: [
+          {
+            type: 17,
+            components: [
+              {
+                type: 10,
+                content: "## <:lowwarning:1548772721679278180>︲__` Warning ₊ โครงสร้าง Components ไม่ถูกต้อง 𓂃 `__\n" +
+                  "> โค้ด JSON ต้องมีฟิลด์ `components` แบบ Array ตามมาตรฐาน Discord Component V2 ครับ",
+              },
+            ],
+          },
+        ],
+      });
+    }
+
+    // 1.3 บันทึกและอัปเดตหน้าแดชบอร์ด
+    await saveTenantStoreConfig(supabase, interaction.guildId, {
+      custom_layout_json: parsedJson,
+    });
+
+    const storeConfig = await getTenantStoreConfig(supabase, interaction.guildId);
+    const items = await getTenantStoreItems(supabase, interaction.guildId);
+    const updatedDashboard = buildStoreSettingsDashboard(interaction.guild, storeConfig, items);
+    await interaction.editReply(updatedDashboard);
+
+    return interaction.followUp({
+      flags: FLAG_V2 | MessageFlags.Ephemeral,
+      components: [
+        {
+          type: 17,
+          components: [
+            {
+              type: 10,
+              content: "## <:50121checkmark:1358584609087946867>︲__` Success ₊ บันทึกธีมหน้าร้านสำเร็จ 𓂃 `__\n" +
+                "> บันทึกธีม Custom Component V2 เรียบร้อยแล้ว! เมื่อพิมพ์คำสั่ง `/open-store` บอทจะนำธีมนี้มาส่งพร้อมแนบปุ่มแลกรางวัลให้อัตโนมัติครับ ✨\n\n" +
+                "-# 💡 สามารถกดปุ่มเดิมแล้วเว้นว่างเพื่อรีเซ็ตกลับเป็นค่าเริ่มต้นได้ตลอดเวลา",
+            },
+          ],
+        },
+      ],
+    });
+  }
+
+  // 2. จัดการบันทึกข้อมูลไอเทมปกติ
   if (!customId.startsWith("akari_store_modal_submit_")) return;
 
   const raw = customId.replace("akari_store_modal_submit_", "");
@@ -1151,7 +1322,23 @@ async function handleStoreSelectMenus(interaction, supabase) {
     return await editReplyPromise;
   }
 
-  // เมนูเลือกห้อง Log Channel: akari_store_log_channel_selected
+  // เมนูเลือกห้อง Log Channel โดยตรงบนแดชบอร์ดหลัก (Inline Channel Select Menu)
+  if (
+    customId === "akari_store_log_channel_select" ||
+    customId === "p_361750733613174785" ||
+    customId.startsWith("akari_store_log_channel_select")
+  ) {
+    const selectedChannelId = interaction.values[0];
+    await saveTenantStoreConfig(supabase, interaction.guildId, {
+      log_channel_id: selectedChannelId,
+    });
+    const storeConfig = await getTenantStoreConfig(supabase, interaction.guildId);
+    const updatedItems = await getTenantStoreItems(supabase, interaction.guildId);
+    const updatedPayload = buildStoreSettingsDashboard(interaction.guild, storeConfig, updatedItems);
+    return interaction.update(updatedPayload);
+  }
+
+  // เมนูเลือกห้อง Log Channel: akari_store_log_channel_selected (Ephemeral Fallback)
   if (customId.startsWith("akari_store_log_channel_selected")) {
     // 1. รับทราบ interaction ทันทีเพื่อป้องกัน Timeout 3 วินาทีของ Discord
     await interaction.deferUpdate().catch(() => {});
@@ -1221,6 +1408,8 @@ async function handleStoreSelectMenus(interaction, supabase) {
 
 module.exports = {
   STORE_SLASH_COMMANDS,
+  KUMA_STORE_SLASH_COMMANDS: STORE_SLASH_COMMANDS,
+  KUMA_STORE_ALLOWED_GUILD_ID,
   handleSettingStore,
   handleOpenStore,
   handleStoreButtonInteraction,

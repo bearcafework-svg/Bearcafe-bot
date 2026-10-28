@@ -20,6 +20,7 @@ const AKARI_GAME_NAMES = {
   11: "🔊︲ฟังเสียงตอบ-ไทย",
   12: "⚖️︲จริงหรือเท็จ",
   13: "🧩︲เรียงประโยค-อังกฤษ",
+  15: "🚩︲ทายธงประเทศ",
 };
 
 const TEMPORARY_DISABLED_GAME_IDS = [1, 2];
@@ -40,7 +41,7 @@ const KUMA_SLASH_COMMANDS = [
         type: 3, // STRING
         required: true,
         choices: [
-          { name: "🏆 ทุกมินิเกม (เปิดครบทั้ง 11 เกม)", value: "all" },
+          { name: "🏆 ทุกมินิเกม (เปิดครบทั้ง 12 เกม)", value: "all" },
           { name: "🔥 มินิเกมยอดฮิต (Top 5 Games)", value: "popular" },
           { name: "🔤 เกมเน้นภาษาและความรู้ (Language & Quiz)", value: "language" },
         ],
@@ -148,14 +149,30 @@ const KUMA_REVEAL_SLASH_COMMAND = {
   default_member_permissions: PermissionFlagsBits.ManageChannels.toString(),
 };
 
+const KUMA_STORE_ALLOWED_GUILD_ID = "1493110432347459627";
+const KUMA_STORE_SLASH_COMMANDS = [
+  {
+    name: "setting-store",
+    description: "ตั้งค่าร้านค้าแลกของรางวัลมินิเกม สูงสุด 3 รายการ (เฉพาะผู้ดูแลระบบ Premium)",
+    default_member_permissions: PermissionFlagsBits.ManageChannels.toString(),
+  },
+  {
+    name: "open-store",
+    description: "เปิดหน้าร้านค้าแลกของรางวัลมินิเกมในห้องนี้ (เฉพาะผู้ดูแลระบบ Premium)",
+    default_member_permissions: PermissionFlagsBits.ManageChannels.toString(),
+  },
+];
+
 module.exports = {
   KUMA_SLASH_COMMANDS,
   AKARI_SLASH_COMMANDS: KUMA_SLASH_COMMANDS,
   KUMA_CLEAR_SLASH_COMMAND,
   KUMA_REVEAL_SLASH_COMMAND,
+  KUMA_STORE_SLASH_COMMANDS,
   SET_SLASH_COMMAND,
   KUMA_CLEAR_ALLOWED_GUILD_ID,
   KUMA_REVEAL_ALLOWED_GUILD_ID,
+  KUMA_STORE_ALLOWED_GUILD_ID,
   WELCOME_ALLOWED_GUILD_ID,
   AKARI_GAME_NAMES,
   TEMPORARY_DISABLED_GAME_IDS,

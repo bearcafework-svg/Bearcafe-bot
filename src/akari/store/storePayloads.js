@@ -71,28 +71,39 @@ function buildStoreSettingsDashboard(guild, storeConfig, items) {
     ? `<#${storeConfig.log_channel_id}>`
     : "*(ยังไม่ได้ตั้งค่า)*";
 
-  const guildIcon = typeof guild?.iconURL === "function"
-    ? (guild.iconURL({ size: 256 }) || "https://cdn.discordapp.com/embed/avatars/0.png")
-    : (guild?.iconURL || "https://cdn.discordapp.com/embed/avatars/0.png");
-
   const containerComponents = [
     {
-      type: 9, // Section with Profile Guild Server accessory
+      type: 10,
+      content: "## <a:643900sevlev:1548947725133942824>︲__` 𝖲𝗍𝗈𝗋𝖾 𝗌𝖾𝗍𝗍𝗂𝗇𝗀 ₊ จัดการร้านค้าแลกของรางวัล 𓂃 `__\n-# ตั้งค่าของรางวัลที่ผู้เล่นสามารถนำแต้มสะสมจากการเล่นมินิเกมมาแลกรับได้ <:cuteplant:1152834055528783872> ",
+    },
+    {
+      type: 14,
+      spacing: 2,
+      divider: true,
+    },
+    {
+      type: 10,
+      content: `### ห้องส่งประวัติการแลก: ${logChannelText}\n\n `,
+    },
+    {
+      type: 1,
       components: [
         {
-          type: 10,
-          content: `## <a:643900sevlev:1548947725133942824>︲__\` 𝖲𝗍𝗈𝗋𝖾 𝗌𝖾𝗍𝗍𝗂𝗇𝗀 ₊ จัดการร้านค้าแลกของรางวัล 𓂃 \`__\n` +
-            `> ตั้งค่าของรางวัลที่ผู้เล่นสามารถนำแต้มสะสมจากการเล่นมินิเกมมาแลกรับได้ (สูงสุด 3 รายการ)\n\n` +
-            `-# **ห้องส่งประวัติการแลก (Log Channel):** ${logChannelText}\n` +
-            `-# 💡 เมื่อตั้งค่าครบแล้ว พิมพ์คำสั่ง \`/open-store\` ในห้องที่ต้องการเพื่อเปิดหน้าร้านได้ทันทีครับ\n `,
+          type: 8, // ChannelSelectMenu
+          flow: {
+            actions: [],
+          },
+          custom_id: "akari_store_log_channel_select",
+          placeholder: "เลือกห้องแจ้งเตือน...",
+          min_values: 1,
+          max_values: 1,
         },
       ],
-      accessory: {
-        type: 11,
-        media: {
-          url: guildIcon,
-        },
-      },
+    },
+    {
+      type: 14,
+      spacing: 1,
+      divider: false,
     },
   ];
 
@@ -103,12 +114,6 @@ function buildStoreSettingsDashboard(guild, storeConfig, items) {
     const item = items.find((i) => i.slot === s);
     const isConfigured = Boolean(item?.is_configured && item?.name && item?.name.trim() !== "");
     const slotEmoji = `<:${SLOT_EMOJIS[s].name}:${SLOT_EMOJIS[s].id}>`;
-
-    containerComponents.push({
-      type: 14,
-      spacing: 2,
-      divider: true,
-    });
 
     let itemContent = "";
     if (!isConfigured) {
@@ -158,13 +163,12 @@ function buildStoreSettingsDashboard(guild, storeConfig, items) {
         },
       },
     });
-  });
 
-  // ตัวคั่นก่อนเข้าสู่เมนูควบคุม
-  containerComponents.push({
-    type: 14,
-    spacing: 2,
-    divider: true,
+    containerComponents.push({
+      type: 14,
+      spacing: 2,
+      divider: true,
+    });
   });
 
   // ActionRow 1: Select Menu สำหรับสลับสถานะเปิด / ปิด การใช้งาน
@@ -207,7 +211,9 @@ function buildStoreSettingsDashboard(guild, storeConfig, items) {
     divider: false,
   });
 
-  // ActionRow 2: ปุ่มกดสำหรับผูกยศ, จำกัด 1 ครั้ง/คน, และ เลือกห้อง Log
+  // ActionRow 2: ปุ่มกดสำหรับผูกยศ และ จำกัด 1 ครั้ง/คน (2 ปุ่ม)
+  // ActionRow 2: ปุ่มกดสำหรับผูกยศ, จำกัด 1 ครั้ง/คน, และ ธีมหน้าร้าน (Custom JSON)
+  const isCustomThemeActive = Boolean(storeConfig?.custom_layout_json);
   containerComponents.push({
     type: 1, // ActionRow 2
     components: [
@@ -231,11 +237,11 @@ function buildStoreSettingsDashboard(guild, storeConfig, items) {
       },
       {
         type: 2,
-        style: 2, // Secondary (Grey)
-        label: "︲เลือกห้องแจ้งเตือน Log",
-        custom_id: "akari_store_channel_select_btn",
+        style: isCustomThemeActive ? 3 : 2, // Green (Success) if active, Grey (Secondary) if default
+        label: isCustomThemeActive ? "︲ธีม: กำหนดเอง (Custom)" : "︲ธีมหน้าร้าน (Discohook)",
+        custom_id: "akari_store_theme_btn",
         emoji: {
-          name: "🔔",
+          name: "🎨",
         },
       },
     ],
@@ -256,6 +262,76 @@ function buildStoreSettingsDashboard(guild, storeConfig, items) {
  * สร้างการ์ดหน้าร้านค้าสาธารณะ (/open-store) สำหรับส่งลงห้อง
  */
 function buildPublicStoreCard(guild, storeConfig, items) {
+  // สร้างปุ่มแลกของรางวัลตามจำนวนไอเทมที่เปิดใช้งาน
+  const buttonComponents = [];
+  items.forEach((item) => {
+    if (item.is_active) {
+      const isOutOfStock = typeof item.stock === "number" && item.stock === 0;
+      buttonComponents.push({
+        type: 2,
+        style: isOutOfStock ? 2 : 1, // Secondary if out of stock, Primary if available
+        label: isOutOfStock
+          ? `สินค้าหมด (${item.name})`
+          : `แลก ${item.name} (${item.points_cost.toLocaleString()} แต้ม)`,
+        custom_id: `akari_store_redeem_btn_${item.slot}`,
+        disabled: isOutOfStock,
+        emoji: {
+          name: item.emoji || "🎁",
+        },
+      });
+    }
+  });
+
+  // 🎨 ตรวจสอบและ Hook & Inject ปุ่มแลกรางวัลลงใน Custom Layout JSON (ถ้ามีการตั้งค่าไว้)
+  if (storeConfig?.custom_layout_json) {
+    try {
+      const customPayload = typeof storeConfig.custom_layout_json === "string"
+        ? JSON.parse(storeConfig.custom_layout_json)
+        : storeConfig.custom_layout_json;
+
+      if (customPayload && Array.isArray(customPayload.components) && customPayload.components.length > 0) {
+        const cloned = JSON.parse(JSON.stringify(customPayload));
+
+        // ค้นหา Container Type 17
+        let targetContainer = cloned.components.find((c) => c.type === 17);
+        if (!targetContainer && cloned.components.length > 0) {
+          targetContainer = cloned.components[0];
+        }
+
+        if (targetContainer && Array.isArray(targetContainer.components)) {
+          // ล้าง ActionRow ที่อาจมีปุ่มแลกเดิมค้างอยู่
+          targetContainer.components = targetContainer.components.filter((comp) => {
+            if (comp.type === 1 && Array.isArray(comp.components)) {
+              const hasRedeemBtn = comp.components.some((b) => b.custom_id && b.custom_id.includes("store_redeem"));
+              return !hasRedeemBtn;
+            }
+            return true;
+          });
+
+          // Inject ปุ่มแลกรางวัลอัจฉริยะต่อท้าย
+          if (buttonComponents.length > 0) {
+            targetContainer.components.push({
+              type: 14, // Separator
+              spacing: 2,
+              divider: true,
+            });
+            targetContainer.components.push({
+              type: 1, // ActionRow
+              components: buttonComponents,
+            });
+          }
+
+          return {
+            flags: customPayload.flags || FLAG_V2,
+            components: cloned.components,
+          };
+        }
+      }
+    } catch (customErr) {
+      console.warn("[akari-store] Failed to parse custom_layout_json, fallback to default card:", customErr.message);
+    }
+  }
+
   const activeItems = items.filter((item) => item.is_active);
   const currEmoji = storeConfig?.currency_emoji || "<:strawberryv2:1548976664090779650>";
 
@@ -287,26 +363,6 @@ function buildPublicStoreCard(guild, storeConfig, items) {
         `> 📝 *${item.description || "สะสมแต้มเพื่อแลกรับรางวัล"}*\n\n`;
     });
   }
-
-  // สร้างปุ่มแลกของรางวัลตามจำนวนไอเทมที่เปิดใช้งาน
-  const buttonComponents = [];
-  items.forEach((item) => {
-    if (item.is_active) {
-      const isOutOfStock = typeof item.stock === "number" && item.stock === 0;
-      buttonComponents.push({
-        type: 2,
-        style: isOutOfStock ? 2 : 1, // Secondary if out of stock, Primary if available
-        label: isOutOfStock
-          ? `สินค้าหมด (${item.name})`
-          : `แลก ${item.name} (${item.points_cost.toLocaleString()} แต้ม)`,
-        custom_id: `akari_store_redeem_btn_${item.slot}`,
-        disabled: isOutOfStock,
-        emoji: {
-          name: item.emoji || "🎁",
-        },
-      });
-    }
-  });
 
   const containerComponents = [
     {

@@ -1,3 +1,8 @@
+---
+name: skill-audit
+description: Scans repository to evaluate code health, feature completeness, and architectural consistency, declaring 'good enough' to halt over-engineering.
+---
+
 # Skill: Project Audit & Scope Control (`skill-audit`)
 
 ## Objective

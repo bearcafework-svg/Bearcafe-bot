@@ -59,6 +59,7 @@ const GAME_TYPE_MAP = {
   11: GAME_TYPES.AUDIO,
   12: GAME_TYPES.BUTTON,
   13: GAME_TYPES.BUTTON,
+  15: GAME_TYPES.BUTTON,
 };
 
 // State สำหรับเก็บคำที่ผู้เล่นกดไปแล้วในมินิเกมเรียงประโยค (Game 13)
@@ -136,7 +137,7 @@ function recordUserAction(userId, channelId, gameId) {
 }
 
 // ─── Freemium Tier Management ─────────────────────────────────────────
-const LIGHTWEIGHT_GAMES = [1, 2, 3, 4, 8, 9, 10, 12];
+const LIGHTWEIGHT_GAMES = [1, 2, 3, 4, 8, 9, 10, 12, 15];
 const HEAVYWEIGHT_GAMES = [5, 6, 7, 11, 13];
 const FREE_QUOTA_LIMIT = 5;
 
@@ -309,9 +310,11 @@ async function getTenantSettings(supabase, guildId) {
     return guildSettingsCache.get(guildId);
   }
 
+  const ALL_MINIGAME_IDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15];
+
   if (!supabase) {
     const defaults = {};
-    for (let i = 1; i <= 13; i++) {
+    for (const i of ALL_MINIGAME_IDS) {
       defaults[i] = { enabled: true, points_per_win: 10 };
     }
     guildSettingsCache.set(guildId, defaults);
@@ -327,7 +330,7 @@ async function getTenantSettings(supabase, guildId) {
     if (error) {
       console.warn(`[akari-minigames] fetch settings error for guild ${guildId}:`, error.message);
       const defaults = {};
-      for (let i = 1; i <= 13; i++) {
+      for (const i of ALL_MINIGAME_IDS) {
         defaults[i] = { enabled: true, points_per_win: 10 };
       }
       guildSettingsCache.set(guildId, defaults);
@@ -335,7 +338,7 @@ async function getTenantSettings(supabase, guildId) {
     }
 
     const map = {};
-    for (let i = 1; i <= 13; i++) {
+    for (const i of ALL_MINIGAME_IDS) {
       map[i] = { enabled: true, points_per_win: 10 };
     }
 
@@ -352,7 +355,7 @@ async function getTenantSettings(supabase, guildId) {
   } catch (e) {
     console.warn(`[akari-minigames] settings cache fallback for guild ${guildId}:`, e.message);
     const defaults = {};
-    for (let i = 1; i <= 13; i++) {
+    for (const i of ALL_MINIGAME_IDS) {
       defaults[i] = { enabled: true, points_per_win: 10 };
     }
     guildSettingsCache.set(guildId, defaults);
@@ -692,6 +695,13 @@ function buildAkariGamePayload(gameId, questionData, rewardPoints = 3, isPremium
       mediaItem = { media: { url: 'attachment://sentence_card.png' } };
       break;
     }
+    case 15: { // ทายธงประเทศ
+      contentText = `### ${BEE_EMOJI_STR}︲__\` 𝖦𝖺𝗆𝖾 ₊ ธงในรูปนี้คือประเทศอะไร? 𓂃 \`__\n` +
+        `- เลือกทายชื่อประเทศจากภาพธงด้านบน ใครตอบถูกคนแรกชนะ!<:cuteplant:1152834055528783872>`;
+      const flagUrl = questionData.imageUrl || questionData.flagUrl;
+      mediaItem = flagUrl ? { media: { url: flagUrl } } : null;
+      break;
+    }
   }
 
   const containerComponents = [];
@@ -724,60 +734,81 @@ function buildAkariGamePayload(gameId, questionData, rewardPoints = 3, isPremium
     custom_id: `akari_mg_top:${gameId}`,
   };
 
-  // Choice Buttons (สำหรับเกม 8, 9, 10, 12, 13)
-  if ([8, 9, 10, 12, 13].includes(gameId) && Array.isArray(questionData.options) && questionData.options.length > 0) {
-    containerComponents.push({ type: 14, spacing: 2 });
-    let buttonComponents = [];
+  // Choice Buttons (สำหรับเกม 8, 9, 10, 12, 13, 15)
+  if ([8, 9, 10, 12, 13, 15].includes(gameId) && Array.isArray(questionData.options) && questionData.options.length > 0) {
+    if (gameId === 15) {
+      containerComponents.push({ type: 14, spacing: 2, divider: true });
+      const choiceStyles = [1, 4, 3];
+      const buttonComponents = questionData.options.map((optionLabel, idx) => ({
+        style: choiceStyles[idx % choiceStyles.length],
+        type: 2,
+        label: optionLabel,
+        custom_id: `kuma_mg_opt_${gameId}_${idx}_${Date.now()}`,
+      }));
+      buttonComponents.push({
+        style: 2,
+        type: 2,
+        label: '🏆 ตารางคะแนน',
+        custom_id: `akari_mg_top:${gameId}`,
+      });
+      containerComponents.push({
+        type: 1,
+        components: buttonComponents,
+      });
+    } else {
+      containerComponents.push({ type: 14, spacing: 2 });
+      let buttonComponents = [];
 
-    if (gameId === 12) {
-      // จริง (เขียว: Style 3) และ เท็จ (แดง: Style 4)
-      buttonComponents = questionData.options.map((optionLabel, idx) => {
-        const isTrueBtn = String(optionLabel).trim() === 'จริง';
-        return {
-          style: isTrueBtn ? 3 : 4,
+      if (gameId === 12) {
+        // จริง (เขียว: Style 3) และ เท็จ (แดง: Style 4)
+        buttonComponents = questionData.options.map((optionLabel, idx) => {
+          const isTrueBtn = String(optionLabel).trim() === 'จริง';
+          return {
+            style: isTrueBtn ? 3 : 4,
+            type: 2,
+            label: optionLabel,
+            custom_id: `akari_mg_opt_${gameId}_${idx}_${Date.now()}`,
+          };
+        });
+        buttonComponents.push(leaderboardButton);
+        containerComponents.push({
+          type: 1,
+          components: buttonComponents,
+        });
+      } else if (gameId === 13) {
+        // เกม 13: เรียงประโยค -> ปุ่มคำศัพท์สลับสีให้อ่านง่าย
+        const choiceStyles = [2, 1, 2, 1, 2, 1];
+        const allButtons = questionData.options.map((optionLabel, idx) => ({
+          style: choiceStyles[idx % choiceStyles.length],
+          type: 2,
+          label: optionLabel,
+          custom_id: `akari_mg_sb_${gameId}_${idx}_${Date.now()}`,
+        }));
+        // แยกแถวละสูงสุด 5 ปุ่ม
+        for (let i = 0; i < allButtons.length; i += 5) {
+          containerComponents.push({
+            type: 1,
+            components: allButtons.slice(i, i + 5),
+          });
+        }
+        containerComponents.push({
+          type: 1,
+          components: [leaderboardButton],
+        });
+      } else {
+        const choiceStyles = [1, 4, 3, 2];
+        buttonComponents = questionData.options.map((optionLabel, idx) => ({
+          style: choiceStyles[idx % choiceStyles.length],
           type: 2,
           label: optionLabel,
           custom_id: `akari_mg_opt_${gameId}_${idx}_${Date.now()}`,
-        };
-      });
-      buttonComponents.push(leaderboardButton);
-      containerComponents.push({
-        type: 1,
-        components: buttonComponents,
-      });
-    } else if (gameId === 13) {
-      // เกม 13: เรียงประโยค -> ปุ่มคำศัพท์สลับสีให้อ่านง่าย
-      const choiceStyles = [2, 1, 2, 1, 2, 1];
-      const allButtons = questionData.options.map((optionLabel, idx) => ({
-        style: choiceStyles[idx % choiceStyles.length],
-        type: 2,
-        label: optionLabel,
-        custom_id: `akari_mg_sb_${gameId}_${idx}_${Date.now()}`,
-      }));
-      // แยกแถวละสูงสุด 5 ปุ่ม
-      for (let i = 0; i < allButtons.length; i += 5) {
+        }));
+        buttonComponents.push(leaderboardButton);
         containerComponents.push({
           type: 1,
-          components: allButtons.slice(i, i + 5),
+          components: buttonComponents,
         });
       }
-      containerComponents.push({
-        type: 1,
-        components: [leaderboardButton],
-      });
-    } else {
-      const choiceStyles = [1, 4, 3, 2];
-      buttonComponents = questionData.options.map((optionLabel, idx) => ({
-        style: choiceStyles[idx % choiceStyles.length],
-        type: 2,
-        label: optionLabel,
-        custom_id: `akari_mg_opt_${gameId}_${idx}_${Date.now()}`,
-      }));
-      buttonComponents.push(leaderboardButton);
-      containerComponents.push({
-        type: 1,
-        components: buttonComponents,
-      });
     }
   } else {
     // เกมแบบพิมพ์ตอบ: แสดงปุ่มตารางคะแนนสำหรับทุกระดับสมาชิก
@@ -824,6 +855,7 @@ function buildAkariWinnerPayload(gameId, questionData, winnerDisplayName, reward
     11: 'ฟังเสียงแล้วพิมพ์ตอบ (ไทย)',
     12: 'จริงหรือเท็จ',
     13: 'เรียงประโยคภาษาอังกฤษ',
+    15: 'ธงในรูปนี้คือประเทศอะไร?',
   };
   const titleText = titleMap[gameId] || `มินิเกม #${gameId}`;
 
@@ -845,6 +877,9 @@ function buildAkariWinnerPayload(gameId, questionData, winnerDisplayName, reward
     contentText = `### ${BEE_EMOJI_STR}︲__\` 𝖦𝖺𝗆𝖾 ₊ ${titleText} 𓂃 \`__\n` +
       `# ${questionData.wordOrQuestion}\n` +
       `> 🔤 ${fullSentence}`;
+  } else if (gameId === 15) {
+    contentText = `### ${BEE_EMOJI_STR}︲__\` 𝖦𝖺𝗆𝖾 ₊ ธงในรูปนี้คือประเทศอะไร? 𓂃 \`__\n` +
+      `- เลือกทายชื่อประเทศจากภาพธงด้านบน ใครตอบถูกคนแรกชนะ!<:cuteplant:1152834055528783872>`;
   } else {
     contentText = `### ${BEE_EMOJI_STR}︲__\` 𝖦𝖺𝗆𝖾 ₊ ${titleText} 𓂃 \`__\n` +
       `# ${questionData.wordOrQuestion || ''} = ${questionData.answer}`;
@@ -852,28 +887,62 @@ function buildAkariWinnerPayload(gameId, questionData, winnerDisplayName, reward
 
   const winnerBtnLabel = `@${winnerDisplayName} ตอบถูก (+${rewardPoints} แต้ม)`;
 
+  const winnerContainer = [];
+  const flagUrl = questionData.imageUrl || questionData.flagUrl;
+  if (gameId === 15 && flagUrl) {
+    winnerContainer.push({
+      type: 12,
+      items: [{ media: { url: flagUrl } }],
+    });
+    winnerContainer.push({ type: 14, spacing: 1, divider: false });
+  }
+
+  winnerContainer.push({
+    type: 9,
+    components: [{ type: 10, content: contentText }],
+    accessory: accessoryButton,
+  });
+
+  if (gameId === 15) {
+    winnerContainer.push({ type: 14, spacing: 2, divider: true });
+    const choiceStyles = [1, 4, 3];
+    const actionButtons = (Array.isArray(questionData.options) ? questionData.options : []).map((optionLabel, idx) => ({
+      style: choiceStyles[idx % choiceStyles.length],
+      type: 2,
+      label: optionLabel,
+      custom_id: `kuma_mg_opt_done_${gameId}_${idx}_${Date.now()}`,
+      disabled: true,
+    }));
+    actionButtons.push({
+      style: 2,
+      type: 2,
+      label: '🏆 ตารางคะแนน',
+      custom_id: `akari_mg_top:${gameId}`,
+      disabled: true,
+    });
+    winnerContainer.push({
+      type: 1,
+      components: actionButtons,
+    });
+  } else {
+    winnerContainer.push({ type: 14, spacing: 2 });
+    winnerContainer.push({
+      type: 1,
+      components: [{
+        style: 3,
+        type: 2,
+        label: winnerBtnLabel,
+        custom_id: `akari_mg_winner_disabled_${Date.now()}`,
+        disabled: true,
+      }],
+    });
+  }
+
   return {
     flags: FLAG_V2,
     components: [{
       type: 17,
-      components: [
-        {
-          type: 9,
-          components: [{ type: 10, content: contentText }],
-          accessory: accessoryButton,
-        },
-        { type: 14, spacing: 2 },
-        {
-          type: 1,
-          components: [{
-            style: 3,
-            type: 2,
-            label: winnerBtnLabel,
-            custom_id: `akari_mg_winner_disabled_${Date.now()}`,
-            disabled: true,
-          }],
-        },
-      ],
+      components: winnerContainer,
     }],
   };
 }
@@ -973,6 +1042,9 @@ async function spawnQuestion(client, channel, gameId, guildId, supabase) {
     options: questionObj.options,
     englishTemplate: questionObj.englishTemplate,
     correctWords: questionObj.correctWords,
+    imageUrl: questionObj.imageUrl || questionObj.flagUrl,
+    flagUrl: questionObj.flagUrl || questionObj.imageUrl,
+    countryCode: questionObj.countryCode,
     rewardPoints: pointsPerWin,
   };
 
@@ -1206,8 +1278,8 @@ function setupAkariMinigames(client, supabase) {
     const session = activeTenantSessions.get(sessionKey);
     if (!session) return;
 
-    // ข้ามเกมที่ตอบด้วยปุ่ม (เกม 8, 9, 10, 12, 13)
-    if ([8, 9, 10, 12, 13].includes(session.gameId)) return;
+    // ข้ามเกมที่ตอบด้วยปุ่ม (เกม 8, 9, 10, 12, 13, 15)
+    if ([8, 9, 10, 12, 13, 15].includes(session.gameId)) return;
 
     const userText = message.content.trim();
     if (!userText) return;
@@ -1643,7 +1715,7 @@ function setupAkariMinigames(client, supabase) {
     }
 
     // ── ปุ่ม/ช้อยส์เลือกคำตอบ (Option Buttons) ───────────────
-    if (customId.startsWith('akari_mg_opt_')) {
+    if (customId.startsWith('akari_mg_opt_') || customId.startsWith('kuma_mg_opt_')) {
       const parts = customId.split('_');
       const gameId = parseInt(parts[3], 10);
       const optIdx = parseInt(parts[4], 10);

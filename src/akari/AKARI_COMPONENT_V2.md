@@ -326,143 +326,176 @@ const storeSettingsPayload = {
   flags: 32768,
   components: [
     {
-      type: 17,
-      components: [
+      "type": 17,
+      "components": [
         {
-          type: 9, // Section with Guild Server Profile Thumbnail
-          components: [
-            {
-              type: 10,
-              content:
-                "## <a:643900sevlev:1548947725133942824>︲__` 𝖲𝗍𝗈𝗋𝖾 𝗌𝖾𝗍𝗍𝗂𝗇𝗀 ₊ จัดการร้านค้าแลกของรางวัล 𓂃 `__\n" +
-                "> ตั้งค่าของรางวัลที่ผู้เล่นสามารถนำแต้มสะสมจากการเล่นมินิเกมมาแลกรับได้ (สูงสุด 3 รายการ)\n\n" +
-                "-# **ห้องส่งประวัติการแลก (Log Channel):** <#123456789012345678>\n" +
-                "-# 💡 เมื่อตั้งค่าครบแล้ว พิมพ์คำสั่ง `/open-store` ในห้องที่ต้องการเพื่อเปิดหน้าร้านได้ทันทีครับ\n ",
-            },
-          ],
-          accessory: {
-            type: 11,
-            media: {
-              url: "https://cdn.discordapp.com/icons/.../icon.png",
-            },
-          },
+          "type": 10,
+          "content": "## <a:643900sevlev:1548947725133942824>︲__` 𝖲𝗍𝗈𝗋𝖾 𝗌𝖾𝗍𝗍𝗂𝗇𝗀 ₊ จัดการร้านค้าแลกของรางวัล 𓂃 `__\n-# ตั้งค่าของรางวัลที่ผู้เล่นสามารถนำแต้มสะสมจากการเล่นมินิเกมมาแลกรับได้ <:cuteplant:1152834055528783872> "
         },
-        { type: 14, spacing: 2, divider: true },
         {
-          type: 9, // Slot 1 Section
-          components: [
-            {
-              type: 10,
-              content:
-                "### <:minecraft1yellow:1548948434982141993>︲__` ว่าง — ยังไม่ได้ตั้งค่า `__\n" +
-                "> <:conektionbad:1548760143192260689>⠀**สถานะ:** ยังไม่มีข้อมูลของรางวัล\n" +
-                "> 💡 *กดเลือกเมนูด้านล่างเพื่อเริ่มสร้างของรางวัลช่องนี้*",
-            },
-          ],
-          accessory: {
-            type: 2,
-            style: 2,
-            custom_id: "akari_store_edit_modal_1",
-            emoji: { name: "📝" },
-          },
+          "type": 14,
+          "spacing": 2,
+          "divider": true
         },
-        { type: 14, spacing: 2, divider: true },
         {
-          type: 9, // Slot 2 Section
-          components: [
-            {
-              type: 10,
-              content:
-                "### <:minecraft2yellow:1548948476182798416>︲__` VIP Gold Role `__\n" +
-                "> <:goodconektion:1548760301762121801>⠀**สถานะ:** เปิดใช้งาน\n" +
-                "> 💰⠀**ราคา:** 250 แต้ม\n" +
-                "> 🎁⠀**ของรางวัล:** ยศ <@&คนสวย> (จำกัด 1 ครั้ง/คน)\n" +
-                "> 📝⠀**คำอธิบาย:** ไม่พบคำอธิบาย",
-            },
-          ],
-          accessory: {
-            type: 2,
-            style: 2,
-            custom_id: "akari_store_edit_modal_2",
-            emoji: { name: "📝" },
-          },
+          "type": 10,
+          "content": "### ห้องส่งประวัติการแลก: <#123456789012345678>\n\n "
         },
-        { type: 14, spacing: 2, divider: true },
         {
-          type: 9, // Slot 3 Section
-          components: [
+          "type": 1,
+          "components": [
             {
-              type: 10,
-              content:
-                "### <:minecraft3yellow:1548948499846926346>︲__` บัตรแลกเครื่องดื่ม Bear Cafe `__\n" +
-                "> <:conektionokay:1548760281675599964>⠀**สถานะ:** ปิดใช้งาน\n" +
-                "> 💰⠀**ราคา:** 1,000 แต้ม\n" +
-                "> 🎯⠀**ชนะขั้นต่ำ:** 5 ครั้ง\n" +
-                "> 🎁⠀**ของรางวัล:** ของรางวัลจริง / สิทธิ์พิเศษ (แลกได้ไม่จำกัด)\n" +
-                "> 📝⠀**คำอธิบาย:** โค้ดส่วนลดเครื่องดื่ม 50 บาท (แคปใบเสร็จส่งเปิดทิกเก็ตกับทีมงาน)",
-            },
-          ],
-          accessory: {
-            type: 2,
-            style: 2,
-            custom_id: "akari_store_edit_modal_3",
-            emoji: { name: "📝" },
-          },
+              "type": 8,
+              "flow": {
+                "actions": []
+              },
+              "custom_id": "akari_store_log_channel_select",
+              "min_values": 1,
+              "max_values": 1,
+              "placeholder": "เลือกห้องแจ้งเตือน..."
+            }
+          ]
         },
-        { type: 14, spacing: 2, divider: true },
         {
-          type: 1, // ActionRow 1: Toggle Select Menu
-          components: [
+          "type": 14,
+          "spacing": 1,
+          "divider": false
+        },
+        {
+          "type": 9,
+          "components": [
             {
-              type: 3,
-              custom_id: "akari_store_toggle_select",
-              placeholder: "⚡︲สลับสถานะเปิด / ปิด การใช้งานของรางวัล...",
-              options: [
+              "type": 10,
+              "content": "### <:minecraft1yellow:1548948434982141993>︲__` ว่าง — ยังไม่ได้ตั้งค่า `__\n> <:conektionbad:1548760143192260689>⠀**สถานะ:** ยังไม่มีข้อมูลของรางวัล\n> 💡 *กดเลือกเมนูด้านล่างเพื่อเริ่มสร้างของรางวัลช่องนี้*"
+            }
+          ],
+          "accessory": {
+            "type": 2,
+            "style": 2,
+            "custom_id": "akari_store_edit_modal_1",
+            "emoji": {
+              "name": "📝"
+            }
+          }
+        },
+        {
+          "type": 14,
+          "spacing": 2,
+          "divider": true
+        },
+        {
+          "type": 9,
+          "components": [
+            {
+              "type": 10,
+              "content": "### <:minecraft2yellow:1548948476182798416>︲__` VIP Gold Role `__\n> <:goodconektion:1548760301762121801>⠀**สถานะ:** เปิดใช้งาน\n> <:strawberryv2:1548976664090779650>⠀**ราคา:** 250 แต้ม\n> 🎁⠀**ของรางวัล:** ยศ <@&1144676811838599188> (ตรวจยศซ้ำอัตโนมัติ)\n> 📦⠀**สต็อกคงเหลือ:** ไม่จำกัด\n> 📝⠀**คำอธิบาย:** สิทธิพิเศษบทบาทยศประจำเซิร์ฟเวอร์"
+            }
+          ],
+          "accessory": {
+            "type": 2,
+            "style": 2,
+            "custom_id": "akari_store_edit_modal_2",
+            "emoji": {
+              "name": "📝"
+            }
+          }
+        },
+        {
+          "type": 14,
+          "spacing": 2,
+          "divider": true
+        },
+        {
+          "type": 9,
+          "components": [
+            {
+              "type": 10,
+              "content": "### <:minecraft3yellow:1548948499846926346>︲__` บัตรแลกเครื่องดื่ม Bear Cafe `__\n> <:conektionokay:1548760281675599964>⠀**สถานะ:** ปิดใช้งาน\n> <:strawberryv2:1548976664090779650>⠀**ราคา:** 1,000 แต้ม\n> 🎯⠀**ชนะขั้นต่ำ:** 5 ครั้ง\n> 🎁⠀**ของรางวัล:** ของรางวัลจริง / สิทธิ์พิเศษ (จำกัด 1 ครั้ง/คน)\n> 📦⠀**สต็อกคงเหลือ:** 10 ชิ้น\n> 📝⠀**คำอธิบาย:** แคปใบเสร็จส่งเปิดทิกเก็ตกับทีมงานเพื่อรับโค้ดส่วนลด"
+            }
+          ],
+          "accessory": {
+            "type": 2,
+            "style": 2,
+            "custom_id": "akari_store_edit_modal_3",
+            "emoji": {
+              "name": "📝"
+            }
+          }
+        },
+        {
+          "type": 14,
+          "spacing": 2,
+          "divider": true
+        },
+        {
+          "type": 1,
+          "components": [
+            {
+              "type": 3,
+              "custom_id": "akari_store_toggle_select",
+              "placeholder": "⚡︲สลับสถานะเปิด / ปิด การใช้งานของรางวัล...",
+              "options": [
                 {
-                  label: "รางวัล 1: (ยังไม่ได้ตั้งค่า)",
-                  value: "1",
-                  description: "ยังไม่มีข้อมูลของรางวัล ไม่สามารถเปิดใช้งานได้",
-                  emoji: { id: "1548760143192260689", name: "conektionbad" },
+                  "label": "รางวัล 1: (ยังไม่ได้ตั้งค่า)",
+                  "value": "1",
+                  "description": "ยังไม่มีข้อมูลของรางวัล ไม่สามารถเปิดใช้งานได้",
+                  "emoji": {
+                    "id": "1548760143192260689",
+                    "name": "conektionbad"
+                  }
                 },
                 {
-                  label: "รางวัล 2: VIP Gold Role (เปิดอยู่)",
-                  value: "2",
-                  description: "คลิกเพื่อสลับเป็น ปิดใช้งาน",
-                  emoji: { id: "1548760301762121801", name: "goodconektion" },
+                  "label": "รางวัล 2: VIP Gold Role (เปิดอยู่)",
+                  "value": "2",
+                  "description": "คลิกเพื่อสลับเป็น ปิดใช้งาน",
+                  "emoji": {
+                    "id": "1548760301762121801",
+                    "name": "goodconektion"
+                  }
                 },
                 {
-                  label: "รางวัล 3: บัตรแลกเครื่องดื่ม Bear Cafe (ปิดอยู่)",
-                  value: "3",
-                  description: "คลิกเพื่อสลับเป็น เปิดใช้งาน",
-                  emoji: { id: "1548760281675599964", name: "conektionokay" },
-                },
-              ],
-            },
-          ],
+                  "label": "รางวัล 3: บัตรแลกเครื่องดื่ม Bear Cafe (ปิดอยู่)",
+                  "value": "3",
+                  "description": "คลิกเพื่อสลับเป็น เปิดใช้งาน",
+                  "emoji": {
+                    "id": "1548760281675599964",
+                    "name": "conektionokay"
+                  }
+                }
+              ]
+            }
+          ]
         },
-        { type: 14, divider: false },
         {
-          type: 1, // ActionRow 2: Action Buttons
-          components: [
-            {
-              type: 2,
-              style: 1,
-              label: "︲ผูกยศ Discord",
-              custom_id: "akari_store_role_select_btn",
-              emoji: { name: "🎖️" },
-            },
-            {
-              type: 2,
-              style: 2,
-              label: "︲เลือกห้องแจ้งเตือน Log",
-              custom_id: "akari_store_channel_select_btn",
-              emoji: { name: "🔔" },
-            },
-          ],
+          "type": 14,
+          "divider": false
         },
-      ],
-    },
-  ],
+        {
+          "type": 1,
+          "components": [
+            {
+              "type": 2,
+              "style": 1,
+              "label": "︲ผูกยศ Discord",
+              "custom_id": "akari_store_role_select_btn",
+              "emoji": {
+                "name": "🎖️"
+              }
+            },
+            {
+              "type": 2,
+              "style": 2,
+              "label": "︲จำกัด 1 ครั้ง/คน",
+              "custom_id": "akari_store_limit_select_btn",
+              "emoji": {
+                "name": "🔒"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
 };
 ```
 

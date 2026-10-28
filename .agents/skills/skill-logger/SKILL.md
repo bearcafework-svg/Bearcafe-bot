@@ -1,3 +1,8 @@
+---
+name: skill-logger
+description: Standardizes and organizes bot console logs and startup banners into a clean, modern CLI dashboard.
+---
+
 # Skill: Console Logger (`skill-logger`)
 
 ## Objective

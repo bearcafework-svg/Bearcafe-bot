@@ -1,3 +1,8 @@
+---
+name: skill-summary
+description: Generates concise, developer-friendly summaries of completed tasks, bug fixes, and feature updates formatted for Discord.
+---
+
 # Skill: Development Summary (`skill-summary`)
 
 ## Objective

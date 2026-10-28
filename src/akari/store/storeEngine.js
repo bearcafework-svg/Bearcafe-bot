@@ -47,6 +47,7 @@ async function getTenantStoreConfig(supabase, guildId) {
     log_channel_id: null,
     currency_emoji: DEFAULT_CURRENCY_EMOJI,
     is_enabled: true,
+    custom_layout_json: null,
   };
 
   if (!guildId) return fallback;
@@ -65,7 +66,7 @@ async function getTenantStoreConfig(supabase, guildId) {
   try {
     const { data, error } = await supabase
       .from("tenant_store_configs")
-      .select("guild_id, log_channel_id, currency_emoji, is_enabled")
+      .select("guild_id, log_channel_id, currency_emoji, is_enabled, custom_layout_json")
       .eq("guild_id", guildId)
       .maybeSingle();
 

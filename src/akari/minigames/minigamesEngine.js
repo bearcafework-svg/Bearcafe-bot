@@ -937,40 +937,28 @@ function buildAkariWinnerPayload(gameId, questionData, winnerDisplayName, reward
     });
   }
 
-  if (gameId === 15 || gameId === 16) {
-    winnerContainer.push({ type: 14, spacing: 2, divider: true });
-    const choiceStyles = [1, 4, 3];
-    const actionButtons = (Array.isArray(questionData.options) ? questionData.options : []).map((optionLabel, idx) => ({
-      style: choiceStyles[idx % choiceStyles.length],
+  const winnerButtons = [
+    {
+      style: 3,
       type: 2,
-      label: String(optionLabel),
-      custom_id: `kuma_mg_opt_done_${gameId}_${idx}_${Date.now()}`,
+      label: winnerBtnLabel,
+      custom_id: `akari_mg_winner_disabled_${Date.now()}`,
       disabled: true,
-    }));
-    actionButtons.push({
+    },
+    {
       style: 2,
       type: 2,
       label: '🏆 ตารางคะแนน',
       custom_id: `akari_mg_top:${gameId}`,
       disabled: true,
-    });
-    winnerContainer.push({
-      type: 1,
-      components: actionButtons,
-    });
-  } else {
-    winnerContainer.push({ type: 14, spacing: 2 });
-    winnerContainer.push({
-      type: 1,
-      components: [{
-        style: 3,
-        type: 2,
-        label: winnerBtnLabel,
-        custom_id: `akari_mg_winner_disabled_${Date.now()}`,
-        disabled: true,
-      }],
-    });
-  }
+    }
+  ];
+
+  winnerContainer.push({ type: 14, spacing: 2, divider: [15, 16].includes(gameId) });
+  winnerContainer.push({
+    type: 1,
+    components: winnerButtons,
+  });
 
   return {
     flags: FLAG_V2,

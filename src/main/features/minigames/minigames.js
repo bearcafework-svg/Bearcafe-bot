@@ -543,21 +543,13 @@ function buildWinnerPayload(gameId, questionData, winnerDisplayName) {
   }
   winnerComponents.push({ type: 14, spacing: 2, divider: [15, 16].includes(gameId) });
 
-  const actionButtons = ([15, 16].includes(gameId) && Array.isArray(questionData.options))
-    ? questionData.options.map((optionLabel, idx) => ({
-      style: [1, 4, 3][idx % 3],
-      type: 2,
-      label: String(optionLabel),
-      custom_id: `mg_opt_done_${gameId}_${idx}_${Date.now()}`,
-      disabled: true
-    }))
-    : [{
-      style: 3,
-      type: 2,
-      label: `@${winnerDisplayName} ตอบถูก`,
-      custom_id: `mg_winner_disabled_${Date.now()}`,
-      disabled: true
-    }];
+  const actionButtons = [{
+    style: 3,
+    type: 2,
+    label: `@${winnerDisplayName} ตอบถูก`,
+    custom_id: `mg_winner_disabled_${Date.now()}`,
+    disabled: true
+  }];
 
   winnerComponents.push({
     type: 1,

@@ -237,9 +237,37 @@ function setupQuestScheduler(client, supabase) {
         return currentMinutesOfDay >= (h * 60 + (m || 0));
       });
 
-      if (hasAnyTimePassed && set && !set.announcement_message_id) {
-        console.log("[dailyQuest] 🔄 Scheduled announcement time has passed and not yet posted today. Posting now...");
-        await postDailyAnnouncement(client, supabase, today);
+      if (hasAnyTimePassed && set) {
+        let needsPost = !set.announcement_message_id;
+
+        // Smart Verification: แม้ไม่มี announcement_message_id ใน DB ให้ตรวจในห้อง Discord ก่อนเสมอ
+        if (needsPost) {
+          const channelId = settings.channel_id || ANNOUNCE_CHANNEL_ID;
+          const channel = client.channels.cache.get(channelId) || (await client.channels.fetch(channelId).catch(() => null));
+          if (channel && channel.isTextBased()) {
+            const recentMsgs = await channel.messages.fetch({ limit: 10 }).catch(() => null);
+            if (recentMsgs && recentMsgs.size > 0) {
+              const botCardMsg = recentMsgs.find(m => m.author.id === client.user.id && (m.components?.length > 0 || m.content?.includes("เควสประจำวัน")));
+              if (botCardMsg) {
+                console.log(`[dailyQuest] 🛡️ Smart Reconnect: Found existing quest card in #${channel.name} (${botCardMsg.id}). Linking to DB without reposting or pinging.`);
+                await supabase
+                  .from("daily_quest_sets")
+                  .update({
+                    announcement_message_id: botCardMsg.id,
+                    published_at: new Date().toISOString()
+                  })
+                  .eq("id", set.id);
+                set.announcement_message_id = botCardMsg.id;
+                needsPost = false;
+              }
+            }
+          }
+        }
+
+        if (needsPost) {
+          console.log("[dailyQuest] 🔄 Scheduled announcement time has passed and not yet posted today. Posting now...");
+          await postDailyAnnouncement(client, supabase, today);
+        }
       }
     } catch (err) {
       console.error("[dailyQuest] Startup check error:", err);

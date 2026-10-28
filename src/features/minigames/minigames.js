@@ -205,11 +205,23 @@ async function restoreActiveSessions(supabase, client) {
       const { data, error } = await supabase.from('minigame_active_sessions').select('*');
       if (!error && data && data.length > 0) {
         for (const row of data) {
-          const hasValidAnswer = row.current_question && String(row.current_question.answer || '').trim() !== '';
+          let questionData = row.current_question;
+          if (typeof questionData === 'string') {
+            try {
+              questionData = JSON.parse(questionData);
+            } catch (e) {
+              questionData = null;
+            }
+          }
+          const answer = questionData?.answer ?? row.current_answer;
+          const hasValidAnswer = questionData && String(answer || '').trim() !== '';
           if (hasValidAnswer) {
+            if (!questionData.answer && row.current_answer) {
+              questionData.answer = row.current_answer;
+            }
             activeSessions.set(row.channel_id, {
               gameId: row.game_id,
-              questionData: row.current_question,
+              questionData,
               messageId: row.message_id,
               channelId: row.channel_id
             });
@@ -649,6 +661,7 @@ async function sendNextGameQuestion(client, supabase, channelOrId, gameId, retri
           channel_id: channelId,
           game_id: gameId,
           current_question: questionData,
+          current_answer: String(questionData.answer || ''),
           message_id: sentMsg.id,
           updated_at: new Date().toISOString()
         });
@@ -724,13 +737,50 @@ function setupMinigames(client) {
     // 2. Restore active game sessions from Supabase Database
     await restoreActiveSessions(supabase, client);
 
-    // 3. Auto-spawn questions immediately on startup if missing active session
+    // 3. Auto-spawn questions immediately on startup if missing active session & channel is genuinely empty
     for (const [gId, gInfo] of Object.entries(GAME_CHANNELS)) {
       const gameId = parseInt(gId, 10);
       const channelId = gInfo.id;
-      if (gInfo.isEnabled !== false && !activeSessions.has(channelId)) {
-        console.log(`[minigames] 🚀 Startup Auto-Start: Spawning game ${gameId} (${gInfo.name}) in channel ${channelId}`);
+      if (gInfo.isEnabled === false) continue;
+
+      if (activeSessions.has(channelId)) {
+        console.log(`[minigames] 🛡️ Active session already restored for Game ${gameId} (${gInfo.name}) in <#${channelId}>.`);
+        continue;
+      }
+
+      // Smart Reconnect Guard: ตรวจสอบข้อความล่าสุดในห้องก่อนส่งซ้ำ
+      try {
+        let channel = client.channels.cache.get(channelId);
+        if (!channel && client) {
+          channel = await client.channels.fetch(channelId).catch(() => null);
+        }
+        if (!channel || !channel.isTextBased()) continue;
+
+        const recentMsgs = await channel.messages.fetch({ limit: 5 }).catch(() => null);
+        if (recentMsgs && recentMsgs.size > 0) {
+          const lastBotMsg = recentMsgs.find(m => m.author.id === client.user.id);
+          if (lastBotMsg) {
+            const isWinnerMsg =
+              lastBotMsg.content?.includes('เฉลย:') ||
+              lastBotMsg.components?.some(row =>
+                row.components?.some(c =>
+                  c.customId?.includes('winner') ||
+                  c.customId?.includes('done') ||
+                  c.label?.includes('ตอบถูก')
+                )
+              );
+
+            if (!isWinnerMsg) {
+              console.log(`[minigames] 🛡️ Smart Reconnect: Found existing active question for Game ${gameId} in <#${channelId}> (Msg: ${lastBotMsg.id}). Skipping duplicate spawn.`);
+              continue;
+            }
+          }
+        }
+
+        console.log(`[minigames] 🚀 Startup Auto-Start: Spawning missing game ${gameId} (${gInfo.name}) in channel ${channelId}`);
         await sendNextGameQuestion(client, supabase, channelId, gameId).catch(() => { });
+      } catch (checkErr) {
+        console.error(`[minigames] Error verifying channel ${channelId} on startup:`, checkErr.message);
       }
     }
 
@@ -740,8 +790,37 @@ function setupMinigames(client) {
         for (const [gId, gInfo] of Object.entries(GAME_CHANNELS)) {
           const gameId = parseInt(gId, 10);
           const channelId = gInfo.id;
+          if (gInfo.isEnabled === false) continue;
+
           const session = activeSessions.get(channelId);
           if (!session && !processingChannels.has(channelId)) {
+            // Smart Guard: ตรวจสอบห้อง Discord ก่อนส่งซ่อมแซม
+            let channel = client.channels.cache.get(channelId);
+            if (!channel && client) {
+              channel = await client.channels.fetch(channelId).catch(() => null);
+            }
+            if (!channel || !channel.isTextBased()) continue;
+
+            const recentMsgs = await channel.messages.fetch({ limit: 5 }).catch(() => null);
+            if (recentMsgs && recentMsgs.size > 0) {
+              const lastBotMsg = recentMsgs.find(m => m.author.id === client.user.id);
+              if (lastBotMsg) {
+                const isWinnerMsg =
+                  lastBotMsg.content?.includes('เฉลย:') ||
+                  lastBotMsg.components?.some(row =>
+                    row.components?.some(c =>
+                      c.customId?.includes('winner') ||
+                      c.customId?.includes('done') ||
+                      c.label?.includes('ตอบถูก')
+                    )
+                  );
+
+                if (!isWinnerMsg) {
+                  continue;
+                }
+              }
+            }
+
             console.log(`[minigames] 🏥 Self-Healing Keeper: Auto-starting missing game ${gameId} (${gInfo.name}) in channel ${channelId}`);
             await sendNextGameQuestion(client, supabase, channelId, gameId).catch(() => { });
           }

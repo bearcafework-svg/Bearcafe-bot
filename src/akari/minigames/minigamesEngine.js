@@ -1200,11 +1200,15 @@ async function restoreTenantChannelsOnStartup(client, supabase) {
         if (row && row.guild_id && row.channel_id && row.session_data) {
           const sessionKey = `${row.guild_id}:${row.channel_id}`;
           if (validChannelKeys.has(sessionKey)) {
-            const hasAnswer = String(row.session_data?.answer || row.session_data?.displayAnswer || '').trim() !== '';
+            let sessionData = row.session_data;
+            if (typeof sessionData === 'string') {
+              try { sessionData = JSON.parse(sessionData); } catch (_) { sessionData = null; }
+            }
+            const hasAnswer = sessionData && String(sessionData?.answer || sessionData?.displayAnswer || '').trim() !== '';
             if (hasAnswer) {
               const planInfo = await getTenantPlan(row.guild_id, supabase);
-              row.session_data.isPremium = planInfo.isPremium;
-              activeTenantSessions.set(sessionKey, row.session_data);
+              sessionData.isPremium = planInfo.isPremium;
+              activeTenantSessions.set(sessionKey, sessionData);
             }
           } else {
             orphanChannelIds.push(row.channel_id);
@@ -1243,6 +1247,30 @@ async function restoreTenantChannelsOnStartup(client, supabase) {
             await supabase.from('tenant_minigame_channels').delete().eq('channel_id', channel_id);
             await supabase.from('tenant_minigame_active_sessions').delete().eq('channel_id', channel_id);
             continue;
+          }
+
+          // Smart Guard: ตรวจสอบข้อความล่าสุดในห้องก่อน spawn ซ้ำ
+          if (channel.isTextBased && channel.isTextBased()) {
+            const recentMsgs = await channel.messages.fetch({ limit: 5 }).catch(() => null);
+            if (recentMsgs && recentMsgs.size > 0) {
+              const lastBotMsg = recentMsgs.find(m => m.author.id === client.user.id);
+              if (lastBotMsg) {
+                const isWinnerMsg =
+                  lastBotMsg.content?.includes('เฉลย:') ||
+                  lastBotMsg.components?.some(row =>
+                    row.components?.some(c =>
+                      c.customId?.includes('winner') ||
+                      c.customId?.includes('done') ||
+                      c.label?.includes('ตอบถูก')
+                    )
+                  );
+
+                if (!isWinnerMsg) {
+                  console.log(`[kuma-minigames] 🛡️ Smart Guard: พบโจทย์เดิมค้างอยู่ใน <#${channel_id}> (Msg: ${lastBotMsg.id}) ข้ามการส่งโจทย์ซ้ำ`);
+                  continue;
+                }
+              }
+            }
           }
 
           const session = await spawnQuestion(client, channel, game_id, guild_id, supabase);

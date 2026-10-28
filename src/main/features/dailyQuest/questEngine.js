@@ -119,7 +119,7 @@ async function getOrInitDailyQuestSet(supabase, targetDate = getBangkokTodayDate
     // 1. ตรวจสอบว่ามีชุดเควสของวันนี้ในตารางแล้วหรือไม่
     const { data: existingSet, error: fetchErr } = await supabase
       .from("daily_quest_sets")
-      .select("id, quest_date, quest_ids, created_at")
+      .select("id, quest_date, quest_ids, announcement_message_id, published_at, created_at")
       .eq("quest_date", targetDate)
       .maybeSingle();
 

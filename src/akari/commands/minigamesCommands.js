@@ -1477,12 +1477,15 @@ async function handleSetGame(interaction, supabase, client) {
         .maybeSingle();
 
       if (prevChannelForGame && prevChannelForGame.channel_id && prevChannelForGame.channel_id !== targetChannel.id) {
-        await supabase
-          .from("tenant_minigame_active_sessions")
-          .delete()
-          .eq("guild_id", guild.id)
-          .eq("channel_id", prevChannelForGame.channel_id)
-          .catch(() => {});
+        try {
+          await supabase
+            .from("tenant_minigame_active_sessions")
+            .delete()
+            .eq("guild_id", guild.id)
+            .eq("channel_id", prevChannelForGame.channel_id);
+        } catch (delErr) {
+          console.warn("[handleSetGame] Warning clearing old active session:", delErr.message);
+        }
         clearActiveTenantSession(guild.id, prevChannelForGame.channel_id);
       }
 

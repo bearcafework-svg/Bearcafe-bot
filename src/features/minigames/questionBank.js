@@ -215,8 +215,7 @@ function generateEmojiCountingProblem() {
     }
   }
 
-  numericOptions.sort((a, b) => a - b);
-  const options = numericOptions.map(String);
+  const options = shuffleArray(numericOptions).map(String);
 
   return {
     gameId: 16,

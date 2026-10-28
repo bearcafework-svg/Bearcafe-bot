@@ -21,7 +21,7 @@ async function getCooldown(supabase, userId, commandName) {
       console.error(`[cooldownManager] getCooldown error for ${commandName}:`, error.message);
       return 0;
     }
-    return data?.expires_at ?? 0;
+    return data?.expires_at ? Number(data.expires_at) : 0;
   } catch (err) {
     console.error(`[cooldownManager] getCooldown exception for ${commandName}:`, err.message);
     return 0;

@@ -32,6 +32,7 @@ const AKARI_GAME_NAMES = {
   12: "⚖️︲จริงหรือเท็จ",
   13: "🧩︲เรียงประโยค-อังกฤษ",
   15: "🚩︲ทายธงประเทศ",
+  16: "🔢︲นับจำนวนอีโมจิ",
 };
 
 // ตัวอย่างโจทย์พรีวิวคุณภาพสูงสำหรับกรณีไม่มีข้อมูลใน DB
@@ -117,6 +118,14 @@ const SAMPLE_PREVIEW_QUESTIONS = {
     imageUrl: "https://flagcdn.com/w320/jp.png",
     category: "ภูมิศาสตร์และธงชาติ",
     difficulty: "medium",
+  },
+  16: {
+    wordOrQuestion:
+      "> 🎯 **เป้าหมายที่ต้องนับ:** <:game_squirrel:1564990016885620827>\n\n<:game_applebasket:1564990119084163204> <:game_leaf:1564990233152585800> <:game_squirrel:1564990016885620827> <:game_pie:1564990207877587065> <:game_latte:1564990179129692180>\n<:game_squirrel:1564990016885620827> <:game_pine:1564990058375815189> <:game_pumpkin:1564990088465883146> <:game_snail:1564990257412440124> <:game_mushroom:1564990282133409902>\n<:game_chestnut:1564989988712620113> <:game_squirrel:1564990016885620827> <:game_pie:1564990207877587065> <:game_leaf:1564990233152585800> <:game_latte:1564990179129692180>\n<:game_pumpkin:1564990088465883146> <:game_applebasket:1564990119084163204> <:game_squirrel:1564990016885620827> <:game_pine:1564990058375815189> <:game_chestnut:1564989988712620113>",
+    answer: "4",
+    options: ["3", "4", "5"],
+    category: "นับจำนวน",
+    difficulty: "easy",
   },
 };
 

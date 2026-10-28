@@ -21,6 +21,7 @@ const AKARI_GAME_NAMES = {
   12: "⚖️︲จริงหรือเท็จ",
   13: "🧩︲เรียงประโยค-อังกฤษ",
   15: "🚩︲ทายธงประเทศ",
+  16: "🔢︲นับจำนวนอีโมจิ",
 };
 
 const TEMPORARY_DISABLED_GAME_IDS = [1, 2];
@@ -41,7 +42,7 @@ const KUMA_SLASH_COMMANDS = [
         type: 3, // STRING
         required: true,
         choices: [
-          { name: "🏆 ทุกมินิเกม (เปิดครบทั้ง 12 เกม)", value: "all" },
+          { name: "🏆 ทุกมินิเกม (เปิดครบทั้ง 13 เกม)", value: "all" },
           { name: "🔥 มินิเกมยอดฮิต (Top 5 Games)", value: "popular" },
           { name: "🔤 เกมเน้นภาษาและความรู้ (Language & Quiz)", value: "language" },
         ],

@@ -60,6 +60,7 @@ const GAME_TYPE_MAP = {
   12: GAME_TYPES.BUTTON,
   13: GAME_TYPES.BUTTON,
   15: GAME_TYPES.BUTTON,
+  16: GAME_TYPES.BUTTON,
 };
 
 // State สำหรับเก็บคำที่ผู้เล่นกดไปแล้วในมินิเกมเรียงประโยค (Game 13)
@@ -137,7 +138,7 @@ function recordUserAction(userId, channelId, gameId) {
 }
 
 // ─── Freemium Tier Management ─────────────────────────────────────────
-const LIGHTWEIGHT_GAMES = [1, 2, 3, 4, 8, 9, 10, 12, 15];
+const LIGHTWEIGHT_GAMES = [1, 2, 3, 4, 8, 9, 10, 12, 15, 16];
 const HEAVYWEIGHT_GAMES = [5, 6, 7, 11, 13];
 const FREE_QUOTA_LIMIT = 5;
 
@@ -310,7 +311,7 @@ async function getTenantSettings(supabase, guildId) {
     return guildSettingsCache.get(guildId);
   }
 
-  const ALL_MINIGAME_IDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15];
+  const ALL_MINIGAME_IDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16];
 
   if (!supabase) {
     const defaults = {};
@@ -702,6 +703,12 @@ function buildAkariGamePayload(gameId, questionData, rewardPoints = 3, isPremium
       mediaItem = flagUrl ? { media: { url: flagUrl } } : null;
       break;
     }
+    case 16: { // นับจำนวนอีโมจิ
+      contentText = `### ${BEE_EMOJI_STR}︲__\` 𝖦𝖺𝗆𝖾 ₊ ในกระดานนี้มีอีโมจิที่กำหนดกี่ชิ้น? 𓂃 \`__\n` +
+        `- ดูตารางอีโมจิด้านล่าง แล้วนับจำนวนของอีโมจิเป้าหมาย ใครตอบถูกคนแรกชนะ!<:cuteplant:1152834055528783872>`;
+      mediaItem = null;
+      break;
+    }
   }
 
   const containerComponents = [];
@@ -727,6 +734,14 @@ function buildAkariGamePayload(gameId, questionData, rewardPoints = 3, isPremium
     });
   }
 
+  if (gameId === 16 && questionData.wordOrQuestion) {
+    containerComponents.push({ type: 14, spacing: 1, divider: false });
+    containerComponents.push({
+      type: 10,
+      content: questionData.wordOrQuestion,
+    });
+  }
+
   const leaderboardButton = {
     style: 1,
     type: 2,
@@ -734,15 +749,15 @@ function buildAkariGamePayload(gameId, questionData, rewardPoints = 3, isPremium
     custom_id: `akari_mg_top:${gameId}`,
   };
 
-  // Choice Buttons (สำหรับเกม 8, 9, 10, 12, 13, 15)
-  if ([8, 9, 10, 12, 13, 15].includes(gameId) && Array.isArray(questionData.options) && questionData.options.length > 0) {
-    if (gameId === 15) {
+  // Choice Buttons (สำหรับเกม 8, 9, 10, 12, 13, 15, 16)
+  if ([8, 9, 10, 12, 13, 15, 16].includes(gameId) && Array.isArray(questionData.options) && questionData.options.length > 0) {
+    if (gameId === 15 || gameId === 16) {
       containerComponents.push({ type: 14, spacing: 2, divider: true });
       const choiceStyles = [1, 4, 3];
       const buttonComponents = questionData.options.map((optionLabel, idx) => ({
         style: choiceStyles[idx % choiceStyles.length],
         type: 2,
-        label: optionLabel,
+        label: String(optionLabel),
         custom_id: `kuma_mg_opt_${gameId}_${idx}_${Date.now()}`,
       }));
       buttonComponents.push({
@@ -856,6 +871,7 @@ function buildAkariWinnerPayload(gameId, questionData, winnerDisplayName, reward
     12: 'จริงหรือเท็จ',
     13: 'เรียงประโยคภาษาอังกฤษ',
     15: 'ธงในรูปนี้คือประเทศอะไร?',
+    16: 'ในกระดานนี้มีอีโมจิที่กำหนดกี่ชิ้น?',
   };
   const titleText = titleMap[gameId] || `มินิเกม #${gameId}`;
 
@@ -879,7 +895,11 @@ function buildAkariWinnerPayload(gameId, questionData, winnerDisplayName, reward
       `> 🔤 ${fullSentence}`;
   } else if (gameId === 15) {
     contentText = `### ${BEE_EMOJI_STR}︲__\` 𝖦𝖺𝗆𝖾 ₊ ธงในรูปนี้คือประเทศอะไร? 𓂃 \`__\n` +
+      `# 🏳️ ธงนี้คือประเทศ: ${questionData.answer}\n` +
       `- เลือกทายชื่อประเทศจากภาพธงด้านบน ใครตอบถูกคนแรกชนะ!<:cuteplant:1152834055528783872>`;
+  } else if (gameId === 16) {
+    contentText = `### ${BEE_EMOJI_STR}︲__\` 𝖦𝖺𝗆𝖾 ₊ ในกระดานนี้มีอีโมจิที่กำหนดกี่ชิ้น? 𓂃 \`__\n` +
+      `- ดูตารางอีโมจิด้านล่าง แล้วนับจำนวนของอีโมจิเป้าหมาย ใครตอบถูกคนแรกชนะ!<:cuteplant:1152834055528783872>`;
   } else {
     contentText = `### ${BEE_EMOJI_STR}︲__\` 𝖦𝖺𝗆𝖾 ₊ ${titleText} 𓂃 \`__\n` +
       `# ${questionData.wordOrQuestion || ''} = ${questionData.answer}`;
@@ -903,13 +923,27 @@ function buildAkariWinnerPayload(gameId, questionData, winnerDisplayName, reward
     accessory: accessoryButton,
   });
 
-  if (gameId === 15) {
+  if (gameId === 16 && questionData.wordOrQuestion) {
+    const winnerWordOrQuestion = questionData.wordOrQuestion.includes('=')
+      ? questionData.wordOrQuestion
+      : questionData.wordOrQuestion.replace(
+        /(> \*\*เป้าหมายที่ต้องนับ:\*\* [^\n]+)/,
+        `$1 = ${questionData.answer}`
+      );
+    winnerContainer.push({ type: 14, spacing: 1, divider: false });
+    winnerContainer.push({
+      type: 10,
+      content: winnerWordOrQuestion,
+    });
+  }
+
+  if (gameId === 15 || gameId === 16) {
     winnerContainer.push({ type: 14, spacing: 2, divider: true });
     const choiceStyles = [1, 4, 3];
     const actionButtons = (Array.isArray(questionData.options) ? questionData.options : []).map((optionLabel, idx) => ({
       style: choiceStyles[idx % choiceStyles.length],
       type: 2,
-      label: optionLabel,
+      label: String(optionLabel),
       custom_id: `kuma_mg_opt_done_${gameId}_${idx}_${Date.now()}`,
       disabled: true,
     }));
@@ -1278,8 +1312,8 @@ function setupAkariMinigames(client, supabase) {
     const session = activeTenantSessions.get(sessionKey);
     if (!session) return;
 
-    // ข้ามเกมที่ตอบด้วยปุ่ม (เกม 8, 9, 10, 12, 13, 15)
-    if ([8, 9, 10, 12, 13, 15].includes(session.gameId)) return;
+    // ข้ามเกมที่ตอบด้วยปุ่ม (เกม 8, 9, 10, 12, 13, 15, 16)
+    if ([8, 9, 10, 12, 13, 15, 16].includes(session.gameId)) return;
 
     const userText = message.content.trim();
     if (!userText) return;
@@ -1390,7 +1424,7 @@ function setupAkariMinigames(client, supabase) {
     if ((!interaction.isButton() && !interaction.isStringSelectMenu()) || !interaction.guild) return;
     const { customId, guild, channel, user } = interaction;
 
-    if (!customId.startsWith('akari_mg_')) return;
+    if (!customId.startsWith('akari_mg_') && !customId.startsWith('kuma_mg_') && !customId.startsWith('mg_opt_')) return;
 
     const guildId = guild.id;
     const sessionKey = `${guildId}:${channel.id}`;
@@ -1715,10 +1749,11 @@ function setupAkariMinigames(client, supabase) {
     }
 
     // ── ปุ่ม/ช้อยส์เลือกคำตอบ (Option Buttons) ───────────────
-    if (customId.startsWith('akari_mg_opt_') || customId.startsWith('kuma_mg_opt_')) {
+    if (customId.startsWith('akari_mg_opt_') || customId.startsWith('kuma_mg_opt_') || customId.startsWith('mg_opt_')) {
       const parts = customId.split('_');
-      const gameId = parseInt(parts[3], 10);
-      const optIdx = parseInt(parts[4], 10);
+      const isShort = customId.startsWith('mg_opt_');
+      const gameId = parseInt(parts[isShort ? 2 : 3], 10);
+      const optIdx = parseInt(parts[isShort ? 3 : 4], 10);
 
       if (session.gameId !== gameId) {
         return safeRespond(interaction, {

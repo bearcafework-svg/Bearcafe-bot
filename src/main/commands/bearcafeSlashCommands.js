@@ -236,7 +236,7 @@ const BEARCAFE_SLASH_COMMANDS = [
     options: [
       {
         name: "เกม",
-        description: "เลือกชื่อมินิเกม 1-13",
+        description: "เลือกชื่อมินิเกม 1-16",
         type: ApplicationCommandOptionType.Integer,
         required: true,
         choices: [
@@ -254,7 +254,47 @@ const BEARCAFE_SLASH_COMMANDS = [
           { name: "12. จริงหรือเท็จ", value: 12 },
           { name: "13. เรียงประโยคภาษาอังกฤษ", value: 13 },
           { name: "15. ทายธงประเทศ", value: 15 },
+          { name: "16. นับจำนวนอีโมจิ", value: 16 },
         ],
+      },
+    ],
+  },
+
+  // /set-game (Minigames)
+  {
+    name: "set-game",
+    description: "ผูกมินิเกมลงในห้องที่ระบุ และเริ่มเล่นทันที (สำหรับผู้ดูแลระบบ)",
+    default_member_permissions: PermissionFlagsBits.ManageChannels.toString(),
+    options: [
+      {
+        name: "game",
+        description: "เลือกชื่อมินิเกม",
+        type: ApplicationCommandOptionType.Integer,
+        required: true,
+        choices: [
+          { name: "1. เติมคำศัพท์ (ไทย)", value: 1 },
+          { name: "2. เติมคำศัพท์ (อังกฤษ)", value: 2 },
+          { name: "3. สุ่มโจทย์คณิตฯ", value: 3 },
+          { name: "4. ทายคำจากคำใบ้", value: 4 },
+          { name: "5. ฟังเสียงแล้วพิมพ์ตอบ (อังกฤษ)", value: 5 },
+          { name: "6. พิมพ์คำต่อไปนี้ (ไทย)", value: 6 },
+          { name: "7. พิมพ์คำต่อไปนี้ (อังกฤษ)", value: 7 },
+          { name: "8. ทายคำแปลภาษาอังกฤษ", value: 8 },
+          { name: "9. ทายคำแปลภาษาไทย", value: 9 },
+          { name: "10. เกมต่อคำ", value: 10 },
+          { name: "11. ฟังเสียงแล้วพิมพ์ตอบ (ไทย)", value: 11 },
+          { name: "12. จริงหรือเท็จ", value: 12 },
+          { name: "13. เรียงประโยคภาษาอังกฤษ", value: 13 },
+          { name: "15. ทายธงประเทศ", value: 15 },
+          { name: "16. นับจำนวนอีโมจิ", value: 16 },
+        ],
+      },
+      {
+        name: "channel",
+        description: "เลือกห้องข้อความที่ต้องการให้เล่นมินิเกมนี้ (เว้นว่างเพื่อใช้ห้องปัจจุบัน)",
+        type: ApplicationCommandOptionType.Channel,
+        channel_types: [ChannelType.GuildText],
+        required: false,
       },
     ],
   },

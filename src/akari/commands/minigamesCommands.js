@@ -120,6 +120,7 @@ const AKARI_GAME_NAMES = {
   12: "⚖️︲จริงหรือเท็จ",
   13: "🧩︲เรียงประโยค-อังกฤษ",
   15: "🚩︲ทายธงประเทศ",
+  16: "🔢︲นับจำนวนอีโมจิ",
 };
 
 // รายการมินิเกมที่ปิดปรับปรุงชั่วคราว (ซ่อนออกจาก /setting-games และตัวเลือกคำสั่ง)
@@ -140,6 +141,7 @@ const GAME_DESCRIPTIONS = {
   12: "ทายข้อความโจทย์ว่าจริงหรือเท็จ",
   13: "เลือกคำศัพท์ภาษาอังกฤษมาเรียงให้เป็นประโยคที่ถูกต้อง",
   15: "เลือกทายชื่อประเทศจากภาพธงชาติ ใครตอบถูกคนแรกชนะ",
+  16: "นับจำนวนอีโมจิเป้าหมายในตาราง ใครตอบถูกคนแรกชนะ",
 };
 
 const {
@@ -171,7 +173,23 @@ function areCommandsEqual(existingCollection, targetCommands) {
     for (let i = 0; i < targetOpts.length; i++) {
       const tOpt = targetOpts[i];
       const eOpt = existingOpts[i];
-      if (!eOpt || Boolean(tOpt.autocomplete) !== Boolean(eOpt.autocomplete)) return false;
+      if (
+        !eOpt ||
+        tOpt.name !== eOpt.name ||
+        tOpt.type !== eOpt.type ||
+        Boolean(tOpt.required) !== Boolean(eOpt.required) ||
+        Boolean(tOpt.autocomplete) !== Boolean(eOpt.autocomplete)
+      ) {
+        return false;
+      }
+      const tChoices = tOpt.choices || [];
+      const eChoices = eOpt.choices || [];
+      if (tChoices.length !== eChoices.length) return false;
+      for (let c = 0; c < tChoices.length; c++) {
+        if (tChoices[c].name !== eChoices[c].name || tChoices[c].value !== eChoices[c].value) {
+          return false;
+        }
+      }
     }
   }
   return true;
@@ -274,7 +292,7 @@ async function handleSetupGames(interaction, supabase, client) {
   let selectedGameIds = [];
   if (preset === "all") {
     // เกม 1 และ 2 ปิดปรับปรุงชั่วคราว -> เริ่มต้นด้วย [3, 4, 8, 9, 10, 12] สำหรับเกมทั่วไป
-    selectedGameIds = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15];
+    selectedGameIds = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16];
   } else if (preset === "popular") {
     selectedGameIds = [3, 4, 8, 9, 10];
   } else if (preset === "language") {
@@ -2102,7 +2120,7 @@ async function handleRevealAnswer(interaction, supabase) {
     if (hints && Array.isArray(hints)) {
       extraLines = `\n> 💡 **คำใบ้:**\n> 1. ${hints[0] || '-'}\n> 2. ${hints[1] || '-'}\n> 3. ${hints[2] || '-'}`;
     }
-  } else if (gameId === 8 || gameId === 9 || gameId === 10 || gameId === 15) {
+  } else if (gameId === 8 || gameId === 9 || gameId === 10 || gameId === 15 || gameId === 16) {
     const options = session.questionData?.options || session.questionObj?.options;
     if (options && Array.isArray(options)) {
       extraLines = `\n> 🔘 **ตัวเลือก:** ${options.join(', ')}`;

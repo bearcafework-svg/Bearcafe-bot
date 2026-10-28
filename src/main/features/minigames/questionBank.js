@@ -140,6 +140,99 @@ function generateFlagProblem() {
   };
 }
 
+// ─── Game 16: Emoji Counting Pool ───────────────────────────────────────────
+const EMOJI_COUNTING_POOL = [
+  { id: '1564990119084163204', name: 'game_applebasket', tag: '<:game_applebasket:1564990119084163204>', label: 'ตะกร้าแอปเปิ้ล' },
+  { id: '1564989988712620113', name: 'game_chestnut', tag: '<:game_chestnut:1564989988712620113>', label: 'เกาลัด' },
+  { id: '1564990233152585800', name: 'game_leaf', tag: '<:game_leaf:1564990233152585800>', label: 'ใบไม้' },
+  { id: '1564990282133409902', name: 'game_mushroom', tag: '<:game_mushroom:1564990282133409902>', label: 'เห็ด' },
+  { id: '1564990207877587065', name: 'game_pie', tag: '<:game_pie:1564990207877587065>', label: 'พาย' },
+  { id: '1564990058375815189', name: 'game_pine', tag: '<:game_pine:1564990058375815189>', label: 'ลูกสน' },
+  { id: '1564990088465883146', name: 'game_pumpkin', tag: '<:game_pumpkin:1564990088465883146>', label: 'ฟักทอง' },
+  { id: '1564990257412440124', name: 'game_snail', tag: '<:game_snail:1564990257412440124>', label: 'หอยทาก' },
+  { id: '1564990016885620827', name: 'game_squirrel', tag: '<:game_squirrel:1564990016885620827>', label: 'กระรอก' },
+  { id: '1564990179129692180', name: 'game_latte', tag: '<:game_latte:1564990179129692180>', label: 'กาแฟลาเต้' },
+];
+
+function generateEmojiCountingProblem() {
+  const historyKey = 'game_16';
+  let history = askedHistory.get(historyKey) || [];
+  let availableEmojis = EMOJI_COUNTING_POOL.filter(e => !history.includes(e.id));
+  if (availableEmojis.length === 0) {
+    history = [];
+    availableEmojis = EMOJI_COUNTING_POOL;
+  }
+
+  const target = availableEmojis[Math.floor(Math.random() * availableEmojis.length)];
+  history.push(target.id);
+  if (history.length > 5) {
+    history.shift();
+  }
+  askedHistory.set(historyKey, history);
+
+  // สุ่มจำนวนเป้าหมายบนกระดาน (3 ถึง 7 ชิ้น)
+  const correctCount = Math.floor(Math.random() * 5) + 3;
+  const totalSlots = 20; // 5 คอลัมน์ x 4 แถว
+  const distractorSlots = totalSlots - correctCount;
+
+  const otherEmojis = EMOJI_COUNTING_POOL.filter(e => e.id !== target.id);
+
+  const boardItems = [];
+  for (let i = 0; i < correctCount; i++) {
+    boardItems.push(target.tag);
+  }
+  for (let i = 0; i < distractorSlots; i++) {
+    const randomOther = otherEmojis[Math.floor(Math.random() * otherEmojis.length)];
+    boardItems.push(randomOther.tag);
+  }
+
+  // สลับตำแหน่งบนกระดาน
+  const shuffledBoard = shuffleArray(boardItems);
+
+  // เรียงเป็น 4 แถว แถวละ 5 ตัว นำหน้าแต่ละแถวด้วย #
+  const rows = [];
+  for (let i = 0; i < totalSlots; i += 5) {
+    rows.push('# ' + shuffledBoard.slice(i, i + 5).join(' '));
+  }
+  const boardText = rows.join('\n');
+
+  // สุ่มตัวเลือกหลอก 2 ตัวเลข (ไม่มีคำว่า "ชิ้น" ตามที่ผู้ใช้ระบุ)
+  let opt1 = correctCount - 1;
+  let opt2 = correctCount + 1;
+  if (opt1 < 1) {
+    opt1 = correctCount + 1;
+    opt2 = correctCount + 2;
+  }
+  if (Math.random() > 0.5 && correctCount - 2 >= 1) {
+    opt1 = correctCount - 2;
+  }
+
+  const numericOptions = Array.from(new Set([correctCount, opt1, opt2]));
+  while (numericOptions.length < 3) {
+    const nextCandidate = Math.max(1, correctCount + (Math.random() > 0.5 ? 2 : -2));
+    if (!numericOptions.includes(nextCandidate)) {
+      numericOptions.push(nextCandidate);
+    }
+  }
+
+  numericOptions.sort((a, b) => a - b);
+  const options = numericOptions.map(String);
+
+  return {
+    gameId: 16,
+    id: `emoji_count_${target.id}_${Date.now()}`,
+    wordOrQuestion: `> **เป้าหมายที่ต้องนับ:** ${target.tag}\n${boardText}`,
+    answer: String(correctCount),
+    options: options, // ["3", "4", "5"] ไม่มีคำว่าชิ้น
+    targetEmoji: target.tag,
+    targetEmojiName: target.label,
+    correctCount: correctCount,
+    category: 'นับจำนวน',
+    difficulty: 'ง่าย',
+    rewardPoints: 15
+  };
+}
+
 // Common affixes with high/medium ambiguity in Thai Fill-in-the-Blank
 const HIGH_AMBIGUITY_PREFIXES = ['ความ', 'การ', 'นัก', 'ผู้', 'โรง', 'ทาง', 'สถานี', 'ร้าน', 'เครื่อง', 'ของ', 'ที่', 'ใจ', 'คน', 'วัน', 'น้ำ', 'ช่าง', 'ฝ่าย'];
 const HIGH_AMBIGUITY_SUFFIXES = ['แล้ว', 'ใส', 'ใหม่', 'คิด', 'หมาย', 'ชี', 'ชา', 'ผ่อน', 'สละ', 'สด', 'แข่ง', 'น้ำ', 'เรือ', 'ไฟ', 'รถ', 'ใจ', 'งาน', 'คน', 'ตา', 'ตัว', 'วัน', 'ทำ', 'ดี', 'ไป', 'มา'];
@@ -629,6 +722,9 @@ async function getNextQuestion(supabase, gameId, gameSettings = null, queryOptio
   }
   if (targetId === 15) {
     return generateFlagProblem();
+  }
+  if (targetId === 16) {
+    return generateEmojiCountingProblem();
   }
 
   const tableName = queryOptions.tableName || gameSettings?.tableName || 'minigame_questions';
@@ -1153,6 +1249,8 @@ function generateHint(gameId, questionData, hintLevel, previousHintData = null) 
 module.exports = {
   getNextQuestion,
   generateMathProblem,
+  generateFlagProblem,
+  generateEmojiCountingProblem,
   maskWord,
   selectBestThaiMask,
   isMaskCandidateAllowed,

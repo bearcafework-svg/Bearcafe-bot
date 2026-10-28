@@ -46,7 +46,8 @@ const GAME_CHANNELS = {
   11: { id: '1544201245974073405', name: 'ฟังเสียงแล้วพิมพ์ตอบ (ไทย)' },
   12: { id: '1536934867256868885', name: 'จริงหรือเท็จ' },
   13: { id: process.env.GAME_13_CHANNEL_ID || '1524123413122125964', name: 'เรียงประโยคภาษาอังกฤษ' },
-  15: { id: process.env.GAME_15_CHANNEL_ID || '', name: 'ทายธงประเทศ' }
+  15: { id: process.env.GAME_15_CHANNEL_ID || '', name: 'ทายธงประเทศ' },
+  16: { id: process.env.GAME_16_CHANNEL_ID || '', name: 'นับจำนวนอีโมจิ' }
 };
 
 // Memory cache for active game session per channel ID
@@ -79,6 +80,8 @@ const GAME_TYPE_MAP = {
   11: GAME_TYPES.AUDIO,
   12: GAME_TYPES.BUTTON,
   13: GAME_TYPES.BUTTON,
+  15: GAME_TYPES.BUTTON,
+  16: GAME_TYPES.BUTTON,
 };
 
 const TRANSITION_MIN_MS = {
@@ -329,6 +332,12 @@ function buildGamePayload(gameId, questionData) {
       }
       break;
     }
+    case 16: { // นับจำนวนอีโมจิ
+      contentText = `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ ในกระดานนี้มีอีโมจิที่กำหนดกี่ชิ้น? 𓂃 \`__\n` +
+        `- ดูตารางอีโมจิด้านล่าง แล้วนับจำนวนของอีโมจิเป้าหมาย ใครตอบถูกคนแรกชนะ!<:cuteplant:1152834055528783872>`;
+      mediaItem = null;
+      break;
+    }
   }
 
   const containerComponents = [];
@@ -355,9 +364,17 @@ function buildGamePayload(gameId, questionData) {
     });
   }
 
-  // 3. Choice Buttons (for Games 8, 9, 10, 12, 13)
-  if ([8, 9, 10, 12, 13, 15].includes(gameId) && Array.isArray(questionData.options) && questionData.options.length > 0) {
-    containerComponents.push({ type: 14, spacing: 2 });
+  if (gameId === 16 && questionData.wordOrQuestion) {
+    containerComponents.push({ type: 14, spacing: 1, divider: false });
+    containerComponents.push({
+      type: 10,
+      content: questionData.wordOrQuestion,
+    });
+  }
+
+  // 3. Choice Buttons (for Games 8, 9, 10, 12, 13, 15, 16)
+  if ([8, 9, 10, 12, 13, 15, 16].includes(gameId) && Array.isArray(questionData.options) && questionData.options.length > 0) {
+    containerComponents.push({ type: 14, spacing: 2, divider: [15, 16].includes(gameId) });
     let buttonComponents = [];
 
     if (gameId === 12) {
@@ -391,13 +408,13 @@ function buildGamePayload(gameId, questionData) {
           components: allButtons.slice(i, i + 5)
         });
       }
-    } else if (gameId === 15) {
-      // เกม 15: ทายธงประเทศ -> สไตล์ปุ่มตรงตามเทมเพลต [1 (Primary), 4 (Danger), 3 (Success)]
+    } else if (gameId === 15 || gameId === 16) {
+      // เกม 15 & 16: สไตล์ปุ่มตรงตามเทมเพลต [1 (Primary), 4 (Danger), 3 (Success)]
       const choiceStyles = [1, 4, 3];
       buttonComponents = questionData.options.map((optionLabel, idx) => ({
         style: choiceStyles[idx % choiceStyles.length],
         type: 2,
-        label: optionLabel,
+        label: String(optionLabel),
         custom_id: `mg_opt_${gameId}_${idx}_${Date.now()}`
       }));
       containerComponents.push({
@@ -453,6 +470,7 @@ function buildWinnerPayload(gameId, questionData, winnerDisplayName) {
   else if (gameId === 12) titleText = 'จริงหรือเท็จ';
   else if (gameId === 13) titleText = 'เรียงประโยคภาษาอังกฤษ';
   else if (gameId === 15) titleText = 'ทายธงประเทศ';
+  else if (gameId === 16) titleText = 'ในกระดานนี้มีอีโมจิที่กำหนดกี่ชิ้น?';
 
   let contentText = '';
   if (gameId === 10) {
@@ -475,7 +493,11 @@ function buildWinnerPayload(gameId, questionData, winnerDisplayName) {
       `> 🔤 ${fullSentence}`;
   } else if (gameId === 15) {
     contentText = `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ ธงในรูปนี้คือประเทศอะไร? 𓂃 \`__\n` +
+      `# 🏳️ ธงนี้คือประเทศ: ${questionData.answer}\n` +
       `- เลือกทายชื่อประเทศจากภาพธงด้านบน ใครตอบถูกคนแรกชนะ!<:cuteplant:1152834055528783872>`;
+  } else if (gameId === 16) {
+    contentText = `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ ในกระดานนี้มีอีโมจิที่กำหนดกี่ชิ้น? 𓂃 \`__\n` +
+      `- ดูตารางอีโมจิด้านล่าง แล้วนับจำนวนของอีโมจิเป้าหมาย ใครตอบถูกคนแรกชนะ!<:cuteplant:1152834055528783872>`;
   } else {
     contentText = `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ ${titleText} 𓂃 \`__\n` +
       `# ${questionData.wordOrQuestion} = ${questionData.answer}`;
@@ -494,13 +516,26 @@ function buildWinnerPayload(gameId, questionData, winnerDisplayName) {
     components: [{ type: 10, content: contentText }],
     accessory: accessoryButton
   });
-  winnerComponents.push({ type: 14, spacing: 2 });
+  if (gameId === 16 && questionData.wordOrQuestion) {
+    const winnerWordOrQuestion = questionData.wordOrQuestion.includes('=')
+      ? questionData.wordOrQuestion
+      : questionData.wordOrQuestion.replace(
+        /(> \*\*เป้าหมายที่ต้องนับ:\*\* [^\n]+)/,
+        `$1 = ${questionData.answer}`
+      );
+    winnerComponents.push({ type: 14, spacing: 1, divider: false });
+    winnerComponents.push({
+      type: 10,
+      content: winnerWordOrQuestion,
+    });
+  }
+  winnerComponents.push({ type: 14, spacing: 2, divider: [15, 16].includes(gameId) });
 
-  const actionButtons = (gameId === 15 && Array.isArray(questionData.options))
+  const actionButtons = ([15, 16].includes(gameId) && Array.isArray(questionData.options))
     ? questionData.options.map((optionLabel, idx) => ({
       style: [1, 4, 3][idx % 3],
       type: 2,
-      label: optionLabel,
+      label: String(optionLabel),
       custom_id: `mg_opt_done_${gameId}_${idx}_${Date.now()}`,
       disabled: true
     }))
@@ -719,11 +754,12 @@ function setupMinigames(client) {
 
   // Handle Slash Command & Button Interactions
   client.on('interactionCreate', async (interaction) => {
-    // 1. Slash Command /เปิดเกม
-    if (interaction.isChatInputCommand() && interaction.commandName === 'เปิดเกม') {
+    // 1. Slash Command /เปิดเกม & /set-game
+    if (interaction.isChatInputCommand() && (interaction.commandName === 'เปิดเกม' || interaction.commandName === 'set-game')) {
       if (
         !interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild) &&
-        !interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)
+        !interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) &&
+        !interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels)
       ) {
         return interaction.reply({
           content: '❌ คำสั่งนี้สำหรับผู้ดูแลเซิร์ฟเวอร์เท่านั้นค่ะ',
@@ -731,17 +767,17 @@ function setupMinigames(client) {
         });
       }
 
-      const gameId = interaction.options.getInteger('เกม');
+      const gameId = interaction.options.getInteger('game') ?? interaction.options.getInteger('เกม');
       const gameInfo = GAME_CHANNELS[gameId];
 
       if (!gameInfo) {
         return interaction.reply({ content: 'ไม่พบมินิเกมที่เลือกค่ะ', flags: FLAG_EPHEMERAL });
       }
 
-      const targetChannel = interaction.channel;
+      const targetChannel = interaction.options.getChannel('channel') || interaction.channel;
       if (!targetChannel || !targetChannel.isTextBased()) {
         return interaction.reply({
-          content: '❌ กรุณาใช้คำสั่งนี้ในห้องข้อความที่ต้องการเปิดเกมค่ะ',
+          content: '❌ กรุณาเลือกหรือใช้คำสั่งนี้ในห้องข้อความที่ต้องการเปิดเกมค่ะ',
           flags: FLAG_EPHEMERAL
         });
       }
@@ -807,7 +843,7 @@ function setupMinigames(client) {
 
       // 5. ตอบกลับ Ephemeral ยืนยันการผูกห้องและเปิดเกม
       await interaction.reply({
-        content: `✅ ตั้งค่าและเปิดใช้งานเกม **${gameId}. ${gameInfo.name}** ในห้องนี้ (<#${newChannelId}>) เรียบร้อยแล้วค่ะ\n-# 💾 บันทึกข้อมูลลงฐานข้อมูล \`minigame_settings\` เรียบร้อยแล้ว`,
+        content: `✅ ตั้งค่าและเปิดใช้งานเกม **${gameId}. ${gameInfo.name}** ในห้อง <#${newChannelId}> เรียบร้อยแล้วค่ะ\n-# 💾 บันทึกข้อมูลลงฐานข้อมูล \`minigame_settings\` เรียบร้อยแล้ว`,
         flags: FLAG_EPHEMERAL
       });
 
@@ -816,10 +852,11 @@ function setupMinigames(client) {
     }
 
     // 2. Button Interactions (Game 9 & 10) — INSTANT RESPONSE & CONCURRENCY LOCKED
-    if (interaction.isButton() && interaction.customId.startsWith('mg_opt_')) {
-      const parts = interaction.customId.split('_'); // mg_opt_{gameId}_{choiceIndex}_{timestamp}
-      const gameId = parseInt(parts[2], 10);
-      const choiceIndex = parseInt(parts[3], 10);
+    if (interaction.isButton() && (interaction.customId.startsWith('mg_opt_') || interaction.customId.startsWith('kuma_mg_opt_') || interaction.customId.startsWith('akari_mg_opt_'))) {
+      const parts = interaction.customId.split('_'); // mg_opt_{gameId}_{choiceIndex}_{timestamp} or kuma_mg_opt_{gameId}_{choiceIndex}_{timestamp}
+      const isShort = interaction.customId.startsWith('mg_opt_');
+      const gameId = parseInt(parts[isShort ? 2 : 3], 10);
+      const choiceIndex = parseInt(parts[isShort ? 3 : 4], 10);
 
       const session = activeSessions.get(interaction.channelId);
       if (!session || session.gameId !== gameId) {
@@ -1292,7 +1329,7 @@ function setupMinigames(client) {
     }
 
     // Ignore if not a game channel or if it's game 8, 9, 10, 12, 13, 14 (which use buttons)
-    if (!matchedGameId || [8, 9, 10, 12, 13, 14].includes(matchedGameId)) return;
+    if (!matchedGameId || [8, 9, 10, 12, 13, 14, 15, 16].includes(matchedGameId)) return;
 
     const session = activeSessions.get(message.channelId);
     if (!session || session.gameId !== matchedGameId) {

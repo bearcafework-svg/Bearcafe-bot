@@ -265,7 +265,8 @@ async function completeVerification(interaction) {
       ]
     };
 
-    const welcomeChannel = interaction.guild.channels.cache.get(WELCOME_CHANNEL_ID);
+    const welcomeChannel = interaction.guild.channels.cache.get(WELCOME_CHANNEL_ID) ||
+      await interaction.guild.channels.fetch(WELCOME_CHANNEL_ID).catch(() => null);
     if (welcomeChannel) {
       const welcomeMsg = await welcomeChannel.send(welcomePayload);
 
@@ -500,7 +501,8 @@ function setupVerification(client) {
   // ── 1. Event: guildMemberAdd ─────────────────────────────────────
   client.on(Events.GuildMemberAdd, async (member) => {
     try {
-      const channel = member.guild.channels.cache.get(VERIFY_CHANNEL_ID);
+      const channel = member.guild.channels.cache.get(VERIFY_CHANNEL_ID) ||
+        await member.guild.channels.fetch(VERIFY_CHANNEL_ID).catch(() => null);
       if (!channel) {
         console.warn(`[verification] Verification channel ${VERIFY_CHANNEL_ID} not found.`);
         return;

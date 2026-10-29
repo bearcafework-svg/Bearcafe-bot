@@ -184,15 +184,20 @@ async function getAudioBuffer(word, lang = 'th') {
   } catch (err) {
     console.warn(`[minigames] TTS fetch failed for "${cacheKey}", retrying once...`, err.message);
     // Retry once on temporary network hiccup
-    const base64AudioRetry = await googleTTS.getAudioBase64(String(word).trim(), {
-      lang,
-      slow: false,
-      host: 'https://translate.google.com',
-      timeout: 10000,
-    });
-    const buffer = Buffer.from(base64AudioRetry, 'base64');
-    audioBufferCache.set(cacheKey, buffer);
-    return buffer;
+    try {
+      const base64AudioRetry = await googleTTS.getAudioBase64(String(word).trim(), {
+        lang,
+        slow: false,
+        host: 'https://translate.google.com',
+        timeout: 10000,
+      });
+      const buffer = Buffer.from(base64AudioRetry, 'base64');
+      audioBufferCache.set(cacheKey, buffer);
+      return buffer;
+    } catch (retryErr) {
+      console.error(`[minigames] TTS retry failed for "${cacheKey}":`, retryErr.message);
+      return null;
+    }
   }
 }
 
@@ -621,13 +626,32 @@ async function sendNextGameQuestion(client, supabase, channelOrId, gameId, retri
     } else if (gameId === 5 || gameId === 11) {
       let audioMsgId = null;
       const lang = gameId === 5 ? 'en' : 'th';
+      let buffer = null;
       try {
-        const buffer = await getAudioBuffer(questionData.answer, lang);
+        buffer = await getAudioBuffer(questionData.answer, lang);
+      } catch (audioErr) {
+        console.error(`[minigames] Failed to generate TTS audio for Game ${gameId}:`, audioErr.message);
+      }
+
+      // ป้องกันการส่งการ์ดโจทย์ที่ไม่มีเสียง (Ghost Question)
+      if (!buffer) {
+        console.warn(`[minigames] ⚠️ TTS buffer generation failed for Game ${gameId} ("${questionData.answer}"). Rescheduling spawn in 5s...`);
+        setTimeout(() => {
+          sendNextGameQuestion(client, supabase, channelOrId, gameId, retries).catch(() => {});
+        }, 5000);
+        return;
+      }
+
+      try {
         const audioFile = new AttachmentBuilder(buffer, { name: 'audio.mp3' });
         const audioMsg = await channel.send({ files: [audioFile] });
         audioMsgId = audioMsg.id;
-      } catch (audioErr) {
-        console.error(`[minigames] Failed to generate/send TTS audio message for Game ${gameId}:`, audioErr.message);
+      } catch (audioSendErr) {
+        console.error(`[minigames] Failed to send TTS audio message for Game ${gameId}:`, audioSendErr.message);
+        setTimeout(() => {
+          sendNextGameQuestion(client, supabase, channelOrId, gameId, retries).catch(() => {});
+        }, 5000);
+        return;
       }
 
       sentMsg = await channel.send(payload);
@@ -1335,7 +1359,14 @@ function setupMinigames(client) {
                   points_earned: awarded
                 });
               })
-              .catch(err => console.error(`[minigames] Error awarding points for Game ${targetGameId}:`, err.message));
+              .catch(err => {
+                console.error(`[minigames] Error awarding points for Game ${targetGameId}:`, err.message);
+                supabase.from('minigame_wins').insert({
+                  discord_id: userId,
+                  game_id: targetGameId,
+                  points_earned: 0
+                }).catch(e => console.error('[minigames] Fallback win stat insert failed:', e.message));
+              });
 
             // ── Daily Quest Progress (minigame_win & minigame_play) ─────────────
             processTriggerEvent(client, supabase, interaction.user, 'minigame_win', {

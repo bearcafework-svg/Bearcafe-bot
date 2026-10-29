@@ -8,6 +8,7 @@ const { MessageFlags } = require("discord.js");
 const {
   getTenantLeaderboard,
   getUserTenantRank,
+  flushTenantPoints,
 } = require("../minigames/minigamesEngine");
 const { getTenantStoreConfig } = require("../store/storeEngine");
 
@@ -223,6 +224,11 @@ async function handlePointsCommand(interaction, supabase) {
   const targetUser = interaction.options.getUser("user") || interaction.user;
 
   try {
+    // Flush แต้มที่อาจค้างอยู่ใน RAM ก่อนเพื่อความแม่นยำ 100% เรียลไทม์
+    if (typeof flushTenantPoints === "function" && supabase) {
+      await flushTenantPoints(supabase, guildId, targetUser.id, 0, 0).catch(() => {});
+    }
+
     const [scoreData, storeConfig] = await Promise.all([
       getUserTenantRank(supabase, guildId, targetUser.id),
       getTenantStoreConfig(supabase, guildId),
@@ -261,7 +267,7 @@ async function handleLeaderboardCommand(interaction, supabase, sortBy = "points"
 
   try {
     const [leaderboardList, storeConfig] = await Promise.all([
-      getTenantLeaderboard(supabase, guildId, 10, false, sortBy),
+      getTenantLeaderboard(supabase, guildId, 10, true, sortBy), // force = true สำหรับคำสั่ง slash command เพื่อดึงอันดับสดใหม่ล่าสุดเสมอ
       getTenantStoreConfig(supabase, guildId),
     ]);
 

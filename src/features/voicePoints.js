@@ -2,6 +2,7 @@ const axios = require("axios");
 const crypto = require("crypto");
 const { getSupabaseClient } = require("../services/supabaseClient");
 const { isSupabaseQuotaError, shouldLogThrottledError } = require("../../utils/errorThrottler");
+const { withUserPointLock } = require("../utils/pointManager");
 const sharedSettings = require("../sharedSettings.json");
 const roleBlacklist = sharedSettings.role_blacklist || [];
 
@@ -138,6 +139,9 @@ function setupVoicePoints(client) {
         const rawEarned = calculateReward(durationSeconds, userCount);
         if (rawEarned <= 0) return;
 
+        let actualEarned = 0;
+        await withUserPointLock(userId, async () => {
+
         const { data: row, error: fetchErr } = await supabase
           .from("user_points")
           .select("points, max_cap, daily_points, last_reset_date")
@@ -166,9 +170,10 @@ function setupVoicePoints(client) {
         adjusted = Math.min(adjusted, dailyRemaining);
 
         const newPoints = Math.min(current + adjusted, maxCap);
-        const actualEarned = newPoints - current;
-        if (actualEarned <= 0) return;
+        const earned = newPoints - current;
+        if (earned <= 0) return;
 
+        actualEarned = earned;
         const newDailyPoints = dailyPoints + actualEarned;
 
         if (row) {
@@ -188,9 +193,12 @@ function setupVoicePoints(client) {
         }
 
         console.log(`[voice-points] ${userId} +${actualEarned} pts (total: ${newPoints}/${maxCap})`);
+        });
 
-        // แจ้งเตือนลงห้อง Discord
-        await handleVoiceNotification(userId, actualEarned, channelName);
+        if (actualEarned > 0) {
+          // แจ้งเตือนลงห้อง Discord
+          await handleVoiceNotification(userId, actualEarned, channelName);
+        }
         return;
       } catch (err) {
         console.error("[voice-points] Direct award points error:", err.message);
@@ -240,7 +248,8 @@ function setupVoicePoints(client) {
       let avatarUrl = null;
       try {
         // 1. ลองดึงจาก Guild Member เพื่อให้ได้ Server Avatar (ถ้ามี)
-        const notifyChannel = client.channels.cache.get(NOTIFY_CHANNEL_ID);
+        const notifyChannel = client.channels.cache.get(NOTIFY_CHANNEL_ID) ||
+          await client.channels.fetch(NOTIFY_CHANNEL_ID).catch(() => null);
         const targetGuild = notifyChannel?.guild || client.guilds.cache.first();
         if (targetGuild) {
           const member = await targetGuild.members.fetch(userId).catch(() => null);

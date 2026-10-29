@@ -679,7 +679,10 @@ async function buildSettingGamesPayload(guild, supabase) {
     const gId = parseInt(idStr, 10);
     const boundChannelId = channelsMap[gId];
     const isEnabled = settingsMap[gId] !== false;
-    const channelObj = boundChannelId ? guild.channels.cache.get(boundChannelId) : null;
+    let channelObj = boundChannelId ? guild.channels.cache.get(boundChannelId) : null;
+    if (boundChannelId && !channelObj) {
+      channelObj = await guild.channels.fetch(boundChannelId).catch(() => null);
+    }
 
     if (boundChannelId && !channelObj) {
       gameStatuses[gId] = { status: "missing", channelId: boundChannelId };
@@ -1029,7 +1032,10 @@ async function handleSettingToggle(interaction, supabase) {
     }
   }
 
-  const channelObj = boundChannelId ? interaction.guild.channels.cache.get(boundChannelId) : null;
+  let channelObj = boundChannelId ? interaction.guild.channels.cache.get(boundChannelId) : null;
+  if (boundChannelId && !channelObj) {
+    channelObj = await interaction.guild.channels.fetch(boundChannelId).catch(() => null);
+  }
   const isMissing = Boolean(boundChannelId && !channelObj);
 
   // กรณี 1: ⚠️ ห้องหาย -> เคลียร์ช่องเก่าที่หายทิ้งทันที + ปิดเกม + คืนโควตาฟรี
@@ -1134,6 +1140,19 @@ async function handleSettingToggle(interaction, supabase) {
     );
 
     invalidateSettingsCache(guildId);
+
+    // หากเปิดเกมกลับมา (Toggle ON) และยังไม่มีโจทย์ค้างอยู่ ให้เริ่มสปอว์นโจทย์ใหม่ทันที
+    if (nextEnabled && channelObj) {
+      const existingSession = getActiveTenantSession(guildId, boundChannelId);
+      if (!existingSession) {
+        spawnQuestion(interaction.client, channelObj, gameId, guildId, supabase).catch((err) => {
+          console.error(`[handleSettingToggle] Auto-spawn error for game ${gameId}:`, err);
+        });
+      }
+    } else if (!nextEnabled && boundChannelId) {
+      // หากปิดเกม (Toggle OFF) ให้ล้าง session ค้างเพื่อหยุดเกมอย่างสมบูรณ์
+      clearActiveTenantSession(guildId, boundChannelId);
+    }
 
     // อัปเดตหน้า Dashboard เดิมทันที (In-Place Update) แบบ Realtime
     const updatedPayload = await buildSettingGamesPayload(interaction.guild, supabase);

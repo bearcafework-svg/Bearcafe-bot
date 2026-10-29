@@ -476,6 +476,9 @@ async function updateBotPresence(client) {
 // ── Error handling ─────────────────────────────────────────────────
 client.on("error", (e) => console.error("Discord client error:", e));
 process.on("unhandledRejection", (e) => console.error("Unhandled rejection:", e));
+process.on("uncaughtException", (err) => {
+  console.error("❌ [MainBot] Uncaught Exception:", err);
+});
 
 // ── Login ──────────────────────────────────────────────────────────
 client.login(activeBotToken);

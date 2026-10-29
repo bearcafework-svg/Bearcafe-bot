@@ -82,88 +82,115 @@ function getVoicePointMultiplier(channel) {
   return 1;
 }
 
+const userPointLocks = new Map();
+
+/**
+ * Mutex lock ต่อรายบุคคล (userId) เพื่อจัดคิวธุรกรรมคะแนนแบบ Read-Modify-Write ไม่ให้เขียนทับกัน
+ */
+function withUserPointLock(userId, fn) {
+  if (!userId) return fn();
+  const currentLock = userPointLocks.get(userId) || Promise.resolve();
+  let release;
+  const nextLock = new Promise((resolve) => { release = resolve; });
+  userPointLocks.set(userId, nextLock);
+
+  return (async () => {
+    try {
+      await currentLock;
+      return await fn();
+    } finally {
+      release();
+      if (userPointLocks.get(userId) === nextLock) {
+        userPointLocks.delete(userId);
+      }
+    }
+  })();
+}
+
 async function addPointsWithCap(supabase, member, userId, pointsDelta) {
-  const maxCap = member ? getMaxPoints(member) : 750;
-  const dailyCap = getDailyCap(maxCap, member);
-  const today = getTodayBangkok();
+  return withUserPointLock(userId, async () => {
+    const maxCap = member ? getMaxPoints(member) : 750;
+    const dailyCap = getDailyCap(maxCap, member);
+    const today = getTodayBangkok();
 
-  const { data: row, error } = await supabase
-    .from('user_points')
-    .select('points, max_cap, daily_points, last_reset_date')
-    .eq('discord_id', userId)
-    .maybeSingle();
+    const { data: row, error } = await supabase
+      .from('user_points')
+      .select('points, max_cap, daily_points, last_reset_date')
+      .eq('discord_id', userId)
+      .maybeSingle();
 
-  if (error) {
-    console.error('[pointManager] fetch error:', error.message);
-  }
+    if (error) {
+      console.error('[pointManager] fetch error:', error.message);
+    }
 
-  const currentPoints = row?.points ?? 0;
-  const lastReset = row?.last_reset_date ?? '';
-  const needsReset = lastReset !== today;
-  const dailyPoints = needsReset ? 0 : (row?.daily_points ?? 0);
+    const currentPoints = row?.points ?? 0;
+    const lastReset = row?.last_reset_date ?? '';
+    const needsReset = lastReset !== today;
+    const dailyPoints = needsReset ? 0 : (row?.daily_points ?? 0);
 
-  if (dailyPoints >= dailyCap) {
+    if (dailyPoints >= dailyCap) {
+      return {
+        awarded: 0,
+        reason: 'daily_cap',
+        points: currentPoints,
+        dailyPoints,
+        dailyCap,
+        maxCap
+      };
+    }
+
+    if (currentPoints >= maxCap) {
+      return {
+        awarded: 0,
+        reason: 'max_cap',
+        points: currentPoints,
+        dailyPoints,
+        dailyCap,
+        maxCap
+      };
+    }
+
+    const dailyRemaining = dailyCap - dailyPoints;
+    const maxRemaining = maxCap - currentPoints;
+    const actualEarned = Math.max(0, Math.min(pointsDelta, dailyRemaining, maxRemaining));
+
+    if (actualEarned <= 0) {
+      return {
+        awarded: 0,
+        reason: 'cap_reached',
+        points: currentPoints,
+        dailyPoints,
+        dailyCap,
+        maxCap
+      };
+    }
+
+    const newPoints = currentPoints + actualEarned;
+    const newDailyPoints = dailyPoints + actualEarned;
+
+    const { error: upsertErr } = await supabase.from('user_points').upsert(
+      {
+        discord_id: userId,
+        points: newPoints,
+        max_cap: maxCap,
+        daily_points: newDailyPoints,
+        last_reset_date: today
+      },
+      { onConflict: 'discord_id' }
+    );
+
+    if (upsertErr) {
+      console.error('[pointManager] upsert error:', upsertErr.message);
+    }
+
     return {
-      awarded: 0,
-      reason: 'daily_cap',
-      points: currentPoints,
-      dailyPoints,
-      dailyCap,
-      maxCap
-    };
-  }
-
-  if (currentPoints >= maxCap) {
-    return {
-      awarded: 0,
-      reason: 'max_cap',
-      points: currentPoints,
-      dailyPoints,
-      dailyCap,
-      maxCap
-    };
-  }
-
-  const dailyRemaining = dailyCap - dailyPoints;
-  const maxRemaining = maxCap - currentPoints;
-  const actualEarned = Math.max(0, Math.min(pointsDelta, dailyRemaining, maxRemaining));
-
-  if (actualEarned <= 0) {
-    return {
-      awarded: 0,
-      reason: 'cap_reached',
-      points: currentPoints,
-      dailyPoints,
-      dailyCap,
-      maxCap
-    };
-  }
-
-  const newPoints = currentPoints + actualEarned;
-  const newDailyPoints = dailyPoints + actualEarned;
-
-  const { error: upsertErr } = await supabase.from('user_points').upsert(
-    {
-      discord_id: userId,
+      awarded: actualEarned,
       points: newPoints,
-      max_cap: maxCap,
-      daily_points: newDailyPoints,
-      last_reset_date: today
-    },
-    { onConflict: 'discord_id' }
-  );
-
-  if (upsertErr) {
-    console.error('[pointManager] upsert error:', upsertErr.message);
-  }
-
-  return {
-    awarded: actualEarned,
-    points: newPoints,
-    dailyPoints: newDailyPoints,
-    dailyCap,
-    maxCap
-  };
+      dailyPoints: newDailyPoints,
+      dailyCap,
+      maxCap
+    };
+  });
 }
 
 /**
@@ -171,37 +198,39 @@ async function addPointsWithCap(supabase, member, userId, pointsDelta) {
  * รองรับแต้มติดลบ (ไม่มี floor)
  */
 async function deductPoints(supabase, userId, pointsToDeduct) {
-  const { data: row, error } = await supabase
-    .from('user_points')
-    .select('points')
-    .eq('discord_id', userId)
-    .maybeSingle();
+  return withUserPointLock(userId, async () => {
+    const { data: row, error } = await supabase
+      .from('user_points')
+      .select('points')
+      .eq('discord_id', userId)
+      .maybeSingle();
 
-  if (error) {
-    console.error('[pointManager] deductPoints fetch error:', error.message);
-    return { deducted: 0, points: 0, error: error.message };
-  }
+    if (error) {
+      console.error('[pointManager] deductPoints fetch error:', error.message);
+      return { deducted: 0, points: 0, error: error.message };
+    }
 
-  const currentPoints = row?.points ?? 0;
-  const newPoints = currentPoints - pointsToDeduct;
+    const currentPoints = row?.points ?? 0;
+    const newPoints = currentPoints - pointsToDeduct;
 
-  const { error: upsertErr } = await supabase.from('user_points').upsert(
-    {
-      discord_id: userId,
+    const { error: upsertErr } = await supabase.from('user_points').upsert(
+      {
+        discord_id: userId,
+        points: newPoints
+      },
+      { onConflict: 'discord_id' }
+    );
+
+    if (upsertErr) {
+      console.error('[pointManager] deductPoints upsert error:', upsertErr.message);
+      return { deducted: 0, points: currentPoints, error: upsertErr.message };
+    }
+
+    return {
+      deducted: pointsToDeduct,
       points: newPoints
-    },
-    { onConflict: 'discord_id' }
-  );
-
-  if (upsertErr) {
-    console.error('[pointManager] deductPoints upsert error:', upsertErr.message);
-    return { deducted: 0, points: currentPoints, error: upsertErr.message };
-  }
-
-  return {
-    deducted: pointsToDeduct,
-    points: newPoints
-  };
+    };
+  });
 }
 
 module.exports = {
@@ -210,6 +239,7 @@ module.exports = {
   getMaxPoints,
   getDailyResetTimestamp,
   getVoicePointMultiplier,
+  withUserPointLock,
   addPointsWithCap,
   deductPoints
 };

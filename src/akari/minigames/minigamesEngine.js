@@ -381,6 +381,13 @@ function invalidateSettingsCache(guildId) {
 function invalidateLeaderboardCache(guildId) {
   if (guildId) {
     guildLeaderboardCache.delete(guildId);
+    guildLeaderboardCache.delete(`${guildId}:points`);
+    guildLeaderboardCache.delete(`${guildId}:wins`);
+    for (const key of guildLeaderboardCache.keys()) {
+      if (key.startsWith(`${guildId}:`)) {
+        guildLeaderboardCache.delete(key);
+      }
+    }
   } else {
     guildLeaderboardCache.clear();
   }
@@ -391,12 +398,17 @@ function invalidateLeaderboardCache(guildId) {
  */
 async function getTenantLeaderboard(supabase, guildId, limit = 10, force = false, sortBy = 'points') {
   const cacheKey = `${guildId}:${sortBy}`;
+  const now = Date.now();
   if (!force && guildLeaderboardCache.has(cacheKey)) {
-    return guildLeaderboardCache.get(cacheKey);
+    const cached = guildLeaderboardCache.get(cacheKey);
+    if (cached) {
+      if (Array.isArray(cached)) return cached;
+      if (cached.expiresAt && now < cached.expiresAt) return cached.data;
+    }
   }
 
   if (!supabase) {
-    guildLeaderboardCache.set(cacheKey, []);
+    guildLeaderboardCache.set(cacheKey, { data: [], expiresAt: now + 30000 });
     return [];
   }
 
@@ -417,7 +429,7 @@ async function getTenantLeaderboard(supabase, guildId, limit = 10, force = false
       return [];
     }
     const result = data || [];
-    guildLeaderboardCache.set(cacheKey, result);
+    guildLeaderboardCache.set(cacheKey, { data: result, expiresAt: now + 30000 });
     return result;
   } catch (e) {
     console.error('[akari-minigames] DB Leaderboard error:', e.message);
@@ -503,6 +515,10 @@ async function flushTenantPoints(supabase, guildId, userId, pointsToAdd = 0, win
     return;
   }
 
+  // Snapshot ปริมาณแต้มและจำนวนชนะใน Buffer ก่อนส่ง RPC เพื่อป้องกัน Race Condition ลบแต้มใหม่ทิ้ง
+  const flushedPoints = buffered.points_accumulated;
+  const flushedWins = buffered.wins_accumulated;
+
   try {
     // 1. ลองใช้ Atomic RPC เพื่อประหยัด Supabase Egress และป้องกัน Race Conditions
     const { error: rpcError } = await supabase.rpc('increment_tenant_score', {
@@ -513,7 +529,18 @@ async function flushTenantPoints(supabase, guildId, userId, pointsToAdd = 0, win
     });
 
     if (!rpcError) {
-      guildScoreBuffer.delete(bufferKey);
+      const current = guildScoreBuffer.get(bufferKey);
+      if (current) {
+        current.points_accumulated -= flushedPoints;
+        current.wins_accumulated -= flushedWins;
+        if (current.points_accumulated <= 0 && current.wins_accumulated <= 0) {
+          guildScoreBuffer.delete(bufferKey);
+        } else {
+          guildScoreBuffer.set(bufferKey, current);
+        }
+      } else {
+        guildScoreBuffer.delete(bufferKey);
+      }
       invalidateLeaderboardCache(guildId);
       return;
     }
@@ -540,7 +567,18 @@ async function flushTenantPoints(supabase, guildId, userId, pointsToAdd = 0, win
       { onConflict: 'guild_id,user_id' }
     );
 
-    guildScoreBuffer.delete(bufferKey);
+    const current = guildScoreBuffer.get(bufferKey);
+    if (current) {
+      current.points_accumulated -= flushedPoints;
+      current.wins_accumulated -= flushedWins;
+      if (current.points_accumulated <= 0 && current.wins_accumulated <= 0) {
+        guildScoreBuffer.delete(bufferKey);
+      } else {
+        guildScoreBuffer.set(bufferKey, current);
+      }
+    } else {
+      guildScoreBuffer.delete(bufferKey);
+    }
     invalidateLeaderboardCache(guildId);
   } catch (e) {
     console.error('[akari-minigames] Score upsert error:', e.message);
@@ -1051,6 +1089,16 @@ async function spawnQuestion(client, channel, gameId, guildId, supabase) {
     ttsBuffer = await getTTSAudioBuffer(rawAnswer, 'en');
   } else if (gameId === 11) {
     ttsBuffer = await getTTSAudioBuffer(rawAnswer, 'th');
+  }
+
+  // ป้องกันกรณี Google TTS ล้มเหลวสำหรับเกมฟังเสียง (เกม 5 และ 11)
+  // หากไม่มีไฟล์เสียง จะไม่ส่งการ์ดโจทย์ที่ไร้เสียง แต่จะหน่วงเวลา 5 วินาทีแล้วลองสปอว์นข้อใหม่
+  if ((gameId === 5 || gameId === 11) && !ttsBuffer) {
+    console.warn(`[akari-minigames] ⚠️ TTS buffer generation failed for Game ${gameId} ("${rawAnswer}"). Rescheduling spawn in 5s...`);
+    setTimeout(() => {
+      spawnQuestion(client, channel, gameId, guildId, supabase).catch(() => {});
+    }, 5000);
+    return null;
   }
 
   const pointsPerWin = gameSettings.points_per_win || 3;

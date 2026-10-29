@@ -958,6 +958,50 @@ function scheduleSeasonTransition(client, supabase) {
   }
 }
 
+// ── ตั้งเวลาอัตโนมัติ 23:59:59 ทุกคืนวันสิ้นเดือนเพื่ออัปเดต Monthly Leaderboard ──
+function scheduleMonthlyTransition(client, supabase) {
+  try {
+    const period = getBangkokCurrentMonthPeriod();
+    const endMs = new Date(period.endTime).getTime();
+    const now = Date.now();
+    let msUntilEnd = endMs - now + 1000; // 1 วินาทีหลังเที่ยงคืน
+
+    if (msUntilEnd <= 0) {
+      msUntilEnd = 5000;
+    }
+
+    const minutesLeft = Math.round(msUntilEnd / 1000 / 60);
+    console.log(`[resetTop] ⏰ Monthly leaderboard transition scheduled in ${minutesLeft} minutes (for end of month)`);
+
+    setTimeout(async () => {
+      console.log(`[resetTop] 🔔 End of month reached! Auto-refreshing monthly leaderboard...`);
+      try {
+        const guild = client.guilds.cache.get("1144251788493602848") ||
+                      await client.guilds.fetch("1144251788493602848").catch(() => null);
+        if (guild) {
+          const leaderboardCh = guild.channels.cache.get(LEADERBOARD_CHANNEL_ID) ||
+                                await guild.channels.fetch(LEADERBOARD_CHANNEL_ID).catch(() => null);
+          if (leaderboardCh && leaderboardCh.isTextBased()) {
+            const { payload: monthlyPayload, attachment: monthlyAttachment } = await buildTopLeaderboardPayload(guild, supabase, { isMonthly: true });
+            const targetMsg = await leaderboardCh.messages.fetch(LEADERBOARD_MESSAGE_ID).catch(() => null);
+            if (targetMsg) {
+              await targetMsg.edit({ ...monthlyPayload, files: [monthlyAttachment] });
+              console.log(`[resetTop] ✅ Monthly leaderboard auto-updated for message ${LEADERBOARD_MESSAGE_ID}`);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("[resetTop] Error in auto monthly leaderboard transition:", err.message);
+      } finally {
+        // วนลูปตั้งเวลาสำหรับสิ้นเดือนถัดไปต่อเนื่อง
+        scheduleMonthlyTransition(client, supabase);
+      }
+    }, msUntilEnd);
+  } catch (err) {
+    console.error("[resetTop] Failed to schedule monthly transition:", err.message);
+  }
+}
+
 // ══════════════════════════════════════════════════════════════
 //  setupResetTop — เชื่อมกับ client
 // ══════════════════════════════════════════════════════════════
@@ -970,6 +1014,8 @@ function setupResetTop(client, supabaseClient) {
 
   // ตั้งเวลา Transition สู่ Monthly อัตโนมัติ ณ 23:59:59
   scheduleSeasonTransition(client, supabase);
+  // ตั้งเวลาตัดรอบประจำเดือนอัตโนมัติทุกสิ้นเดือน
+  scheduleMonthlyTransition(client, supabase);
 
   // (คำสั่งสร้างกระดานจัดอันดับ b!reset-top ถูกย้ายไปเป็น Slash Command /send-component [Owner Only])
 

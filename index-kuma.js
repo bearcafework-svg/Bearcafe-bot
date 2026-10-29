@@ -323,6 +323,15 @@ client.once("clientReady", () => {
   setupMemberWelcomeListener(client, kumaSupabase);
 });
 
+// 7.3 Client Error Handling & Process Resilience
+client.on("error", (e) => console.error("❌ [KumaBot] Discord client error:", e));
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("❌ [KumaBot] Unhandled Rejection at:", promise, "reason:", reason);
+});
+process.on("uncaughtException", (err) => {
+  console.error("❌ [KumaBot] Uncaught Exception:", err);
+});
+
 // 8. Login เข้า Discord Gateway
 client.login(botToken).catch((err) => {
   console.error("❌ [KumaBot] Login failed:", err.message);

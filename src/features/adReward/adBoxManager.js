@@ -177,7 +177,8 @@ async function onPostbackCompleted(eventData, discordClient) {
   // Fallback: หากเซสชัน interaction ไม่อยู่แล้ว พยายามส่งลงแชนแนลหลัก
   if (discordClient && session && session.channelId) {
     try {
-      const channel = discordClient.channels.cache.get(session.channelId);
+      const channel = discordClient.channels.cache.get(session.channelId) ||
+        await discordClient.channels.fetch(session.channelId).catch(() => null);
       if (channel) {
         await channel.send({
           content: `<@${userId}> 🎊 ทำการดูโฆษณา LootLabs สำเร็จ!`,

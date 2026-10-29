@@ -249,7 +249,7 @@ async function validateGameAccess(guildId, targetGameId, supabase, currentEnable
     };
   }
 
-  // 2. Quota Check: โควตาฟรีเปิดได้สูงสุด 3 เกม
+  // 2. Quota Check: โควตาฟรีเปิดได้สูงสุด 5 เกม
   if (currentEnabledCount !== null) {
     if (currentEnabledCount >= FREE_QUOTA_LIMIT) {
       return {
@@ -268,7 +268,7 @@ async function validateGameAccess(guildId, targetGameId, supabase, currentEnable
         .order('created_at', { ascending: true });
 
       if (!error && Array.isArray(channels) && channels.length > 0) {
-        // กรองเฉพาะเกม Lightweight และหยิบ 3 เกมแรกตามลำดับการสร้าง
+        // กรองเฉพาะเกม Lightweight และหยิบ 5 เกมแรกตามลำดับการสร้าง
         const allowedGameIds = channels
           .map((c) => Number(c.game_id))
           .filter((gid) => LIGHTWEIGHT_GAMES.includes(gid))
@@ -277,7 +277,7 @@ async function validateGameAccess(guildId, targetGameId, supabase, currentEnable
         const isExistingInAllowed = allowedGameIds.includes(numTargetGameId);
         const totalChannelCount = channels.length;
 
-        // ถ้าเป็นเกมใหม่ที่จะเพิ่มเข้ามา หรือเป็นห้องที่เกินโควตา 3 ห้องแรก
+        // ถ้าเป็นเกมใหม่ที่จะเพิ่มเข้ามา หรือเป็นห้องที่เกินโควตา 5 ห้องแรก
         if (!isExistingInAllowed && (totalChannelCount >= FREE_QUOTA_LIMIT || !channels.some(c => Number(c.game_id) === numTargetGameId))) {
           return {
             allowed: false,

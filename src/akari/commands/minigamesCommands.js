@@ -313,8 +313,9 @@ async function handleSetupGames(interaction, supabase, client) {
     selectedGameIds = selectedGameIds.filter((gid) => gid !== 1 && gid !== 2);
   }
 
-  // 1. ตรวจสอบประวัติห้องที่เคยผูกไว้แล้วในฐานข้อมูล
+  // 1. ตรวจสอบประวัติห้องที่เคยผูกไว้แล้วในฐานข้อมูลของกิลด์นี้
   const existingBindingsMap = new Map(); // gameId -> channelId
+  let totalExistingActiveChannels = 0;
   if (supabase) {
     const { data: boundRows } = await supabase
       .from("tenant_minigame_channels")
@@ -322,12 +323,18 @@ async function handleSetupGames(interaction, supabase, client) {
       .eq("guild_id", guild.id);
 
     if (boundRows && Array.isArray(boundRows)) {
-      boundRows.forEach((r) => existingBindingsMap.set(r.game_id, r.channel_id));
+      boundRows.forEach((r) => {
+        existingBindingsMap.set(r.game_id, r.channel_id);
+        const ch = guild.channels.cache.get(r.channel_id);
+        if (ch) {
+          totalExistingActiveChannels++;
+        }
+      });
     }
   }
 
   const existingActiveGames = [];
-  const gamesToCreate = [];
+  let gamesToCreate = [];
 
   for (const gameId of selectedGameIds) {
     const boundChId = existingBindingsMap.get(gameId);
@@ -336,6 +343,38 @@ async function handleSetupGames(interaction, supabase, client) {
       existingActiveGames.push({ gameId, channel: chObj });
     } else {
       gamesToCreate.push(gameId);
+    }
+  }
+
+  // Quota Guard (เฉพาะแผนฟรี): ตรวจสอบจำนวนช่องเกมรวมทั้งหมดในเซิร์ฟเวอร์
+  if (!planInfo.isPremium) {
+    const availableQuota = Math.max(0, FREE_QUOTA_LIMIT - totalExistingActiveChannels);
+
+    if (availableQuota <= 0) {
+      return interaction.editReply({
+        flags: FLAG_V2,
+        components: [
+          {
+            type: 17,
+            components: [
+              {
+                type: 10,
+                content:
+                  `## <:lowwarning:1548772721679278180>︲__\` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ โควตามินิเกมฟรีเต็มแล้ว 𓂃 \`__\n` +
+                  `# เซิร์ฟเวอร์ของคุณมีช่องมินิเกมครบโควตาฟรีแล้ว (**${totalExistingActiveChannels}/${FREE_QUOTA_LIMIT}** ช่อง)\n\n` +
+                  `> ⚠️ **คำแนะนำ:** กรุณาลบช่องมินิเกมเดิมที่ไม่ต้องการใช้งานออกก่อน หรือติดต่อผู้พัฒนาเพื่ออัปเกรดเป็น **Premium** ✨ เพื่อเปิดเล่นได้ครบทุกเกมไม่จำกัดโควตาครับ\n\n` +
+                  `-# สามารถใช้คำสั่ง \`/setting-games\` เพื่อจัดการเปิด/ปิดเกม หรือ \`/set-game\` เพื่อเปลี่ยนห้องได้ครับ`,
+              },
+            ],
+          },
+        ],
+      });
+    }
+
+    if (gamesToCreate.length > availableQuota) {
+      const skippedGames = gamesToCreate.slice(availableQuota);
+      gamesToCreate = gamesToCreate.slice(0, availableQuota);
+      quotaNotice += `\n> ⚠️ **จำกัดโควตาฟรี:** สามารถสร้างเพิ่มได้อีกเพียง **${availableQuota} ช่อง** (ข้ามเกม: ${skippedGames.map(g => AKARI_GAME_NAMES[g] || `#${g}`).join(", ")})\n`;
     }
   }
 
@@ -1914,7 +1953,7 @@ async function handleKumaAdmin(interaction, supabase, client) {
         `# ปรับสถานะเซิร์ฟเวอร์กลับเป็น Standard เรียบร้อยแล้ว!\n` +
         `> 🏷️ **เซิร์ฟเวอร์:** **${targetGuildName}** (\`${targetGuildId}\`)\n` +
         `> 📦 **แผนสมาชิก:** **Standard (ฟรี)**\n` +
-        `> ℹ️ **ข้อจำกัด:** จำกัดสูงสุด 3 มินิเกม (เฉพาะเกมทั่วไป)\n\n` +
+        `> ℹ️ **ข้อจำกัด:** จำกัดสูงสุด ${FREE_QUOTA_LIMIT} มินิเกม (เฉพาะเกมทั่วไป)\n\n` +
         `-# ช่องมินิเกมเดิมและประวัติข้อความจะไม่ถูกลบ แต่ห้องที่เกินโควตาหรือเกมพิเศษจะหยุดส่งโจทย์ใหม่อัตโนมัติ <:cuteplant:1152834055528783872>`;
 
       return interaction.editReply({

@@ -282,7 +282,8 @@ function setupQuestRealtimeSync(supabase) {
  * @param {object} supabase
  */
 function setupQuestScheduler(client, supabase) {
-  // 0. สมัครรับ Realtime เพื่อดักจับการเปิด/ปิดเควสจากแดชบอร์ดทันที
+  // 0. ดึงการตั้งค่าทันทีตั้งแต่เริ่มทำงาน และสมัครรับ Realtime เพื่อดักจับการเปิด/ปิดเควสจากแดชบอร์ด
+  getQuestSettings(supabase).catch((err) => console.error("[dailyQuest] Initial getQuestSettings error:", err.message));
   setupQuestRealtimeSync(supabase);
 
   // 1. เริ่มต้นตรวจความพร้อม ณ ตอนบอทสตาร์ต (Startup Check)

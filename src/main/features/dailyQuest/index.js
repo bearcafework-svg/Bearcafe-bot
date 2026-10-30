@@ -97,7 +97,8 @@ function setupDailyQuest(client, supabaseClient) {
           interaction.customId.startsWith("p_349546966612447233"));
 
       if (isProgressBtn) {
-        const { getQuestSystemStatus } = require("./questScheduler");
+        const { getQuestSystemStatus, getQuestSettings } = require("./questScheduler");
+        await getQuestSettings(supabase);
         const questStatus = getQuestSystemStatus();
         if (!questStatus.isActive) {
           return safeRespond(interaction, {
@@ -152,7 +153,8 @@ function setupDailyQuest(client, supabaseClient) {
 
       // ── 3.3 คำสั่ง Slash Command: /อนุมัติเควส (Staff Only / Role 1205512963058962482) ──
       if (interaction.isChatInputCommand() && interaction.commandName === "อนุมัติเควส") {
-        const { getQuestSystemStatus } = require("./questScheduler");
+        const { getQuestSystemStatus, getQuestSettings } = require("./questScheduler");
+        await getQuestSettings(supabase);
         const questStatus = getQuestSystemStatus();
         if (!questStatus.isActive) {
           return safeRespond(interaction, {

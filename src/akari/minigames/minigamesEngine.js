@@ -277,8 +277,8 @@ async function validateGameAccess(guildId, targetGameId, supabase, currentEnable
         const isExistingInAllowed = allowedGameIds.includes(numTargetGameId);
         const totalChannelCount = channels.length;
 
-        // ถ้าเป็นเกมใหม่ที่จะเพิ่มเข้ามา หรือเป็นห้องที่เกินโควตา 5 ห้องแรก
-        if (!isExistingInAllowed && (totalChannelCount >= FREE_QUOTA_LIMIT || !channels.some(c => Number(c.game_id) === numTargetGameId))) {
+        // ถ้าเป็นเกมใหม่ที่จะเพิ่มเข้ามา หรือเป็นห้องที่เกินโควตา 5 ห้องแรก (เฉพาะเมื่อจำนวนห้องรวมเต็มหรือเกินโควตาฟรีแล้ว)
+        if (!isExistingInAllowed && totalChannelCount >= FREE_QUOTA_LIMIT) {
           return {
             allowed: false,
             reason: 'QUOTA_EXCEEDED',
@@ -1356,9 +1356,17 @@ function setupAkariMinigames(client, supabase) {
           .delete()
           .eq('guild_id', guildId)
           .eq('channel_id', channel.id)
-          .select();
+          .select('game_id');
 
         if (data && data.length > 0) {
+          for (const row of data) {
+            await supabase
+              .from('tenant_minigame_settings')
+              .delete()
+              .eq('guild_id', guildId)
+              .eq('game_id', row.game_id);
+          }
+          invalidateSettingsCache(guildId);
           console.log(`[akari-minigames] 🧹 [channelDelete] ล้างข้อมูลช่องที่ถูกลบออกจาก Supabase DB เรียบร้อยแล้ว (Guild: ${guildId}, Channel: ${channel.id})`);
         }
       } catch (err) {

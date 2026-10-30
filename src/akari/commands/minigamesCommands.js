@@ -1114,13 +1114,25 @@ async function handleSettingToggle(interaction, supabase) {
     // กรณี 3: พยายามเปิดใช้งาน ให้ตรวจสอบโควตาและสถานะพรีเมียม
     if (nextEnabled) {
       let enabledCount = 0;
-      const { data: allSettings } = await supabase
-        .from("tenant_minigame_settings")
-        .select("game_id, enabled")
-        .eq("guild_id", guildId);
+      if (supabase) {
+        // นับเฉพาะมินิเกมที่มีการผูกห้องอยู่จริงในเซิร์ฟเวอร์ และเปิดใช้งานอยู่
+        const { data: boundChannels } = await supabase
+          .from("tenant_minigame_channels")
+          .select("game_id")
+          .eq("guild_id", guildId);
 
-      if (allSettings && Array.isArray(allSettings)) {
-        enabledCount = allSettings.filter((s) => s.enabled === true && s.game_id !== gameId).length;
+        const boundGameIds = new Set((boundChannels || []).map((c) => Number(c.game_id)));
+
+        const { data: allSettings } = await supabase
+          .from("tenant_minigame_settings")
+          .select("game_id, enabled")
+          .eq("guild_id", guildId);
+
+        if (allSettings && Array.isArray(allSettings)) {
+          enabledCount = allSettings.filter(
+            (s) => boundGameIds.has(Number(s.game_id)) && s.enabled === true && Number(s.game_id) !== gameId
+          ).length;
+        }
       }
 
       const access = await validateGameAccess(guildId, gameId, supabase, enabledCount);
@@ -1480,8 +1492,24 @@ async function handleSetGame(interaction, supabase, client) {
     });
   }
 
-  // ตรวจสอบสิทธิ์การใช้งานตามระดับสมาชิกก่อนผูกห้อง
-  const access = await validateGameAccess(guild.id, gameId, supabase);
+  // ตรวจสอบสิทธิ์การใช้งานตามระดับสมาชิกก่อนผูกห้อง (คำนวณจำนวนห้องสุทธิ ไม่นับห้องที่กำลังจะแทนที่)
+  let currentChannelCount = null;
+  if (supabase) {
+    const { data: existingChannels } = await supabase
+      .from("tenant_minigame_channels")
+      .select("game_id, channel_id")
+      .eq("guild_id", guild.id);
+
+    if (Array.isArray(existingChannels)) {
+      // คัดกรองช่องที่จะถูกแทนที่ และไม่นับเกมเดิมถ้ากำลังย้ายห้อง เพื่อให้คำนวณโควตาสุทธิได้แม่นยำ
+      const otherChannels = existingChannels.filter(
+        (c) => c.channel_id !== targetChannel.id && Number(c.game_id) !== gameId
+      );
+      currentChannelCount = otherChannels.length;
+    }
+  }
+
+  const access = await validateGameAccess(guild.id, gameId, supabase, currentChannelCount);
   if (!access.allowed) {
     const deniedText =
       `## <:lowwarning:1548772721679278180>︲__\` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ ไม่สามารถเปิดใช้งานเกมนี้ได้ 𓂃 \`__\n` +
@@ -1683,6 +1711,13 @@ async function handleRemoveGame(interaction, supabase) {
       // ลบออกจาก tenant_minigame_channels
       await supabase
         .from("tenant_minigame_channels")
+        .delete()
+        .eq("guild_id", guild.id)
+        .eq("game_id", gameId);
+
+      // ลบการตั้งค่าออกจาก tenant_minigame_settings เพื่อคืนโควตา
+      await supabase
+        .from("tenant_minigame_settings")
         .delete()
         .eq("guild_id", guild.id)
         .eq("game_id", gameId);

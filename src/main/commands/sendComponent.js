@@ -1,4 +1,4 @@
-// src/main/commands/sendComponent.js
+// src/commands/sendComponent.js
 // คำสั่ง Slash Command /send-component สำหรับส่งบอร์ดระบบและการ์ด Component V2
 // รองรับทั้งระบบ Bear Cafe หลัก และโปรเจกต์ฮิลใจ (Heal Jai) อย่างเป็นอิสระ
 
@@ -8,7 +8,7 @@ const {
   ChannelType
 } = require("discord.js");
 const { registerCommand } = require("../interactions/router");
-const config = require("../../../config");
+const config = require("../../config");
 
 const FLAG_EPHEMERAL = MessageFlags.Ephemeral;
 
@@ -90,16 +90,10 @@ function setupSendComponent(client) {
           componentName = "1️⃣︰บอร์ดลงทะเบียนสมาชิกใหม่ (Registration Panel)";
           break;
         }
-        case "notice_panel": {
-          const { buildNotificationsPanelPayload } = require("../features/verification");
-          payload = buildNotificationsPanelPayload();
-          componentName = "2️⃣︰แผงเลือกรับการแจ้งเตือน (Notifications Select)";
-          break;
-        }
         case "staff_welcome_msg": {
           const { buildStaffWelcomePanelPayload } = require("../features/verification");
           payload = buildStaffWelcomePanelPayload();
-          componentName = "3️⃣︰แผงตั้งค่าข้อความต้อนรับทีมงาน (Staff Welcome Msg)";
+          componentName = "2️⃣︰แผงตั้งค่าข้อความต้อนรับทีมงาน (Staff Welcome Msg)";
           break;
         }
         case "top_donate": {
@@ -131,6 +125,13 @@ function setupSendComponent(client) {
           });
         }
         case "daily_quest": {
+          const { getQuestSystemStatus } = require("../features/dailyQuest/questScheduler");
+          const questStatus = getQuestSystemStatus();
+          if (!questStatus.isActive) {
+            return message.reply({
+              content: `⏸️ ไม่สามารถส่งการ์ดเควสได้ในขณะนี้: ระบบเควสประจำวันกำลังปิดพักชั่วคราวค่ะ (${questStatus.message})`
+            });
+          }
           const { getBangkokTodayDate, getNextMidnightTimestamp, getOrInitDailyQuestSet } = require("../features/dailyQuest/questEngine");
           const { buildDailyQuestAnnouncementPayload } = require("../features/dailyQuest/questPayloads");
           const { createClient } = require("@supabase/supabase-js");

@@ -383,8 +383,7 @@ const BEARCAFE_SLASH_COMMANDS = [
         choices: [
           // ── ☕ Bear Cafe Main Components ──
           { name: "1️⃣ บอร์ดลงทะเบียนสมาชิกใหม่ (Registration Panel)", value: "verify_panel" },
-          { name: "2️⃣ แผงเลือกรับการแจ้งเตือน (Notifications Select)", value: "notice_panel" },
-          { name: "3️⃣ แผงตั้งค่าข้อความต้อนรับทีมงาน (Staff Welcome Msg)", value: "staff_welcome_msg" },
+          { name: "2️⃣ แผงตั้งค่าข้อความต้อนรับทีมงาน (Staff Welcome Msg)", value: "staff_welcome_msg" },
           { name: "4️⃣ กระดานยอดโดเนทสะสม (Top Donate Board)", value: "top_donate" },
           { name: "5️⃣ บอร์ดห้องเสียงหาเพื่อน (Voice Board)", value: "voice_board" },
           { name: "6️⃣ กระดานเควสประจำวัน (Daily Quest Board)", value: "daily_quest" },

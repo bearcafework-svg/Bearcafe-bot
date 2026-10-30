@@ -12,9 +12,8 @@ const {
 } = require("discord.js");
 const { createClient } = require("@supabase/supabase-js");
 const sharedConfig = require("../../sharedSettings.json");
-const { startQueueProcessor } = require("./queueProcessor");
 const { queueVerifiedMember } = require("./staffNotifier");
-const { blacklistPayload, dmClosedPayload } = require("../shared/tarotComponents");
+const { blacklistPayload } = require("../shared/tarotComponents");
 const { safeShowModal, safeUpdate } = require("../../../utils/discordSafety");
 
 // Supabase client initialization
@@ -386,53 +385,6 @@ function buildRegistrationPanelPayload() {
 }
 
 /**
- * Payload สำหรับแผงเลือกรับการแจ้งเตือน
- */
-function buildNotificationsPanelPayload() {
-  return {
-    content: "",
-    embeds: [],
-    attachments: [],
-    flags: 32768, // Component v2
-    components: [
-      {
-        type: 17,
-        components: [
-          {
-            type: 12,
-            items: [
-              {
-                media: {
-                  url: "https://cdn.discordapp.com/attachments/1524742861223100416/1526862634417393767/NewsBoard_-_bearcafe_10.png?ex=6a589123&is=6a573fa3&hm=95f43cf66f3190947e1f4d4ea6315c4a574637e673c0d7ee3f9107d45510f6fb&"
-                }
-              }
-            ]
-          },
-          { type: 14, spacing: 2 },
-          {
-            type: 10,
-            content: "## <:bee20000:1256669436350562355>︲__` 𝖭𝗈𝗍𝗂𝖿𝗂𝖼𝖺𝗍𝗂𝗈𝗇𝗌 ₊ เลือกการแจ้งเตือนที่ต้องการ 𓂃 `__\n-# เลือกรับการแจ้งเตือนเฉพาะหัวข้อที่คุณสนใจ เพื่อไม่ให้พลาดข่าวสารสำคัญและลดการแจ้งเตือนที่ไม่จำเป็น <:cuteplant:1152834055528783872>\n\n(🎉)⠀**__กิจกรรม__** — ลุ้นของรางวัล อีเวนต์ และกิจกรรมพิเศษ\n(📢)⠀**__ประกาศสำคัญ__** — ข่าวสำคัญที่อาจส่งผลต่อการใช้งานเซิร์ฟเวอร์\n(📰)⠀**__ข่าวสารทั่วไป__** — อัปเดตฟีเจอร์และความเคลื่อนไหวของ Bear Cafe\n(🎁)⠀**__สิทธิพิเศษและโปรโมชัน__** — โปรโมชัน และสิทธิพิเศษสำหรับสมาชิก\n"
-          },
-          { type: 14, spacing: 2 },
-          {
-            type: 1,
-            components: [
-              {
-                style: 3,
-                type: 2,
-                label: "คลิกเพื่อเลือกรับการแจ้งเตือน",
-                flow: { actions: [] },
-                custom_id: "p_324458660380020737"
-              }
-            ]
-          }
-        ]
-      }
-    ]
-  };
-}
-
-/**
  * Payload สำหรับแผงตั้งค่าข้อความต้อนรับของทีมงาน
  */
 function buildStaffWelcomePanelPayload() {
@@ -490,14 +442,6 @@ function buildStaffWelcomePanelPayload() {
  * @param {Client} client 
  */
 function setupVerification(client) {
-  // Start the background DM broadcast queue processor (skip if disabled on Local/Dev)
-  const isLocalFastStart = process.env.LOCAL_FAST_START === "true" || process.env.DISABLE_BACKGROUND_SERVICES === "true" || process.env.DISABLE_DM_BROADCAST === "true";
-  if (!isLocalFastStart) {
-    startQueueProcessor(client, supabase);
-  } else {
-    console.log("[verification] ⏭️ Skipping background DM broadcast queue processor in Local/Dev mode.");
-  }
-
   // ── 1. Event: guildMemberAdd ─────────────────────────────────────
   client.on(Events.GuildMemberAdd, async (member) => {
     try {
@@ -552,28 +496,6 @@ function setupVerification(client) {
 
       } catch (err) {
         console.error("[verification] Failed to send registration panel:", err);
-      }
-    }
-
-    if (message.content.trim() === "b!reset-notice") {
-      // Check if Owner or Administrator
-      const isOwner = message.author.id === message.guild.ownerId;
-      const isAdmin = message.member && message.member.permissions.has(PermissionFlagsBits.Administrator);
-
-      if (!isOwner && !isAdmin) {
-        return message.reply({
-          content: "❌ คำสั่งนี้สามารถใช้งานได้เฉพาะเจ้าของเซิร์ฟเวอร์ (Owner) เท่านั้นค่ะ"
-        });
-      }
-
-      try {
-        const payload = buildNotificationsPanelPayload();
-        await message.channel.send(payload);
-        try {
-          await message.delete();
-        } catch (e) { }
-      } catch (err) {
-        console.error("[verification] Failed to send notification panel:", err);
       }
     }
 
@@ -738,97 +660,6 @@ function setupVerification(client) {
         return interaction.reply(successPayload);
       }
 
-      // ─── Button: คลิกเพื่อเลือกรับการแจ้งเตือน (Notice Board) ─────────
-      if (interaction.isButton() && interaction.customId === "p_324458660380020737") {
-        // Fetch fresh member details to bypass cache latency
-        let member = interaction.member;
-        try {
-          member = await interaction.guild.members.fetch(interaction.user.id);
-        } catch (fetchErr) {
-          console.warn("[verification] Failed to fetch fresh member for notice button, using cache:", fetchErr);
-        }
-
-        // Check blacklist roles
-        const hasBlacklisted = member.roles.cache.some(r => BLOCKED_ROLES.includes(r.id));
-        if (hasBlacklisted) {
-          const payload = blacklistPayload(interaction.user.id);
-          payload.flags = 32768 | 64; // Ephemeral V2
-          return interaction.reply(payload);
-        }
-
-        // Defer reply since sending a test DM might take longer than 3 seconds
-        await interaction.deferReply({ flags: 64 });
-
-        const userId = interaction.user.id;
-        const username = interaction.user.username;
-
-        // Check if member DM is open (silent check)
-        let dmOpen = false;
-        let dmErrMessage = null;
-        let isQuarantined = false;
-        try {
-          const dm = await interaction.user.createDM();
-          const testMsg = await dm.send({ content: "\u200b" });
-          await testMsg.delete().catch(() => { });
-          dmOpen = true;
-        } catch (err) {
-          console.error(`[Verification] DM check failed for user ${username} (${userId}):`, err);
-          dmOpen = false;
-          dmErrMessage = err.message || "Cannot DM user";
-          if (err.code === 20026 || (err.message && (err.message.includes("anti-spam") || err.message.includes("abusive behavior") || err.message.includes("quarantine")))) {
-            isQuarantined = true;
-          }
-        }
-
-        if (isQuarantined) {
-          return interaction.editReply({
-            content: "❌ ระบบส่งข้อความของบอทขัดข้องชั่วคราว (ถูกจำกัดสิทธิ์ชั่วคราวโดย Discord) ทีมงานกำลังยื่นเรื่องขอปลดล็อกค่ะ กรุณาลองใหม่อีกครั้งในภายหลังนะคะ\n# กดปุ่มเขียวเพื่อเข้าดิสได้เลยค่ะ"
-          });
-        }
-
-        if (!dmOpen) {
-          // Update status in member_dm_status
-          await supabase.from("member_dm_status").upsert({
-            user_id: userId,
-            username: username,
-            dm_status: "closed",
-            last_checked_at: new Date().toISOString(),
-            last_error: dmErrMessage
-          });
-          return interaction.editReply(dmClosedPayload());
-        } else {
-          // Update status to open
-          await supabase.from("member_dm_status").upsert({
-            user_id: userId,
-            username: username,
-            dm_status: "open",
-            last_checked_at: new Date().toISOString(),
-            last_error: null
-          });
-        }
-
-        try {
-          // Load current user options from DB
-          const { data, error } = await supabase
-            .from("dms_options")
-            .select("option_value")
-            .eq("user_id", userId);
-
-          if (error) throw error;
-
-          const activeOptions = data ? data.map(r => r.option_value) : [];
-          const notifyPayload = buildNoticeSelectorPayload(userId, activeOptions);
-
-          await interaction.editReply(notifyPayload);
-        } catch (err) {
-          console.error("[verification] Error loading notice choices:", err.message);
-          await interaction.editReply({
-            content: "❌ เกิดข้อผิดพลาดในการโหลดข้อมูลการรับแจ้งเตือน กรุณาลองอีกครั้งในภายหลังค่ะ"
-          }).catch(() => { });
-        }
-        return;
-      }
-
       // ─── Button: ลงทะเบียน ──────────────────────────────────────────
       if (interaction.isButton() && interaction.customId === "p_323843380868026369") {
         if (!interaction.deferred && !interaction.replied) {
@@ -860,224 +691,8 @@ function setupVerification(client) {
           });
         }
 
-        // 3. Send notifications options menu (ephemeral component v2)
-        const notifyPayload = {
-          flags: 32768 | 64, // Ephemeral V2
-          components: [
-            {
-              type: 17,
-              components: [
-                {
-                  type: 12,
-                  items: [
-                    {
-                      media: {
-                        url: "https://cdn.discordapp.com/attachments/1524704267015819274/1526522750460498021/d8c5887ba3276d401ff1af64efa6add6.jpg?ex=6a575499&is=6a560319&hm=44ac8a4b15d5f3beed9c9a4c0413df475b60afdea1dc2e96035ee6499612bd04&"
-                      }
-                    }
-                  ]
-                },
-                {
-                  type: 14,
-                  spacing: 2
-                },
-                {
-                  type: 10,
-                  content: "## <:bee20000:1256669436350562355>︲__` 𝖭𝗈𝗍𝗂𝖿𝗂𝖼𝖺𝗍𝗂𝗈𝗇𝗌 ₊ เลือกการแจ้งเตือนที่ต้องการ 𓂃 `__\n-# เลือกรับการแจ้งเตือนเฉพาะหัวข้อที่คุณสนใจ เพื่อไม่ให้พลาดข่าวสารสำคัญและช่วยลดการแจ้งเตือนที่ไม่จำเป็น โดยบอทจะส่งข่าวสารผ่านข้อความส่วนตัว (DM) ให้คุณโดยตรง ทั้งนี้ คุณสามารถยกเลิกหรือเปลี่ยนแปลงหัวข้อการแจ้งเตือนได้ทุกเมื่อ ตามความต้องการของคุณ <:cuteplant:1152834055528783872>\n"
-                },
-                {
-                  type: 14,
-                  spacing: 2
-                },
-                {
-                  type: 1,
-                  components: [
-                    {
-                      type: 3, // Select Menu
-                      custom_id: "p_324120127182213152",
-                      min_values: 0,
-                      max_values: 5,
-                      placeholder: "🐻︲เลือกการแจ้งเตือนที่ต้องการ",
-                      options: [
-                        { label: "กิจกรรม", value: "49B40A9yBS", description: "ลุ้นของรางวัล อีเวนต์ และกิจกรรมพิเศษ", emoji: { name: "🎉" } },
-                        { label: "ประกาศสำคัญ", value: "JNySCX80ja", description: "ข่าวสำคัญที่อาจส่งผลต่อการใช้งานเซิร์ฟเวอร์", emoji: { name: "📢" } },
-                        { label: "ข่าวสารทั่วไป", value: "DsMHlVrjze", description: "อัปเดตฟีเจอร์และความเคลื่อนไหวของ Bear Cafe", emoji: { name: "📑" } },
-                        { label: "โปรโมชันและโฆษณา", value: "6io1xnaMWJ", description: "โปรโมชัน และสิทธิพิเศษสำหรับสมาชิก", emoji: { name: "🎁" } },
-                        { label: "ข้ามไปลงทะเบียน", value: "skip_to_register", emoji: { name: "➡️" } }
-                      ]
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        };
-
-        await interaction.editReply(notifyPayload);
-      }
-
-      // ─── Select Menu: เลือกรับการแจ้งเตือน ──────────────────────────
-      if (interaction.isStringSelectMenu() && interaction.customId === "p_324120127182213152") {
-        const userId = interaction.user.id;
-        const username = interaction.user.username;
-        const selectedValues = interaction.values || [];
-
-        // Check if this is the toggle flow (Notice Board) or the verification flow
-        let isToggleFlow = false;
-        try {
-          const textComp = interaction.message?.components?.[0]?.components?.find(c => c.type === 10);
-          if (textComp && textComp.content && textComp.content.includes("สถานะการรับของคุณ")) {
-            isToggleFlow = true;
-          }
-        } catch (e) {
-          console.error("[verification] Error parsing components:", e);
-        }
-
-        if (isToggleFlow) {
-          // Check blacklist roles
-          let member = interaction.member;
-          try {
-            member = await interaction.guild.members.fetch(interaction.user.id);
-          } catch (fetchErr) {
-            console.warn("[verification] Failed to fetch fresh member for toggle, using cached details:", fetchErr);
-          }
-
-          const hasBlacklisted = member.roles.cache.some(r => BLOCKED_ROLES.includes(r.id));
-          if (hasBlacklisted) {
-            const payload = blacklistPayload(interaction.user.id);
-            payload.flags = 32768 | 64; // Ephemeral V2
-            return interaction.reply(payload);
-          }
-
-          try {
-            // Bulk update subscriptions
-            // 1. Delete all existing options for the user
-            const { error: delErr } = await supabase
-              .from("dms_options")
-              .delete()
-              .eq("user_id", userId);
-            if (delErr) throw delErr;
-
-            // 2. Insert new options if selected
-            if (selectedValues.length > 0) {
-              const rows = selectedValues.map(val => ({
-                user_id: userId,
-                option_value: val
-              }));
-              const { error: insErr } = await supabase
-                .from("dms_options")
-                .insert(rows);
-              if (insErr) throw insErr;
-
-              await supabase.from("member_dm_status").upsert({
-                user_id: userId,
-                username: username,
-                dm_status: "open",
-                last_checked_at: new Date().toISOString(),
-                last_error: null
-              });
-            }
-
-            // Update the message in-place with the new selections
-            const newPayload = buildNoticeSelectorPayload(userId, selectedValues);
-            await interaction.update(newPayload);
-          } catch (err) {
-            console.error("[verification] Toggle option error:", err.message);
-            await interaction.reply({
-              content: "❌ เกิดข้อผิดพลาดในการบันทึกข้อมูลการรับแจ้งเตือน กรุณาลองอีกครั้งในภายหลังค่ะ",
-              flags: 64
-            }).catch(() => { });
-          }
-          return;
-        }
-
-        await interaction.deferUpdate();
-
-        const validOptions = selectedValues.filter(val => val !== "skip_to_register");
-
-        // If no notification options were selected (e.g. user selected "ข้ามไปลงทะเบียน" only)
-        // Skip DM test check completely as member does not request notification DMs
-        if (validOptions.length === 0) {
-          try {
-            await supabase.from("dms_options").delete().eq("user_id", userId);
-          } catch (e) {
-            console.error("[verification] DB Error clearing dms_options:", e.message);
-          }
-          return interaction.editReply(getRegPanelPayload());
-        }
-
-        // Check if member DM is open (silent check)
-        let dmOpen = false;
-        let dmErrMessage = null;
-        let isQuarantined = false;
-        try {
-          const dm = await interaction.user.createDM();
-          const testMsg = await dm.send({ content: "\u200b" });
-          await testMsg.delete().catch(() => { });
-          dmOpen = true;
-        } catch (err) {
-          console.error(`[Verification/Interaction] DM check failed for user ${username} (${userId}):`, err);
-          dmOpen = false;
-          dmErrMessage = err.message || "Cannot DM user";
-          if (err.code === 20026 || (err.message && (err.message.includes("anti-spam") || err.message.includes("abusive behavior") || err.message.includes("quarantine")))) {
-            isQuarantined = true;
-          }
-        }
-
-        if (isQuarantined) {
-          return interaction.editReply({
-            content: "❌ ระบบส่งข้อความของบอทขัดข้องชั่วคราว (ถูกจำกัดสิทธิ์ชั่วคราวโดย Discord) ทีมงานกำลังยื่นเรื่องขอปลดล็อกค่ะ กรุณาลองใหม่อีกครั้งในภายหลังนะคะ\n# กดปุ่มเขียวเพื่อเข้าดิสได้เลยค่ะ"
-          });
-        }
-
-        if (!dmOpen) {
-          // If DM failed (typically error code 50007), tell user how to open DM
-          // Update status in public.member_dm_status
-          await supabase.from("member_dm_status").upsert({
-            user_id: userId,
-            username: username,
-            dm_status: "closed",
-            last_checked_at: new Date().toISOString(),
-            last_error: dmErrMessage
-          });
-
-          return interaction.editReply(dmClosedPayload());
-        }
-
-        // DM success, update DB dms_options & member_dm_status
-        try {
-          // Update DM status to open
-          await supabase.from("member_dm_status").upsert({
-            user_id: userId,
-            username: username,
-            dm_status: "open",
-            last_checked_at: new Date().toISOString(),
-            last_error: null
-          });
-
-          // Delete existing subscriptions for this user
-          await supabase.from("dms_options").delete().eq("user_id", userId);
-
-          // Insert new selected subscriptions
-          const rows = validOptions.map((val) => ({
-            user_id: userId,
-            option_value: val
-          }));
-          await supabase.from("dms_options").insert(rows);
-
-          // Edit message from "เลือกการแจ้งเตือนที่ต้องการ" to "ลงทะเบียนค้าบ" Component v2
-          await interaction.editReply(getRegPanelPayload());
-
-        } catch (dbErr) {
-          console.error("[verification] DB Error updating dms_options:", dbErr.message);
-          await interaction.editReply(getRegPanelPayload());
-        }
-      }
-
-      // ─── Button: ข้ามไปลงทะเบียน ─────────────────────────────────────
-      if (interaction.isButton() && interaction.customId === "p_324121851091488771") {
-        // Edit original ephemeral Component v2 message to show registration options select menu
-        await safeUpdate(interaction, getRegPanelPayload());
+        // 3. Send registration options menu directly (ephemeral component v2)
+        await interaction.editReply(getRegPanelPayload());
       }
 
       // ─── Interaction: Select Menu Registration Method ─────────────────
@@ -1229,103 +844,8 @@ function setupVerification(client) {
   console.log("[verification] ✅ Verification system loaded successfully");
 }
 
-// ── Helper: สร้าง Payload สำหรับเลือกรับการแจ้งเตือน ───────────────────────────
-function buildNoticeSelectorPayload(userId, activeOptions) {
-  const emojiActive = "<:50121checkmark:1358584609087946867>";
-  const emojiInactive = "<:68440x:1358584606911369226>";
-
-  const isGit = activeOptions.includes("49B40A9yBS");
-  const isNotice = activeOptions.includes("JNySCX80ja");
-  const isGeneral = activeOptions.includes("DsMHlVrjze");
-  const isPromo = activeOptions.includes("6io1xnaMWJ");
-
-  const hasGit = isGit ? emojiActive : emojiInactive;
-  const hasNotice = isNotice ? emojiActive : emojiInactive;
-  const hasGeneral = isGeneral ? emojiActive : emojiInactive;
-  const hasPromo = isPromo ? emojiActive : emojiInactive;
-
-  const contentText = `## <:bee20000:1256669436350562355>︲__\` 𝖭𝗈𝗍𝗂𝖿𝗂𝖼𝖺𝗍𝗂𝗈𝗇𝗌 ₊ เลือกการแจ้งเตือนที่ต้องการ 𓂃 \`__\n` +
-    `-# เลือกรับการแจ้งเตือนเฉพาะหัวข้อที่คุณสนใจ เพื่อไม่ให้พลาดข่าวสารสำคัญและลดการแจ้งเตือนที่ไม่จำเป็น <:cuteplant:1152834055528783872>\n\n` +
-    `**สถานะการรับของคุณ:** <@${userId}>\n\n` +
-    `> • ${hasGit}⠀**__กิจกรรม__** \`${isGit ? "[เปิดรับอยู่]" : "[ปิดรับ]"}\` — ลุ้นของรางวัล อีเวนต์ และกิจกรรมพิเศษ\n` +
-    `> • ${hasNotice}⠀**__ประกาศสำคัญ__** \`${isNotice ? "[เปิดรับอยู่]" : "[ปิดรับ]"}\` — ข่าวสำคัญที่อาจส่งผลต่อการใช้งานเซิร์ฟเวอร์\n` +
-    `> • ${hasGeneral}⠀**__ข่าวสารทั่วไป__** \`${isGeneral ? "[เปิดรับอยู่]" : "[ปิดรับ]"}\` — อัปเดตฟีเจอร์และความเคลื่อนไหวของ Bear Cafe\n` +
-    `> • ${hasPromo}⠀**__สิทธิพิเศษและโปรโมชัน__** \`${isPromo ? "[เปิดรับอยู่]" : "[ปิดรับ]"}\` — โปรโมชัน และสิทธิพิเศษสำหรับสมาชิก\n`;
-
-  return {
-    flags: 32768 | 64, // Ephemeral V2
-    components: [
-      {
-        type: 17,
-        components: [
-          {
-            type: 12,
-            items: [
-              {
-                media: {
-                  url: "https://cdn.discordapp.com/attachments/1524704267015819274/1526522750460498021/d8c5887ba3276d401ff1af64efa6add6.jpg?ex=6a575499&is=6a560319&hm=44ac8a4b15d5f3beed9c9a4c0413df475b60afdea1dc2e96035ee6499612bd04&"
-                }
-              }
-            ]
-          },
-          { type: 14, spacing: 2 },
-          {
-            type: 10,
-            content: contentText
-          },
-          { type: 14, spacing: 2 },
-          {
-            type: 1,
-            components: [
-              {
-                type: 3,
-                custom_id: "p_324120127182213152",
-                options: [
-                  {
-                    label: "กิจกรรม",
-                    value: "49B40A9yBS",
-                    description: isGit ? "🟢 [เปิดรับอยู่] ลุ้นของรางวัล อีเวนต์ และกิจกรรมพิเศษ" : "⚪ [ปิดรับ] ลุ้นของรางวัล อีเวนต์ และกิจกรรมพิเศษ",
-                    emoji: isGit ? { name: "✅" } : { name: "⚪" },
-                    default: isGit
-                  },
-                  {
-                    label: "ประกาศสำคัญ",
-                    value: "JNySCX80ja",
-                    description: isNotice ? "🟢 [เปิดรับอยู่] ข่าวสำคัญที่อาจส่งผลต่อการใช้งานเซิร์ฟเวอร์" : "⚪ [ปิดรับ] ข่าวสำคัญที่อาจส่งผลต่อการใช้งานเซิร์ฟเวอร์",
-                    emoji: isNotice ? { name: "✅" } : { name: "⚪" },
-                    default: isNotice
-                  },
-                  {
-                    label: "ข่าวสารทั่วไป",
-                    value: "DsMHlVrjze",
-                    description: isGeneral ? "🟢 [เปิดรับอยู่] อัปเดตฟีเจอร์และความเคลื่อนไหวของ Bear Cafe" : "⚪ [ปิดรับ] อัปเดตฟีเจอร์และความเคลื่อนไหวของ Bear Cafe",
-                    emoji: isGeneral ? { name: "✅" } : { name: "⚪" },
-                    default: isGeneral
-                  },
-                  {
-                    label: "โปรโมชันและโฆษณา",
-                    value: "6io1xnaMWJ",
-                    description: isPromo ? "🟢 [เปิดรับอยู่] โปรโมชัน และสิทธิพิเศษสำหรับสมาชิก" : "⚪ [ปิดรับ] โปรโมชัน และสิทธิพิเศษสำหรับสมาชิก",
-                    emoji: isPromo ? { name: "✅" } : { name: "⚪" },
-                    default: isPromo
-                  }
-                ],
-                placeholder: "🐻︲เลือกการแจ้งเตือนที่ต้องการ",
-                min_values: 0,
-                max_values: 4,
-                flows: {}
-              }
-            ]
-          }
-        ]
-      }
-    ]
-  };
-}
-
 module.exports = {
   setupVerification,
   buildRegistrationPanelPayload,
-  buildNotificationsPanelPayload,
   buildStaffWelcomePanelPayload
 };

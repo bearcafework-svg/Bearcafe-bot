@@ -9,6 +9,27 @@ const {
 } = require("./questEngine");
 const { buildDailyQuestAnnouncementPayload, formatThaiDate } = require("./questPayloads");
 
+// In-memory status cache for zero-overhead event checking
+let isDailyQuestActive = true;
+let dailyQuestPausedMessage = "ระบบเควสประจำวันปิดปรับปรุงชั่วคราว ขออภัยในความไม่สะดวกค่ะ";
+
+function getQuestSystemStatus() {
+  return {
+    isActive: isDailyQuestActive,
+    message: dailyQuestPausedMessage
+  };
+}
+
+function updateQuestSettingsCache(value) {
+  if (!value) return;
+  if (typeof value.is_active === "boolean") {
+    isDailyQuestActive = value.is_active;
+  }
+  if (typeof value.paused_message === "string" && value.paused_message.trim()) {
+    dailyQuestPausedMessage = value.paused_message.trim();
+  }
+}
+
 /**
  * ดึงค่าการตั้งค่าจากตาราง site_settings (key: daily_quest_settings)
  */
@@ -21,6 +42,8 @@ async function getQuestSettings(supabase) {
       .maybeSingle();
 
     if (!error && data?.value) {
+      updateQuestSettingsCache(data.value);
+
       const times = Array.isArray(data.value.announcement_times) && data.value.announcement_times.length > 0
         ? data.value.announcement_times
         : ["08:00"];
@@ -29,6 +52,8 @@ async function getQuestSettings(supabase) {
         announcement_times: times,
         channel_id: data.value.announce_channel_id || ANNOUNCE_CHANNEL_ID,
         role_id: data.value.announce_ping_role_id || ANNOUNCE_PING_ROLE_ID,
+        is_active: isDailyQuestActive,
+        paused_message: dailyQuestPausedMessage
       };
     }
   } catch (err) {
@@ -39,6 +64,8 @@ async function getQuestSettings(supabase) {
     announcement_times: ["08:00"],
     channel_id: ANNOUNCE_CHANNEL_ID,
     role_id: ANNOUNCE_PING_ROLE_ID,
+    is_active: isDailyQuestActive,
+    paused_message: dailyQuestPausedMessage
   };
 }
 
@@ -73,6 +100,11 @@ function getMsUntilNextTime(targetHour, targetMinute = 0, targetSecond = 0) {
  */
 async function postDailyAnnouncement(client, supabase, targetDate = getBangkokTodayDate()) {
   try {
+    if (!isDailyQuestActive) {
+      console.log("[dailyQuest] ⏸️ Skipping daily announcement: Quest system is currently paused.");
+      return;
+    }
+
     const { set, quests } = await getOrInitDailyQuestSet(supabase, targetDate);
     if (!set || !quests || quests.length === 0) {
       console.warn("[dailyQuest] Cannot post announcement: No active quests found.");
@@ -197,8 +229,12 @@ async function scheduleNextAnnouncement(client, supabase) {
 
     currentAnnouncementTimeout = setTimeout(async () => {
       try {
-        console.log(`[dailyQuest] 🔔 Announcement time (${nextTimeStr}) reached! Posting Daily Quest Announcement...`);
-        await postDailyAnnouncement(client, supabase);
+        if (isDailyQuestActive) {
+          console.log(`[dailyQuest] 🔔 Announcement time (${nextTimeStr}) reached! Posting Daily Quest Announcement...`);
+          await postDailyAnnouncement(client, supabase);
+        } else {
+          console.log(`[dailyQuest] ⏸️ Announcement time (${nextTimeStr}) reached, but quest system is paused. Skipping.`);
+        }
       } catch (err) {
         console.error(`[dailyQuest] Announcement (${nextTimeStr}) error:`, err);
       } finally {
@@ -212,19 +248,57 @@ async function scheduleNextAnnouncement(client, supabase) {
 }
 
 /**
+ * สมัครรับการแจ้งเตือน Realtime เพื่อซิงค์สถานะระบบเควส (เปิด/ปิด) ทันที
+ */
+function setupQuestRealtimeSync(supabase) {
+  try {
+    const channel = supabase
+      .channel("daily_quest_settings_realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "site_settings", filter: "key=eq.daily_quest_settings" },
+        (payload) => {
+          const newVal = payload.new?.value;
+          if (newVal) {
+            updateQuestSettingsCache(newVal);
+            console.log(`[dailyQuest] 🔄 Realtime status updated: is_active=${isDailyQuestActive}`);
+          }
+        }
+      )
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          console.log("[dailyQuest] ✅ Realtime subscription for daily_quest_settings established.");
+        }
+      });
+    return channel;
+  } catch (err) {
+    console.error("[dailyQuest] Error setting up realtime sync:", err.message);
+  }
+}
+
+/**
  * เริ่มต้นระบบตั้งเวลาทั้งหมด
  * @param {import('discord.js').Client} client
  * @param {object} supabase
  */
 function setupQuestScheduler(client, supabase) {
+  // 0. สมัครรับ Realtime เพื่อดักจับการเปิด/ปิดเควสจากแดชบอร์ดทันที
+  setupQuestRealtimeSync(supabase);
+
   // 1. เริ่มต้นตรวจความพร้อม ณ ตอนบอทสตาร์ต (Startup Check)
   setTimeout(async () => {
     try {
       const today = getBangkokTodayDate();
+      const settings = await getQuestSettings(supabase);
+      
+      if (!isDailyQuestActive) {
+        console.log("[dailyQuest] ⏸️ Startup check: Quest system is paused. Skipping announcement post.");
+        return;
+      }
+
       const { set, quests } = await getOrInitDailyQuestSet(supabase, today);
       console.log(`[dailyQuest] ✅ Loaded today's quest set (${today}) with ${quests.length} quests.`);
 
-      const settings = await getQuestSettings(supabase);
       const times = settings.announcement_times || ["08:00"];
 
       // ตรวจสอบว่ามีเวลาประกาศใดของวันนี้ที่ผ่านมาแล้ว และยังไม่เคยโพสต์การ์ดของวันนี้
@@ -279,7 +353,8 @@ function setupQuestScheduler(client, supabase) {
   scheduleNextAnnouncement(client, supabase);
 
   // 3. ตรวจสอบตารางเวลาทุก ๆ 10 นาที เพื่ออัปเดตหากแอดมินแก้ไขเวลาในแดชบอร์ด
-  setInterval(() => {
+  setInterval(async () => {
+    await getQuestSettings(supabase);
     scheduleNextAnnouncement(client, supabase);
   }, 10 * 60 * 1000);
 }
@@ -288,5 +363,6 @@ module.exports = {
   setupQuestScheduler,
   postDailyAnnouncement,
   getQuestSettings,
-  scheduleNextAnnouncement
+  scheduleNextAnnouncement,
+  getQuestSystemStatus
 };

@@ -312,6 +312,9 @@ async function getUserDailyProgress(supabase, userId, targetDate = getBangkokTod
 async function checkAndAwardFullBonus(client, supabase, user, targetDate, quests) {
   if (!supabase || !user || !quests || quests.length === 0) return;
 
+  const { getQuestSystemStatus } = require("./questScheduler");
+  if (!getQuestSystemStatus().isActive) return;
+
   try {
     // 1. ตรวจสอบว่าเคยได้โบนัสของวันนี้ไปแล้วหรือยัง
     const { data: existingBonus } = await supabase
@@ -405,6 +408,12 @@ async function checkAndAwardFullBonus(client, supabase, user, targetDate, quests
  */
 async function completeQuest(client, supabase, user, quest, targetDate, dailyQuests) {
   if (!supabase || !user || !quest) return;
+
+  const { getQuestSystemStatus } = require("./questScheduler");
+  if (!getQuestSystemStatus().isActive) {
+    console.log(`[dailyQuest] ⏸️ completeQuest skipped for user ${user.id}: Quest system is paused.`);
+    return;
+  }
 
   try {
     // 1. อัปเดตสถานะใน daily_quest_progress
@@ -535,6 +544,9 @@ const BATCH_DEBOUNCE_MS = 2500; // 2.5 วินาที
  * @param {object} item { userId, avatarUrl, questId, questTitle, rewardPoints, rewardRoleId }
  */
 function queueQuestCompletionNotification(client, item) {
+  const { getQuestSystemStatus } = require("./questScheduler");
+  if (!getQuestSystemStatus().isActive) return;
+
   questCompletionQueue.push(item);
 
   if (questCompletionDebounceTimer) {
@@ -552,6 +564,12 @@ function queueQuestCompletionNotification(client, item) {
  * @param {import('discord.js').Client} client
  */
 async function flushQuestCompletionQueue(client) {
+  const { getQuestSystemStatus } = require("./questScheduler");
+  if (!getQuestSystemStatus().isActive) {
+    questCompletionQueue.length = 0;
+    return;
+  }
+
   if (questCompletionQueue.length === 0) return;
 
   const itemsToProcess = questCompletionQueue.splice(0, questCompletionQueue.length);
@@ -629,6 +647,11 @@ async function flushQuestCompletionQueue(client) {
  * @param {object} eventContext { keywords, channelId, count, ... }
  */
 async function processTriggerEvent(client, supabase, user, triggerType, eventContext = {}) {
+  // ⚡ MASTER GUARD: ตรวจสอบสถานะการเปิด/ปิดระบบเควสจากแดชบอร์ด (0 DB calls, 0 calculations)
+  const { getQuestSystemStatus } = require("./questScheduler");
+  const questStatus = getQuestSystemStatus();
+  if (!questStatus.isActive) return;
+
   // ตรวจสอบ Blacklist จาก sharedSettings.json
   const blacklistRoles = sharedSettings.role_blacklist || [];
   if (eventContext.member) {
@@ -780,6 +803,12 @@ async function processTriggerEvent(client, supabase, user, triggerType, eventCon
  * @returns {Promise<{ success: boolean, message: string }>}
  */
 async function approveIrlQuest(client, supabase, targetUser, questId, staffUser) {
+  const { getQuestSystemStatus } = require("./questScheduler");
+  const questStatus = getQuestSystemStatus();
+  if (!questStatus.isActive) {
+    return { success: false, message: `⏸️ ${questStatus.message}` };
+  }
+
   const today = getBangkokTodayDate();
   const { quests } = await getOrInitDailyQuestSet(supabase, today);
 

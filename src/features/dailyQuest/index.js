@@ -97,6 +97,15 @@ function setupDailyQuest(client, supabaseClient) {
           interaction.customId.startsWith("p_349546966612447233"));
 
       if (isProgressBtn) {
+        const { getQuestSystemStatus } = require("./questScheduler");
+        const questStatus = getQuestSystemStatus();
+        if (!questStatus.isActive) {
+          return safeRespond(interaction, {
+            content: `⏸️ ${questStatus.message}`,
+            flags: 64
+          });
+        }
+
         const userId = interaction.user.id;
         const memberRoles = interaction.member?.roles;
         const hasRole = (roleId) =>
@@ -143,6 +152,15 @@ function setupDailyQuest(client, supabaseClient) {
 
       // ── 3.3 คำสั่ง Slash Command: /อนุมัติเควส (Staff Only / Role 1205512963058962482) ──
       if (interaction.isChatInputCommand() && interaction.commandName === "อนุมัติเควส") {
+        const { getQuestSystemStatus } = require("./questScheduler");
+        const questStatus = getQuestSystemStatus();
+        if (!questStatus.isActive) {
+          return safeRespond(interaction, {
+            content: `⏸️ ${questStatus.message}`,
+            flags: 64
+          });
+        }
+
         if (!checkCanApproveQuest(interaction)) {
           return safeRespond(interaction, {
             content: "⚠️ คำสั่งนี้สงวนสิทธิ์สำหรับ Staff ผู้ดูแลระบบเท่านั้นค่ะ",

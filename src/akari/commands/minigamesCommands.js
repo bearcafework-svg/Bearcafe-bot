@@ -467,14 +467,41 @@ async function handleSetupGames(interaction, supabase, client) {
     const channelName = AKARI_GAME_NAMES[gameId] || `🎮︲มินิเกม-${gameId}`;
     const topic = GAME_DESCRIPTIONS[gameId] || "มินิเกม Kuma Bot";
 
+    // 🛡️ Category Safety Guard: ตรวจสอบความถูกต้องของหมวดหมู่ก่อนสั่งสร้างห้องเสมอ
+    let categoryToUse = null;
+    if (targetCategory && targetCategory.id) {
+      categoryToUse = guild.channels.cache.get(targetCategory.id) ||
+        (await guild.channels.fetch(targetCategory.id).catch(() => null));
+
+      // ถ้าไม่พบ Category เดิม (เช่น ถูกลบทิ้งไป) ให้พยายามสร้างขึ้นมาใหม่
+      if (!categoryToUse) {
+        console.warn(`[SetupGames] ⚠️ Target category ${targetCategory.id} no longer exists. Re-creating category...`);
+        try {
+          categoryToUse = await guild.channels.create({
+            name: "🎮 𝖪𝖴𝖬𝖠 𝖬𝖨𝖭𝖨𝖦𝖠𝖬𝖤𝖲",
+            type: ChannelType.GuildCategory,
+            reason: "Kuma Bot Re-create Missing Minigames Category",
+          });
+          targetCategory = categoryToUse;
+        } catch (catErr) {
+          console.error(`❌ [SetupGames] Failed to auto-recreate category:`, catErr.message);
+          categoryToUse = null;
+        }
+      }
+    }
+
     try {
-      const newChannel = await guild.channels.create({
+      const channelOptions = {
         name: channelName,
         type: ChannelType.GuildText,
-        parent: targetCategory.id,
         topic: `🎮 ${topic} | ขับเคลื่อนโดย บอทคุมะ 🐻`,
         reason: `Kuma Setup Minigame #${gameId}`,
-      });
+      };
+      if (categoryToUse && categoryToUse.id) {
+        channelOptions.parent = categoryToUse.id;
+      }
+
+      const newChannel = await guild.channels.create(channelOptions);
 
       if (supabase) {
         // หาช่องเดิมของเกมนี้เพื่อเคลียร์เซสชันค้างเก่า (ถ้ามี)
@@ -531,6 +558,60 @@ async function handleSetupGames(interaction, supabase, client) {
       createdChannelsInfo.push(`- **${channelName}** — <#${newChannel.id}> *(สร้างใหม่)*`);
     } catch (e) {
       console.error(`❌ [SetupGames] Error creating channel for game #${gameId}:`, e.message);
+
+      // Fallback: หากติดปัญหา Category ไม่ถูกต้อง ให้สร้างแบบไม่มีหมวดหมู่ทันที
+      if (e.message?.includes("CHANNEL_PARENT_INVALID") || e.code === 50035) {
+        try {
+          console.log(`[SetupGames] 🔄 Retrying channel creation for game #${gameId} without parent category...`);
+          const fallbackChannel = await guild.channels.create({
+            name: channelName,
+            type: ChannelType.GuildText,
+            topic: `🎮 ${topic} | ขับเคลื่อนโดย บอทคุมะ 🐻`,
+            reason: `Kuma Setup Minigame #${gameId} (Fallback without category)`,
+          });
+
+          if (supabase) {
+            const { data: prevBinding } = await supabase
+              .from("tenant_minigame_channels")
+              .select("channel_id")
+              .eq("guild_id", guild.id)
+              .eq("game_id", gameId)
+              .maybeSingle();
+
+            if (prevBinding && prevBinding.channel_id && prevBinding.channel_id !== fallbackChannel.id) {
+              await supabase.from("tenant_minigame_active_sessions").delete().eq("guild_id", guild.id).eq("channel_id", prevBinding.channel_id);
+              clearActiveTenantSession(guild.id, prevBinding.channel_id);
+            }
+
+            await supabase.from("tenant_minigame_channels").upsert(
+              {
+                guild_id: guild.id,
+                game_id: gameId,
+                channel_id: fallbackChannel.id,
+                channel_name: fallbackChannel.name,
+                created_at: new Date().toISOString(),
+              },
+              { onConflict: "guild_id,game_id" }
+            );
+
+            await supabase.from("tenant_minigame_settings").upsert(
+              {
+                guild_id: guild.id,
+                game_id: gameId,
+                enabled: true,
+                canvas_theme: "cyber",
+                points_per_win: 10,
+              },
+              { onConflict: "guild_id,game_id" }
+            );
+          }
+
+          await spawnQuestion(client, fallbackChannel, gameId, guild.id, supabase);
+          createdChannelsInfo.push(`- **${channelName}** — <#${fallbackChannel.id}> *(สร้างใหม่นอกหมวดหมู่)*`);
+        } catch (retryErr) {
+          console.error(`❌ [SetupGames] Fallback creation failed for game #${gameId}:`, retryErr.message);
+        }
+      }
     }
   }
 

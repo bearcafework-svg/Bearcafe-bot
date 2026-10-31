@@ -664,6 +664,36 @@ function parseEmojiObject(emojiStr) {
 }
 
 /**
+ * ดึงชื่อเกมแบบไม่มี Emoji นำหน้า
+ */
+function getCleanGameName(gId) {
+  const raw = AKARI_GAME_NAMES[gId] || `มินิเกม #${gId}`;
+  return raw.replace(/^[^︲]+︲/, "").trim();
+}
+
+const GAME_UNICODE_EMOJIS = {
+  1: "🎮",
+  2: "🎮",
+  3: "🎲",
+  4: "💡",
+  5: "🔊",
+  6: "✏️",
+  7: "✏️",
+  8: "🔤",
+  9: "🔤",
+  10: "🔀",
+  11: "🔊",
+  12: "⚖️",
+  13: "🧩",
+  15: "🚩",
+  16: "🔢",
+};
+
+const FREE_GAME_IDS = [3, 4, 8, 9, 10, 12, 15, 16];
+const PREMIUM_GAME_IDS = [5, 6, 7, 11, 13];
+const ALL_DISPLAYABLE_IDS = [...FREE_GAME_IDS, ...PREMIUM_GAME_IDS];
+
+/**
  * สร้าง Payload สำหรับแจ้งเตือนเกมพรีเมี่ยม (Ephemeral Component V2)
  */
 function buildPremiumUpsellPayload() {
@@ -678,14 +708,36 @@ function buildPremiumUpsellPayload() {
             items: [
               {
                 media: {
-                  url: "https://media.discordapp.net/attachments/1493110433534574655/1557800492283723796/59_.png?ex=6ad5a483&is=6ad45303&hm=4e228f626824ed477a2546988d927e2e336bd5607da4dd7b1264e46e9dc2eaef&=&format=webp&quality=lossless&width=384&height=384",
+                  url: "https://cdn.discordapp.com/attachments/1566090110775328788/1566090183181598823/59_.png?ex=6ae746a4&is=6ae5f524&hm=2cabd14a51b04c031887d55ac6ec94a255e1aab5f90491775e6a5923819661ca&",
                 },
               },
             ],
           },
           {
+            type: 10,
+            content:
+              "## <:bee20000:1256669436350562355>︲__` 𝖯𝗋𝗈𝗆𝗈𝗍𝗂𝗈𝗇 ₊ ข้อเสนอจากทางเรา! 𓂃 `__\n" +
+              "-# การปลดล็อกมินิเกมจะช่วยให้คุณเข้าถึงเกมและความสามารถพิเศษต่าง ๆ ของบอทคุมะได้มากยิ่งขึ้น อย่าพลาดโอกาสที่จะปลดล็อกความสนุกและฟีเจอร์ใหม่ ๆ มาเพิ่มสีสันให้เซิร์ฟเวอร์ของคุณ เริ่มปลดล็อกได้เลย! <:cuteplant:1152834055528783872> ",
+          },
+          {
             type: 14,
             spacing: 2,
+          },
+          {
+            type: 10,
+            content:
+              "## <:68492gift:1276130500410605609>︲สิทธิพิเศษเมื่อปลดล็อค:\n" +
+              "1. **ปลดล็อกเกมทั้งหมด** รวมถึงมินิเกมใหม่ ๆ ที่จะเพิ่มเข้ามาในอนาคต\n" +
+              "2. **ปรับแต่งระบบคะแนน** กำหนดจำนวนแต้มที่สมาชิกจะได้รับจากการเล่นเกมได้ตามต้องการ\n" +
+              "3. **ระบบติดตามสมาชิกแบบเรียลไทม์** ดูสถานะการเข้าห้องของสมาชิกผ่านระบบโปรโมทเซิร์ฟเวอร์ (Beta)\n" +
+              "4. **ปลดล็อกร้านค้าเซิร์ฟเวอร์** สร้างไอเทมสำหรับแลกยศและของรางวัลได้สูงสุด 10 รายการ\n" +
+              "5. **รับฟีเจอร์ใหม่ในอนาคต** พร้อมสิทธิ์เข้าถึงการอัปเดตและความสามารถใหม่ ๆ ที่จะทยอยเพิ่มเข้ามา\n\n" +
+              "***ปลดล็อกครั้งเดียว เปิดประสบการณ์ความสนุกและเครื่องมือจัดการเซิร์ฟเวอร์ได้เต็มรูปแบบ!***",
+          },
+          {
+            type: 14,
+            spacing: 1,
+            divider: false,
           },
           {
             type: 1,
@@ -694,10 +746,10 @@ function buildPremiumUpsellPayload() {
                 type: 2,
                 style: 5,
                 url: "https://discord.gg/EHHybsbHxD",
-                label: "︲ปลดล็อคพรีเมี่ยมเลย!",
+                label: "︲สนใจปลดล็อคพรีเมี่ยม",
                 emoji: {
-                  id: "1521245223311769673",
-                  name: "618492diamond",
+                  id: "1358584609087946867",
+                  name: "50121checkmark",
                   animated: false,
                 },
               },
@@ -710,21 +762,28 @@ function buildPremiumUpsellPayload() {
 }
 
 /**
- * สร้าง Payload แดชบอร์ดสำหรับ /setting-games
+ * สร้าง Payload แดชบอร์ดสำหรับ /setting-games รองรับ 2 หน้าแบบ In-Place
+ * @param {import('discord.js').Guild} guild 
+ * @param {any} supabase 
+ * @param {number} page 1 หรือ 2
  */
-async function buildSettingGamesPayload(guild, supabase) {
+async function buildSettingGamesPayload(guild, supabase, page = 1) {
   let settingsMap = {};
+  let pointsMap = {};
   let channelsMap = {}; // gameId -> channelId
 
   if (supabase) {
     const { data: settingsData } = await supabase
       .from("tenant_minigame_settings")
-      .select("game_id, enabled")
+      .select("game_id, enabled, points_per_win")
       .eq("guild_id", guild.id);
 
     if (settingsData) {
       settingsData.forEach((row) => {
         settingsMap[row.game_id] = row.enabled;
+        if (row.points_per_win != null) {
+          pointsMap[row.game_id] = row.points_per_win;
+        }
       });
     }
 
@@ -749,15 +808,9 @@ async function buildSettingGamesPayload(guild, supabase) {
   let activeCount = 0;
   let missingCount = 0;
 
-  // คัดกรองเฉพาะมินิเกมที่เปิดให้ใช้งาน (ซ่อนเกม 1 และ 2 ออกจากหน้าตั้งค่า)
-  const displayableGameIds = Object.keys(AKARI_GAME_NAMES).filter(
-    (idStr) => !TEMPORARY_DISABLED_GAME_IDS.includes(parseInt(idStr, 10))
-  );
-
   // คำนวณสถานะ 3 แบบ: 🟢 พร้อมเล่น | 🔴 ปิดอยู่ | ⚠️ ห้องหาย
   const gameStatuses = {};
-  for (const idStr of displayableGameIds) {
-    const gId = parseInt(idStr, 10);
+  for (const gId of ALL_DISPLAYABLE_IDS) {
     const boundChannelId = channelsMap[gId];
     const isEnabled = settingsMap[gId] !== false;
     let channelObj = boundChannelId ? guild.channels.cache.get(boundChannelId) : null;
@@ -776,25 +829,195 @@ async function buildSettingGamesPayload(guild, supabase) {
     }
   }
 
-  const selectOptions = displayableGameIds.map((idStr) => {
-    const gId = parseInt(idStr, 10);
-    const gameInfo = gameStatuses[gId];
-    const isHeavy = HEAVYWEIGHT_GAMES.includes(gId);
+  const storeConfig = await getTenantStoreConfig(supabase, guild.id);
+  const currencyEmoji = storeConfig?.currency_emoji || "<:strawberryv2:1548976664090779650>";
 
+  const planText = isPremium ? "Premium (พรีเมียม)" : "Standard (ฟรี)";
+  const quotaText = isPremium ? `ไม่จำกัด (${activeCount} เกม)` : `${activeCount}/${FREE_QUOTA_LIMIT} เกม`;
+
+  const bannerUrl =
+    "https://media.discordapp.net/attachments/1566075967334518915/1566076019142688958/3f4f2698a490b6e2.png?ex=6ae73973&is=6ae5e7f3&hm=87f2d560d65ded6865f37d98f4bf7045334376606430f5ad00f0e792b34fcca8&=&format=webp&quality=lossless";
+  const headerContent =
+    "## <:bee20000:1256669436350562355>︲__` 𝖲𝖾𝗍𝗍𝗂𝗇𝗀𝗌 ₊ จัดการมินิเกม 𓂃 `__\n" +
+    "-# ตั้งค่าและจัดการเกมต่าง ๆ ภายในเซิร์ฟเวอร์ของคุณได้ง่าย ๆ ผ่านคำสั่ง `/setting-games` ไม่ว่าจะเป็นการเปิด-ปิดเกม ปรับแต่งรูปแบบการเล่น และกำหนดค่าระบบเกมให้เหมาะกับชุมชนของคุณ เพื่อสร้างประสบการณ์ความสนุกที่ลงตัวสำหรับสมาชิกทุกคน <:cuteplant:1152834055528783872> ";
+
+  // ══════════════════════════════════════════════════════════════════════
+  // ── หน้า 2/2 (รีเซ็ตเกม & แต้มรางวัล) ──────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════════
+  if (page === 2) {
+    const activeGameIds = ALL_DISPLAYABLE_IDS.filter(
+      (gId) => gameStatuses[gId]?.status === "active"
+    );
+
+    const resetOptions = [
+      {
+        label: "รีเซ็ตโจทย์ใหม่ทุกเกมที่เปิดอยู่ ",
+        value: "reset_all",
+        emoji: { name: "🔄" },
+      },
+      ...activeGameIds.map((gId) => ({
+        label: `รีเซ็ตโจทย์ใหม่: ${getCleanGameName(gId)}`,
+        value: `reset_${gId}`,
+        emoji: { name: GAME_UNICODE_EMOJIS[gId] || "🎮" },
+      })),
+    ];
+
+    const pointsLines = ALL_DISPLAYABLE_IDS.map((gId) => {
+      const clean = getCleanGameName(gId);
+      const pts = pointsMap[gId] != null ? pointsMap[gId] : 10;
+      const paddedName = clean.padEnd(20, " ");
+      return `${paddedName} | ${pts} แต้ม`;
+    }).join("\n");
+
+    const page2Components = [
+      {
+        type: 12,
+        items: [{ media: { url: bannerUrl } }],
+      },
+      {
+        type: 10,
+        content: headerContent,
+      },
+      {
+        type: 14,
+        spacing: 2,
+      },
+      {
+        type: 10,
+        content:
+          "4. **` ⚠️ บอทไม่ส่งเกม ` *!***\n" +
+          "  - *หากบอทไม่ส่งเกมใหม่ หรือแสดงโจทย์ที่ไม่ตรงกับคำตอบ ท่านสามารถใช้คำสั่งรีเซ็ตเพื่อเริ่มเกมใหม่ได้ทันที โดยบอทจะสร้างและส่งโจทย์ชุดใหม่เข้าสู่ห้องมินิเกมโดยอัตโนมัติ*",
+      },
+      {
+        type: 1,
+        components: [
+          {
+            type: 3,
+            custom_id: "akari_setting_reset_menu",
+            placeholder: "✏️︲รีเซ็ตการส่งของมินิเกม",
+            options:
+              resetOptions.length > 0
+                ? resetOptions
+                : [
+                    {
+                      label: "ไม่มีห้องเกมที่เปิดใช้งานอยู่",
+                      value: "reset_none",
+                      emoji: { name: "⚠️" },
+                    },
+                  ],
+          },
+        ],
+      },
+      {
+        type: 14,
+        spacing: 2,
+      },
+      {
+        type: 10,
+        content: `5. **\` 🪙 แต้มที่ได้จากมินิเกม \` *!***\n\`\`\`\n${pointsLines}\n\`\`\``,
+      },
+    ];
+
+    if (!isPremium) {
+      page2Components.push({
+        type: 1,
+        components: [
+          {
+            type: 2,
+            style: 3,
+            label: "︲ปลดล็อคการแก้ไขเพียง 59 บาท",
+            custom_id: "akari_setting_promo_59",
+            disabled: false,
+            emoji: {
+              id: "1372837492205555812",
+              name: "3602exclamationmarkbubble",
+              animated: true,
+            },
+          },
+        ],
+      });
+    } else {
+      const pointsOptions = ALL_DISPLAYABLE_IDS.map((gId) => {
+        const clean = getCleanGameName(gId);
+        const pts = pointsMap[gId] != null ? pointsMap[gId] : 10;
+        return {
+          label: clean,
+          value: `points_${gId}`,
+          description: `แต้มปัจจุบัน: ${pts} แต้ม (คลิกเพื่อแก้ไข)`,
+          emoji: { name: GAME_UNICODE_EMOJIS[gId] || "🎮" },
+        };
+      });
+
+      page2Components.push({
+        type: 1,
+        components: [
+          {
+            type: 3,
+            custom_id: "akari_setting_points_menu",
+            placeholder: "✏️︲จัดการแต้มมินิเกม",
+            options: pointsOptions,
+          },
+        ],
+      });
+    }
+
+    page2Components.push(
+      {
+        type: 14,
+        spacing: 2,
+        divider: true,
+      },
+      {
+        type: 1,
+        components: [
+          {
+            type: 2,
+            style: 2,
+            label: "กลับหน้าแรก 2/2",
+            custom_id: "akari_setting_page_1",
+            disabled: false,
+            emoji: {
+              name: "⬅️",
+            },
+          },
+        ],
+      }
+    );
+
+    return {
+      flags: FLAG_V2,
+      components: [
+        {
+          type: 17,
+          components: page2Components,
+        },
+      ],
+    };
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // ── หน้า 1/2 (ข้อมูลเซิร์ฟเวอร์, เกมฟรี & เกมพรีเมี่ยม) ───────────────
+  // ══════════════════════════════════════════════════════════════════════
+  const freeLines = FREE_GAME_IDS.map((gId) => {
+    const status = gameStatuses[gId]?.status;
+    const clean = getCleanGameName(gId);
+    if (status === "active") return `✅ | ${clean}`;
+    if (status === "missing") return `⚠️ | ${clean} (ห้องหาย)`;
+    return `❌ | ${clean}`;
+  }).join("\n");
+
+  const freeSelectOptions = FREE_GAME_IDS.map((gId) => {
+    const gameInfo = gameStatuses[gId];
     let emoji = { id: "1548760143192260689", name: "conektionbad", animated: false };
-    let desc = gameInfo.boundChannelId ? "สถานะ: ปิดอยู่ (กดเพื่อเปิด)" : "ยังไม่ได้ผูกห้อง (กดเพื่อดูวิธีผูกด้วย /set-game)";
+    let desc = gameInfo.boundChannelId ? "สถานะ: ปิดอยู่ (กดเพื่อเปิด)" : "ยังไม่ได้ผูกห้อง (กดเพื่อผูกห้อง)";
     let label = AKARI_GAME_NAMES[gId];
 
     if (gameInfo.status === "missing") {
-      emoji = { id: "1548760281675599964", name: "conektionokay", animated: false };
-      desc = "ห้องหาย/ถูกลบ (กดเพื่อเคลียร์และคืนโควตา)";
-    } else if (!isPremium && isHeavy) {
-      emoji = { id: "1521245223311769673", name: "618492diamond", animated: false };
-      desc = GAME_DESCRIPTIONS[gId];
-      label = `${AKARI_GAME_NAMES[gId]} [พรีเมี่ยม]`;
+      emoji = { name: "⚠️" };
+      desc = "คลิกเพื่อเลือกห้องใหม่";
     } else if (gameInfo.status === "active") {
       emoji = { id: "1548760301762121801", name: "goodconektion", animated: false };
-      desc = `พร้อมเล่นที่ #${gameInfo.channelObj.name} (กดเพื่อปิด)`;
+      desc = `พร้อมเล่นที่ #${gameInfo.channelObj?.name || "ห้องเกม"} (กดเพื่อปิด)`;
     }
 
     return {
@@ -805,112 +1028,161 @@ async function buildSettingGamesPayload(guild, supabase) {
     };
   });
 
-  const activeGameIds = displayableGameIds.filter(
-    (idStr) => gameStatuses[parseInt(idStr, 10)]?.status === "active"
-  );
+  let premiumLines = "";
+  if (!isPremium) {
+    premiumLines = PREMIUM_GAME_IDS.map((gId) => `🔒 | ${getCleanGameName(gId)}`).join("\n");
+  } else {
+    premiumLines = PREMIUM_GAME_IDS.map((gId) => {
+      const status = gameStatuses[gId]?.status;
+      const clean = getCleanGameName(gId);
+      if (status === "active") return `✅ | ${clean}`;
+      if (status === "missing") return `⚠️ | ${clean} (ห้องหาย)`;
+      return `❌ | ${clean}`;
+    }).join("\n");
+  }
 
-  const resetOptions = [
+  const page1Components = [
     {
-      label: "สปอว์นโจทย์ใหม่ทุกเกมที่เปิดอยู่ (Reset All Games)",
-      description: "รีเซ็ตและส่งการ์ดโจทย์ใหม่ลงทุกช่องมินิเกมของเซิร์ฟเวอร์",
-      value: "reset_all",
-      emoji: { name: "🔄" },
+      type: 12,
+      items: [{ media: { url: bannerUrl } }],
     },
-    ...activeGameIds.map((idStr) => {
-      const gId = parseInt(idStr, 10);
-      return {
-        label: `รีเซ็ตโจทย์ใหม่: ${AKARI_GAME_NAMES[gId]}`,
-        description: `ส่งการ์ดโจทย์ข้อใหม่ลงในช่องมินิเกม #${gId}`,
-        value: `reset_${gId}`,
-        emoji: { name: "🔄" },
-      };
-    }),
+    {
+      type: 10,
+      content: headerContent,
+    },
+    {
+      type: 14,
+      spacing: 2,
+    },
+    {
+      type: 9,
+      components: [
+        {
+          type: 10,
+          content: `1. **\` ☕ ข้อมูลเซิร์ฟเวอร์ \` *!***\n  - ชื่อเซิร์ฟเวอร์ : ${guild.name}\n  - แพ็กเกจ : ${planText}\n  - โควตาที่ใช้ : ${quotaText}\n  - สกุลแต้ม : ${currencyEmoji}`,
+        },
+      ],
+      accessory: {
+        style: 1,
+        type: 2,
+        custom_id: "akari_setting_currency_btn",
+        label: "ตั้งค่าสกุลเงินแต้ม",
+      },
+    },
+    {
+      type: 14,
+      spacing: 2,
+      divider: true,
+    },
+    {
+      type: 10,
+      content: `2. **\` 🟢 สถานะเกมฟรี \` *!***\n\`\`\`\n${freeLines}\n\`\`\``,
+    },
+    {
+      type: 1,
+      components: [
+        {
+          type: 3,
+          custom_id: "akari_setting_toggle_menu",
+          placeholder: "✏️︲เลือกมินิเกมเพื่อสลับสถานะ",
+          options: freeSelectOptions,
+        },
+      ],
+    },
+    {
+      type: 14,
+      spacing: 2,
+      divider: true,
+    },
+    {
+      type: 10,
+      content: `3. **\` 💎 สถานะเกมพรีเมี่ยม \` *!***\n\`\`\`\n${premiumLines}\n\`\`\``,
+    },
   ];
 
-  const storeConfig = await getTenantStoreConfig(supabase, guild.id);
-  const currencyEmoji = storeConfig?.currency_emoji || "<:strawberryv2:1548976664090779650>";
+  if (!isPremium) {
+    page1Components.push({
+      type: 1,
+      components: [
+        {
+          type: 2,
+          style: 3,
+          label: "︲ปลดล็อค 13 เกมเพียง 59 บาท",
+          custom_id: "akari_setting_promo_59",
+          disabled: false,
+          emoji: {
+            id: "1372837492205555812",
+            name: "3602exclamationmarkbubble",
+            animated: true,
+          },
+        },
+      ],
+    });
+  } else {
+    const premiumSelectOptions = PREMIUM_GAME_IDS.map((gId) => {
+      const gameInfo = gameStatuses[gId];
+      let emoji = { id: "1548760143192260689", name: "conektionbad", animated: false };
+      let desc = gameInfo.boundChannelId ? "สถานะ: ปิดอยู่ (กดเพื่อเปิด)" : "ยังไม่ได้ผูกห้อง (กดเพื่อผูกห้อง)";
+      let label = AKARI_GAME_NAMES[gId];
 
-  const planText = isPremium ? "Premium (พรีเมียม)" : "Standard (ฟรี)";
-  const quotaText = isPremium ? `ไม่จำกัด (${activeCount} เกม)` : `${activeCount}/${FREE_QUOTA_LIMIT} เกม`;
+      if (gameInfo.status === "missing") {
+        emoji = { name: "⚠️" };
+        desc = "คลิกเพื่อเลือกห้องใหม่";
+      } else if (gameInfo.status === "active") {
+        emoji = { id: "1548760301762121801", name: "goodconektion", animated: false };
+        desc = `พร้อมเล่นที่ #${gameInfo.channelObj?.name || "ห้องเกม"} (กดเพื่อปิด)`;
+      }
 
-  const totalDisplayGames = displayableGameIds.length;
-  const disabledCount = totalDisplayGames - activeCount - missingCount;
+      return {
+        label: label.length > 100 ? label.slice(0, 97) + "..." : label,
+        description: desc.length > 100 ? desc.slice(0, 97) + "..." : desc,
+        value: `toggle_${gId}`,
+        emoji,
+      };
+    });
 
-  const sectionContent =
-    `<:nerdybearplush:1396431213127794768>⠀**แพ็กเกจ**︰\` ${planText} \`\n` +
-    `<:vintagetv:1561395222934458428>⠀**โควตาที่ใช้**︰\` ${quotaText} \`\n` +
-    `### <a:28630coffee:1561396115436216513> ︲สถานะห้อง\n` +
-    `>>> <:goodconektion:1548760301762121801> พร้อมเล่น **${activeCount}** เกม\n` +
-    `<:conektionokay:1548760281675599964> ห้องหาย **${missingCount}** เกม\n` +
-    `<:conektionbad:1548760143192260689> ปิดอยู่ **${Math.max(0, disabledCount)}** เกม`;
+    page1Components.push({
+      type: 1,
+      components: [
+        {
+          type: 3,
+          custom_id: "akari_setting_toggle_premium_menu",
+          placeholder: "✏️︲เลือกมินิเกมเพื่อสลับสถานะ",
+          options: premiumSelectOptions,
+        },
+      ],
+    });
+  }
 
-  const guildIconUrl = guild.iconURL({ size: 256 }) || "https://cdn.discordapp.com/embed/avatars/0.png";
+  page1Components.push(
+    {
+      type: 14,
+      spacing: 2,
+      divider: true,
+    },
+    {
+      type: 1,
+      components: [
+        {
+          type: 2,
+          style: 2,
+          label: "ไปหน้า 1/2",
+          custom_id: "akari_setting_page_2",
+          disabled: false,
+          emoji: {
+            name: "➡️",
+          },
+        },
+      ],
+    }
+  );
 
   return {
     flags: FLAG_V2,
     components: [
       {
         type: 17,
-        components: [
-          {
-            type: 10,
-            content: "## <:bee20000:1256669436350562355>︲__` 𝖲𝖾𝗍𝗍𝗂𝗇𝗀𝗌 ₊ จัดการมินิเกม 𓂃 `__",
-          },
-          {
-            type: 14,
-            spacing: 2,
-          },
-          {
-            type: 9,
-            components: [{ type: 10, content: sectionContent }],
-            accessory: {
-              type: 11,
-              media: {
-                url: guildIconUrl,
-              },
-            },
-          },
-          {
-            type: 14,
-            spacing: 2,
-          },
-          {
-            type: 1,
-            components: [
-              {
-                type: 3,
-                custom_id: "akari_setting_toggle_menu",
-                placeholder: "🎮︲เลือกมินิเกมเพื่อสลับสถานะ หรือเคลียร์ห้องหาย",
-                options: selectOptions,
-              },
-            ],
-          },
-          { type: 14, spacing: 1, divider: false },
-          {
-            type: 1,
-            components: [
-              {
-                type: 3,
-                custom_id: "akari_setting_reset_menu",
-                placeholder: "🔄︲เลือกมินิเกมเพื่อสั่ง สปอว์น/ส่งโจทย์ใหม่ ทันที",
-                options: resetOptions,
-              },
-            ],
-          },
-          { type: 14, spacing: 1, divider: false },
-          {
-            type: 1,
-            components: [
-              {
-                type: 2,
-                style: 2, // Secondary
-                label: "︲ตั้งค่าสกุลเงินแต้ม",
-                custom_id: "akari_setting_currency_btn",
-                emoji: parseEmojiObject(currencyEmoji),
-              },
-            ],
-          },
-        ],
+        components: page1Components,
       },
     ],
   };
@@ -927,8 +1199,28 @@ async function handleSettingGames(interaction, supabase) {
   }
 
   await interaction.deferReply();
-  const payload = await buildSettingGamesPayload(guild, supabase);
+  const payload = await buildSettingGamesPayload(guild, supabase, 1);
   return interaction.editReply(payload);
+}
+
+/**
+ * สลับหน้าระหว่างหน้า 1 และ 2 ของ /setting-games แบบ In-Place
+ */
+async function handleSettingPageSwitch(interaction, supabase, targetPage = 1) {
+  if (!interaction.member?.permissions?.has(PermissionFlagsBits.ManageChannels) &&
+      !interaction.member?.permissions?.has(PermissionFlagsBits.Administrator)) {
+    return interaction.reply(buildNoPermissionPayload());
+  }
+
+  const payload = await buildSettingGamesPayload(interaction.guild, supabase, targetPage);
+  return interaction.update(payload);
+}
+
+/**
+ * แสดงการ์ดสิทธิพิเศษพรีเมียม 59 บาท เมื่อกดปุ่มปลดล็อค
+ */
+async function handleSettingPromoButton(interaction) {
+  return interaction.reply(buildPremiumUpsellPayload());
 }
 
 /**
@@ -1077,12 +1369,27 @@ async function handleSettingCurrencyModalSubmit(interaction, supabase) {
  * จัดการ Interaction เมื่อกดเปลี่ยนสถานะเปิด/ปิดใน /setting-games (Component V2 - ตกแต่งสไตล์ EMOJIS.md)
  */
 async function handleSettingToggle(interaction, supabase) {
-  if (!interaction.isStringSelectMenu() || interaction.customId !== "akari_setting_toggle_menu") return;
+  if (!interaction.isStringSelectMenu()) return;
+  if (
+    interaction.customId !== "akari_setting_toggle_menu" &&
+    interaction.customId !== "kuma_setting_toggle_menu" &&
+    interaction.customId !== "akari_setting_toggle_premium_menu" &&
+    interaction.customId !== "p_363685568665620504"
+  ) {
+    return;
+  }
+
+  if (
+    !interaction.member?.permissions?.has(PermissionFlagsBits.ManageChannels) &&
+    !interaction.member?.permissions?.has(PermissionFlagsBits.Administrator)
+  ) {
+    return interaction.reply(buildNoPermissionPayload());
+  }
 
   const selectedValue = interaction.values[0];
   if (!selectedValue.startsWith("toggle_")) return;
 
-  const gameId = parseInt(selectedValue.replace("toggle_", ""));
+  const gameId = parseInt(selectedValue.replace("toggle_", ""), 10);
   const guildId = interaction.guild.id;
   const gameName = AKARI_GAME_NAMES[gameId] || `มินิเกม #${gameId}`;
 
@@ -1093,10 +1400,13 @@ async function handleSettingToggle(interaction, supabase) {
     });
   }
 
+  // แจ้งสถานะกำลังแก้ไขข้อมูลแบบ Ephemeral ทันที
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => {});
+
   // 0. ตรวจสอบสถานะ Premium: หากกดเกมที่ติดพรีเมี่ยม และเซิร์ฟเวอร์ยังไม่ได้เป็น Premium ให้แสดงการ์ดแบบ Ephemeral ทันที
   const planInfo = await getTenantPlan(guildId, supabase);
   if (HEAVYWEIGHT_GAMES.includes(gameId) && !planInfo.isPremium) {
-    return interaction.reply(buildPremiumUpsellPayload());
+    return interaction.editReply(buildPremiumUpsellPayload());
   }
 
   // 1. ตรวจสอบว่าเกมนี้ห้องหาย หรือยังไม่ได้ผูกห้องหรือไม่
@@ -1148,9 +1458,29 @@ async function handleSettingToggle(interaction, supabase) {
     clearActiveTenantSession(guildId, boundChannelId);
     invalidateSettingsCache(guildId);
 
-    // อัปเดตแดชบอร์ดหลักทันทีแบบ In-Place
-    const updatedPayload = await buildSettingGamesPayload(interaction.guild, supabase);
-    return await interaction.update(updatedPayload);
+    // อัปเดตข้อความแดชบอร์ดเดิมแบบ In-Place (Page 1)
+    if (interaction.message) {
+      const updatedPayload = await buildSettingGamesPayload(interaction.guild, supabase, 1);
+      await interaction.message.edit(updatedPayload).catch(() => {});
+    }
+
+    return interaction.editReply({
+      flags: FLAG_V2,
+      components: [
+        {
+          type: 17,
+          components: [
+            {
+              type: 10,
+              content:
+                `## <:50121checkmark:1358584609087946867>︲__\` 𝖲𝗎𝖼𝖼𝖾𝗌𝗌 ₊ แก้ไขสำเร็จ 𓂃 \`__\n` +
+                `> เคลียร์ข้อมูลห้องที่หายไปของ **${gameName}** และคืนโควตามินิเกมเรียบร้อยแล้วครับ! ✨\n\n` +
+                `-# หน้าต่างการตั้งค่าได้รับการอัปเดตเรียบร้อยแล้วครับ <:cuteplant:1152834055528783872>`,
+            },
+          ],
+        },
+      ],
+    });
   }
 
   let currentEnabled = true;
@@ -1165,63 +1495,65 @@ async function handleSettingToggle(interaction, supabase) {
     if (data && typeof data.enabled === "boolean") {
       currentEnabled = data.enabled;
     }
+  }
 
-    const nextEnabled = !currentEnabled;
+  const nextEnabled = !currentEnabled;
 
-    // กรณี 2: พยายามเปิดใช้งาน แต่ยังไม่ได้ผูกห้องใดๆ -> แจ้งเตือนแบบ Ephemeral ไม่งงและไม่ทำลายแดชบอร์ด
-    if (!boundChannelId && nextEnabled) {
-      const noChannelText =
-        `## <:lowwarning:1548772721679278180>︲__\` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ ยังไม่ได้ผูกห้องมินิเกม 𓂃 \`__\n` +
-        `# มินิเกม **${gameName}** ยังไม่มีห้องสำหรับเล่นในเซิร์ฟเวอร์\n` +
-        `> 💡⠀**วิธีเปิดใช้งาน:** กรุณาใช้คำสั่ง \`/set-game game:${gameName} channel:<เลือกห้อง>\` หรือคำสั่ง \`/setup-games\` เพื่อสร้างห้องและเริ่มเล่นทันทีครับ\n\n` +
-        `-# <<< สามารถใช้คำสั่ง \`/set-game\` เพื่อผูกห้องใหม่ได้ทุกเมื่อครับ >>>`;
+  // กรณี 2: พยายามเปิดใช้งาน แต่ยังไม่ได้ผูกห้องใดๆ -> แจ้งเตือนแบบ Ephemeral
+  if (!boundChannelId && nextEnabled) {
+    const noChannelText =
+      `## <:lowwarning:1548772721679278180>︲__\` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ ยังไม่ได้ผูกห้องมินิเกม 𓂃 \`__\n` +
+      `# มินิเกม **${gameName}** ยังไม่มีห้องสำหรับเล่นในเซิร์ฟเวอร์\n` +
+      `> 💡⠀**วิธีเปิดใช้งาน:** กรุณาใช้คำสั่ง \`/set-game game:${gameName} channel:<เลือกห้อง>\` หรือคำสั่ง \`/setup-games\` เพื่อสร้างห้องและเริ่มเล่นทันทีครับ\n\n` +
+      `-# <<< สามารถใช้คำสั่ง \`/set-game\` เพื่อผูกห้องใหม่ได้ทุกเมื่อครับ >>>`;
 
-      return interaction.reply({
-        flags: FLAG_V2 | MessageFlags.Ephemeral,
-        components: [
-          {
-            type: 17,
-            components: [
-              {
-                type: 10,
-                content: noChannelText,
-              },
-            ],
-          },
-        ],
-      });
-    }
+    return interaction.editReply({
+      flags: FLAG_V2,
+      components: [
+        {
+          type: 17,
+          components: [
+            {
+              type: 10,
+              content: noChannelText,
+            },
+          ],
+        },
+      ],
+    });
+  }
 
-    // กรณี 3: พยายามเปิดใช้งาน ให้ตรวจสอบโควตาและสถานะพรีเมียม
-    if (nextEnabled) {
-      let enabledCount = 0;
-      if (supabase) {
-        // นับเฉพาะมินิเกมที่มีการผูกห้องอยู่จริงในเซิร์ฟเวอร์ และเปิดใช้งานอยู่
-        const { data: boundChannels } = await supabase
-          .from("tenant_minigame_channels")
-          .select("game_id")
-          .eq("guild_id", guildId);
+  // กรณี 3: พยายามเปิดใช้งาน ให้ตรวจสอบโควตาและสถานะพรีเมียม
+  if (nextEnabled) {
+    let enabledCount = 0;
+    if (supabase) {
+      // นับเฉพาะมินิเกมที่มีการผูกห้องอยู่จริงในเซิร์ฟเวอร์ และเปิดใช้งานอยู่
+      const { data: boundChannels } = await supabase
+        .from("tenant_minigame_channels")
+        .select("game_id")
+        .eq("guild_id", guildId);
 
-        const boundGameIds = new Set((boundChannels || []).map((c) => Number(c.game_id)));
+      const boundGameIds = new Set((boundChannels || []).map((c) => Number(c.game_id)));
 
-        const { data: allSettings } = await supabase
-          .from("tenant_minigame_settings")
-          .select("game_id, enabled")
-          .eq("guild_id", guildId);
+      const { data: allSettings } = await supabase
+        .from("tenant_minigame_settings")
+        .select("game_id, enabled")
+        .eq("guild_id", guildId);
 
-        if (allSettings && Array.isArray(allSettings)) {
-          enabledCount = allSettings.filter(
-            (s) => boundGameIds.has(Number(s.game_id)) && s.enabled === true && Number(s.game_id) !== gameId
-          ).length;
-        }
-      }
-
-      const access = await validateGameAccess(guildId, gameId, supabase, enabledCount);
-      if (!access.allowed) {
-        return interaction.reply(buildPremiumUpsellPayload());
+      if (allSettings && Array.isArray(allSettings)) {
+        enabledCount = allSettings.filter(
+          (s) => boundGameIds.has(Number(s.game_id)) && s.enabled === true && Number(s.game_id) !== gameId
+        ).length;
       }
     }
 
+    const access = await validateGameAccess(guildId, gameId, supabase, enabledCount);
+    if (!access.allowed) {
+      return interaction.editReply(buildPremiumUpsellPayload());
+    }
+  }
+
+  if (supabase) {
     await supabase.from("tenant_minigame_settings").upsert(
       {
         guild_id: guildId,
@@ -1231,29 +1563,46 @@ async function handleSettingToggle(interaction, supabase) {
       },
       { onConflict: "guild_id,game_id" }
     );
-
-    invalidateSettingsCache(guildId);
-
-    // หากเปิดเกมกลับมา (Toggle ON) และยังไม่มีโจทย์ค้างอยู่ ให้เริ่มสปอว์นโจทย์ใหม่ทันที
-    if (nextEnabled && channelObj) {
-      const existingSession = getActiveTenantSession(guildId, boundChannelId);
-      if (!existingSession) {
-        spawnQuestion(interaction.client, channelObj, gameId, guildId, supabase).catch((err) => {
-          console.error(`[handleSettingToggle] Auto-spawn error for game ${gameId}:`, err);
-        });
-      }
-    } else if (!nextEnabled && boundChannelId) {
-      // หากปิดเกม (Toggle OFF) ให้ล้าง session ค้างเพื่อหยุดเกมอย่างสมบูรณ์
-      clearActiveTenantSession(guildId, boundChannelId);
-    }
-
-    // อัปเดตหน้า Dashboard เดิมทันที (In-Place Update) แบบ Realtime
-    const updatedPayload = await buildSettingGamesPayload(interaction.guild, supabase);
-    return await interaction.update(updatedPayload);
-  } else {
-    const updatedPayload = await buildSettingGamesPayload(interaction.guild, supabase);
-    return await interaction.update(updatedPayload);
   }
+
+  invalidateSettingsCache(guildId);
+
+  // หากเปิดเกมกลับมา (Toggle ON) และยังไม่มีโจทย์ค้างอยู่ ให้เริ่มสปอว์นโจทย์ใหม่ทันที
+  if (nextEnabled && channelObj) {
+    const existingSession = getActiveTenantSession(guildId, boundChannelId);
+    if (!existingSession) {
+      spawnQuestion(interaction.client, channelObj, gameId, guildId, supabase).catch((err) => {
+        console.error(`[handleSettingToggle] Auto-spawn error for game ${gameId}:`, err);
+      });
+    }
+  } else if (!nextEnabled && boundChannelId) {
+    // หากปิดเกม (Toggle OFF) ให้ล้าง session ค้างเพื่อหยุดเกมอย่างสมบูรณ์
+    clearActiveTenantSession(guildId, boundChannelId);
+  }
+
+  // อัปเดตข้อความแดชบอร์ดเดิมแบบ In-Place (Page 1)
+  if (interaction.message) {
+    const updatedPayload = await buildSettingGamesPayload(interaction.guild, supabase, 1);
+    await interaction.message.edit(updatedPayload).catch(() => {});
+  }
+
+  return interaction.editReply({
+    flags: FLAG_V2,
+    components: [
+      {
+        type: 17,
+        components: [
+          {
+            type: 10,
+            content:
+              `## <:50121checkmark:1358584609087946867>︲__\` 𝖲𝗎𝖼𝖼𝖾𝗌𝗌 ₊ แก้ไขสำเร็จ 𓂃 \`__\n` +
+              `> สลับสถานะ **${gameName}** เป็น **${nextEnabled ? "เปิดใช้งาน ✅" : "ปิดใช้งาน ❌"}** เรียบร้อยแล้วครับ! ✨\n\n` +
+              `-# หน้าต่างการตั้งค่าได้รับการอัปเดตเรียบร้อยแล้วครับ <:cuteplant:1152834055528783872>`,
+          },
+        ],
+      },
+    ],
+  });
 }
 
 /**
@@ -1447,15 +1796,48 @@ async function handleClearCategory(interaction, supabase) {
  * จัดการ Interaction เมื่อกดสั่งสปอว์น/รีเซ็ตโจทย์ใหม่ใน /setting-games
  */
 async function handleSettingReset(interaction, supabase, client) {
-  if (!interaction.isStringSelectMenu() || interaction.customId !== "akari_setting_reset_menu") return;
+  if (!interaction.isStringSelectMenu()) return;
+  if (
+    interaction.customId !== "akari_setting_reset_menu" &&
+    interaction.customId !== "kuma_setting_reset_menu"
+  ) {
+    return;
+  }
+
+  if (
+    !interaction.member?.permissions?.has(PermissionFlagsBits.ManageChannels) &&
+    !interaction.member?.permissions?.has(PermissionFlagsBits.Administrator)
+  ) {
+    return interaction.reply(buildNoPermissionPayload());
+  }
 
   const selectedValue = interaction.values[0];
+  if (selectedValue === "reset_none") {
+    return interaction.reply({
+      flags: FLAG_V2 | MessageFlags.Ephemeral,
+      components: [
+        {
+          type: 17,
+          components: [
+            {
+              type: 10,
+              content:
+                `## <:lowwarning:1548772721679278180>︲__\` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ ไม่มีห้องเกมที่เปิดอยู่ 𓂃 \`__\n` +
+                `> กรุณาเปิดใช้งานมินิเกมใน **หน้า 1/2** ก่อนทำการรีเซ็ตโจทย์นะครับ!`,
+            },
+          ],
+        },
+      ],
+    });
+  }
+
   if (!selectedValue.startsWith("reset_")) return;
 
   const guild = interaction.guild;
   const guildId = guild.id;
 
-  await interaction.deferReply();
+  // แจ้งสถานะกำลังแก้ไขข้อมูลแบบ Ephemeral ทันที
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => {});
 
   if (selectedValue === "reset_all") {
     let resetCount = 0;
@@ -1478,7 +1860,14 @@ async function handleSettingReset(interaction, supabase, client) {
 
     const contentText =
       `## <:50121checkmark:1358584609087946867>︲__\` 𝖲𝖾𝗍𝗍𝗂𝗇𝗀 𝗋𝖾𝗌𝖾𝗍 ₊ รีเซ็ตโจทย์สำเร็จ 𓂃 \`__\n` +
-      `# รีเซ็ตและส่งการ์ดโจทย์ใหม่ลงทุกช่องมินิเกมสำเร็จ! (**${resetCount}** ช่อง)`;
+      `> รีเซ็ตและส่งการ์ดโจทย์ใหม่ลงทุกช่องมินิเกมสำเร็จ! (**${resetCount}** ช่อง)\n\n` +
+      `-# หน้าต่างการตั้งค่าได้รับการอัปเดตเรียบร้อยแล้วครับ <:cuteplant:1152834055528783872>`;
+
+    // อัปเดตแดชบอร์ดหน้า 2 ในพื้นหลังแบบ In-Place
+    if (interaction.message) {
+      const updatedPayload = await buildSettingGamesPayload(guild, supabase, 2);
+      await interaction.message.edit(updatedPayload).catch(() => {});
+    }
 
     return interaction.editReply({
       flags: FLAG_V2,
@@ -1495,7 +1884,7 @@ async function handleSettingReset(interaction, supabase, client) {
       ],
     });
   } else {
-    const gameId = parseInt(selectedValue.replace("reset_", ""));
+    const gameId = parseInt(selectedValue.replace("reset_", ""), 10);
     const gameName = AKARI_GAME_NAMES[gameId] || `มินิเกม #${gameId}`;
     let success = false;
 
@@ -1518,9 +1907,16 @@ async function handleSettingReset(interaction, supabase, client) {
 
     const contentText = success
       ? `## <:50121checkmark:1358584609087946867>︲__\` 𝖦𝖺𝗆𝖾 𝗋𝖾𝗌𝖾𝗍 ₊ รีเซ็ตโจทย์สำเร็จ 𓂃 \`__\n` +
-      `# รีเซ็ตและส่งการ์ดโจทย์ใหม่สำหรับ **${gameName}** สำเร็จ!`
-      : `## <:68440x:1358584606911369226>︲__\` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ ไม่พบช่องมินิเกม 𓂃 \`__\n` +
-      `# ไม่พบช่องทางสำหรับ **${gameName}** ในเซิร์ฟเวอร์นี้ (กรุณารัน /setup-games ก่อน)`;
+        `> รีเซ็ตและส่งการ์ดโจทย์ใหม่สำหรับ **${gameName}** สำเร็จ!\n\n` +
+        `-# หน้าต่างการตั้งค่าได้รับการอัปเดตเรียบร้อยแล้วครับ <:cuteplant:1152834055528783872>`
+      : `## <:lowwarning:1548772721679278180>︲__\` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ ไม่พบช่องมินิเกม 𓂃 \`__\n` +
+        `> ไม่พบช่องทางสำหรับ **${gameName}** ในเซิร์ฟเวอร์นี้ (กรุณารัน \`/setup-games\` ก่อน)`;
+
+    // อัปเดตแดชบอร์ดหน้า 2 ในพื้นหลังแบบ In-Place
+    if (interaction.message) {
+      const updatedPayload = await buildSettingGamesPayload(guild, supabase, 2);
+      await interaction.message.edit(updatedPayload).catch(() => {});
+    }
 
     return interaction.editReply({
       flags: FLAG_V2,
@@ -1537,6 +1933,151 @@ async function handleSettingReset(interaction, supabase, client) {
       ],
     });
   }
+}
+
+/**
+ * จัดการเมื่อเลือกเกมจากเมนูตั้งค่าแต้มรางวัล (akari_setting_points_menu)
+ */
+async function handleSettingPointsSelect(interaction, supabase) {
+  if (!interaction.isStringSelectMenu()) return;
+  if (
+    interaction.customId !== "akari_setting_points_menu" &&
+    interaction.customId !== "p_363683368786726927"
+  ) {
+    return;
+  }
+
+  if (
+    !interaction.member?.permissions?.has(PermissionFlagsBits.ManageChannels) &&
+    !interaction.member?.permissions?.has(PermissionFlagsBits.Administrator)
+  ) {
+    return interaction.reply(buildNoPermissionPayload());
+  }
+
+  const planInfo = await getTenantPlan(interaction.guildId, supabase);
+  if (!planInfo.isPremium) {
+    return interaction.reply(buildPremiumUpsellPayload());
+  }
+
+  const selectedValue = interaction.values[0];
+  if (!selectedValue.startsWith("points_")) return;
+
+  const gameId = parseInt(selectedValue.replace("points_", ""), 10);
+  const cleanName = getCleanGameName(gameId);
+
+  let currentPoints = 10;
+  if (supabase) {
+    const { data } = await supabase
+      .from("tenant_minigame_settings")
+      .select("points_per_win")
+      .eq("guild_id", interaction.guildId)
+      .eq("game_id", gameId)
+      .maybeSingle();
+
+    if (data?.points_per_win != null) {
+      currentPoints = data.points_per_win;
+    }
+  }
+
+  const msgId = interaction.message?.id || "";
+  const modal = new ModalBuilder()
+    .setCustomId(`akari_points_modal_submit:${gameId}:${msgId}`)
+    .setTitle(`ตั้งค่าแต้ม: ${cleanName.slice(0, 30)}`);
+
+  const pointsInput = new TextInputBuilder()
+    .setCustomId("points_input")
+    .setLabel("จำนวนแต้มที่ได้รับเมื่อชนะ (1 - 10,000)")
+    .setStyle(TextInputStyle.Short)
+    .setValue(String(currentPoints))
+    .setPlaceholder("เช่น 10, 20, 50, 100")
+    .setRequired(true)
+    .setMinLength(1)
+    .setMaxLength(6);
+
+  modal.addComponents(new ActionRowBuilder().addComponents(pointsInput));
+  return interaction.showModal(modal);
+}
+
+/**
+ * จัดการเมื่อส่ง Modal ตั้งค่าแต้มรางวัลของแต่ละมินิเกม (akari_points_modal_submit)
+ */
+async function handleSettingPointsModalSubmit(interaction, supabase) {
+  const customId = interaction.customId;
+  if (!customId.startsWith("akari_points_modal_submit:")) return;
+
+  const parts = customId.split(":");
+  const gameId = parseInt(parts[1], 10);
+  const msgId = parts[2] || "";
+
+  const gameName = AKARI_GAME_NAMES[gameId] || `มินิเกม #${gameId}`;
+  const inputStr = interaction.fields.getTextInputValue("points_input")?.trim() || "";
+  const inputVal = parseInt(inputStr, 10);
+
+  if (isNaN(inputVal) || inputVal <= 0 || inputVal > 100000) {
+    return interaction.reply({
+      flags: MessageFlags.Ephemeral | FLAG_V2,
+      components: [
+        {
+          type: 17,
+          components: [
+            {
+              type: 10,
+              content:
+                `## <:lowwarning:1548772721679278180>︲__\` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ จำนวนแต้มไม่ถูกต้อง 𓂃 \`__\n` +
+                `> กรุณาระบุจำนวนแต้มเป็นตัวเลขจำนวนเต็มบวกระหว่าง **1 ถึง 100,000** นะครับ!`,
+            },
+          ],
+        },
+      ],
+    });
+  }
+
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => {});
+
+  if (supabase) {
+    await supabase.from("tenant_minigame_settings").upsert(
+      {
+        guild_id: interaction.guildId,
+        game_id: gameId,
+        points_per_win: inputVal,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "guild_id,game_id" }
+    );
+  }
+
+  invalidateSettingsCache(interaction.guildId);
+
+  // อัปเดตแดชบอร์ด /setting-games เดิมในพื้นหลัง (Page 2)
+  if (msgId && interaction.channel) {
+    (async () => {
+      try {
+        const originalMsg = await interaction.channel.messages.fetch(msgId).catch(() => null);
+        if (originalMsg) {
+          const updatedPayload = await buildSettingGamesPayload(interaction.guild, supabase, 2);
+          await originalMsg.edit(updatedPayload).catch(() => {});
+        }
+      } catch (err) {}
+    })();
+  }
+
+  return interaction.editReply({
+    flags: FLAG_V2,
+    components: [
+      {
+        type: 17,
+        components: [
+          {
+            type: 10,
+            content:
+              `## <:50121checkmark:1358584609087946867>︲__\` 𝖲𝗎𝖼𝖼𝖾𝗌𝗌 ₊ แก้ไขสำเร็จ 𓂃 \`__\n` +
+              `> กำหนดแต้มที่ได้รับเมื่อชนะของ **${gameName}** เป็น **${inputVal.toLocaleString()} แต้ม** เรียบร้อยแล้วครับ! ✨\n\n` +
+              `-# หน้าต่างการตั้งค่าได้รับการอัปเดตเรียบร้อยแล้วครับ <:cuteplant:1152834055528783872>`,
+          },
+        ],
+      },
+    ],
+  });
 }
 
 /**
@@ -2335,8 +2876,14 @@ module.exports = {
   registerAkariCommands,
   handleSetupGames,
   handleSettingGames,
+  handleSettingPageSwitch,
+  handleSettingPromoButton,
   handleSettingToggle,
   handleSettingReset,
+  handleSettingPointsSelect,
+  handleSettingPointsModalSubmit,
+  buildSettingGamesPayload,
+  buildPremiumUpsellPayload,
   handleClearCategory,
   handleSetGame,
   handleRemoveGame,
@@ -2371,4 +2918,7 @@ module.exports = {
   KUMA_REVEAL_ALLOWED_GUILD_ID,
   KUMA_STORE_ALLOWED_GUILD_ID,
   KUMA_STORE_SLASH_COMMANDS,
+  FREE_GAME_IDS,
+  PREMIUM_GAME_IDS,
+  ALL_DISPLAYABLE_IDS,
 };

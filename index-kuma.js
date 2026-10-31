@@ -25,8 +25,14 @@ const {
   registerAkariCommands,
   handleSetupGames,
   handleSettingGames,
+  handleSettingPageSwitch,
+  handleSettingPromoButton,
   handleSettingToggle,
   handleSettingReset,
+  handleSettingPointsSelect,
+  handleSettingPointsModalSubmit,
+  buildSettingGamesPayload,
+  buildPremiumUpsellPayload,
   handleClearCategory,
   handleSetGame,
   handleRemoveGame,
@@ -199,9 +205,29 @@ client.on("interactionCreate", async (interaction) => {
       }
       if (
         interaction.customId === "kuma_setting_currency_btn" ||
-        interaction.customId === "akari_setting_currency_btn"
+        interaction.customId === "akari_setting_currency_btn" ||
+        interaction.customId === "p_363679947237101577"
       ) {
         return await handleSettingCurrencyButton(interaction, kumaSupabase);
+      }
+      if (
+        interaction.customId === "akari_setting_page_1" ||
+        interaction.customId === "p_363685698273808409"
+      ) {
+        return await handleSettingPageSwitch(interaction, kumaSupabase, 1);
+      }
+      if (
+        interaction.customId === "akari_setting_page_2" ||
+        interaction.customId === "p_363681020102316052"
+      ) {
+        return await handleSettingPageSwitch(interaction, kumaSupabase, 2);
+      }
+      if (
+        interaction.customId === "akari_setting_promo_59" ||
+        interaction.customId === "p_363685459928289303" ||
+        interaction.customId === "p_363685276989526038"
+      ) {
+        return await handleSettingPromoButton(interaction);
       }
       if (
         interaction.customId.startsWith("kuma_preview_btn") ||
@@ -232,6 +258,9 @@ client.on("interactionCreate", async (interaction) => {
       ) {
         return await handleSettingCurrencyModalSubmit(interaction, kumaSupabase);
       }
+      if (interaction.customId.startsWith("akari_points_modal_submit:")) {
+        return await handleSettingPointsModalSubmit(interaction, kumaSupabase);
+      }
       if (
         interaction.customId.startsWith("kuma_store_") ||
         interaction.customId.startsWith("akari_store_") ||
@@ -255,7 +284,9 @@ client.on("interactionCreate", async (interaction) => {
       }
       if (
         interaction.customId === "kuma_setting_toggle_menu" ||
-        interaction.customId === "akari_setting_toggle_menu"
+        interaction.customId === "akari_setting_toggle_menu" ||
+        interaction.customId === "akari_setting_toggle_premium_menu" ||
+        interaction.customId === "p_363685568665620504"
       ) {
         return await handleSettingToggle(interaction, kumaSupabase);
       }
@@ -264,6 +295,12 @@ client.on("interactionCreate", async (interaction) => {
         interaction.customId === "akari_setting_reset_menu"
       ) {
         return await handleSettingReset(interaction, kumaSupabase, client);
+      }
+      if (
+        interaction.customId === "akari_setting_points_menu" ||
+        interaction.customId === "p_363683368786726927"
+      ) {
+        return await handleSettingPointsSelect(interaction, kumaSupabase);
       }
     } else if (interaction.isStringSelectMenu()) {
       if (interaction.customId === "kuma_voice_category_select") {
@@ -278,7 +315,9 @@ client.on("interactionCreate", async (interaction) => {
       }
       if (
         interaction.customId === "kuma_setting_toggle_menu" ||
-        interaction.customId === "akari_setting_toggle_menu"
+        interaction.customId === "akari_setting_toggle_menu" ||
+        interaction.customId === "akari_setting_toggle_premium_menu" ||
+        interaction.customId === "p_363685568665620504"
       ) {
         return await handleSettingToggle(interaction, kumaSupabase);
       }
@@ -287,6 +326,12 @@ client.on("interactionCreate", async (interaction) => {
         interaction.customId === "akari_setting_reset_menu"
       ) {
         return await handleSettingReset(interaction, kumaSupabase, client);
+      }
+      if (
+        interaction.customId === "akari_setting_points_menu" ||
+        interaction.customId === "p_363683368786726927"
+      ) {
+        return await handleSettingPointsSelect(interaction, kumaSupabase);
       }
     }
   } catch (error) {

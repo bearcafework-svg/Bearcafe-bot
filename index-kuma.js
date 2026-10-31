@@ -31,6 +31,8 @@ const {
   handleSettingReset,
   handleSettingPointsSelect,
   handleSettingPointsModalSubmit,
+  handleSettingBindChannel,
+  buildBindChannelPayload,
   buildSettingGamesPayload,
   buildPremiumUpsellPayload,
   handleClearCategory,
@@ -271,7 +273,13 @@ client.on("interactionCreate", async (interaction) => {
     }
 
     // Select Menus (String, Role, Channel)
-    if (typeof interaction.isAnySelectMenu === "function" && interaction.isAnySelectMenu()) {
+    if (
+      (typeof interaction.isAnySelectMenu === "function" && interaction.isAnySelectMenu()) ||
+      Boolean(interaction.isChannelSelectMenu && interaction.isChannelSelectMenu())
+    ) {
+      if (interaction.customId.startsWith("akari_setting_bind_channel:")) {
+        return await handleSettingBindChannel(interaction, kumaSupabase, client);
+      }
       if (interaction.customId === "kuma_voice_category_select") {
         return await handleVoiceCategorySelect(interaction, kumaSupabase);
       }
@@ -332,6 +340,10 @@ client.on("interactionCreate", async (interaction) => {
         interaction.customId === "p_363683368786726927"
       ) {
         return await handleSettingPointsSelect(interaction, kumaSupabase);
+      }
+    } else if (Boolean(interaction.isChannelSelectMenu && interaction.isChannelSelectMenu())) {
+      if (interaction.customId.startsWith("akari_setting_bind_channel:")) {
+        return await handleSettingBindChannel(interaction, kumaSupabase, client);
       }
     }
   } catch (error) {

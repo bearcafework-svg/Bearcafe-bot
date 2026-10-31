@@ -762,6 +762,50 @@ function buildPremiumUpsellPayload() {
 }
 
 /**
+ * สร้าง Payload แจ้งเตือนให้เลือกห้องสำหรับเล่นมินิเกม (Channel Select Menu แบบ Ephemeral Component V2)
+ */
+function buildBindChannelPayload(gameId, gameName, cleanName, msgId = "", isMissingRoom = false) {
+  const subtitle = isMissingRoom
+    ? `ห้องเดิมของมินิเกม **${gameName}** ถูกลบไปแล้ว กรุณาเลือกห้องข้อความใหม่ด้านล่างครับ`
+    : `มินิเกม **${gameName}** ยังไม่ได้ผูกกับห้องใดในเซิร์ฟเวอร์`;
+
+  return {
+    flags: FLAG_V2,
+    components: [
+      {
+        type: 17,
+        components: [
+          {
+            type: 10,
+            content:
+              `## <:bee20000:1256669436350562355>︲__\` 𝖲𝖾𝗍𝗍𝗂𝗇𝗀 ₊ ผูกห้องมินิเกม 𓂃 \`__\n` +
+              `# ${subtitle}\n` +
+              `> 💡⠀กรุณาเลือกห้องข้อความ (Text Channel) จากเมนูด้านล่าง เพื่อเริ่มเปิดให้สมาชิกเล่นเกมนี้ได้ทันทีครับ!\n\n` +
+              `-# 📌 สามารถสลับหรือเปลี่ยนห้องใหม่ได้ตลอดเวลาผ่านคำสั่ง /setting-games <:cuteplant:1152834055528783872>`,
+          },
+          {
+            type: 14,
+            spacing: 2,
+            divider: true,
+          },
+          {
+            type: 1,
+            components: [
+              {
+                type: 8, // Channel Select Menu
+                custom_id: `akari_setting_bind_channel:${gameId}:${msgId}`,
+                placeholder: `📢︲เลือกห้องสำหรับเล่น ${cleanName.slice(0, 50)}`,
+                channel_types: [0], // GuildText
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+}
+
+/**
  * สร้าง Payload แดชบอร์ดสำหรับ /setting-games รองรับ 2 หน้าแบบ In-Place
  * @param {import('discord.js').Guild} guild 
  * @param {any} supabase 
@@ -1429,7 +1473,7 @@ async function handleSettingToggle(interaction, supabase) {
   }
   const isMissing = Boolean(boundChannelId && !channelObj);
 
-  // กรณี 1: ⚠️ ห้องหาย -> เคลียร์ช่องเก่าที่หายทิ้งทันที + ปิดเกม + คืนโควตาฟรี
+  // กรณี 1: ⚠️ ห้องหาย -> เคลียร์ช่องเก่าที่หายทิ้งทันที + เปิด SelectChannel ให้เลือกห้องใหม่ทันที!
   if (isMissing) {
     if (supabase) {
       await supabase
@@ -1464,23 +1508,42 @@ async function handleSettingToggle(interaction, supabase) {
       await interaction.message.edit(updatedPayload).catch(() => {});
     }
 
-    return interaction.editReply({
-      flags: FLAG_V2,
-      components: [
-        {
-          type: 17,
-          components: [
-            {
-              type: 10,
-              content:
-                `## <:50121checkmark:1358584609087946867>︲__\` 𝖲𝗎𝖼𝖼𝖾𝗌𝗌 ₊ แก้ไขสำเร็จ 𓂃 \`__\n` +
-                `> เคลียร์ข้อมูลห้องที่หายไปของ **${gameName}** และคืนโควตามินิเกมเรียบร้อยแล้วครับ! ✨\n\n` +
-                `-# หน้าต่างการตั้งค่าได้รับการอัปเดตเรียบร้อยแล้วครับ <:cuteplant:1152834055528783872>`,
-            },
-          ],
-        },
-      ],
-    });
+    const cleanName = getCleanGameName(gameId);
+    const bindPayload = buildBindChannelPayload(gameId, gameName, cleanName, interaction.message?.id || "", true);
+    return interaction.editReply(bindPayload);
+  }
+
+  // กรณี 2: ยังไม่ได้ผูกห้องใดๆ -> แสดง SelectChannel ขึ้นมาให้เลือกห้องแบบ Ephemeral ทันที!
+  if (!boundChannelId) {
+    let enabledCount = 0;
+    if (supabase) {
+      const { data: boundChannels } = await supabase
+        .from("tenant_minigame_channels")
+        .select("game_id")
+        .eq("guild_id", guildId);
+
+      const boundGameIds = new Set((boundChannels || []).map((c) => Number(c.game_id)));
+
+      const { data: allSettings } = await supabase
+        .from("tenant_minigame_settings")
+        .select("game_id, enabled")
+        .eq("guild_id", guildId);
+
+      if (allSettings && Array.isArray(allSettings)) {
+        enabledCount = allSettings.filter(
+          (s) => boundGameIds.has(Number(s.game_id)) && s.enabled === true && Number(s.game_id) !== gameId
+        ).length;
+      }
+    }
+
+    const access = await validateGameAccess(guildId, gameId, supabase, enabledCount);
+    if (!access.allowed) {
+      return interaction.editReply(buildPremiumUpsellPayload());
+    }
+
+    const cleanName = getCleanGameName(gameId);
+    const bindPayload = buildBindChannelPayload(gameId, gameName, cleanName, interaction.message?.id || "", false);
+    return interaction.editReply(bindPayload);
   }
 
   let currentEnabled = true;
@@ -1498,30 +1561,6 @@ async function handleSettingToggle(interaction, supabase) {
   }
 
   const nextEnabled = !currentEnabled;
-
-  // กรณี 2: พยายามเปิดใช้งาน แต่ยังไม่ได้ผูกห้องใดๆ -> แจ้งเตือนแบบ Ephemeral
-  if (!boundChannelId && nextEnabled) {
-    const noChannelText =
-      `## <:lowwarning:1548772721679278180>︲__\` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ ยังไม่ได้ผูกห้องมินิเกม 𓂃 \`__\n` +
-      `# มินิเกม **${gameName}** ยังไม่มีห้องสำหรับเล่นในเซิร์ฟเวอร์\n` +
-      `> 💡⠀**วิธีเปิดใช้งาน:** กรุณาใช้คำสั่ง \`/set-game game:${gameName} channel:<เลือกห้อง>\` หรือคำสั่ง \`/setup-games\` เพื่อสร้างห้องและเริ่มเล่นทันทีครับ\n\n` +
-      `-# <<< สามารถใช้คำสั่ง \`/set-game\` เพื่อผูกห้องใหม่ได้ทุกเมื่อครับ >>>`;
-
-    return interaction.editReply({
-      flags: FLAG_V2,
-      components: [
-        {
-          type: 17,
-          components: [
-            {
-              type: 10,
-              content: noChannelText,
-            },
-          ],
-        },
-      ],
-    });
-  }
 
   // กรณี 3: พยายามเปิดใช้งาน ให้ตรวจสอบโควตาและสถานะพรีเมียม
   if (nextEnabled) {
@@ -1597,6 +1636,192 @@ async function handleSettingToggle(interaction, supabase) {
             content:
               `## <:50121checkmark:1358584609087946867>︲__\` 𝖲𝗎𝖼𝖼𝖾𝗌𝗌 ₊ แก้ไขสำเร็จ 𓂃 \`__\n` +
               `> สลับสถานะ **${gameName}** เป็น **${nextEnabled ? "เปิดใช้งาน ✅" : "ปิดใช้งาน ❌"}** เรียบร้อยแล้วครับ! ✨\n\n` +
+              `-# หน้าต่างการตั้งค่าได้รับการอัปเดตเรียบร้อยแล้วครับ <:cuteplant:1152834055528783872>`,
+          },
+        ],
+      },
+    ],
+  });
+}
+
+/**
+ * จัดการเมื่อเลือกห้องจาก Channel Select Menu ใน /setting-games (akari_setting_bind_channel)
+ */
+async function handleSettingBindChannel(interaction, supabase, client) {
+  if (
+    !interaction.member?.permissions?.has(PermissionFlagsBits.ManageChannels) &&
+    !interaction.member?.permissions?.has(PermissionFlagsBits.Administrator)
+  ) {
+    return interaction.reply(buildNoPermissionPayload());
+  }
+
+  const customId = interaction.customId;
+  if (!customId.startsWith("akari_setting_bind_channel:")) return;
+
+  const parts = customId.split(":");
+  const gameId = parseInt(parts[1], 10);
+  const msgId = parts[2] || "";
+
+  const selectedChannelId = interaction.values[0];
+  const guildId = interaction.guildId;
+  const gameName = AKARI_GAME_NAMES[gameId] || `มินิเกม #${gameId}`;
+
+  const targetChannel =
+    interaction.guild.channels.cache.get(selectedChannelId) ||
+    (await interaction.guild.channels.fetch(selectedChannelId).catch(() => null));
+
+  if (!targetChannel) {
+    return interaction.update({
+      flags: FLAG_V2,
+      components: [
+        {
+          type: 17,
+          components: [
+            {
+              type: 10,
+              content:
+                `## <:lowwarning:1548772721679278180>︲__\` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ ไม่พบห้องที่เลือก 𓂃 \`__\n` +
+                `> บอทไม่พบห้องดังกล่าวในเซิร์ฟเวอร์ กรุณาลองใหม่อีกครั้งครับ`,
+            },
+          ],
+        },
+      ],
+    });
+  }
+
+  // ตรวจสอบสิทธิ์ของบอทในช่องเป้าหมาย
+  const botMember = interaction.guild.members.me || (await interaction.guild.members.fetchMe().catch(() => null));
+  const botPerms = targetChannel.permissionsFor(botMember);
+  if (!botPerms?.has(PermissionFlagsBits.SendMessages) || !botPerms?.has(PermissionFlagsBits.ViewChannel)) {
+    return interaction.update({
+      flags: FLAG_V2,
+      components: [
+        {
+          type: 17,
+          components: [
+            {
+              type: 10,
+              content:
+                `## <:lowwarning:1548772721679278180>︲__\` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ สิทธิ์บอทไม่เพียงพอ 𓂃 \`__\n` +
+                `> บอทไม่มีสิทธิ์ **ส่งข้อความ (Send Messages)** หรือ **ดูช่อง (View Channel)** ในห้อง <#${selectedChannelId}> ครับ\n` +
+                `> กรุณาให้สิทธิ์บอท หรือเลือกห้องข้อความห้องอื่นนะครับ! <:cuteplant:1152834055528783872>`,
+            },
+          ],
+        },
+      ],
+    });
+  }
+
+  // ตรวจสอบ Premium / โควตา
+  const planInfo = await getTenantPlan(guildId, supabase);
+  if (HEAVYWEIGHT_GAMES.includes(gameId) && !planInfo.isPremium) {
+    return interaction.update(buildPremiumUpsellPayload());
+  }
+
+  let enabledCount = 0;
+  if (supabase) {
+    const { data: boundChannels } = await supabase
+      .from("tenant_minigame_channels")
+      .select("game_id")
+      .eq("guild_id", guildId);
+
+    const boundGameIds = new Set((boundChannels || []).map((c) => Number(c.game_id)));
+
+    const { data: allSettings } = await supabase
+      .from("tenant_minigame_settings")
+      .select("game_id, enabled")
+      .eq("guild_id", guildId);
+
+    if (allSettings && Array.isArray(allSettings)) {
+      enabledCount = allSettings.filter(
+        (s) => boundGameIds.has(Number(s.game_id)) && s.enabled === true && Number(s.game_id) !== gameId
+      ).length;
+    }
+  }
+
+  const access = await validateGameAccess(guildId, gameId, supabase, enabledCount);
+  if (!access.allowed) {
+    return interaction.update(buildPremiumUpsellPayload());
+  }
+
+  // ล้าง session เดิมหากเกมนี้เคยผูกกับห้องอื่นมาก่อน
+  if (supabase) {
+    const { data: prevRow } = await supabase
+      .from("tenant_minigame_channels")
+      .select("channel_id")
+      .eq("guild_id", guildId)
+      .eq("game_id", gameId)
+      .maybeSingle();
+
+    if (prevRow?.channel_id && prevRow.channel_id !== targetChannel.id) {
+      try {
+        await supabase
+          .from("tenant_minigame_active_sessions")
+          .delete()
+          .eq("guild_id", guildId)
+          .eq("channel_id", prevRow.channel_id);
+      } catch (_) {}
+      clearActiveTenantSession(guildId, prevRow.channel_id);
+    }
+  }
+
+  // บันทึกการผูกห้องลง Supabase
+  if (supabase) {
+    await supabase.from("tenant_minigame_channels").upsert(
+      {
+        guild_id: guildId,
+        game_id: gameId,
+        channel_id: targetChannel.id,
+        channel_name: targetChannel.name,
+        created_at: new Date().toISOString(),
+      },
+      { onConflict: "guild_id,game_id" }
+    );
+
+    await supabase.from("tenant_minigame_settings").upsert(
+      {
+        guild_id: guildId,
+        game_id: gameId,
+        enabled: true,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "guild_id,game_id" }
+    );
+  }
+
+  invalidateSettingsCache(guildId);
+  clearActiveTenantSession(guildId, targetChannel.id);
+
+  // เริ่มสปอว์นโจทย์ข้อแรกทันทีในห้องเป้าหมาย
+  spawnQuestion(client, targetChannel, gameId, guildId, supabase).catch((err) => {
+    console.error(`[handleSettingBindChannel] Auto-spawn error for game ${gameId}:`, err);
+  });
+
+  // อัปเดตแดชบอร์ด /setting-games เดิมในพื้นหลัง (Page 1) แบบ In-Place
+  if (msgId && interaction.channel) {
+    (async () => {
+      try {
+        const originalMsg = await interaction.channel.messages.fetch(msgId).catch(() => null);
+        if (originalMsg) {
+          const updatedPayload = await buildSettingGamesPayload(interaction.guild, supabase, 1);
+          await originalMsg.edit(updatedPayload).catch(() => {});
+        }
+      } catch (err) {}
+    })();
+  }
+
+  return interaction.update({
+    flags: FLAG_V2,
+    components: [
+      {
+        type: 17,
+        components: [
+          {
+            type: 10,
+            content:
+              `## <:50121checkmark:1358584609087946867>︲__\` 𝖲𝗎𝖼𝖼𝖾𝗌𝗌 ₊ ผูกห้องสำเร็จ 𓂃 \`__\n` +
+              `> ผูกมินิเกม **${gameName}** เข้ากับห้อง <#${targetChannel.id}> และเปิดใช้งานเรียบร้อยแล้วครับ! ✨\n` +
+              `> บอทได้ส่งการ์ดโจทย์ข้อแรกเข้าสู่ห้องดังกล่าว เพื่อให้สมาชิกเริ่มเล่นได้ทันทีแล้ว 🎮\n\n` +
               `-# หน้าต่างการตั้งค่าได้รับการอัปเดตเรียบร้อยแล้วครับ <:cuteplant:1152834055528783872>`,
           },
         ],
@@ -2882,6 +3107,8 @@ module.exports = {
   handleSettingReset,
   handleSettingPointsSelect,
   handleSettingPointsModalSubmit,
+  handleSettingBindChannel,
+  buildBindChannelPayload,
   buildSettingGamesPayload,
   buildPremiumUpsellPayload,
   handleClearCategory,

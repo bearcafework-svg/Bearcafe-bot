@@ -16,7 +16,7 @@ const GIFT_EMOJI_ID = "1276130500410605609";
 const DEV_STAR_EMOJI_ID = "1212856675053346897";
 
 const BANNER_URL =
-  "https://cdn.discordapp.com/attachments/1524704267015819274/1553721167796506735/BannerKuma.png?ex=6aba4719&is=6ab8f599&hm=be04ac6b06de17698bcd28c562b93e5963076716e71c9adee91d279efe01216b&";
+  "https://media.discordapp.net/attachments/1566075967334518915/1566423425004732538/MainbannerKuma.png?ex=6ae87cff&is=6ae72b7f&hm=d9f7133a1e1df4ac1066753ab5c406c6d4711c907eb1948fefc71013bef259c7&=&format=webp&quality=lossless";
 const BOT_INVITE_URL = "https://discord.com/oauth2/authorize?client_id=1538896195253178409";
 const DEVELOPER_CONTACT_URL = "https://discord.gg/EHHybsbHxD";
 
@@ -26,13 +26,8 @@ const welcomedGuilds = new Set();
 /**
  * สร้าง Component V2 Payload สำหรับการ์ดต้อนรับเมื่อเชิญบอท
  */
-function buildWelcomePayload(guild, client) {
-  const serverIcon =
-    guild?.iconURL({ dynamic: true, size: 256 }) ||
-    client.user?.displayAvatarURL({ extension: "png", size: 256 }) ||
-    "https://cdn.discordapp.com/embed/avatars/0.png";
-
-  const inviteUrl = BOT_INVITE_URL;
+function buildWelcomePayload(guild, client, inviterId = null) {
+  const mentionText = inviterId ? `<@${inviterId}>` : (guild?.ownerId ? `<@${guild.ownerId}>` : "ทุกคน");
 
   return {
     flags: FLAG_V2,
@@ -51,26 +46,20 @@ function buildWelcomePayload(guild, client) {
             ],
           },
           {
-            type: 14,
-            spacing: 2,
-            divider: true,
+            type: 10,
+            content: `## <:bee20000:1256669436350562355>︲__\` 𝖧𝖾𝗒 𝖻𝗋𝗈 ₊ โย้วพวก ขอบคุณที่เชิญเรามานะ! 𓂃 \`__\n-# ${mentionText} บอทคุมะ บอทมินิเกมอัตโนมัติ เพิ่มสีสันและความคึกคักให้กับเซิร์ฟเวอร์ของคุณ เล่นสนุกตลอด 24 ชั่วโมง โดยไม่ต้องคอยคุมห้อง <:cuteplant:1152834055528783872>`,
           },
           {
-            type: 9,
-            components: [
-              {
-                type: 10,
-                content:
-                  `## ${BEE_HEADER_EMOJI} ︲__\` 𝖶𝖾𝗅𝖼𝗈𝗆𝖾 ₊ โย้วพวก ขอบคุณที่เชิญเรามานะ! 𓂃 \`__\n` +
-                  `> **บอทคุมะ** บอทมินิเกมอัตโนมัติ เพิ่มสีสันและความคึกคักให้กับเซิร์ฟเวอร์ของคุณ เล่นสนุกตลอด 24 ชั่วโมง โดยไม่ต้องคอยคุมห้อง ${CUTE_PLANT_EMOJI} \n`,
-              },
-            ],
-            accessory: {
-              type: 11,
-              media: {
-                url: serverIcon,
-              },
-            },
+            type: 14,
+            spacing: 2,
+          },
+          {
+            type: 10,
+            content:
+              "- **` 📌 ขั้นตอนเริ่มต้นใช้งาน `** *!*\n" +
+              "  - *เพียงพิมพ์คำสั่ง **/setup-games** บอทก็จะเริ่มต้นสร้างห้องสำหรับเล่นเกมให้คุณทันที!*\n\n" +
+              "- **` 📝 คำสั่งอื่น ๆ `** *!*\n" +
+              "  - *พิมพ์ **/help** เพื่อดูรายละเอียดและวิธีใช้งานคำสั่งทั้งหมด*\n",
           },
           {
             type: 14,
@@ -78,42 +67,18 @@ function buildWelcomePayload(guild, client) {
             divider: false,
           },
           {
-            type: 10,
-            content:
-              `### 🚀 ︲ขั้นตอนเริ่มต้นใช้งาน\n` +
-              `1. **ติดตั้งห้องมินิเกมอัตโนมัติ** : พิมพ์คำสั่ง \`/setup-games\` เพื่อสร้างหมวดหมู่และช่องเกมพร้อมสปอว์นข้อแรกทันที\n` +
-              `2. **ปรับแต่งและตั้งค่าเกม** : พิมพ์คำสั่ง \`/setting-games\` เพื่อเปิด/ปิดเกมย่อย หรือรีเซ็ตส่งการ์ดข้อใหม่\n` +
-              `3. **เช็กคะแนนและอันดับ** : สมาชิกสามารถพิมพ์ \`/points\` หรือ \`/leaderboard\` เพื่อดูแต้มสะสมและอันดับผู้เล่น\n` +
-              `4. **ต้องการความช่วยเหลือ** : พิมพ์ \`/help\` เพื่อดูรายละเอียดและวิธีใช้งานคำสั่งทั้งหมด`,
-          },
-          {
-            type: 14,
-            spacing: 2,
-          },
-          {
             type: 1,
             components: [
               {
                 type: 2,
                 style: 5,
-                label: "︲เชิญบอทฟรี",
+                url: "https://discord.gg/EHHybsbHxD",
+                label: "︲เข้าร่วมเซิร์ฟเวอร์บอท",
                 emoji: {
-                  id: GIFT_EMOJI_ID,
-                  name: "68492gift",
+                  id: "1566469689188556821",
+                  name: "discordclyde",
                   animated: false,
                 },
-                url: inviteUrl,
-              },
-              {
-                type: 2,
-                style: 5,
-                label: "︲ติดต่อผู้พัฒนา",
-                emoji: {
-                  id: DEV_STAR_EMOJI_ID,
-                  name: "bearcafe_star",
-                  animated: false,
-                },
-                url: DEVELOPER_CONTACT_URL,
               },
             ],
           },
@@ -218,7 +183,24 @@ function setupWelcomeService(client) {
       // หน่วงเวลาเล็กน้อยเพื่อให้ Discord เตรียมแคชสิทธิ์และช่องต่างๆ ให้เรียบร้อย
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
-      const payload = buildWelcomePayload(guild, client);
+      // ดึง ID ของคนที่เชิญบอทจาก Audit Logs (ถ้ามีสิทธิ์) หรือ fallback เป็น ownerId
+      let inviterId = null;
+      try {
+        const auditLogs = await guild.fetchAuditLogs({
+          type: 28, // AuditLogEvent.BotAdd
+          limit: 1,
+        }).catch(() => null);
+        const entry = auditLogs?.entries?.first();
+        if (entry && (entry.target?.id === client.user.id || entry.action === 28)) {
+          inviterId = entry.executor?.id;
+        }
+      } catch (e) {}
+
+      if (!inviterId && guild.ownerId) {
+        inviterId = guild.ownerId;
+      }
+
+      const payload = buildWelcomePayload(guild, client, inviterId);
       const targetChannel = await findWelcomeChannel(guild);
 
       if (targetChannel) {

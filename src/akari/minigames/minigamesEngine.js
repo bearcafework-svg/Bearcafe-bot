@@ -261,6 +261,18 @@ async function validateGameAccess(guildId, targetGameId, supabase, currentEnable
     }
   } else if (supabase) {
     try {
+      // ดึงสถานะเปิดปิดเกมจาก tenant_minigame_settings เพื่อกรองเกมที่ถูกปิดออก
+      const { data: settings } = await supabase
+        .from('tenant_minigame_settings')
+        .select('game_id, enabled')
+        .eq('guild_id', guildId);
+
+      const disabledGameIds = new Set(
+        (settings || [])
+          .filter((s) => s.enabled === false)
+          .map((s) => Number(s.game_id))
+      );
+
       const { data: channels, error } = await supabase
         .from('tenant_minigame_channels')
         .select('game_id, created_at')
@@ -268,17 +280,20 @@ async function validateGameAccess(guildId, targetGameId, supabase, currentEnable
         .order('created_at', { ascending: true });
 
       if (!error && Array.isArray(channels) && channels.length > 0) {
-        // กรองเฉพาะเกม Lightweight และหยิบ 5 เกมแรกตามลำดับการสร้าง
-        const allowedGameIds = channels
+        // กรองเฉพาะเกมที่เปิดใช้งานอยู่จริง (ไม่ถูกปิด)
+        const activeChannels = channels.filter((c) => !disabledGameIds.has(Number(c.game_id)));
+
+        // กรองเฉพาะเกม Lightweight และหยิบตามโควตาฟรี
+        const allowedGameIds = activeChannels
           .map((c) => Number(c.game_id))
           .filter((gid) => LIGHTWEIGHT_GAMES.includes(gid))
           .slice(0, FREE_QUOTA_LIMIT);
 
         const isExistingInAllowed = allowedGameIds.includes(numTargetGameId);
-        const totalChannelCount = channels.length;
+        const totalActiveCount = activeChannels.length;
 
-        // ถ้าเป็นเกมใหม่ที่จะเพิ่มเข้ามา หรือเป็นห้องที่เกินโควตา 5 ห้องแรก (เฉพาะเมื่อจำนวนห้องรวมเต็มหรือเกินโควตาฟรีแล้ว)
-        if (!isExistingInAllowed && totalChannelCount >= FREE_QUOTA_LIMIT) {
+        // ถ้าเป็นเกมใหม่ที่จะเพิ่มเข้ามา หรือเป็นห้องที่เกินโควตา 5 ห้องแรก (เฉพาะเมื่อจำนวนห้องที่เปิดอยู่รวมเต็มหรือเกินโควตาฟรีแล้ว)
+        if (!isExistingInAllowed && totalActiveCount >= FREE_QUOTA_LIMIT) {
           return {
             allowed: false,
             reason: 'QUOTA_EXCEEDED',
@@ -639,7 +654,7 @@ async function getTTSAudioBuffer(word, lang = 'th') {
 /**
  * สร้าง Component V2 Payload สำหรับโจทย์มินิเกม ถอดแบบจาก src/features/minigames/minigames.js
  */
-function buildAkariGamePayload(gameId, questionData, rewardPoints = 3, isPremium = true) {
+function buildAkariGamePayload(gameId, questionData, rewardPoints = 10, isPremium = true) {
   const accessoryButton = {
     type: 2,
     style: 5,
@@ -885,7 +900,7 @@ function buildAkariGamePayload(gameId, questionData, rewardPoints = 3, isPremium
 /**
  * สร้าง Component V2 Payload เมื่อมีผู้ชนะ ถอดแบบจากบอทหลัก 100%
  */
-function buildAkariWinnerPayload(gameId, questionData, winnerDisplayName, rewardPoints = 3, isPremium = true) {
+function buildAkariWinnerPayload(gameId, questionData, winnerDisplayName, rewardPoints = 10, isPremium = true) {
   const accessoryButton = {
     type: 2,
     style: 5,
@@ -1101,7 +1116,16 @@ async function spawnQuestion(client, channel, gameId, guildId, supabase) {
     return null;
   }
 
-  const pointsPerWin = gameSettings.points_per_win || 3;
+  const isPremium = access.plan === 'premium';
+  // ค่าเริ่มต้นแต้มมินิเกมของทุกเซิร์ฟเป็น 10 ยกเว้นเซิร์ฟพรีเมียมให้ปรับแต่งได้ (ถ้ายังไม่ตั้งก็ให้ใช้ 10 เช่นกัน)
+  let pointsPerWin = 10;
+  if (isPremium) {
+    if (typeof gameSettings.points_per_win === 'number' && gameSettings.points_per_win > 0) {
+      pointsPerWin = gameSettings.points_per_win;
+    }
+  } else {
+    pointsPerWin = 10;
+  }
 
   const questionData = {
     wordOrQuestion,
@@ -1118,7 +1142,6 @@ async function spawnQuestion(client, channel, gameId, guildId, supabase) {
     rewardPoints: pointsPerWin,
   };
 
-  const isPremium = access.plan === 'premium';
   const payload = buildAkariGamePayload(gameId, questionData, pointsPerWin, isPremium);
 
   const attachments = [];
@@ -1458,7 +1481,7 @@ function setupAkariMinigames(client, supabase) {
           return message.react('✅').catch(() => {});
         });
 
-        const pointsPerWin = session.questionData?.rewardPoints || 3;
+        const pointsPerWin = session.questionData?.rewardPoints || 10;
         bufferTenantPoints(guildId, message.author.id, pointsPerWin, 1);
         flushTenantPoints(supabase, guildId, message.author.id, 0, 0).catch((err) =>
           console.error('[akari-minigames] flushTenantPoints error:', err.message)
@@ -1763,7 +1786,7 @@ function setupAkariMinigames(client, supabase) {
       try {
         const planInfo = await getTenantPlan(guildId, supabase);
         const isPremium = planInfo.isPremium;
-        const pointsPerWin = questionData.rewardPoints || 3;
+        const pointsPerWin = questionData.rewardPoints || 10;
         bufferTenantPoints(guildId, user.id, pointsPerWin, 1);
         flushTenantPoints(supabase, guildId, user.id, 0, 0).catch((err) =>
           console.error('[akari-minigames] flushTenantPoints error:', err.message)
@@ -1899,7 +1922,7 @@ function setupAkariMinigames(client, supabase) {
       }, 10000);
 
       try {
-        const pointsPerWin = session.questionData?.rewardPoints || 3;
+        const pointsPerWin = session.questionData?.rewardPoints || 10;
         bufferTenantPoints(guildId, user.id, pointsPerWin, 1);
         flushTenantPoints(supabase, guildId, user.id, 0, 0).catch((err) =>
           console.error('[akari-minigames] flushTenantPoints error:', err.message)

@@ -53,6 +53,8 @@ const {
   handlePointsButtonInteraction,
   handleHelpCommand,
   handlePreviewButtonInteraction,
+  handleSetupGamesButton,
+  handleSetupGamesSelect,
 } = require("./src/akari/commands/minigamesCommands");
 const {
   handleSettingVoiceCommand,
@@ -194,6 +196,14 @@ client.on("interactionCreate", async (interaction) => {
 
     // Button Interactions
     if (interaction.isButton()) {
+      if (
+        interaction.customId === "p_364041959792185353" ||
+        interaction.customId === "kuma_setup_games_confirm_reset" ||
+        interaction.customId === "p_364036843668246533" ||
+        interaction.customId === "kuma_setup_games_confirm_install"
+      ) {
+        return await handleSetupGamesButton(interaction, kumaSupabase, client);
+      }
       if (interaction.customId === "kuma_healing_open_modal") {
         return await handleKumaHealingButton(interaction, kumaSupabase);
       }
@@ -226,6 +236,8 @@ client.on("interactionCreate", async (interaction) => {
       }
       if (
         interaction.customId === "akari_setting_promo_59" ||
+        interaction.customId === "kuma_setting_promo_59" ||
+        interaction.customId === "p_364041142276194304" ||
         interaction.customId === "p_363685459928289303" ||
         interaction.customId === "p_363685276989526038"
       ) {
@@ -277,6 +289,14 @@ client.on("interactionCreate", async (interaction) => {
       (typeof interaction.isAnySelectMenu === "function" && interaction.isAnySelectMenu()) ||
       Boolean(interaction.isChannelSelectMenu && interaction.isChannelSelectMenu())
     ) {
+      if (
+        interaction.customId === "p_364022146659258369" ||
+        interaction.customId === "kuma_setup_games_select_game" ||
+        interaction.customId === "p_364035091917180932" ||
+        interaction.customId === "kuma_setup_games_select_category"
+      ) {
+        return await handleSetupGamesSelect(interaction, kumaSupabase, client);
+      }
       if (interaction.customId.startsWith("akari_setting_bind_channel:")) {
         return await handleSettingBindChannel(interaction, kumaSupabase, client);
       }
@@ -311,6 +331,14 @@ client.on("interactionCreate", async (interaction) => {
         return await handleSettingPointsSelect(interaction, kumaSupabase);
       }
     } else if (interaction.isStringSelectMenu()) {
+      if (
+        interaction.customId === "p_364022146659258369" ||
+        interaction.customId === "kuma_setup_games_select_game" ||
+        interaction.customId === "p_364035091917180932" ||
+        interaction.customId === "kuma_setup_games_select_category"
+      ) {
+        return await handleSetupGamesSelect(interaction, kumaSupabase, client);
+      }
       if (interaction.customId === "kuma_voice_category_select") {
         return await handleVoiceCategorySelect(interaction, kumaSupabase);
       }

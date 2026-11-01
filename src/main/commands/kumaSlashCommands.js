@@ -35,26 +35,6 @@ const KUMA_SLASH_COMMANDS = [
     name: "setup-games",
     description: "ติดตั้งระบบมินิเกมอัตโนมัติ สร้างช่องและเริ่มสปอว์นโจทย์ข้อแรกทันที",
     default_member_permissions: PermissionFlagsBits.ManageChannels.toString(),
-    options: [
-      {
-        name: "preset",
-        description: "เลือกกลุ่มมินิเกมที่ต้องการเปิดใช้งาน",
-        type: 3, // STRING
-        required: true,
-        choices: [
-          { name: "🏆 ทุกมินิเกม (เปิดครบทั้ง 13 เกม)", value: "all" },
-          { name: "🔥 มินิเกมยอดฮิต (Top 5 Games)", value: "popular" },
-          { name: "🔤 เกมเน้นภาษาและความรู้ (Language & Quiz)", value: "language" },
-        ],
-      },
-      {
-        name: "category",
-        description: "เลือก Category ที่ต้องการให้สร้างช่องมินิเกมไว้ข้างใน (หากไม่เลือกจะสร้างใหม่ให้อัตโนมัติ)",
-        type: 7, // CHANNEL
-        channel_types: [ChannelType.GuildCategory],
-        required: false,
-      },
-    ],
   },
 
   // 2. /setting-games

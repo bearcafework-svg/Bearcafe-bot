@@ -17,12 +17,30 @@ const BOOST_MESSAGE_TYPES = [
 
 function extractBoostCount(content) {
   if (!content) return 1;
-  // Match any number followed by 'times', 'ครั้ง', 'เม็ด', or 'time'
-  const match = content.match(/(\d+)\s*(?:times|ครั้ง|เม็ด|time)/i);
-  if (match) {
-    return parseInt(match[1], 10);
+  const trimmed = String(content).trim();
+  if (!trimmed) return 1;
+
+  // 1. ถ้าข้อความเป็นตัวเลขล้วน (Discord API ส่งจำนวนบูสต์มาเป็นตัวเลขโดยตรง เช่น "2", "3")
+  if (/^\d+$/.test(trimmed)) {
+    const count = parseInt(trimmed, 10);
+    return count > 0 ? count : 1;
   }
-  return 1; // Default to 1 boost if no number pattern is matched
+
+  // 2. ตรวจจับตัวเลขที่ตามด้วยคำระบุจำนวน (เช่น "2 times", "2 ครั้ง", "2 เม็ด", "2 time")
+  const wordMatch = trimmed.match(/(\d+)\s*(?:times?|ครั้ง|เม็ด|รอบ|time|boosts?)/i);
+  if (wordMatch) {
+    const count = parseInt(wordMatch[1], 10);
+    return count > 0 ? count : 1;
+  }
+
+  // 3. Fallback: ตรวจจับตัวเลขเดี่ยวที่ปรากฏในข้อความ
+  const anyMatch = trimmed.match(/\b(\d+)\b/);
+  if (anyMatch) {
+    const count = parseInt(anyMatch[1], 10);
+    return count > 0 ? count : 1;
+  }
+
+  return 1;
 }
 
 async function addPoints(supabase, userId, pointsDelta) {
@@ -76,10 +94,14 @@ function setupBoostNotification(client) {
 
     console.log(`[boostNotification] Detected server boost from ${booster.tag} (${userId}), count: ${boostCount}`);
 
-    // 1. Add +500 points to user_points database
+    const boostPointsReward = BOOST_POINTS_REWARD * boostCount;
+    const formattedPoints = boostPointsReward.toLocaleString();
+    const formattedBoostCount = boostCount.toLocaleString();
+
+    // 1. Add points to user_points database (500 points per boost)
     try {
-      const newPoints = await addPoints(supabase, userId, BOOST_POINTS_REWARD);
-      console.log(`[boostNotification] Successfully added +${BOOST_POINTS_REWARD} points to ${booster.tag}. New points: ${newPoints}`);
+      const newPoints = await addPoints(supabase, userId, boostPointsReward);
+      console.log(`[boostNotification] Successfully added +${boostPointsReward} points (${boostCount} boosts) to ${booster.tag}. New points: ${newPoints}`);
     } catch (dbError) {
       console.error(`[boostNotification] Failed to add points to database for ${booster.tag}:`, dbError.message);
     }
@@ -101,26 +123,37 @@ function setupBoostNotification(client) {
         flags: 32768, // FLAG_V2 / MessageFlags.IsComponentsV2
         components: [
           {
-            type: 17, // Section
+            type: 17, // Container
             components: [
               {
                 type: 12, // Media
                 items: [
                   {
                     media: {
-                      url: "https://cdn.discordapp.com/attachments/1524704267015819274/1525765533411180615/NewsBoard_-_bearcafe_7.png?ex=6a549362&is=6a5341e2&hm=43aebb540236f29a52ded101dec434a61d9e1902c447b25b2800fa7f97643a50&"
+                      url: "https://cdn.discordapp.com/attachments/1565777850022232075/1566788367277101067/thx.png?ex=6ae9d0e0&is=6ae87f60&hm=ed46ad13aa0916004c0e5d5a4dd1b1fd660ccb89141004e4d24da73d48b217c1&"
                     }
                   }
                 ]
               },
-              { type: 14, spacing: 2 }, // Separator
               {
-                type: 10, // Text
-                content: `## <:bee20000:1256669436350562355>︲__\` 𝖳𝗁𝗑 𝟦 𝖻𝗈𝗈𝗌𝗍 ₊ ขอบคุณสำหรับบูสต์นะ! 𓂃 \`__\n-# ขอบคุณที่มอบบูสต์ให้กับคาเฟ่หมีนะคะ การสนับสนุนของเธอมีความหมายกับพวกเรามาก ขอให้รวย สาธุ สาธุ สาธุ! <:cuteplant:1152834055528783872>\n\n> (👤)︰<@${userId}>\n> (<a:3dboost:1144706367433756672>)︰ตอนนี้คุณบูสต์ไปแล้ว **${boostCount} เม็ด**\n> (${iconStr})︰รับแต้ม +500 ต่อการบูสต์ 1 ครั้ง`
+                type: 10, // Text Header & Description
+                content: "## <:bee20000:1256669436350562355>︲__` 𝖳𝗁𝗑 𝟦 𝖻𝗈𝗈𝗌𝗍 ₊ ขอบคุณสำหรับบูสต์นะ! 𓂃 `__\n-# ขอบคุณที่มอบบูสต์ให้กับคาเฟ่หมีนะคะ การสนับสนุนของเธอมีความหมายกับพวกเรามาก ขอให้รวย สาธุ สาธุ สาธุ! <:cuteplant:1152834055528783872>"
               },
-              { type: 14, spacing: 2 }, // Separator
               {
-                type: 1, // Container / ActionRow
+                type: 14, // Separator
+                spacing: 2
+              },
+              {
+                type: 10, // Text User Stats
+                content: `> (👤)︰<@${userId}>\n> (<a:3dboost:1144706367433756672>)︰ตอนนี้คุณบูสต์ไปแล้ว **${formattedBoostCount} เม็ด**\n> (${iconStr})︰รับแต้ม +${formattedPoints} ต่อการบูสต์ ${formattedBoostCount} ครั้ง`
+              },
+              {
+                type: 14, // Spacer without line
+                spacing: 1,
+                divider: false
+              },
+              {
+                type: 1, // ActionRow
                 components: [
                   {
                     type: 2, // Button

@@ -61,6 +61,74 @@ const {
 
 const FLAG_V2 = MessageFlags.IsComponentsV2 || 32768;
 
+// ── Cache และ Helper สำหรับการตั้งค่าคูลดาวน์และเทมเพลตเมื่อตอบผิด ──
+const tenantPenaltyConfigCache = new Map();
+
+/**
+ * แปลงหน่วย string (เช่น '10s', '5m') เป็นข้อความภาษาไทย
+ */
+function formatCooldownDisplay(val) {
+  if (!val) return "10 วินาที";
+  const match = String(val).trim().match(/^(\d+)([sm])$/i);
+  if (!match) return "10 วินาที";
+  const num = parseInt(match[1], 10);
+  const unit = match[2].toLowerCase();
+  if (unit === "s") return `${num} วินาที`;
+  if (unit === "m") return `${num} นาที`;
+  return `${num} วินาที`;
+}
+
+/**
+ * แปลงหน่วย string (เช่น '10s', '5m') เป็นมิลลิวินาที
+ */
+function parseCooldownMs(val) {
+  if (!val) return 10000;
+  const match = String(val).trim().match(/^(\d+)([sm])$/i);
+  if (!match) return 10000;
+  const num = parseInt(match[1], 10);
+  const unit = match[2].toLowerCase();
+  if (unit === "s") return Math.min(Math.max(num, 1), 60) * 1000;
+  if (unit === "m") return Math.min(Math.max(num, 1), 60) * 60 * 1000;
+  return 10000;
+}
+
+/**
+ * ดึงข้อมูลการตั้งค่าคูลดาวน์และเทมเพลตของกิลด์ (มี In-Memory Cache)
+ */
+async function getTenantPenaltyConfig(supabase, guildId) {
+  if (tenantPenaltyConfigCache.has(guildId)) {
+    return tenantPenaltyConfigCache.get(guildId);
+  }
+
+  let cooldownStr = "10s";
+  let penaltyTemplate = "## <:68440x:1358584606911369226> {user} ตอบไม่ถูก โดนหัก {emoji} **{point}** ติดคูลดาวน์ {cooldown}";
+
+  if (supabase) {
+    try {
+      const { data } = await supabase
+        .from("tenant_configs")
+        .select("minigame_wrong_cooldown, minigame_penalty_template")
+        .eq("guild_id", guildId)
+        .maybeSingle();
+
+      if (data) {
+        if (data.minigame_wrong_cooldown) cooldownStr = data.minigame_wrong_cooldown;
+        if (data.minigame_penalty_template) penaltyTemplate = data.minigame_penalty_template;
+      }
+    } catch (err) {
+      console.warn(`[getTenantPenaltyConfig] Error loading for guild ${guildId}:`, err.message);
+    }
+  }
+
+  const config = {
+    cooldownStr,
+    penaltyTemplate,
+    cooldownMs: parseCooldownMs(cooldownStr),
+  };
+  tenantPenaltyConfigCache.set(guildId, config);
+  return config;
+}
+
 const DEFAULT_ACCESSORY = {
   type: 2,
   style: 5,
@@ -1525,9 +1593,11 @@ async function buildSettingGamesPayload(guild, supabase, page = 1) {
     const pointsLines = ALL_DISPLAYABLE_IDS.map((gId) => {
       const clean = getCleanGameName(gId);
       const pts = (isPremium && pointsMap[gId] != null) ? pointsMap[gId] : 10;
-      const paddedName = clean.padEnd(20, " ");
-      return `${paddedName} | ${pts} แต้ม`;
+      return `${pts} แต้ม — ${clean}`;
     }).join("\n");
+
+    const penaltyConfig = await getTenantPenaltyConfig(supabase, guild.id);
+    const displayCooldown = formatCooldownDisplay(penaltyConfig.cooldownStr);
 
     const page2Components = [
       {
@@ -1621,7 +1691,31 @@ async function buildSettingGamesPayload(guild, supabase, page = 1) {
       });
     }
 
+    // 6. ตั้งค่าคูลดาวน์เมื่อตอบผิด
     page2Components.push(
+      {
+        type: 14,
+        spacing: 2,
+        divider: true,
+      },
+      {
+        type: 10,
+        content: `6. **\` ⏰ ตั้งค่าคูลดาวน์เมื่อตอบผิด \` *!***\n  - ติดคูลดาวน์: ${displayCooldown}\n  > \`{user}\` : แสดงแท็กสมาชิก Discord เพื่อให้สามารถกดเรียกหรือแจ้งเตือนสมาชิกได้\n  > \`{emoji}\` : แสดงสกุลเงินของมินิเกม\n  > \`{point}\` : แสดงจำนวนแต้มที่ถูกหัก เช่น -10\n  > \`{cooldown}\` : แสดงเวลาคูลดาวน์`,
+      },
+      {
+        type: 1,
+        components: [
+          {
+            style: 2,
+            type: 2,
+            custom_id: "akari_setting_cooldown_btn",
+            emoji: {
+              name: "✏️",
+            },
+            label: "︲แก้ไขข้อมูล",
+          },
+        ],
+      },
       {
         type: 14,
         spacing: 2,
@@ -2013,6 +2107,146 @@ async function handleSettingCurrencyModalSubmit(interaction, supabase) {
             type: 10,
             content: `## <:50121checkmark:1358584609087946867>︲__\` 𝖲𝗎𝖼𝖼𝖾𝗌𝗌 ₊ เปลี่ยนสกุลเงินแต้มสำเร็จ 𓂃 \`__\n` +
               `> สกุลเงินแต้มของเซิร์ฟเวอร์ถูกเปลี่ยนเป็น **${input}** เรียบร้อยแล้วครับ! ✨\n\n` +
+              `-# หน้าต่างการตั้งค่าได้รับการอัปเดตเรียบร้อยแล้วครับ <:cuteplant:1152834055528783872>`,
+          },
+        ],
+      },
+    ],
+  });
+}
+
+/**
+ * จัดการเมื่อคลิกปุ่ม ✏️ แก้ไขข้อมูลคูลดาวน์ (akari_setting_cooldown_btn)
+ */
+async function handleSettingCooldownButton(interaction, supabase) {
+  if (
+    !interaction.member?.permissions?.has(PermissionFlagsBits.ManageChannels) &&
+    !interaction.member?.permissions?.has(PermissionFlagsBits.Administrator)
+  ) {
+    return interaction.reply(buildNoPermissionPayload());
+  }
+
+  const penaltyConfig = await getTenantPenaltyConfig(supabase, interaction.guildId);
+  const msgId = interaction.message?.id || "";
+
+  const modal = new ModalBuilder()
+    .setCustomId(`akari_cooldown_modal_submit:${msgId}`)
+    .setTitle("ตั้งค่าคูลดาวน์เมื่อตอบผิด");
+
+  const cooldownInput = new TextInputBuilder()
+    .setCustomId("cooldown_input")
+    .setLabel("เวลาคูลดาวน์ (1s-60s หรือ 1m-60m)")
+    .setStyle(TextInputStyle.Short)
+    .setValue(penaltyConfig.cooldownStr || "10s")
+    .setPlaceholder("เช่น 10s, 30s หรือ 5m (สูงสุด 60s, 60m)")
+    .setRequired(true);
+
+  const templateInput = new TextInputBuilder()
+    .setCustomId("template_input")
+    .setLabel("ข้อความแจ้งเตือนเมื่อตอบผิด")
+    .setStyle(TextInputStyle.Paragraph)
+    .setValue(penaltyConfig.penaltyTemplate || "## <:68440x:1358584606911369226> {user} ตอบไม่ถูก โดนหัก {emoji} **{point}** ติดคูลดาวน์ {cooldown}")
+    .setMinLength(10)
+    .setMaxLength(500)
+    .setRequired(true);
+
+  modal.addComponents(
+    new ActionRowBuilder().addComponents(cooldownInput),
+    new ActionRowBuilder().addComponents(templateInput)
+  );
+
+  return interaction.showModal(modal);
+}
+
+/**
+ * จัดการเมื่อส่ง Modal ตั้งค่าคูลดาวน์และเทมเพลต (akari_cooldown_modal_submit)
+ */
+async function handleSettingCooldownModalSubmit(interaction, supabase) {
+  const customId = interaction.customId;
+  if (!customId.startsWith("akari_cooldown_modal_submit:") && !customId.startsWith("kuma_cooldown_modal_submit:")) return;
+
+  const msgId = customId.split(":")[1] || "";
+  const cooldownRaw = interaction.fields.getTextInputValue("cooldown_input")?.trim() || "";
+  const templateRaw = interaction.fields.getTextInputValue("template_input")?.trim() || "";
+
+  // Validate cooldown time: 1s-60s or 1m-60m
+  const timeRegex = /^([1-9]|[1-5][0-9]|60)[sm]$/i;
+  if (!timeRegex.test(cooldownRaw)) {
+    return interaction.reply({
+      flags: MessageFlags.Ephemeral | FLAG_V2,
+      components: [
+        {
+          type: 17,
+          components: [
+            {
+              type: 10,
+              content:
+                "## <:lowwarning:1548772721679278180>︲__` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ รูปแบบเวลาคูลดาวน์ไม่ถูกต้อง 𓂃 `__\n" +
+                "> ⚠️ กรุณาระบุเวลาเป็นตัวเลขตามด้วย **s** (วินาที) หรือ **m** (นาที) นะครับ\n\n" +
+                "**ช่วงเวลาที่ระบบรองรับ:**\n" +
+                "• วินาที: `1s` ถึง `60s` (เช่น `10s`, `30s`, `60s`)\n" +
+                "• นาที: `1m` ถึง `60m` (เช่น `1m`, `5m`, `60m`)\n\n" +
+                "-# 💡 ตัวอย่างการกรอกที่ถูกต้อง: `10s` หรือ `5m`",
+            },
+          ],
+        },
+      ],
+    });
+  }
+
+  const normalizedCooldown = cooldownRaw.toLowerCase();
+  const cooldownMs = parseCooldownMs(normalizedCooldown);
+
+  // Update In-Memory cache
+  const newConfig = {
+    cooldownStr: normalizedCooldown,
+    penaltyTemplate: templateRaw,
+    cooldownMs,
+  };
+  tenantPenaltyConfigCache.set(interaction.guildId, newConfig);
+
+  // Save to Supabase (tenant_configs)
+  if (supabase) {
+    try {
+      await supabase.from("tenant_configs").upsert(
+        {
+          guild_id: interaction.guildId,
+          minigame_wrong_cooldown: normalizedCooldown,
+          minigame_penalty_template: templateRaw,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "guild_id" }
+      );
+    } catch (err) {
+      console.error("[handleSettingCooldownModalSubmit] DB error:", err.message);
+    }
+  }
+
+  // Update Page 2 in background
+  if (msgId && interaction.channel) {
+    (async () => {
+      try {
+        const originalMsg = await interaction.channel.messages.fetch(msgId).catch(() => null);
+        if (originalMsg) {
+          const updatedPayload = await buildSettingGamesPayload(interaction.guild, supabase, 2);
+          await originalMsg.edit(updatedPayload).catch(() => { });
+        }
+      } catch (err) { }
+    })();
+  }
+
+  const displayCooldown = formatCooldownDisplay(normalizedCooldown);
+  return interaction.reply({
+    flags: MessageFlags.Ephemeral | FLAG_V2,
+    components: [
+      {
+        type: 17,
+        components: [
+          {
+            type: 10,
+            content:
+              `## <:50121checkmark:1358584609087946867>︲__\` 𝖲𝗎𝖼𝖼𝖾𝗌𝗌 ₊ บันทึกการตั้งค่าสำเร็จ 𓂃 \`__\n` +
+              `> ตั้งค่าคูลดาวน์เมื่อตอบผิดเป็น **${displayCooldown}** เรียบร้อยแล้วครับ! ✨\n\n` +
               `-# หน้าต่างการตั้งค่าได้รับการอัปเดตเรียบร้อยแล้วครับ <:cuteplant:1152834055528783872>`,
           },
         ],
@@ -3781,6 +4015,11 @@ module.exports = {
   handleStoreSelectMenus,
   handleSettingCurrencyButton,
   handleSettingCurrencyModalSubmit,
+  handleSettingCooldownButton,
+  handleSettingCooldownModalSubmit,
+  getTenantPenaltyConfig,
+  formatCooldownDisplay,
+  parseCooldownMs,
   handlePointsCommand,
   handleLeaderboardCommand,
   handlePointsButtonInteraction,

@@ -94,6 +94,58 @@ const TRANSITION_MIN_MS = {
 const userLastMinigameAction = new Map();
 // ล็อกกันการยิงคำตอบซ้อนกันในระดับ millisecond เดียวกัน (In-Flight Concurrency Mutex)
 const userInFlightProcessing = new Set();
+// เก็บสถานะคูลดาวน์เมื่อตอบผิดของผู้เล่น (Global Scope Per User: userId -> expireTimestamp)
+const userWrongCooldowns = new Map();
+const WRONG_COOLDOWN_MS = 10 * 1000; // บอทหลักล็อคคูลดาวน์ 10 วินาที
+
+/**
+ * ตรวจสอบว่าผู้เล่นกำลังติดคูลดาวน์จากการตอบผิดหรือไม่ (Global Scope)
+ * @param {string} userId Discord User ID
+ * @returns {{ inCooldown: boolean, expireTs: number }}
+ */
+function checkUserWrongCooldown(userId) {
+  const expire = userWrongCooldowns.get(userId);
+  if (expire && expire > Date.now()) {
+    return { inCooldown: true, expireTs: Math.ceil(expire / 1000) };
+  }
+  if (expire) {
+    userWrongCooldowns.delete(userId);
+  }
+  return { inCooldown: false, expireTs: 0 };
+}
+
+/**
+ * สร้าง Component V2 เมื่อผู้เล่นตอบผิดและถูกหักแต้ม (บอทหลัก)
+ * @param {string} userId
+ * @param {number} penalty
+ * @param {number} expireTimestamp
+ * @returns {object}
+ */
+function buildMainBotPenaltyPayload(userId, penalty, expireTimestamp) {
+  const endTs = expireTimestamp || Math.ceil((Date.now() + WRONG_COOLDOWN_MS) / 1000);
+  return {
+    flags: FLAG_V2,
+    components: [
+      {
+        type: 17,
+        components: [
+          {
+            type: 10,
+            content: `## <:68440x:1358584606911369226> <@${userId}> ตอบไม่ถูก โดนหัก <:strawberryv2:1520439075100688614> **-${penalty}** ติดคูลดาวน์ <t:${endTs}:R>`
+          },
+          {
+            type: 14,
+            spacing: 2
+          },
+          {
+            type: 10,
+            content: "-# เมื่อท่านตอบผิดจะติดดูลดาวน์ทุกเกม เพื่อป้องกันการสลับห้องสแปม"
+          }
+        ]
+      }
+    ]
+  };
+}
 
 // ล้างข้อมูลผู้เล่นที่ไม่มีกิจกรรมเกิน 1 นาที เพื่อไม่ให้กินหน่วยความจำ
 setInterval(() => {
@@ -975,6 +1027,15 @@ function setupMinigames(client) {
       const isCorrect = String(selectedChoice).trim().toLowerCase() === String(questionData.answer).trim().toLowerCase();
       const userId = interaction.user.id;
 
+      // ── Global Wrong Cooldown Check ─────────────────────────────────
+      const cooldownCheck = checkUserWrongCooldown(userId);
+      if (cooldownCheck.inCooldown) {
+        return interaction.reply({
+          content: `⏳ คุณกำลังติดคูลดาวน์จากการตอบผิด กรุณารออีก <t:${cooldownCheck.expireTs}:R> ก่อนกดใหม่อีกครั้งนะคะ`,
+          flags: FLAG_EPHEMERAL
+        });
+      }
+
       // ── Cross-Channel Feasibility Guard ─────────────────────────────
       const feasibility = checkCrossChannelFeasibility(userId, interaction.channelId, gameId);
       if (!feasibility.allowed) {
@@ -996,15 +1057,19 @@ function setupMinigames(client) {
 
       if (!isCorrect) {
         const penalty = Math.floor(Math.random() * 11) + 5; // 5-15
+        const endTs = Math.ceil((Date.now() + WRONG_COOLDOWN_MS) / 1000);
+        userWrongCooldowns.set(userId, Date.now() + WRONG_COOLDOWN_MS);
+
         if (supabase) {
           deductPoints(supabase, userId, penalty).catch(err => {
             console.error('[minigames] deductPoints error:', err.message);
           });
         }
 
+        const penaltyPayload = buildMainBotPenaltyPayload(userId, penalty, endTs);
         return interaction.reply({
-          content: `❌ คำตอบไม่ถูกต้องค่ะ! ถูกหักแต้ม **${penalty} แต้ม** 🔻`,
-          flags: FLAG_EPHEMERAL
+          ...penaltyPayload,
+          flags: FLAG_V2 | FLAG_EPHEMERAL
         });
       }
 
@@ -1169,6 +1234,15 @@ function setupMinigames(client) {
           }
         }
 
+        // ── Global Wrong Cooldown Check ──
+        const cooldownCheck = checkUserWrongCooldown(interaction.user.id);
+        if (cooldownCheck.inCooldown) {
+          return interaction.reply({
+            content: `⏳ คุณกำลังติดคูลดาวน์จากการตอบผิด กรุณารออีก <t:${cooldownCheck.expireTs}:R> ก่อนกดใหม่อีกครั้งนะคะ`,
+            flags: FLAG_EPHEMERAL
+          }).catch(() => { });
+        }
+
         // ── Handle Word Choice Click ──
         const choiceIndex = parseInt(parts[3], 10);
         const clickedWord = allOptions[choiceIndex];
@@ -1185,39 +1259,25 @@ function setupMinigames(client) {
         const nextExpectedWord = correctWords[progress.pickedWords.length];
         const isCorrectWord = String(clickedWord || '').trim().toLowerCase() === String(nextExpectedWord || '').trim().toLowerCase();
 
-        // Case 1: Wrong word / Wrong order -> Immediate reset
+        // Case 1: Wrong word / Wrong order -> Immediate penalty & cooldown
         if (!isCorrectWord) {
           userSentenceProgress.delete(userKey);
+          const penalty = Math.floor(Math.random() * 11) + 5; // 5-15
+          const endTs = Math.ceil((Date.now() + WRONG_COOLDOWN_MS) / 1000);
+          userWrongCooldowns.set(interaction.user.id, Date.now() + WRONG_COOLDOWN_MS);
 
-          const btnRows = [];
-          const btnStyles = [2, 1, 2, 1, 2, 1];
-          const buttons = allOptions.map((optLabel, idx) => ({
-            style: btnStyles[idx % btnStyles.length],
-            type: 2,
-            label: optLabel,
-            custom_id: `mg_sb_${targetGameId}_${idx}_${Date.now()}`
-          }));
-          for (let i = 0; i < buttons.length; i += 5) {
-            btnRows.push({ type: 1, components: buttons.slice(i, i + 5) });
+          if (supabase) {
+            deductPoints(supabase, interaction.user.id, penalty).catch(err => {
+              console.error('[minigames] deductPoints error (sentence):', err.message);
+            });
           }
 
-          const templateStr = questionData.englishTemplate || (Array.isArray(questionData.hints) ? questionData.hints[0] : '') || '';
-          let maskedPreview = templateStr;
-          for (let i = 1; i <= correctWords.length; i++) {
-            maskedPreview = maskedPreview.replace(new RegExp(`\\{${i}\\}`, 'g'), '`[ ___ ]`');
-          }
-
-          const wrongPayload = {
-            content: `❌ คำว่า **"${clickedWord}"** ยังไม่ถูกต้องสำหรับช่องนี้ค่ะ!\n🔄 ระบบรีเซ็ตให้ใหม่แล้ว ลองกดเริ่มใหม่อีกครั้งนะคะ ✨\n> 📝 โจทย์: **${questionData.wordOrQuestion}**\n> 🔤 ประโยค: ${maskedPreview}`,
-            components: btnRows,
-            flags: FLAG_EPHEMERAL
-          };
-
+          const penaltyPayload = buildMainBotPenaltyPayload(interaction.user.id, penalty, endTs);
           const isEphemeralInteraction = interaction.message && (interaction.message.flags?.has(MessageFlags.Ephemeral) || Boolean(interaction.message.flags?.bitfield & 64));
           if (isEphemeralInteraction) {
-            return interaction.update(wrongPayload).catch(() => { });
+            return interaction.update({ ...penaltyPayload, flags: FLAG_V2 | FLAG_EPHEMERAL }).catch(() => { });
           } else {
-            return interaction.reply(wrongPayload).catch(() => { });
+            return interaction.reply({ ...penaltyPayload, flags: FLAG_V2 | FLAG_EPHEMERAL }).catch(() => { });
           }
         }
 
@@ -1454,6 +1514,19 @@ function setupMinigames(client) {
       return;
     }
 
+    // ── Global Wrong Cooldown Check ─────────────────────────────────
+    const cooldownCheck = checkUserWrongCooldown(userId);
+    if (cooldownCheck.inCooldown) {
+      message.delete().catch(() => { });
+      const warnMsg = await message.channel.send({
+        content: `${message.author} ⏳ คุณกำลังติดคูลดาวน์จากการตอบผิด กรุณารออีก <t:${cooldownCheck.expireTs}:R> ก่อนพิมพ์ใหม่นะคะ`
+      }).catch(() => null);
+      if (warnMsg) {
+        setTimeout(() => warnMsg.delete().catch(() => { }), 5000);
+      }
+      return;
+    }
+
     // ── Cross-Channel Feasibility Guard ─────────────────────────────
     const feasibility = checkCrossChannelFeasibility(userId, message.channelId, matchedGameId);
     if (!feasibility.allowed) {
@@ -1479,17 +1552,21 @@ function setupMinigames(client) {
       message.delete().catch(() => { });
 
       const penalty = Math.floor(Math.random() * 11) + 5; // 5-15
+      const endTs = Math.ceil((Date.now() + WRONG_COOLDOWN_MS) / 1000);
+      userWrongCooldowns.set(userId, Date.now() + WRONG_COOLDOWN_MS);
+
       if (supabase) {
         deductPoints(supabase, userId, penalty).catch(err => {
           console.error('[minigames] deductPoints error (text game):', err.message);
         });
       }
 
-      // Send penalty notice (auto-delete after 5s)
-      const penaltyMsg = await message.channel.send({
-        content: `${message.author} ❌ ตอบผิดค่ะ! ถูกหักแต้ม **${penalty} แต้ม** 🔻`
-      });
-      setTimeout(() => penaltyMsg.delete().catch(() => { }), 5000);
+      // Send penalty notice Component V2 (auto-delete after 5s)
+      const penaltyPayload = buildMainBotPenaltyPayload(userId, penalty, endTs);
+      const penaltyMsg = await message.channel.send(penaltyPayload).catch(() => null);
+      if (penaltyMsg) {
+        setTimeout(() => penaltyMsg.delete().catch(() => { }), 5000);
+      }
       return;
     }
 

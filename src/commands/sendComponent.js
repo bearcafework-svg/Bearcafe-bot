@@ -174,7 +174,7 @@ function setupSendComponent(client) {
           );
 
           const { payload: topPayload, attachment } = await buildTopLeaderboardPayload(targetChannel.guild, supabase);
-          await targetChannel.send({ ...topPayload, files: [attachment] });
+          await targetChannel.send({ ...topPayload, files: attachment ? [attachment] : [] });
 
           return interaction.editReply({
             content: `✅ ส่ง **9️⃣︰กระดานจัดอันดับหมีติดเกม (Minigame Leaderboard)** ไปยังห้อง <#${targetChannel.id}> สำเร็จเรียบร้อยแล้วค่ะ! 🏆`,

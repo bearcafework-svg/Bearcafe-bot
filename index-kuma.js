@@ -48,6 +48,8 @@ const {
   handleStoreSelectMenus,
   handleSettingCurrencyButton,
   handleSettingCurrencyModalSubmit,
+  handleSettingCooldownButton,
+  handleSettingCooldownModalSubmit,
   handlePointsCommand,
   handleLeaderboardCommand,
   handlePointsButtonInteraction,
@@ -223,6 +225,13 @@ client.on("interactionCreate", async (interaction) => {
         return await handleSettingCurrencyButton(interaction, kumaSupabase);
       }
       if (
+        interaction.customId === "akari_setting_cooldown_btn" ||
+        interaction.customId === "kuma_setting_cooldown_btn" ||
+        interaction.customId === "p_365507190817034241"
+      ) {
+        return await handleSettingCooldownButton(interaction, kumaSupabase);
+      }
+      if (
         interaction.customId === "akari_setting_page_1" ||
         interaction.customId === "p_363685698273808409"
       ) {
@@ -274,6 +283,12 @@ client.on("interactionCreate", async (interaction) => {
       }
       if (interaction.customId.startsWith("akari_points_modal_submit:")) {
         return await handleSettingPointsModalSubmit(interaction, kumaSupabase);
+      }
+      if (
+        interaction.customId.startsWith("akari_cooldown_modal_submit:") ||
+        interaction.customId.startsWith("kuma_cooldown_modal_submit:")
+      ) {
+        return await handleSettingCooldownModalSubmit(interaction, kumaSupabase);
       }
       if (
         interaction.customId.startsWith("kuma_store_") ||

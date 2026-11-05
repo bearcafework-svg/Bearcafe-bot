@@ -90,6 +90,69 @@ setInterval(() => {
   }
 }, 5 * 60 * 1000).unref();
 
+// เก็บสถานะคูลดาวน์เมื่อตอบผิดของผู้เล่น (Global Scope Per User: userId -> expireTimestamp)
+const userWrongCooldowns = new Map();
+
+/**
+ * ตรวจสอบว่าผู้เล่นกำลังติดคูลดาวน์จากการตอบผิดหรือไม่ (Global Scope)
+ * @param {string} userId Discord User ID
+ * @returns {{ inCooldown: boolean, expireTs: number }}
+ */
+function checkUserWrongCooldown(userId) {
+  const expire = userWrongCooldowns.get(userId);
+  if (expire && expire > Date.now()) {
+    return { inCooldown: true, expireTs: Math.ceil(expire / 1000) };
+  }
+  if (expire) {
+    userWrongCooldowns.delete(userId);
+  }
+  return { inCooldown: false, expireTs: 0 };
+}
+
+/**
+ * สร้าง Component V2 เมื่อผู้เล่นตอบผิดและถูกหักแต้ม (บอทคุมะ)
+ * @param {string} userId
+ * @param {number} penalty
+ * @param {number} endTs
+ * @param {string} template
+ * @param {string} currencyEmoji
+ * @returns {object}
+ */
+function buildKumaPenaltyPayload(userId, penalty, endTs, template, currencyEmoji) {
+  const emoji = currencyEmoji || '<:strawberryv2:1548976664090779650>';
+  const defaultTpl = '## <:68440x:1358584606911369226> {user} ตอบไม่ถูก โดนหัก {emoji} **{point}** ติดคูลดาวน์ {cooldown}';
+  const rawTpl = template || defaultTpl;
+
+  const renderedHeader = rawTpl
+    .replace(/\{user\}/g, `<@${userId}>`)
+    .replace(/\{emoji\}/g, emoji)
+    .replace(/\{point\}/g, `-${penalty}`)
+    .replace(/\{cooldown\}/g, `<t:${endTs}:R>`);
+
+  return {
+    flags: FLAG_V2,
+    components: [
+      {
+        type: 17,
+        components: [
+          {
+            type: 10,
+            content: renderedHeader,
+          },
+          {
+            type: 14,
+            spacing: 2,
+          },
+          {
+            type: 10,
+            content: '-# เมื่อท่านตอบผิดจะติดดูลดาวน์ทุกเกม เพื่อป้องกันการสลับห้องสแปม',
+          },
+        ],
+      },
+    ],
+  };
+}
+
 /**
  * ตรวจสอบความสมเหตุสมผลของการสลับห้องเล่นมินิเกม (Cross-Channel Feasibility Guard)
  */
@@ -1427,6 +1490,18 @@ function setupAkariMinigames(client, supabase) {
 
     const userId = message.author.id;
 
+    // ── Global Wrong Cooldown Check ─────────────────────────────────
+    const cooldownCheck = checkUserWrongCooldown(userId);
+    if (cooldownCheck.inCooldown) {
+      message.delete().catch(() => {});
+      message.channel.send({
+        content: `${message.author} ⏳ คุณกำลังติดคูลดาวน์จากการตอบผิด กรุณารออีก <t:${cooldownCheck.expireTs}:R> ก่อนพิมพ์ใหม่นะครับ`
+      }).then((warnMsg) => {
+        setTimeout(() => warnMsg.delete().catch(() => {}), 5000);
+      }).catch(() => {});
+      return;
+    }
+
     // ── Cross-Channel Feasibility Guard ─────────────────────────────
     const feasibility = checkCrossChannelFeasibility(userId, message.channel.id, session.gameId);
     if (!feasibility.allowed) {
@@ -1443,25 +1518,45 @@ function setupAkariMinigames(client, supabase) {
     const isPremium = planInfo.isPremium;
 
     if (!isCorrect) {
-      // ❌ ตอบผิด: ลบข้อความผิดทิ้ง สุ่มหักแต้ม 5-15 แต้ม (เฉพาะเมื่อเป็น Premium) และส่งข้อความเตือน
+      // ❌ ตอบผิด: ลบข้อความผิดทิ้ง, หักแต้ม, ติดคูลดาวน์ และส่งข้อความเตือน Component V2
       message.delete().catch(() => {});
+
+      let penaltyConfig = { cooldownMs: 10000, penaltyTemplate: '' };
+      try {
+        const { getTenantPenaltyConfig } = require('../commands/minigamesCommands');
+        penaltyConfig = await getTenantPenaltyConfig(supabase, guildId);
+      } catch (e) {
+        console.warn('[akari-minigames] Error getting penalty config:', e.message);
+      }
+
+      const cooldownMs = penaltyConfig.cooldownMs || 10000;
+      const endTs = Math.ceil((Date.now() + cooldownMs) / 1000);
+      userWrongCooldowns.set(userId, Date.now() + cooldownMs);
+
+      const penalty = Math.floor(Math.random() * 11) + 5; // 5-15
       if (isPremium) {
-        const penalty = Math.floor(Math.random() * 11) + 5; // 5-15
         bufferTenantPoints(guildId, userId, -penalty, 0);
         flushTenantPoints(supabase, guildId, userId, 0, 0).catch(() => {});
-
-        message.channel.send({
-          content: `${message.author} ❌ ตอบผิดครับ! ถูกหักแต้ม **${penalty} แต้ม** 🔻`
-        }).then((penaltyMsg) => {
-          setTimeout(() => penaltyMsg.delete().catch(() => {}), 5000);
-        }).catch(() => {});
-      } else {
-        message.channel.send({
-          content: `${message.author} ❌ ตอบผิดครับ!`
-        }).then((penaltyMsg) => {
-          setTimeout(() => penaltyMsg.delete().catch(() => {}), 4000);
-        }).catch(() => {});
       }
+
+      let currencyEmoji = '<:strawberryv2:1548976664090779650>';
+      try {
+        const { getTenantStoreConfig } = require('../store/storeEngine');
+        const storeConfig = await getTenantStoreConfig(supabase, guildId);
+        if (storeConfig?.currency_emoji) currencyEmoji = storeConfig.currency_emoji;
+      } catch {}
+
+      const penaltyPayload = buildKumaPenaltyPayload(
+        userId,
+        penalty,
+        endTs,
+        penaltyConfig.penaltyTemplate,
+        currencyEmoji
+      );
+
+      message.channel.send(penaltyPayload).then((penaltyMsg) => {
+        setTimeout(() => penaltyMsg.delete().catch(() => {}), 5000);
+      }).catch(() => {});
       return;
     }
 
@@ -1638,6 +1733,15 @@ function setupAkariMinigames(client, supabase) {
         }
       }
 
+      // ── Global Wrong Cooldown Check ──
+      const cooldownCheck = checkUserWrongCooldown(user.id);
+      if (cooldownCheck.inCooldown) {
+        return safeRespond(interaction, {
+          content: `⏳ คุณกำลังติดคูลดาวน์จากการตอบผิด กรุณารออีก <t:${cooldownCheck.expireTs}:R> ก่อนกดใหม่อีกครั้งนะครับ`,
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+
       // ── Word Choice Click ──
       // akari_mg_sb_{gameId}_{choiceIndex}_{timestamp} -> parts[4] is choiceIndex
       const choiceIndex = parseInt(parts[4], 10);
@@ -1655,39 +1759,47 @@ function setupAkariMinigames(client, supabase) {
       const nextExpectedWord = correctWords[progress.pickedWords.length];
       const isCorrectWord = String(clickedWord || '').trim().toLowerCase() === String(nextExpectedWord || '').trim().toLowerCase();
 
-      // Case 1: Wrong word / Wrong order -> Immediate reset
+      // Case 1: Wrong word / Wrong order -> Immediate penalty & cooldown
       if (!isCorrectWord) {
         userSentenceProgress.delete(userKey);
 
-        const btnRows = [];
-        const btnStyles = [2, 1, 2, 1, 2, 1];
-        const buttons = allOptions.map((optLabel, idx) => ({
-          style: btnStyles[idx % btnStyles.length],
-          type: 2,
-          label: optLabel,
-          custom_id: `akari_mg_sb_${targetGameId}_${idx}_${Date.now()}`,
-        }));
-        for (let i = 0; i < buttons.length; i += 5) {
-          btnRows.push({ type: 1, components: buttons.slice(i, i + 5) });
+        let penaltyConfig = { cooldownMs: 10000, penaltyTemplate: '' };
+        try {
+          const { getTenantPenaltyConfig } = require('../commands/minigamesCommands');
+          penaltyConfig = await getTenantPenaltyConfig(supabase, guildId);
+        } catch {}
+
+        const cooldownMs = penaltyConfig.cooldownMs || 10000;
+        const endTs = Math.ceil((Date.now() + cooldownMs) / 1000);
+        userWrongCooldowns.set(user.id, Date.now() + cooldownMs);
+
+        const planInfo = await getTenantPlan(guildId, supabase);
+        const penalty = Math.floor(Math.random() * 11) + 5; // 5-15
+        if (planInfo.isPremium) {
+          bufferTenantPoints(guildId, user.id, -penalty, 0);
+          flushTenantPoints(supabase, guildId, user.id, 0, 0).catch(() => {});
         }
 
-        const templateStr = questionData.englishTemplate || (Array.isArray(questionData.hints) ? questionData.hints[0] : '') || '';
-        let maskedPreview = templateStr;
-        for (let i = 1; i <= correctWords.length; i++) {
-          maskedPreview = maskedPreview.replace(new RegExp(`\\{${i}\\}`, 'g'), '`[ ___ ]`');
-        }
+        let currencyEmoji = '<:strawberryv2:1548976664090779650>';
+        try {
+          const { getTenantStoreConfig } = require('../store/storeEngine');
+          const storeConfig = await getTenantStoreConfig(supabase, guildId);
+          if (storeConfig?.currency_emoji) currencyEmoji = storeConfig.currency_emoji;
+        } catch {}
 
-        const wrongPayload = {
-          content: `❌ คำว่า **"${clickedWord}"** ยังไม่ถูกต้องสำหรับช่องนี้ครับ!\n🔄 ระบบรีเซ็ตให้ใหม่แล้ว ลองกดเริ่มใหม่อีกครั้งนะครับ ✨\n> 📝 โจทย์: **${questionData.wordOrQuestion}**\n> 🔤 ประโยค: ${maskedPreview}`,
-          components: btnRows,
-          flags: MessageFlags.Ephemeral,
-        };
+        const penaltyPayload = buildKumaPenaltyPayload(
+          user.id,
+          penalty,
+          endTs,
+          penaltyConfig.penaltyTemplate,
+          currencyEmoji
+        );
 
         const isEphemeral = interaction.message && (interaction.message.flags?.has(MessageFlags.Ephemeral) || Boolean(interaction.message.flags?.bitfield & 64));
         if (isEphemeral) {
-          return interaction.update(wrongPayload).catch(() => {});
+          return interaction.update({ ...penaltyPayload, flags: FLAG_V2 | MessageFlags.Ephemeral }).catch(() => {});
         } else {
-          return interaction.reply(wrongPayload).catch(() => {});
+          return interaction.reply({ ...penaltyPayload, flags: FLAG_V2 | MessageFlags.Ephemeral }).catch(() => {});
         }
       }
 
@@ -1868,6 +1980,15 @@ function setupAkariMinigames(client, supabase) {
       const isCorrect = selectedOption && String(selectedOption).trim().toLowerCase() === session.answer;
       const userId = user.id;
 
+      // ── Global Wrong Cooldown Check ─────────────────────────────────
+      const cooldownCheck = checkUserWrongCooldown(userId);
+      if (cooldownCheck.inCooldown) {
+        return safeRespond(interaction, {
+          content: `⏳ คุณกำลังติดคูลดาวน์จากการตอบผิด กรุณารออีก <t:${cooldownCheck.expireTs}:R> ก่อนกดใหม่อีกครั้งนะครับ`,
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+
       // ── Cross-Channel Feasibility Guard ─────────────────────────────
       const feasibility = checkCrossChannelFeasibility(userId, channel.id, session.gameId);
       if (!feasibility.allowed) {
@@ -1890,20 +2011,41 @@ function setupAkariMinigames(client, supabase) {
       const isPremium = planInfo.isPremium;
 
       if (!isCorrect) {
+        let penaltyConfig = { cooldownMs: 10000, penaltyTemplate: '' };
+        try {
+          const { getTenantPenaltyConfig } = require('../commands/minigamesCommands');
+          penaltyConfig = await getTenantPenaltyConfig(supabase, guildId);
+        } catch {}
+
+        const cooldownMs = penaltyConfig.cooldownMs || 10000;
+        const endTs = Math.ceil((Date.now() + cooldownMs) / 1000);
+        userWrongCooldowns.set(userId, Date.now() + cooldownMs);
+
+        const penalty = Math.floor(Math.random() * 11) + 5; // 5-15
         if (isPremium) {
-          const penalty = Math.floor(Math.random() * 11) + 5; // 5-15
           bufferTenantPoints(guildId, user.id, -penalty, 0);
           flushTenantPoints(supabase, guildId, user.id, 0, 0).catch(() => {});
-          return safeRespond(interaction, {
-            content: `❌ คำตอบไม่ถูกต้องครับ! ถูกหักแต้ม **${penalty} แต้ม** 🔻`,
-            flags: MessageFlags.Ephemeral,
-          });
-        } else {
-          return safeRespond(interaction, {
-            content: `❌ คำตอบไม่ถูกต้องครับ!`,
-            flags: MessageFlags.Ephemeral,
-          });
         }
+
+        let currencyEmoji = '<:strawberryv2:1548976664090779650>';
+        try {
+          const { getTenantStoreConfig } = require('../store/storeEngine');
+          const storeConfig = await getTenantStoreConfig(supabase, guildId);
+          if (storeConfig?.currency_emoji) currencyEmoji = storeConfig.currency_emoji;
+        } catch {}
+
+        const penaltyPayload = buildKumaPenaltyPayload(
+          user.id,
+          penalty,
+          endTs,
+          penaltyConfig.penaltyTemplate,
+          currencyEmoji
+        );
+
+        return safeRespond(interaction, {
+          ...penaltyPayload,
+          flags: FLAG_V2 | MessageFlags.Ephemeral,
+        });
       }
 
       if (processingChannels.has(sessionKey)) {

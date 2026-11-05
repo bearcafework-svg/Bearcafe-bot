@@ -1043,8 +1043,8 @@ function setupMinigames(client) {
               return supabase.from('minigame_wins').insert({
                 discord_id: userId,
                 game_id: gameId,
-                points_earned: awarded,
-                points_awarded: awarded
+                points_earned: pointsEarned,
+                points_awarded: pointsEarned
               });
             })
             .catch(err => {
@@ -1052,8 +1052,8 @@ function setupMinigames(client) {
               supabase.from('minigame_wins').insert({
                 discord_id: userId,
                 game_id: gameId,
-                points_earned: 0,
-                points_awarded: 0
+                points_earned: pointsEarned,
+                points_awarded: pointsEarned
               }).catch(e => console.error('[minigames] Fallback win stat insert failed:', e.message));
             });
 
@@ -1358,8 +1358,8 @@ function setupMinigames(client) {
                 return supabase.from('minigame_wins').insert({
                   discord_id: userId,
                   game_id: targetGameId,
-                  points_earned: awarded,
-                  points_awarded: awarded
+                  points_earned: pointsEarned,
+                  points_awarded: pointsEarned
                 });
               })
               .catch(err => {
@@ -1367,8 +1367,8 @@ function setupMinigames(client) {
                 supabase.from('minigame_wins').insert({
                   discord_id: userId,
                   game_id: targetGameId,
-                  points_earned: 0,
-                  points_awarded: 0
+                  points_earned: pointsEarned,
+                  points_awarded: pointsEarned
                 }).catch(e => console.error('[minigames] Fallback win stat insert failed:', e.message));
               });
 
@@ -1557,8 +1557,8 @@ function setupMinigames(client) {
             return supabase.from('minigame_wins').insert({
               discord_id: message.author.id,
               game_id: matchedGameId,
-              points_earned: awarded,
-              points_awarded: awarded
+              points_earned: rewardPoints,
+              points_awarded: rewardPoints
             });
           })
           .catch(err => {
@@ -1566,8 +1566,8 @@ function setupMinigames(client) {
             supabase.from('minigame_wins').insert({
               discord_id: message.author.id,
               game_id: matchedGameId,
-              points_earned: 0,
-              points_awarded: 0
+              points_earned: rewardPoints,
+              points_awarded: rewardPoints
             }).catch(e => console.error('[minigames] Fallback win stat insert failed:', e.message));
           });
 

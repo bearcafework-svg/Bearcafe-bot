@@ -1533,11 +1533,9 @@ function setupAkariMinigames(client, supabase) {
       const endTs = Math.ceil((Date.now() + cooldownMs) / 1000);
       userWrongCooldowns.set(userId, Date.now() + cooldownMs);
 
-      const penalty = Math.floor(Math.random() * 11) + 5; // 5-15
-      if (isPremium) {
-        bufferTenantPoints(guildId, userId, -penalty, 0);
-        flushTenantPoints(supabase, guildId, userId, 0, 0).catch(() => {});
-      }
+      const penalty = isPremium ? (Math.floor(Math.random() * 11) + 5) : 10;
+      bufferTenantPoints(guildId, userId, -penalty, 0);
+      flushTenantPoints(supabase, guildId, userId, 0, 0).catch(() => {});
 
       let currencyEmoji = '<:strawberryv2:1548976664090779650>';
       try {
@@ -1774,11 +1772,10 @@ function setupAkariMinigames(client, supabase) {
         userWrongCooldowns.set(user.id, Date.now() + cooldownMs);
 
         const planInfo = await getTenantPlan(guildId, supabase);
-        const penalty = Math.floor(Math.random() * 11) + 5; // 5-15
-        if (planInfo.isPremium) {
-          bufferTenantPoints(guildId, user.id, -penalty, 0);
-          flushTenantPoints(supabase, guildId, user.id, 0, 0).catch(() => {});
-        }
+        const isPremium = planInfo.isPremium;
+        const penalty = isPremium ? (Math.floor(Math.random() * 11) + 5) : 10;
+        bufferTenantPoints(guildId, user.id, -penalty, 0);
+        flushTenantPoints(supabase, guildId, user.id, 0, 0).catch(() => {});
 
         let currencyEmoji = '<:strawberryv2:1548976664090779650>';
         try {
@@ -2021,11 +2018,9 @@ function setupAkariMinigames(client, supabase) {
         const endTs = Math.ceil((Date.now() + cooldownMs) / 1000);
         userWrongCooldowns.set(userId, Date.now() + cooldownMs);
 
-        const penalty = Math.floor(Math.random() * 11) + 5; // 5-15
-        if (isPremium) {
-          bufferTenantPoints(guildId, user.id, -penalty, 0);
-          flushTenantPoints(supabase, guildId, user.id, 0, 0).catch(() => {});
-        }
+        const penalty = isPremium ? (Math.floor(Math.random() * 11) + 5) : 10;
+        bufferTenantPoints(guildId, user.id, -penalty, 0);
+        flushTenantPoints(supabase, guildId, user.id, 0, 0).catch(() => {});
 
         let currencyEmoji = '<:strawberryv2:1548976664090779650>';
         try {

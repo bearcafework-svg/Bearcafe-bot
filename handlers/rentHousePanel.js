@@ -25,7 +25,7 @@ const {
   syncRentHousePermissions,
 } = require("../src/features/rentHouse/services/rentHouseService");
 
-const { safeShowModal, safeDisconnectMember } = require("../utils/discordSafety");
+const { safeShowModal, safeDisconnectMember, safeRespond } = require("../utils/discordSafety");
 const { safeSetChannelName } = require("../utils/channelRenameGuard");
 const { getRandomSessionAd, getGlobalCtaButton } = require("../src/services/sessionAdsService");
 const {
@@ -94,10 +94,19 @@ async function sendRentHousePanel(channel, ownerMember) {
 }
 
 async function sendInteractionResponse(interaction, payload) {
-  if (interaction.replied || interaction.deferred) {
-    return await interaction.followUp(payload);
-  } else {
-    return await interaction.reply(payload);
+  try {
+    if (interaction.replied || interaction.deferred) {
+      return await interaction.followUp(payload);
+    } else {
+      return await interaction.reply(payload);
+    }
+  } catch (err) {
+    if (err.code === 10062 || err.rawError?.code === 10062) {
+      // หมดเวลา 3 วินาทีของ Discord หรือ interaction ถูกตอบกลับไปแล้ว
+      return null;
+    }
+    console.error("[rentHousePanel] sendInteractionResponse error:", err.message);
+    return null;
   }
 }
 

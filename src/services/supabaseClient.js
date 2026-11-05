@@ -36,7 +36,7 @@ function getSupabaseClient() {
     },
     realtime: { transport: ws },
     global: {
-      fetch: getGuardedFetch()
+      fetch: getGuardedFetch("main")
     }
   });
 

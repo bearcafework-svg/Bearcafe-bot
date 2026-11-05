@@ -82,21 +82,20 @@ if (!botToken) {
   process.exit(1);
 }
 
-// 1. สร้าง Supabase Client เชื่อมต่อตรงกับ Main Supabase (หรือ KUMA_SUPABASE)
+// 1. สร้าง Supabase Client เชื่อมต่อตรงกับ Main Supabase (พร้อมเกราะป้องกัน Log Ingestion)
+const { createProtectedSupabaseClient } = require("./src/services/supabaseTrafficGuard");
 const supabaseUrl = process.env.KUMA_SUPABASE_URL || process.env.SUPABASE_URL || process.env.AKARI_SUPABASE_URL;
 const supabaseKey = process.env.KUMA_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.AKARI_SUPABASE_SERVICE_ROLE_KEY;
 
 let kumaSupabase = null;
 if (supabaseUrl && supabaseKey) {
-  kumaSupabase = createClient(
+  kumaSupabase = createProtectedSupabaseClient(
     supabaseUrl,
     supabaseKey,
-    {
-      auth: { persistSession: false },
-      realtime: { transport: ws },
-    }
+    { realtime: { transport: ws } },
+    "kuma"
   );
-  console.log("⚡ [KumaBot] เชื่อมต่อ Main Supabase Database สำเร็จแล้ว!");
+  console.log("⚡ [KumaBot] เชื่อมต่อ Main Supabase Database สำเร็จแล้ว! (Log Ingestion Guard เปิดใช้งาน 🛡️)");
 } else {
   console.warn("⚠️ [KumaBot] SUPABASE_URL หรือ SUPABASE_SERVICE_ROLE_KEY ยังไม่ได้กรอก (ทำงานแบบ RAM Fallback Mode)");
 }

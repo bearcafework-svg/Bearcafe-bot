@@ -7,6 +7,7 @@ const path = require("path");
 const rootDir = path.resolve(__dirname, __dirname.includes("src" + path.sep + "main") ? "../../../.." : "../../..");
 const sharedConfig = require(path.join(rootDir, "src/sharedSettings.json"));
 const { safeDeferUpdate, safeRespond } = require(path.join(rootDir, "utils/discordSafety"));
+const { createProtectedSupabaseClient } = require(path.join(rootDir, "src/services/supabaseTrafficGuard"));
 require(path.join(rootDir, "src/utils/fontLoader"));
 
 // Cooldown 5 นาที สำหรับปุ่ม 🔄 refresh (ms)
@@ -1077,10 +1078,11 @@ function scheduleMonthlyTransition(client, supabase) {
 //  setupResetTop — เชื่อมกับ client
 // ══════════════════════════════════════════════════════════════
 function setupResetTop(client, supabaseClient) {
-  const supabase = supabaseClient || createClient(
+  const supabase = supabaseClient || createProtectedSupabaseClient(
     process.env.POINTS_SUPABASE_URL || process.env.SUPABASE_URL,
     process.env.POINTS_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY,
-    { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
+    { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } },
+    "leaderboard"
   );
 
   // ตั้งเวลา Transition สู่ Monthly อัตโนมัติ ณ 23:59:59

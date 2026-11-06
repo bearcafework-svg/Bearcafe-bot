@@ -18,8 +18,8 @@ const FLAG_V2_EPH = FLAG_V2 | FLAG_EPHEMERAL;
 const sharedConfig = require("../sharedSettings.json");
 const ALLOWED_ROLES = sharedConfig.staff_roles;
 
-// ปุ่มแก้ไขยอดมี custom_id นำหน้าด้วย string นี้
-const EDIT_BUTTON_PREFIX = "p_323352047766212615";
+// ปุ่มแก้ไขยอดมี custom_id นำหน้าด้วย string นี้ (เปลี่ยนจาก p_ เพื่อไม่ให้ Discohook ตีความผิดเป็น BigInt)
+const EDIT_BUTTON_PREFIX = "btn_edit_323352047766212615";
 const EDIT_MODAL_PREFIX = "total_edit_modal";
 
 /**
@@ -72,16 +72,11 @@ function buildBillingMessage(userId, amount, channelId) {
           },
           {
             type: 14,
-            spacing: 1,
-            divider: false
+            spacing: 2
           },
           {
             type: 10,
-            content: `- **\`อ่านก่อนชำระเงิน\`**: กรุณาตรวจสอบข้อมูลและยอดเงินให้ถูกต้องก่อนทำรายการ หากโอนเงินผิดหรือโอนเกิน ทางคาเฟ่ขอสงวนสิทธิ์ไม่รับผิดชอบในทุกกรณี\n- **\`ชำระเงินผ่านทรูมันนี่วอลเล็ท\`**: หากโอนจากบัญชีทรูมันนี่วอลเล็ท **ไปยังทรูมันนี่วอลเล็ท** จะมีค่าธรรมเนียม **+5 บาท** แต่หากชำระผ่านช่องทางอื่นที่รองรับ จะไม่มีค่าธรรมเนียมดังกล่าว <:cuteplant:1152834055528783872>\n## <a:59217leaf:1512014878796152862>⠀ยอดที่ต้องชำระ : __\`${a.toLocaleString()} บาท\`__ / <:salmon_point:1525751700399587512> +${b}\n-# แต้มสะสมทุกยอด **100 บาท รับ 1 แต้ม** สะสมไว้แลกรางวัลและสิทธิพิเศษที่จะเพิ่มเข้ามาในอนาคต <a:99322sparkles:1372427884479778908>\n\n* **\`ดำเนินการต่อ\`**: เมื่อชำระเงินเรียบร้อยแล้ว กรุณาส่ง **สลิปการโอนเงิน** ผ่านทางแชท <#${channelId}> ได้เลยค่ะ จากนั้นทีมงานจะตรวจสอบรายการและดำเนินการส่งสินค้าให้โดยเร็วที่สุด !`
-          },
-          {
-            type: 14,
-            spacing: 2
+            content: `- **\` 📌 อ่านก่อนชำระเงิน \`** *!*\n  - กรุณาตรวจสอบ **สินค้า ยอดชำระ และช่องทางการโอน** ให้ถูกต้องก่อนชำระเงิน\n  - หากโอนผิดบัญชีหรือโอนเกิน **ทางคาเฟ่ขอสงวนสิทธิ์ไม่รับผิดชอบทุกกรณี**\n  - ชำระผ่าน **TrueMoney → TrueMoney** มีค่าธรรมเนียมเพิ่ม **5 บาท**\n  - ช่องทางการชำระเงินอื่นที่รองรับ **ไม่มีค่าธรรมเนียมเพิ่มเติม**\n## <:bankmoney:1567217849968234658> ยอดที่ต้องชำระ : __\`${a.toLocaleString()} บาท\`__\n-# รับแต้มสะสมทุกยอด **100 บาท = 1 แต้ม** สำหรับแลกรางวัลและสิทธิพิเศษในอนาคต\n\n- **\` ✅ หลังจากชำระเงินเสร็จ \`** *!*\n  - *เมื่อชำระเงินเรียบร้อยแล้ว กรุณาส่ง **สลิปการโอนเงิน** ผ่านทางแชท <#${channelId}> ได้เลยค่ะ จากนั้นทีมงานจะตรวจสอบรายการและดำเนินการส่งสินค้าให้โดยเร็วที่สุด !*`
           }
         ]
       },
@@ -105,7 +100,7 @@ function buildBillingMessage(userId, amount, channelId) {
                 flow: {
                   actions: []
                 },
-                custom_id: `${EDIT_BUTTON_PREFIX}:${userId}`,
+                custom_id: `${EDIT_BUTTON_PREFIX}_${userId}`,
                 label: "︲แก้ไขยอด (เฉพาะทีมงาน)",
                 emoji: { name: "📝" }
               }
@@ -147,7 +142,7 @@ function setupTotalAmount(client) {
   });
 
   // ── จัดการการกดปุ่มแก้ไขยอด ─────────────────────────────────────────
-  registerButton(EDIT_BUTTON_PREFIX, async (interaction) => {
+  const handleEditButton = async (interaction) => {
     // ตรวจสอบสิทธิ์ทีมงาน
     if (!hasStaffPermission(interaction.member)) {
       return interaction.reply({
@@ -156,8 +151,14 @@ function setupTotalAmount(client) {
       });
     }
 
-    const parts = interaction.customId.split(":");
-    const targetUserId = parts[1];
+    let targetUserId = "";
+    if (interaction.customId.startsWith(`${EDIT_BUTTON_PREFIX}_`)) {
+      targetUserId = interaction.customId.replace(`${EDIT_BUTTON_PREFIX}_`, "");
+    } else if (interaction.customId.includes(":")) {
+      targetUserId = interaction.customId.split(":")[1];
+    } else {
+      targetUserId = interaction.customId.split("_").pop();
+    }
 
     // สร้างฟอร์ม Modal สำหรับกรอกยอดเงินใหม่
     const modal = new ModalBuilder()
@@ -180,7 +181,10 @@ function setupTotalAmount(client) {
     } catch (err) {
       console.error("[totalAmount] Failed to show modal:", err.message);
     }
-  });
+  };
+
+  registerButton(EDIT_BUTTON_PREFIX, handleEditButton);
+  registerButton("p_323352047766212615", handleEditButton);
 
   // ── จัดการเมื่อยื่นข้อมูลจาก Modal ──────────────────────────────────────
   registerModal(EDIT_MODAL_PREFIX, async (interaction) => {

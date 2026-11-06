@@ -87,13 +87,13 @@ function setupSendComponent(client) {
         case "verify_panel": {
           const { buildRegistrationPanelPayload } = require("../features/verification");
           payload = buildRegistrationPanelPayload();
-          componentName = "1️⃣︰บอร์ดลงทะเบียนสมาชิกใหม่ (Registration Panel)";
+          componentName = "บอร์ดลงทะเบียนสมาชิกใหม่ (Registration Panel)";
           break;
         }
         case "staff_welcome_msg": {
           const { buildStaffWelcomePanelPayload } = require("../features/verification");
           payload = buildStaffWelcomePanelPayload();
-          componentName = "2️⃣︰แผงตั้งค่าข้อความต้อนรับทีมงาน (Staff Welcome Msg)";
+          componentName = "แผงตั้งค่าข้อความต้อนรับทีมงาน (Staff Welcome Msg)";
           break;
         }
         case "top_donate": {
@@ -109,7 +109,7 @@ function setupSendComponent(client) {
             flags: 32768,
             components: [{ type: 17, components }]
           };
-          componentName = "4️⃣︰กระดานยอดโดเนทสะสม (Top Donate Board)";
+          componentName = "กระดานยอดโดเนทสะสม (Top Donate Board)";
           break;
         }
         case "voice_board": {
@@ -121,7 +121,7 @@ function setupSendComponent(client) {
             });
           }
           return interaction.editReply({
-            content: `✅ ส่ง **5️⃣︰บอร์ดห้องเสียงหาเพื่อน (Voice Board)** ไปยังห้อง <#${targetChannel.id}> สำเร็จเรียบร้อยแล้วค่ะ!\n> 💡 *ระบบเริ่มทำงานและเชื่อมต่อการอัปเดตเรียลไทม์ 24 ชม. ทันที*`,
+            content: `✅ ส่ง **บอร์ดห้องเสียงหาเพื่อน (Voice Board)** ไปยังห้อง <#${targetChannel.id}> สำเร็จเรียบร้อยแล้วค่ะ!\n> 💡 *ระบบเริ่มทำงานและเชื่อมต่อการอัปเดตเรียลไทม์ 24 ชม. ทันที*`,
           });
         }
         case "daily_quest": {
@@ -144,19 +144,19 @@ function setupSendComponent(client) {
           const nextMidnightTs = getNextMidnightTimestamp();
           const quests = await getOrInitDailyQuestSet(todayDate, supabase);
           payload = buildDailyQuestAnnouncementPayload(todayDate, quests, nextMidnightTs);
-          componentName = "6️⃣︰กระดานเควสประจำวัน (Daily Quest Board)";
+          componentName = "กระดานเควสประจำวัน (Daily Quest Board)";
           break;
         }
         case "recruitment_form": {
           const { buildMainPanel1, buildMainPanel2 } = require("./resetForm");
           payload = [buildMainPanel1(), buildMainPanel2()];
-          componentName = "7️⃣︰แผงเปิดรับสมัครทีมงาน (Recruitment Form)";
+          componentName = "แผงเปิดรับสมัครทีมงาน (Recruitment Form)";
           break;
         }
         case "color_roles": {
           const { buildMainPanel } = require("./colorRoles");
           payload = buildMainPanel();
-          componentName = "8️⃣︰แผงเลือกและเปลี่ยนยศสี (Color Roles Panel)";
+          componentName = "แผงเลือกและเปลี่ยนยศสี (Color Roles Panel)";
           break;
         }
         case "minigame_top": {
@@ -177,19 +177,19 @@ function setupSendComponent(client) {
           await targetChannel.send({ ...topPayload, files: attachment ? [attachment] : [] });
 
           return interaction.editReply({
-            content: `✅ ส่ง **9️⃣︰กระดานจัดอันดับหมีติดเกม (Minigame Leaderboard)** ไปยังห้อง <#${targetChannel.id}> สำเร็จเรียบร้อยแล้วค่ะ! 🏆`,
+            content: `✅ ส่ง **กระดานจัดอันดับหมีติดเกม (Minigame Leaderboard)** ไปยังห้อง <#${targetChannel.id}> สำเร็จเรียบร้อยแล้วค่ะ! 🏆`,
           });
         }
         case "gachapon": {
           const { buildGachaponDeployPayload } = require("../features/gachapon");
           payload = await buildGachaponDeployPayload(targetChannel.guild);
-          componentName = "🔟︰ตู้สุ่มกาชาปอง (Gachapon Machine)";
+          componentName = "ตู้สุ่มกาชาปอง (Gachapon Machine)";
           break;
         }
         case "violation_history": {
           const { buildMainPanelPayload } = require("../features/tagWarn");
           payload = buildMainPanelPayload();
-          componentName = "1️⃣1️⃣︰ประวัติการทำผิดกฎ (Violation History)";
+          componentName = "ประวัติการทำผิดกฎ (Violation History)";
           break;
         }
         case "main_quest": {
@@ -200,7 +200,7 @@ function setupSendComponent(client) {
             await bindQuestBoardMessage(quest.id, targetChannel.id, sentMsg.id);
           }
           return interaction.editReply({
-            content: `✅ ส่ง **1️⃣2️⃣︰เควสใหญ่ (Main Community Quest)** ไปยังห้อง <#${targetChannel.id}> สำเร็จเรียบร้อยแล้วค่ะ! 🐻✨`,
+            content: `✅ ส่ง **เควสใหญ่ (Main Community Quest)** ไปยังห้อง <#${targetChannel.id}> สำเร็จเรียบร้อยแล้วค่ะ! 🐻✨`,
           });
         }
         default:

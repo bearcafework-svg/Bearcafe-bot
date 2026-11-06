@@ -10,23 +10,50 @@ const ALLOWED_ROLES = [
   "1318580353752895583",
 ];
 
-const BUTTON_CUSTOM_IDS = ["p_337990715168526339", "check_warn_history", "tag_warn_check_self"];
+const BUTTON_CUSTOM_IDS = [
+  "btn_check_warn_337990715168526339",
+  "p_337990715168526339",
+  "check_warn_history",
+  "tag_warn_check_self",
+];
+
+const FALLBACK_WARN_IMAGE =
+  "https://cdn.discordapp.com/attachments/1565840974737973428/1568275494611189790/90faf4784f1eebbb.png";
+
+/**
+ * ตรวจสอบความถูกต้องของ URL รูปภาพ หากรูปถูกลบหรือใช้ไม่ได้ ให้ fallback เป็นรูปมาตรฐาน
+ */
+async function resolveWarnImageUrl(imageUrl) {
+  if (!imageUrl || typeof imageUrl !== "string" || !imageUrl.startsWith("http")) {
+    return FALLBACK_WARN_IMAGE;
+  }
+  try {
+    const res = await fetch(imageUrl, {
+      method: "HEAD",
+      signal: AbortSignal.timeout(1200),
+    });
+    if (res.ok) return imageUrl;
+  } catch (err) {
+    // เกิด timeout หรือ network error ถือว่าภาพไม่พร้อมใช้งาน
+  }
+  return FALLBACK_WARN_IMAGE;
+}
 
 /**
  * แปลงข้อความบทลงโทษเป็น Emoji & Role Ping
  */
 function formatPunish(punishText) {
-  if (!punishText) return "> (🚨)⠀ไม่ระบุบทลงโทษ";
+  if (!punishText) return "(🚨)︰ไม่ระบุบทลงโทษ";
   if (punishText.includes("ミ ชาเขียวเตือนใจ 𓂃 🍵")) {
-    return "> (<:matcha_bearcafe:1520794424605675611>)⠀<@&1318580353752895583>";
+    return "(<:matcha_bearcafe:1520794424605675611>)︰<@&1318580353752895583>";
   }
   if (punishText.includes("ミ ถ้วยกาแฟ 𓂃 ☕")) {
-    return "> (<:coffee1_bearcafe:1520794497221660892>)⠀<@&1156930837573546126>";
+    return "(<:coffee1_bearcafe:1520794497221660892>)︰<@&1156930837573546126>";
   }
   if (punishText.includes("ミ กาแฟดับเบิ้ลช็อต 𓂃 ☕☕")) {
-    return "> (<:coffee2_bearcafe:1520794623826726984>)⠀<@&1156930842434752614>";
+    return "(<:coffee2_bearcafe:1520794623826726984>)︰<@&1156930842434752614>";
   }
-  return `> (🚨)⠀${punishText}`;
+  return `(🚨)︰${punishText}`;
 }
 
 /**
@@ -40,16 +67,38 @@ function buildMainPanelPayload() {
         type: 17,
         components: [
           {
+            type: 12,
+            items: [
+              {
+                media: {
+                  url: "https://cdn.discordapp.com/attachments/1565777850022232075/1568348554400112732/d7c174708015f8e0.png?ex=6aef7de9&is=6aee2c69&hm=f61cb72d572f5611a041cbd27e99f15e755f7d956330946305afd747c96d2e19&",
+                },
+              },
+            ],
+          },
+          {
             type: 10,
             content:
               "## <:bee20000:1256669436350562355>︲__` 𝖵𝗂𝗈𝗅𝖺𝗍𝗂𝗈𝗇 𝖧𝗂𝗌𝗍𝗈𝗋𝗒 ₊ ประวัติการทำผิดกฎ 𓂃 `__\n" +
-              "-# ระบบตรวจสอบประวัติการทำผิดกฎของสมาชิก เพื่อให้ทีมงานสามารถตรวจสอบข้อมูลย้อนหลังได้อย่างสะดวกและรวดเร็ว ช่วยให้ติดตามพฤติกรรมและประวัติการลงโทษได้ง่ายขึ้น เพื่อประกอบการพิจารณาได้อย่างเหมาะสม <:cuteplant:1152834055528783872>\n\n" +
-              "**สำหรับผู้ที่มีบทบาทดังต่อไปนี้:**\n" +
-              "> (<:matcha_bearcafe:1520794424605675611>)⠀<@&1318580353752895583>\n" +
-              "> (<:coffee1_bearcafe:1520794497221660892>)⠀<@&1156930837573546126>\n" +
-              "> (<:coffee2_bearcafe:1520794623826726984>)⠀<@&1156930842434752614>",
+              "-# ระบบตรวจสอบประวัติการทำผิดกฎของสมาชิก เพื่อให้ทีมงานสามารถตรวจสอบข้อมูลย้อนหลังได้อย่างสะดวกและรวดเร็ว ช่วยให้ติดตามพฤติกรรมและประวัติการลงโทษได้ง่ายขึ้น เพื่อประกอบการพิจารณาได้อย่างเหมาะสม <:cuteplant:1152834055528783872>",
           },
-          { type: 14, spacing: 2 },
+          {
+            type: 14,
+            spacing: 2,
+          },
+          {
+            type: 10,
+            content:
+              "- **` สำหรับผู้ที่มีบทบาทดังต่อไปนี้ `** *!*\n" +
+              "  - <:matcha_bearcafe:1520794424605675611>︰<@&1318580353752895583>\n" +
+              "  - <:coffee1_bearcafe:1520794497221660892>︰<@&1156930837573546126>\n" +
+              "  - <:coffee2_bearcafe:1520794623826726984>︰<@&1156930842434752614>",
+          },
+          {
+            type: 14,
+            spacing: 1,
+            divider: false,
+          },
           {
             type: 1,
             components: [
@@ -63,7 +112,7 @@ function buildMainPanelPayload() {
                   animated: false,
                 },
                 flow: { actions: [] },
-                custom_id: "p_337990715168526339",
+                custom_id: "btn_check_warn_337990715168526339",
               },
             ],
           },
@@ -76,78 +125,76 @@ function buildMainPanelPayload() {
 /**
  * สร้าง Component V2 Payload แสดงประวัติการเตือนล่าสุด
  */
-function buildLatestWarnPayload(warnRecord) {
+async function buildLatestWarnPayload(warnRecord) {
   const punishFormatted = formatPunish(warnRecord.punish);
   const rawDate = warnRecord.created_at ? new Date(warnRecord.created_at) : new Date();
   const unixTs = Math.floor(rawDate.getTime() / 1000);
   const timeString = `<t:${unixTs}:F> (<t:${unixTs}:R>)`;
   const sequenceStr = warnRecord.sequence !== undefined ? warnRecord.sequence : "-";
+  const memberId = warnRecord.member_id || "";
+  const warnMessage = warnRecord.message || "ไม่มีระบุ";
 
-  // จัดการรูปภาพหลักฐาน
-  const mediaItems = [];
-  if (warnRecord.image_url) {
-    mediaItems.push({
-      media: { url: warnRecord.image_url },
-      ...(warnRecord.is_spoiler ? { spoiler: true } : {}),
-    });
-  }
-  if (warnRecord.image_url_2) {
-    mediaItems.push({
-      media: { url: warnRecord.image_url_2 },
-      ...(warnRecord.is_spoiler_2 ? { spoiler: true } : {}),
-    });
-  }
-
-  const innerComponents = [];
-
-  // เพิ่ม Media Gallery หากมีรูปภาพหลักฐาน
-  if (mediaItems.length > 0) {
-    innerComponents.push({
-      type: 12,
-      items: mediaItems,
-    });
-    innerComponents.push({ type: 14, spacing: 2 });
-  }
-
-  // เพิ่ม Content ข้อความ
-  innerComponents.push({
-    type: 10,
-    content:
-      `## ⚠️︲__\` 𝖫𝖺𝗍𝖾𝗌𝗍 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ ประวัติการเตือนล่าสุด 𓂃 \`__\n` +
-      `-# ระบบตรวจสอบประวัติการทำผิดกฎของสมาชิก เพื่อให้ทีมงานสามารถตรวจสอบข้อมูลย้อนหลังได้อย่างสะดวกและรวดเร็ว ช่วยให้ติดตามพฤติกรรมและประวัติการลงโทษได้ง่ายขึ้น เพื่อประกอบการพิจารณาได้อย่างเหมาะสม <:cuteplant:1152834055528783872>\n\n` +
-      `**เคสอ้างอิง #${sequenceStr}:**\n` +
-      `> (👤)⠀<@${warnRecord.member_id}>\n` +
-      `${punishFormatted}\n` +
-      `> (⏰)⠀${timeString}\n\n` +
-      `📝︲ข้อความเตือน: ${warnRecord.message || "ไม่มีระบุ"}`,
-  });
-
-  innerComponents.push({ type: 14, spacing: 2 });
-
-  // เพิ่มปุ่ม Link ไปยังห้องแก้ถ้วยความผิด
-  innerComponents.push({
-    type: 1,
-    components: [
-      {
-        type: 2,
-        style: 5,
-        label: "︲คลิกแก้ถ้วยความผิด",
-        emoji: {
-          id: "1212856675053346897",
-          name: "bearcafe_star",
-          animated: false,
-        },
-        url: "https://discord.com/channels/1144251788493602848/1524123185325543587",
-      },
-    ],
-  });
+  // จัดการรูปภาพหลักฐานและ Fallback หากภาพถูกลบ
+  const resolvedUrl = await resolveWarnImageUrl(warnRecord.image_url);
+  const isFallback = resolvedUrl === FALLBACK_WARN_IMAGE;
 
   return {
     flags: 32832, // Component V2 (32768) + Ephemeral (64)
     components: [
       {
         type: 17,
-        components: innerComponents,
+        components: [
+          {
+            type: 12,
+            items: [
+              {
+                media: { url: resolvedUrl },
+                spoiler: isFallback ? false : Boolean(warnRecord.is_spoiler),
+              },
+            ],
+          },
+          {
+            type: 10,
+            content:
+              "## <:lowwarning:1548772721679278180>︲__` 𝖫𝖺𝗍𝖾𝗌𝗍 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ ประวัติการเตือนล่าสุด 𓂃 `__\n" +
+              "-# ระบบตรวจสอบประวัติการทำผิดกฎของสมาชิก เพื่อให้ทีมงานสามารถตรวจสอบข้อมูลย้อนหลังได้อย่างสะดวกและรวดเร็ว ช่วยให้ติดตามพฤติกรรมและประวัติการลงโทษได้ง่ายขึ้น เพื่อประกอบการพิจารณาได้อย่างเหมาะสม <:cuteplant:1152834055528783872>",
+          },
+          {
+            type: 14,
+            spacing: 2,
+          },
+          {
+            type: 10,
+            content:
+              `- **\` 📌 เคสอ้างอิง #${sequenceStr} \`** *!*\n` +
+              `  - **สาเหตุ:** ${warnMessage}\n` +
+              ` > (👤)︰<@${memberId}> — ${memberId}\n` +
+              ` > ${punishFormatted}\n` +
+              ` > (<a:7596clock:1160230591892029510>)︰${timeString}`,
+          },
+          {
+            type: 14,
+            spacing: 1,
+            divider: false,
+          },
+          {
+            type: 1,
+            components: [
+              {
+                type: 2,
+                style: 5,
+                label: "︲แก้ถ้วยความผิด",
+                emoji: {
+                  id: "1563093703168360479",
+                  name: "pingroleicon",
+                  animated: false,
+                },
+                url: "https://discord.com/channels/1144251788493602848/1524123796825706506",
+                custom_id: "p_365869186179665921",
+              },
+            ],
+          },
+        ],
       },
     ],
   };
@@ -227,7 +274,7 @@ function setupTagWarn(client) {
       }
 
       // 3. ตอบกลับข้อมูลประวัติล่าสุดแบบ Ephemeral Component V2
-      const payload = buildLatestWarnPayload(latestWarn);
+      const payload = await buildLatestWarnPayload(latestWarn);
       return safeRespond(interaction, payload);
     } catch (err) {
       console.error("[tagWarn] interaction error:", err);

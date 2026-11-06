@@ -15,8 +15,8 @@ const COMMAND_ALLOWED_ROLES = [
   "1144696486815342673"
 ];
 
-// ปุ่มคัดลอกฟอร์มมี custom_id นำหน้าด้วย string นี้
-const COPY_BUTTON_PREFIX = "p_323426350025150465";
+// ปุ่มคัดลอกฟอร์มมี custom_id นำหน้าด้วย string นี้ (เปลี่ยนจาก p_ เพื่อไม่ให้ Discohook ตีความผิดเป็น BigInt)
+const COPY_BUTTON_PREFIX = "btn_copy_role_323426350025150465";
 
 // Emojis แสดงผลเงื่อนไข
 const EMOJI_PASS = "<:50121checkmark:1358584609087946867>";
@@ -54,60 +54,60 @@ function buildPersonalRoleMessage(targetUserId, has30Days, hasDonate250) {
             items: [
               {
                 media: {
-                  url: "https://cdn.discordapp.com/attachments/1524742861223100416/1525818518556250192/NewsBoard_-_bearcafe_8.png?ex=6a54c4bb&is=6a53733b&hm=6de3e3d56bc11a8f05cb277b744bf24e24383f710c9ec8f07960e3859e44e2f3&"
-                }
-              }
-            ]
-          },
-          {
-            type: 14,
-            spacing: 2
+                  url: "https://cdn.discordapp.com/attachments/1565840974737973428/1568316579601580052/image.png?ex=6aef6022&is=6aee0ea2&hm=ee7954afbf7ecb1960c7f6d8a9e3f1e073b40fa96c407de668bc9f9cd9b02204&",
+                },
+              },
+            ],
           },
           {
             type: 10,
-            content: "## <:bee20000:1256669436350562355>︲__` 𝖱𝗈𝗅𝖾 𝗌𝖾𝗍𝗎𝗉 ₊ สร้างยศส่วนตัว 𓂃 `__\n-# บูสต์ครบ 2 เม็ด รับสิทธิ์สร้าง ยศส่วนตัว ที่มีเพียงคุณเท่านั้น ออกแบบชื่อและสีให้เป็นสไตล์ของตัวเอง เพื่อความโดดเด่นภายในคาเฟ่หมี <:cuteplant:1152834055528783872>\n### <:bear_star1:1152782839671169184>︲__` คำแนะนำการสร้างยศส่วนตัว `__\n> **`1.`**⠀วิธีหาโค๊ดสี [คลิกที่นี่](https://htmlcolorcodes.com/)\n> **`2.`**⠀วิธีหาไอคอนยศ [คลิกที่นี่](https://emoji.gg/)\n> **`3.`**⠀หากไม่สามารถแท็กสมาชิกได้แจ้งเป็น UserID, Username, Nickname\n> **`4.`**⠀ชื่อยศไม่สั้นหรือยาวเกินไป ห้ามหยาบคายหรือใช้คำในทางที่ไม่เหมาะสม\n> **`5.`**⠀ไอคอนยศจะต้องเป็นอีโมจิภายในคาเฟ่หมี หรือรูปภาพสกุลไฟล์ png, jpg, jpeg เท่านั้น"
+            content:
+              "## <:bee20000:1256669436350562355>︲__` 𝖱𝗈𝗅𝖾 𝗌𝖾𝗍𝗎𝗉 ₊ สร้างยศส่วนตัว 𓂃 `__\n" +
+              "-# บูสต์ครบ 2 เม็ด รับสิทธิ์สร้างยศและห้องส่วนตัว ที่มีเพียงคุณเท่านั้น ออกแบบชื่อและสีให้เป็นสไตล์ของตัวเอง เพื่อความโดดเด่นภายในคาเฟ่หมี <:cuteplant:1152834055528783872>",
           },
           {
             type: 14,
-            spacing: 2
+            spacing: 2,
           },
           {
             type: 10,
-            content: `### <:bear_star1:1152782839671169184>︲__\`เงื่อนไขการปลดล็อก "สีชื่อใหม่"\`__\n<:line:1144701793989840997> <@${targetUserId}> กรุณาผ่าน **อย่างน้อย 1 เงื่อนไข** เพื่อรับสิทธิ์ใช้งานสีชื่อใหม่\n\n<:line:1144701793989840997> ${emoji30Days}⠀เป็นสมาชิกครบ **30 วัน**\n<:line:1144701793989840997> ${emojiDonate}⠀โดเนทครบ **250 บาทขึ้นไป**\n## ตัวอย่างสีชื่อใหม่:`
-          },
-          {
-            type: 12,
-            items: [
-              {
-                media: {
-                  url: "https://cdn.discordapp.com/attachments/1524704267015819274/1525828421274439960/Screenshot_2026-07-12_1836262.png?ex=6a54cdf4&is=6a537c74&hm=7c9172421387aad0f038ae1f478d6eadf8398deea5bdc980b7a97d9d475b1675&"
-                }
-              }
-            ]
+            content:
+              "- **` 📝 ขั้นตอนสร้างยศส่วนตัว `** *!*\n" +
+              "  1. **ตั้งชื่อยศ** : ชื่อไม่ควรสั้นหรือยาวเกินไป และห้ามใช้คำหยาบหรือคำที่ไม่เหมาะสม\n" +
+              "  2. **ไอคอนยศ (*ไม่จำเป็น)** : สามารถหาไอคอนได้จาก [ที่นี่](https://emoji.gg/) โดยส่งเป็น **__รูปภาพเท่านั้น__**\n" +
+              "  3. **เลือกสียศ** : สามารถาหาโค้ดสีได้จาก [ที่นี่](https://kigen.design/color) ตัวอย่างการส่ง -> #FE0000\n" +
+              "  4. **กดปุ่มสร้างยศ** : เมื่อเตรียมข้อมูลเรียบร้อยแล้ว กดปุ่มด้านล่างและทำตามขั้นตอนได้เลยค่ะ\n\n" +
+              "- **` ✅ เงื่อนไขการปลดล็อก การไล่สี/โฮโลกราฟิก \" `** *!*\n" +
+              `  - <@${targetUserId}> กรุณาผ่าน **อย่างน้อย 1 เงื่อนไข** เพื่อรับสิทธิ์ใช้งานสีชื่อใหม่\n` +
+              `    - ${emoji30Days}⠀เป็นสมาชิกครบ **30 วัน**\n` +
+              `    - ${emojiDonate}⠀โดเนทครบ **250 บาทขึ้นไป**`,
           },
           {
             type: 14,
-            spacing: 2
+            spacing: 1,
+            divider: false,
           },
           {
             type: 1,
             components: [
               {
-                style: 3,
                 type: 2,
-                label: "︲คลิกคัดลอกฟอร์มสร้างยศ",
-                emoji: { name: "📃" },
-                flow: {
-                  actions: []
+                style: 3,
+                custom_id: `${COPY_BUTTON_PREFIX}_${targetUserId}`,
+                label: "︲คลิกสร้างยศส่วนตัว",
+                emoji: {
+                  name: "📃",
                 },
-                custom_id: `${COPY_BUTTON_PREFIX}:${targetUserId}`,
-                disabled: false
-              }
-            ]
-          }
-        ]
-      }
-    ]
+                disabled: false,
+                flow: {
+                  actions: [],
+                },
+              },
+            ],
+          },
+        ],
+      },
+    ],
   };
 }
 
@@ -194,9 +194,21 @@ function setupCreatePersonalRole(client) {
     }
 
     // ── จัดการการกดปุ่ม "คลิกคัดลอกฟอร์มสร้างยศ" ─────────────────────────────────
-    if (interaction.isButton() && interaction.customId.startsWith(`${COPY_BUTTON_PREFIX}:`)) {
-      const parts = interaction.customId.split(":");
-      const allowedUserId = parts[1];
+    const isCopyButton =
+      interaction.isButton() &&
+      (interaction.customId.startsWith(`${COPY_BUTTON_PREFIX}_`) ||
+        interaction.customId.startsWith(`${COPY_BUTTON_PREFIX}:`) ||
+        interaction.customId.startsWith("p_323426350025150465"));
+
+    if (isCopyButton) {
+      let allowedUserId = "";
+      if (interaction.customId.startsWith(`${COPY_BUTTON_PREFIX}_`)) {
+        allowedUserId = interaction.customId.replace(`${COPY_BUTTON_PREFIX}_`, "");
+      } else if (interaction.customId.includes(":")) {
+        allowedUserId = interaction.customId.split(":")[1];
+      } else {
+        allowedUserId = interaction.customId.split("_").pop();
+      }
 
       // ตรวจสอบว่าผู้ที่คลิกปุ่ม คือ สมาชิกที่ระบุในคำสั่ง (ไม่ใช่แอดมินหรือคนอื่น)
       if (interaction.user.id !== allowedUserId) {
@@ -213,7 +225,11 @@ function setupCreatePersonalRole(client) {
         for (const comp of containerComponents) {
           if (comp.type === 1 && comp.components) {
             for (const btn of comp.components) {
-              if (btn.custom_id && btn.custom_id.startsWith(COPY_BUTTON_PREFIX)) {
+              if (
+                btn.custom_id &&
+                (btn.custom_id.startsWith(COPY_BUTTON_PREFIX) ||
+                  btn.custom_id.startsWith("p_323426350025150465"))
+              ) {
                 btn.disabled = true;
               }
             }
@@ -225,12 +241,59 @@ function setupCreatePersonalRole(client) {
         // อัปเดตข้อความเดิมเพื่อปิดการใช้งานปุ่ม
         await interaction.update({ components: updatedComponents });
 
-        // ส่งแบบฟอร์มในช่องแชทแบบปกติเพื่อให้คัดลอกได้ง่าย
+        // ส่งแบบฟอร์มในช่องแชทแบบปกติเพื่อให้คัดลอกได้ง่าย พร้อมแนบ SelectMenu User
         await interaction.channel.send({
-          content: `- <:bearcafe_star:1212856675053346897>︲__\` แบบฟอร์มการสร้างยศ \`__\n  - ชื่อยศ:\n  - โค๊ดสียศ:\n  - ไอคอนยศ:\n  - ต้องการเพิ่มให้:`
+          content: `- <:bearcafe_star:1212856675053346897>︲__\` แบบฟอร์มการสร้างยศ \`__\n  - ชื่อยศ:\n  - โค๊ดสียศ:\n  - ต้องการเพิ่มให้:`,
+          components: [
+            {
+              type: 1,
+              components: [
+                {
+                  type: 5, // User Select Menu
+                  custom_id: `select_role_members_${allowedUserId}`,
+                  placeholder: "เลือกสมาชิกที่ต้องการเพิ่มยศให้...",
+                  min_values: 0,
+                  max_values: 25,
+                },
+              ],
+            },
+          ],
         });
       } catch (err) {
         console.error("[createPersonalRole] Failed to handle copy button action:", err.message);
+      }
+    }
+
+    // ── จัดการการเลือกสมาชิกจาก SelectMenu User ──────────────────────────────
+    const isUserSelect =
+      (interaction.isUserSelectMenu?.() || interaction.isAnySelectMenu?.()) &&
+      interaction.customId?.startsWith("select_role_members_");
+
+    if (isUserSelect) {
+      const allowedUserId = interaction.customId.replace("select_role_members_", "");
+
+      // ตรวจสอบว่าผู้ที่เลือก คือ สมาชิกที่ได้รับสิทธิ์
+      if (interaction.user.id !== allowedUserId) {
+        return interaction.reply({
+          content: `❌ ขออภัยค่ะ เมนูนี้สามารถใช้ได้เฉพาะคุณ <@${allowedUserId}> เท่านั้นค่ะ`,
+          flags: FLAG_EPHEMERAL,
+        });
+      }
+
+      try {
+        await interaction.deferUpdate();
+        const mentionText =
+          interaction.values && interaction.values.length > 0
+            ? interaction.values.map((id) => `<@${id}>`).join(", ")
+            : "(นำสมาชิกออกทั้งหมดแล้ว)";
+
+        if (interaction.channel) {
+          await interaction.channel.send({
+            content: `ต้องการเพิ่มให้: ${mentionText}`,
+          });
+        }
+      } catch (err) {
+        console.error("[createPersonalRole] Failed to handle user select menu action:", err.message);
       }
     }
   });

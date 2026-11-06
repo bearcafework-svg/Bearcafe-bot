@@ -190,7 +190,6 @@ async function buildLatestWarnPayload(warnRecord) {
                   animated: false,
                 },
                 url: "https://discord.com/channels/1144251788493602848/1524123796825706506",
-                custom_id: "p_365869186179665921",
               },
             ],
           },

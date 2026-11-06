@@ -63,10 +63,6 @@ function buildBillingMessage(userId, amount, channelId) {
             ]
           },
           {
-            type: 14,
-            spacing: 2
-          },
-          {
             type: 10,
             content: "## <:bee20000:1256669436350562355>︲__` 𝖯𝖺𝗒𝗆𝖾𝗇𝗍 𝖯𝗋𝗈𝖼𝖾𝗌𝗌 ₊ ขั้นตอนการชำระเงิน 𓂃 `__"
           },

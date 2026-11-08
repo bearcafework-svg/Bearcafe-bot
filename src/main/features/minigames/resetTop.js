@@ -84,6 +84,45 @@ function getCurrentActivePeriod() {
   };
 }
 
+// ── ฟังก์ชันดึงประวัติ minigame_wins ทั้งหมดแบบ Pagination ป้องกันติด Limit 1,000 แถว ──
+async function fetchAllMinigameWinsRows(supabase, effectiveStart, effectiveEnd, parsedGameId) {
+  const PAGE_SIZE = 1000;
+  const allRows = [];
+  let from = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    let query = supabase
+      .from("minigame_wins")
+      .select("discord_id, points_earned")
+      .gte("created_at", effectiveStart)
+      .lte("created_at", effectiveEnd);
+
+    if (parsedGameId) {
+      query = query.eq("game_id", parsedGameId);
+    }
+
+    const { data, error } = await query.range(from, from + PAGE_SIZE - 1);
+    if (error) {
+      console.error("[resetTop] Error fetching paginated minigame_wins:", error.message);
+      break;
+    }
+
+    if (data && data.length > 0) {
+      allRows.push(...data);
+      if (data.length < PAGE_SIZE) {
+        hasMore = false;
+      } else {
+        from += PAGE_SIZE;
+      }
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allRows;
+}
+
 // ── ดึงข้อมูล Top Winners จาก minigame_wins (ผ่าน RPC / View / Aggregation) ───
 async function fetchTopMinigameWins(supabase, limit = 10, gameId = null, startTime = null, endTime = null) {
   if (!supabase) return [];
@@ -111,23 +150,8 @@ async function fetchTopMinigameWins(supabase, limit = 10, gameId = null, startTi
       }));
     }
 
-    // 2. ถ้า RPC ไม่พร้อม ให้ Fallback ดึงจาก minigame_wins พร้อมกรองช่วงเวลา
-    let query = supabase
-      .from("minigame_wins")
-      .select("discord_id, points_earned")
-      .gte("created_at", effectiveStart)
-      .lte("created_at", effectiveEnd);
-
-    if (parsedGameId) {
-      query = query.eq("game_id", parsedGameId);
-    }
-
-    const { data, error } = await query.range(0, 49999);
-
-    if (error) {
-      console.error("[resetTop] Error fetching minigame_wins:", error.message);
-      return [];
-    }
+    // 2. ถ้า RPC ไม่พร้อม ให้ Fallback ดึงจาก minigame_wins แบบ Pagination พร้อมกรองช่วงเวลา
+    const data = await fetchAllMinigameWinsRows(supabase, effectiveStart, effectiveEnd, parsedGameId);
 
     const stats = {};
     for (const row of data || []) {
@@ -179,20 +203,8 @@ async function getUserMinigameRank(supabase, userId, gameId = null, startTime = 
         points: parseInt(row.points || 0, 10)
       }));
     } else {
-      // 2. Fallback ดึงจาก minigame_wins พร้อมกรองช่วงเวลา
-      let query = supabase
-        .from("minigame_wins")
-        .select("discord_id, points_earned")
-        .gte("created_at", effectiveStart)
-        .lte("created_at", effectiveEnd);
-
-      if (parsedGameId) {
-        query = query.eq("game_id", parsedGameId);
-      }
-
-      const { data, error } = await query.range(0, 49999);
-
-      if (error) return null;
+      // 2. Fallback ดึงจาก minigame_wins แบบ Pagination พร้อมกรองช่วงเวลา
+      const data = await fetchAllMinigameWinsRows(supabase, effectiveStart, effectiveEnd, parsedGameId);
 
       const stats = {};
       for (const row of data || []) {

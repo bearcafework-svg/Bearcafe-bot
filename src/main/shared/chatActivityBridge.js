@@ -85,6 +85,16 @@ function isBeeActive(channelId) {
 }
 
 /**
+ * ดึง Message ID ของผึ้งที่กำลัง active อยู่ใน channel
+ * @param {string} channelId
+ * @returns {string|null}
+ */
+function getActiveBeeMessageId(channelId) {
+  if (!channelId) return null;
+  return activeBeesByChannel.get(channelId)?.messageId || null;
+}
+
+/**
  * บันทึกข้อความบรอดแคสต์ล่าสุดของ channel พร้อมบันทึกลง Persistent Storage
  * @param {string} channelId
  * @param {string} messageId
@@ -159,6 +169,7 @@ module.exports = {
   registerActiveBee,
   clearActiveBee,
   isBeeActive,
+  getActiveBeeMessageId,
   recordBroadcast,
   getLastBroadcastMessageId,
   canSendBroadcast,

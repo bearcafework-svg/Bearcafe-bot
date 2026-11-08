@@ -9,3 +9,5 @@ scripts/check_target_db.js
 scripts/inspect_target_rows.js
 scripts/list_all_target_tables.js
 
+
+supabase/.temp/

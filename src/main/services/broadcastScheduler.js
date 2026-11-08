@@ -186,9 +186,10 @@ async function checkAndSendBroadcasts(client) {
               const recentMessages = await ch.messages.fetch({ limit: 15 }).catch(() => null);
               if (recentMessages && recentMessages.size > 0) {
                 const botId = client.user?.id;
+                const activeBeeMsgId = chatActivityBridge.getActiveBeeMessageId(channelId);
                 if (botId) {
                   const candidateGhostMsgs = recentMessages.filter(
-                    (msg) => msg.author.id === botId && !msg.pinned && msg.id !== prevMsgId
+                    (msg) => msg.author.id === botId && !msg.pinned && msg.id !== prevMsgId && msg.id !== activeBeeMsgId
                   );
 
                   for (const [, ghostMsg] of candidateGhostMsgs) {

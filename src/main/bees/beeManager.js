@@ -110,7 +110,7 @@ function getSupabase() {
 }
 
 // ─── DB Helpers: Active Bee Session Storage (minigame_active_sessions) ─────────
-async function saveActiveBeeSession(channelId, messageId, customId, beeConfig, gardenUrl, expiresAt) {
+async function saveActiveBeeSession(channelId, messageId, customId, beeConfig, gardenUrl, expiresAt, extraData = {}) {
   const supabase = getSupabase();
   if (!supabase) return;
   try {
@@ -118,7 +118,7 @@ async function saveActiveBeeSession(channelId, messageId, customId, beeConfig, g
       channel_id: `bee_${channelId}`,
       game_id: 999,
       message_id: messageId,
-      current_question: { customId, beeConfig, gardenUrl, expiresAt },
+      current_question: { customId, beeConfig, gardenUrl, expiresAt, ...extraData },
       updated_at: new Date().toISOString()
     }, { onConflict: 'channel_id' });
   } catch (err) {
@@ -136,6 +136,14 @@ async function getActiveBeeSession(channelId) {
       .eq('channel_id', `bee_${channelId}`)
       .single();
     if (error || !data) return null;
+
+    if (typeof data.current_question === 'string') {
+      try {
+        data.current_question = JSON.parse(data.current_question);
+      } catch (parseErr) {
+        data.current_question = {};
+      }
+    }
     return data;
   } catch (err) {
     return null;
@@ -170,9 +178,31 @@ async function checkAndCleanExpiredBees(client) {
 
     const now = Date.now();
     for (const session of data) {
-      const qData = session.current_question || {};
-      const expiresAt = qData.expiresAt || 0;
-      if (now >= expiresAt) {
+      let qData = session.current_question;
+      if (typeof qData === 'string') {
+        try {
+          qData = JSON.parse(qData);
+        } catch (_) {
+          qData = {};
+        }
+      }
+      qData = qData || {};
+
+      const expiresAt = qData.expiresAt ? Number(qData.expiresAt) : 0;
+      const createdAt = session.updated_at ? new Date(session.updated_at).getTime() : 0;
+      const ageMs = createdAt > 0 ? now - createdAt : 0;
+
+      // ── Safety Guard ──
+      // 1. ถ้าข้อความเพิ่งสร้าง/อัปเดตยังไม่ถึง 14 นาที ห้ามลบเด็ดขาด (ป้องกัน false positive)
+      if (ageMs > 0 && ageMs < 14 * 60 * 1000) {
+        continue;
+      }
+
+      // 2. ตรวจสอบว่าหมดอายุ 15 นาทีจริงหรือไม่
+      const isExpiredByTime = expiresAt > 0 && now >= expiresAt;
+      const isExpiredByAge = ageMs >= 15 * 60 * 1000;
+
+      if (isExpiredByTime || isExpiredByAge) {
         const channelId = session.channel_id.replace(/^bee_/, '');
         const messageId = session.message_id;
 
@@ -547,7 +577,10 @@ async function spawnBee(client, beeId = null, targetChannelId = null) {
     chatActivityBridge.registerActiveBee(channelId, { messageId: message.id, customId });
 
     // บันทึกลง Supabase DB (minigame_active_sessions)
-    await saveActiveBeeSession(channelId, message.id, customId, selectedBee, config.garden_background_url, expiresAt);
+    await saveActiveBeeSession(channelId, message.id, customId, selectedBee, config.garden_background_url, expiresAt, {
+      starsState: [true, true, true],
+      mathData
+    });
 
     // เก็บสถานะ Session (in-memory)
     const sessionData = {

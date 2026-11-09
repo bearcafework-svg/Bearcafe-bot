@@ -50,9 +50,9 @@ function pickMultiplier() {
 }
 
 function calculateReward(duration, userCount) {
-  const cycles = Math.floor(duration / CYCLE_SECONDS);
-  if (cycles === 0) return 0;
-  const base = cycles * BASE_PER_CYCLE;
+  if (duration < CYCLE_SECONDS) return 0;
+  const cycles = duration / CYCLE_SECONDS;
+  const base = Math.round(cycles * BASE_PER_CYCLE);
   let earned = Math.round(base * pickMultiplier());
   if (userCount >= 3) earned = Math.round(earned * 1.1);
   if (duration >= 3600) earned += 20;
@@ -122,7 +122,7 @@ function setupVoicePoints(client) {
   }
 
   // ── 2. แจกแต้มกิจกรรมเสียง (Direct Supabase Bypass) ──
-  async function awardVoicePoints(userId, durationSeconds, userCount, channelName, parentId, member = null) {
+  async function awardVoicePoints(userId, durationSeconds, userCount, channelName, parentId, member = null, isRealtimeCycle = false) {
     if (parentId === EXCLUDED_CATEGORY_ID) return;
 
     // 🚫 ตรวจสอบ role_blacklist (ข้ามสมาชิกที่ติด blacklist)
@@ -162,13 +162,15 @@ function setupVoicePoints(client) {
         const dailyPoints = needsReset ? 0 : (row?.daily_points ?? 0);
 
         if (current >= maxCap || dailyPoints >= dailyCap) {
-          // แม้แต้มหลักเต็ม ยังเปิดโอกาสสุ่มดรอป Star Coin จากการลงห้องเสียงได้
-          try {
-            const { checkVoiceStarCoinDrop } = require("./starCoin");
-            if (typeof checkVoiceStarCoinDrop === "function") {
-              checkVoiceStarCoinDrop(client, supabase, userId);
-            }
-          } catch {}
+          // แม้แต้มหลักเต็ม ยังเปิดโอกาสสุ่มดรอป Star Coin ในรอบเรียลไทม์ได้
+          if (isRealtimeCycle) {
+            try {
+              const { checkVoiceStarCoinDrop } = require("./starCoin");
+              if (typeof checkVoiceStarCoinDrop === "function") {
+                checkVoiceStarCoinDrop(client, supabase, userId, member?.guild);
+              }
+            } catch {}
+          }
           return;
         }
 
@@ -206,13 +208,15 @@ function setupVoicePoints(client) {
           // แจ้งเตือนลงห้อง Discord
           await handleVoiceNotification(userId, actualEarned, channelName);
 
-          // 🌟 สุ่มดรอป Star Coin (Gacha Coin) จากการลงห้องเสียง
-          try {
-            const { checkVoiceStarCoinDrop } = require("./starCoin");
-            if (typeof checkVoiceStarCoinDrop === "function") {
-              checkVoiceStarCoinDrop(client, supabase, userId);
-            }
-          } catch {}
+          // 🌟 สุ่มดรอป Star Coin (Gacha Coin) เฉพาะรอบเรียลไทม์
+          if (isRealtimeCycle) {
+            try {
+              const { checkVoiceStarCoinDrop } = require("./starCoin");
+              if (typeof checkVoiceStarCoinDrop === "function") {
+                checkVoiceStarCoinDrop(client, supabase, userId, member?.guild);
+              }
+            } catch {}
+          }
         }
         return;
       } catch (err) {
@@ -440,6 +444,7 @@ function setupVoicePoints(client) {
 
       voiceJoinTimes.set(memberId, {
         joinedAt: now,
+        lastRewardAt: now,
         channelId: voiceState.channelId,
         channelName: voiceState.channel?.name ?? null,
         parentId: voiceState.channel?.parentId ?? null,
@@ -471,6 +476,61 @@ function setupVoicePoints(client) {
 
   const { isIgnoredGuild } = require("../../utils/guildFilter");
 
+  // ── 3. ตรวจเช็กและแจกแต้ม/เหรียญแบบเรียลไทม์ทุก 15 นาที ──
+  const REALTIME_INTERVAL_SECONDS = 15 * 60; // 900 วินาที
+
+  async function processRealtimeVoiceRewards() {
+    if (!client.isReady()) return;
+    const now = Date.now();
+
+    for (const guild of client.guilds.cache.values()) {
+      if (isIgnoredGuild(guild.id)) continue;
+
+      for (const [memberId, voiceState] of guild.voiceStates.cache) {
+        if (!voiceState.channelId || voiceState.member?.user?.bot) continue;
+
+        const parentId = voiceState.channel?.parentId;
+        if (parentId && parentId === EXCLUDED_CATEGORY_ID) continue;
+
+        // 🚫 ตรวจสอบ Anti-AFK: ไมค์แดง หูฟังแดง (ทั้งปิดเอง selfMute/selfDeaf และโดนเซิร์ฟเวอร์ปิด serverMute/serverDeaf)
+        const isMuted = Boolean(voiceState.selfMute || voiceState.serverMute || voiceState.mute);
+        const isDeaf = Boolean(voiceState.selfDeaf || voiceState.serverDeaf || voiceState.deaf);
+
+        let session = voiceJoinTimes.get(memberId);
+        if (!session) {
+          session = {
+            joinedAt: now,
+            lastRewardAt: now,
+            channelId: voiceState.channelId,
+            channelName: voiceState.channel?.name ?? null,
+            parentId: parentId ?? null,
+          };
+          voiceJoinTimes.set(memberId, session);
+          continue;
+        }
+
+        // หากปิดไมค์หรือหูฟัง ให้เลื่อน lastRewardAt มารอเริ่มนับ 15 นาทีใหม่เมื่อเปิดไมค์/หูฟัง
+        if (isMuted || isDeaf) {
+          session.lastRewardAt = now;
+          continue;
+        }
+
+        const elapsedSinceLast = Math.floor((now - (session.lastRewardAt || session.joinedAt)) / 1000);
+        if (elapsedSinceLast >= REALTIME_INTERVAL_SECONDS) {
+          const userCount = getUserCountInChannel(guild, voiceState.channelId);
+          const channelName = voiceState.channel?.name ?? session.channelName ?? "ห้องพูดคุย";
+          const member = voiceState.member;
+
+          // แจกแต้มสตรอว์เบอร์รี่และลุ้น Star Coin รอบเรียลไทม์
+          await awardVoicePoints(memberId, REALTIME_INTERVAL_SECONDS, userCount, channelName, parentId, member, true);
+
+          // อัปเดตเวลารอบล่าสุด
+          session.lastRewardAt = now;
+        }
+      }
+    }
+  }
+
   client.once("clientReady", async () => {
     for (const guild of client.guilds.cache.values()) {
       if (isIgnoredGuild(guild.id)) continue;
@@ -478,6 +538,7 @@ function setupVoicePoints(client) {
     }
   });
 
+  // รัน Voice State Sync ทุก 15 นาทีตามเดิม
   setInterval(async () => {
     if (!client.isReady()) return;
     for (const guild of client.guilds.cache.values()) {
@@ -485,6 +546,15 @@ function setupVoicePoints(client) {
       await trackJoinState(guild);
     }
   }, HEARTBEAT_INTERVAL_MS);
+
+  // รันตรวจสอบเรียลไทม์ทุก 1 นาที (0% CPU load เช็กใน RAM)
+  setInterval(async () => {
+    try {
+      await processRealtimeVoiceRewards();
+    } catch (err) {
+      console.error("[voice-points] processRealtimeVoiceRewards error:", err.message);
+    }
+  }, 60 * 1000);
 
   client.on("voiceStateUpdate", async (oldState, newState) => {
     if (oldState.channelId === newState.channelId) return;
@@ -496,19 +566,28 @@ function setupVoicePoints(client) {
     if (oldState.channelId) {
       const session = voiceJoinTimes.get(userId);
       if (session) {
-        const durationSeconds = Math.floor((Date.now() - session.joinedAt) / 1000);
+        const remainingSeconds = Math.floor((Date.now() - (session.lastRewardAt || session.joinedAt)) / 1000);
         const userCount = getUserCountInChannel(oldState.guild, oldState.channelId) + 1;
         const channelName = oldState.channel?.name ?? session.channelName ?? "ห้องพูดคุย";
         const parentId = oldState.channel?.parentId ?? session.parentId ?? null;
         const member = oldState.member || newState.member;
-        await awardVoicePoints(userId, durationSeconds, userCount, channelName, parentId, member);
+
+        const isMuted = Boolean(oldState.selfMute || oldState.serverMute || oldState.mute);
+        const isDeaf = Boolean(oldState.selfDeaf || oldState.serverDeaf || oldState.deaf);
+
+        // ถ้ามีเศษเวลาเกิน 10 นาที (CYCLE_SECONDS) และไมค์/หูฟังไม่แดง ให้คิดแต้มสตรอว์เบอร์รี่ส่วนที่เหลือ (ไม่ลุ้นเหรียญ)
+        if (remainingSeconds >= CYCLE_SECONDS && !isMuted && !isDeaf) {
+          await awardVoicePoints(userId, remainingSeconds, userCount, channelName, parentId, member, false);
+        }
       }
       voiceJoinTimes.delete(userId);
     }
 
     if (newState.channelId) {
+      const now = Date.now();
       voiceJoinTimes.set(userId, {
-        joinedAt: Date.now(),
+        joinedAt: now,
+        lastRewardAt: now,
         channelId: newState.channelId,
         channelName: newState.channel?.name ?? null,
         parentId: newState.channel?.parentId ?? null,

@@ -6,12 +6,12 @@ const { getSupabaseClient } = require("../../services/supabaseClient");
 const sharedSettings = require("../../sharedSettings.json");
 const roleBlacklist = sharedSettings.role_blacklist || [];
 
-const NOTIFY_CHANNEL_ID = "1524123147987714158"; // ห้องแจ้งเตือนรวม (ห้องเดียวกับแต้มเสียง)
+const NOTIFY_CHANNEL_ID = "1569377817131487374"; // ห้องแจ้งเตือน Star Coin
 const CHAT_COOLDOWN_MS = 60 * 1000; // 60 วินาที คูลดาวน์รายบุคคลใน RAM (0% DB load)
 const CHAT_DROP_CHANCE = 0.04;      // โอกาสดรอป 4% ต่อข้อความที่ผ่านเกณฑ์
 const VOICE_DROP_CHANCE = 0.15;     // โอกาสดรอป 15% ต่อรอบแต้มเสียง
 const MIN_CHAT_LENGTH = 5;          // ความยาวข้อความขั้นต่ำ ป้องกันพิมพ์สแปม
-const DAILY_CAP = 15;               // เพดานสูงสุดไม่เกิน 15 เหรียญต่อวัน
+const DAILY_CAP = 5;                // เพดานสูงสุด 5 เหรียญต่อวัน
 
 // In-Memory Cooldown Tracking (เก็บใน RAM ป้องกันการต่อ Database ซ้ำซ้อน)
 const lastChatCheckByUser = new Map();
@@ -84,7 +84,7 @@ function buildStarCoinPayload(userId, amount, avatarUrl) {
                   name: "GachaCoin_bearcafe",
                   animated: false,
                 },
-                url: "https://discord.com/channels/1144251788493602848/1524123727724417276",
+                url: "https://discord.com/channels/1144251788493602848/1556376052647993374",
               },
             ],
           },

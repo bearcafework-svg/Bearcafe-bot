@@ -12,7 +12,7 @@ ADD COLUMN IF NOT EXISTS last_gacha_coin_reset TEXT DEFAULT '';
 CREATE OR REPLACE FUNCTION add_gacha_coins(
     p_user_id TEXT,
     p_amount INT,
-    p_daily_cap INT DEFAULT 15,
+    p_daily_cap INT DEFAULT 5,
     p_today_date TEXT DEFAULT TO_CHAR(NOW() AT TIME ZONE 'Asia/Bangkok', 'YYYY-MM-DD')
 )
 RETURNS TABLE (

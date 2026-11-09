@@ -128,6 +128,7 @@ setupFeature("voiceBoard", "./src/features/voiceBoard", "setupVoiceBoard"); // L
 setupFeature("dailyQuest", "./src/features/dailyQuest", "setupDailyQuest", supabaseEnvKeys);
 setupFeature("moveMembers", "./src/commands/moveMembers", "setupMoveMembers");
 setupFeature("gachapon", "./src/features/gachapon", "setupGachapon", supabaseEnvKeys);
+setupFeature("starCoin", "./src/features/starCoin", "setupStarCoin", supabaseEnvKeys);
 setupFeature("mainQuest", "./src/features/mainQuest", "setupMainQuest", supabaseEnvKeys);
 setupFeature("sendComponent", "./src/commands/sendComponent", "setupSendComponent");
 setupFeature("clearMessages", "./src/commands/clearMessages", "setupClearMessages");

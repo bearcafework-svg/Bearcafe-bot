@@ -158,6 +158,13 @@ function setupVoicePoints(client) {
         const dailyPoints = needsReset ? 0 : (row?.daily_points ?? 0);
 
         if (current >= maxCap || dailyPoints >= dailyCap) {
+          // แม้แต้มหลักเต็ม ยังเปิดโอกาสสุ่มดรอป Star Coin จากการลงห้องเสียงได้
+          try {
+            const { checkVoiceStarCoinDrop } = require("./starCoin");
+            if (typeof checkVoiceStarCoinDrop === "function") {
+              checkVoiceStarCoinDrop(client, supabase, userId);
+            }
+          } catch {}
           return;
         }
 
@@ -191,6 +198,14 @@ function setupVoicePoints(client) {
 
         // แจ้งเตือนลงห้อง Discord
         await handleVoiceNotification(userId, actualEarned, channelName);
+
+        // 🌟 สุ่มดรอป Star Coin (Gacha Coin) จากการลงห้องเสียง
+        try {
+          const { checkVoiceStarCoinDrop } = require("./starCoin");
+          if (typeof checkVoiceStarCoinDrop === "function") {
+            checkVoiceStarCoinDrop(client, supabase, userId);
+          }
+        } catch {}
         return;
       } catch (err) {
         console.error("[voice-points] Direct award points error:", err.message);

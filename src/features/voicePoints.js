@@ -1,6 +1,5 @@
 const axios = require("axios");
 const crypto = require("crypto");
-const { WebhookClient } = require("discord.js");
 const { getSupabaseClient } = require("../services/supabaseClient");
 const { isSupabaseQuotaError, shouldLogThrottledError } = require("../../utils/errorThrottler");
 const { withUserPointLock } = require("../utils/pointManager");
@@ -15,7 +14,20 @@ const MAX_EARNED = 150;
 const NOTIFY_CHANNEL_ID = "1524123147987714158";
 const NOTIFY_COOLDOWN_MS = 15 * 60 * 1000;
 const DEFAULT_VOICE_WEBHOOK_URL = "https://discord.com/api/webhooks/1569800727734263811/c0Tftj0s5y2BzPdp7ryDtgi6tKKZ2tGzj2nsxc16exhy0wKN-VmUIW7mZRcbJiM-fLZ2";
-let voiceWebhookClient = null;
+
+/**
+ * ส่งการ์ดแจ้งเตือน Component V2 ผ่าน Webhook โดยแนบ ?with_components=true
+ * เพื่อให้ Discord API ยอมรับ MessageFlags.IS_COMPONENTS_V2 (32768) โดยไม่ต้องมี content
+ */
+async function sendComponentV2Webhook(webhookUrl, payload) {
+  if (!webhookUrl) return false;
+  const separator = webhookUrl.includes("?") ? "&" : "?";
+  const targetUrl = webhookUrl.includes("with_components=true")
+    ? webhookUrl
+    : `${webhookUrl}${separator}with_components=true`;
+  const res = await axios.post(targetUrl, payload, { timeout: 10000 });
+  return res.status === 200 || res.status === 204;
+}
 
 const MULTIPLIER_TABLE = [
   { weight: 50, value: 1.0 },
@@ -410,13 +422,10 @@ function setupVoicePoints(client) {
 
       if (voiceWebhookUrl) {
         try {
-          if (!voiceWebhookClient || voiceWebhookClient.url !== voiceWebhookUrl) {
-            voiceWebhookClient = new WebhookClient({ url: voiceWebhookUrl });
-          }
-          await voiceWebhookClient.send(componentPayload);
+          await sendComponentV2Webhook(voiceWebhookUrl, componentPayload);
           sentViaWebhook = true;
         } catch (webhookErr) {
-          console.error("[voice-points] Webhook notification failed, falling back to channel.send:", webhookErr.message);
+          console.error("[voice-points] Webhook notification failed, falling back to channel.send:", webhookErr.response?.data?.message || webhookErr.message);
         }
       }
 

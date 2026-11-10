@@ -2,14 +2,27 @@
 // ระบบ Star Coin ₊ เหรียญดาวตก (Gacha Coin)
 // สุ่มดรอปจากการพิมพ์แชทและการลงห้องเสียง พร้อมการ์ดแจ้งเตือน Component V2
 
-const { WebhookClient } = require("discord.js");
+const axios = require("axios");
 const { getSupabaseClient } = require("../../services/supabaseClient");
 const sharedSettings = require("../../sharedSettings.json");
 const roleBlacklist = sharedSettings.role_blacklist || [];
 
 const NOTIFY_CHANNEL_ID = "1569377817131487374"; // ห้องแจ้งเตือน Star Coin
 const DEFAULT_STAR_COIN_WEBHOOK_URL = "https://discord.com/api/webhooks/1569804023887040512/WmasqVl-jXmlOFW5NoEK7RBjFzqRTapy1nCo17gSBFt1PCPRooG6QKanwUS3CFdRNd6e";
-let starCoinWebhookClient = null;
+
+/**
+ * ส่งการ์ดแจ้งเตือน Component V2 ผ่าน Webhook โดยแนบ ?with_components=true
+ * เพื่อให้ Discord API ยอมรับ MessageFlags.IS_COMPONENTS_V2 (32768) โดยไม่ต้องมี content
+ */
+async function sendComponentV2Webhook(webhookUrl, payload) {
+  if (!webhookUrl) return false;
+  const separator = webhookUrl.includes("?") ? "&" : "?";
+  const targetUrl = webhookUrl.includes("with_components=true")
+    ? webhookUrl
+    : `${webhookUrl}${separator}with_components=true`;
+  const res = await axios.post(targetUrl, payload, { timeout: 10000 });
+  return res.status === 200 || res.status === 204;
+}
 const CHAT_COOLDOWN_MS = 60 * 1000; // 60 วินาที คูลดาวน์รายบุคคลใน RAM (0% DB load)
 const CHAT_DROP_CHANCE = 0.04;      // โอกาสดรอป 4% ต่อข้อความที่ผ่านเกณฑ์
 const VOICE_DROP_CHANCE = 0.15;     // โอกาสดรอป 15% ต่อรอบแต้มเสียง
@@ -155,13 +168,10 @@ async function tryAwardStarCoin(client, supabase, userId, source = "chat", guild
 
     if (starCoinWebhookUrl) {
       try {
-        if (!starCoinWebhookClient || starCoinWebhookClient.url !== starCoinWebhookUrl) {
-          starCoinWebhookClient = new WebhookClient({ url: starCoinWebhookUrl });
-        }
-        await starCoinWebhookClient.send(payload);
+        await sendComponentV2Webhook(starCoinWebhookUrl, payload);
         sentViaWebhook = true;
       } catch (webhookErr) {
-        console.error("[starCoin] Webhook notification failed, falling back to channel.send:", webhookErr.message);
+        console.error("[starCoin] Webhook notification failed, falling back to channel.send:", webhookErr.response?.data?.message || webhookErr.message);
       }
     }
 

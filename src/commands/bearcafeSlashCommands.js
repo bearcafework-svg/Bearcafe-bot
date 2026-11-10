@@ -192,11 +192,12 @@ const BEARCAFE_SLASH_COMMANDS = [
   // 10. /backup (Security Backup)
   {
     name: "backup",
-    description: "สำรองโครงสร้างเซิร์ฟเวอร์เฉพาะห้องถาวร (เฉพาะ Server Owner)",
+    description: "สำรองและกู้คืนโครงสร้างเซิร์ฟเวอร์เฉพาะห้องถาวร (เฉพาะ Server Owner)",
+    default_member_permissions: PermissionFlagsBits.Administrator.toString(),
     options: [
       {
         name: "create",
-        description: "สร้าง Backup ใหม่",
+        description: "สร้าง Backup ใหม่ทันที",
         type: ApplicationCommandOptionType.Subcommand,
         options: [
           {
@@ -209,8 +210,22 @@ const BEARCAFE_SLASH_COMMANDS = [
       },
       {
         name: "list",
-        description: "ดูรายการ Backup ทั้งหมด",
+        description: "ดูรายการ Backup ทั้งหมด และเลือกกู้คืนได้ทันที",
         type: ApplicationCommandOptionType.Subcommand,
+      },
+      {
+        name: "restore",
+        description: "เรียกคืนโครงสร้างเซิร์ฟเวอร์จาก Backup (เฉพาะ Server Owner)",
+        type: ApplicationCommandOptionType.Subcommand,
+        options: [
+          {
+            name: "backup_id",
+            description: "เลือกจากรายการค้นหา หรือเว้นว่างไว้เพื่อเปิดเมนูดรอปดาวน์",
+            type: ApplicationCommandOptionType.String,
+            required: false,
+            autocomplete: true,
+          },
+        ],
       },
     ],
   },
@@ -218,13 +233,15 @@ const BEARCAFE_SLASH_COMMANDS = [
   // 11. /restore (Security Restore)
   {
     name: "restore",
-    description: "เรียกคืนโครงสร้างเซิร์ฟเวอร์จาก Backup ID (เฉพาะ Server Owner)",
+    description: "เรียกคืนโครงสร้างเซิร์ฟเวอร์จาก Backup (เฉพาะ Server Owner)",
+    default_member_permissions: PermissionFlagsBits.Administrator.toString(),
     options: [
       {
         name: "backup_id",
-        description: "ระบุ Backup ID ที่ต้องการ Restore (ดูได้จาก /backup list)",
+        description: "เลือกจากรายการค้นหา หรือเว้นว่างไว้เพื่อเปิดเมนูดรอปดาวน์",
         type: ApplicationCommandOptionType.String,
-        required: true,
+        required: false,
+        autocomplete: true,
       },
     ],
   },

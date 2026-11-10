@@ -2,24 +2,14 @@
 // src/features/security/backupManager.js — ระบบ Backup & Restore โครงสร้างเซิร์ฟเวอร์
 // ===================================================
 
-const { createClient } = require("@supabase/supabase-js");
 const { ChannelType, PermissionFlagsBits } = require("discord.js");
 const { getAllRooms } = require("../../../state/redisClient");
 const config = require("../../../config");
 const logger = require("../../../utils/logger");
+const { getSupabaseClient } = require("../../services/supabaseClient");
 
-let supabase;
 function getSupabase() {
-  const url = process.env.POINTS_SUPABASE_URL || process.env.SUPABASE_URL;
-  const key = process.env.POINTS_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!supabase && url && key) {
-    supabase = createClient(
-      url,
-      key,
-      { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
-    );
-  }
-  return supabase;
+  return getSupabaseClient();
 }
 
 /**
@@ -199,6 +189,31 @@ async function listBackupsFromSupabase(guildId) {
 }
 
 /**
+ * ดึงข้อมูล Backup รายการเดียวจาก ID
+ */
+async function getBackupById(guildId, backupId) {
+  const sb = getSupabase();
+  if (!sb) throw new Error("Supabase is not configured.");
+  const { data, error } = await sb
+    .from("guild_structure_backups")
+    .select("id, backup_name, created_by, created_at, categories, channels, roles")
+    .eq("guild_id", guildId)
+    .eq("id", backupId)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return {
+    id: data.id,
+    name: data.backup_name,
+    createdBy: data.created_by,
+    createdAt: data.created_at,
+    categoryCount: Array.isArray(data.categories) ? data.categories.length : 0,
+    channelCount: Array.isArray(data.channels) ? data.channels.length : 0,
+    roleCount: Array.isArray(data.roles) ? data.roles.length : 0,
+  };
+}
+
+/**
  * Restore โครงสร้างเซิร์ฟเวอร์จาก Backup ID
  */
 async function restoreGuildStructure(guild, backupId) {
@@ -338,5 +353,6 @@ module.exports = {
   serializeGuildStructure,
   saveBackupToSupabase,
   listBackupsFromSupabase,
+  getBackupById,
   restoreGuildStructure,
 };

@@ -19,7 +19,8 @@
     "reload": "node scripts/reload.js",
     "reload:main": "node scripts/reload.js main",
     "reload:kuma": "node scripts/reload.js kuma",
-    "reload:akari": "node scripts/reload.js kuma"
+    "reload:akari": "node scripts/reload.js kuma",
+    "monitor": "node scripts/telegram-monitor.js"
   },
   "engines": {
     "node": "20.x",

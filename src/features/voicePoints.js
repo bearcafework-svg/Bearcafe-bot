@@ -13,7 +13,6 @@ const BASE_PER_CYCLE = 8;
 const MAX_EARNED = 150;
 const NOTIFY_CHANNEL_ID = "1524123147987714158";
 const NOTIFY_COOLDOWN_MS = 15 * 60 * 1000;
-const DEFAULT_VOICE_WEBHOOK_URL = "https://discord.com/api/webhooks/1569800727734263811/c0Tftj0s5y2BzPdp7ryDtgi6tKKZ2tGzj2nsxc16exhy0wKN-VmUIW7mZRcbJiM-fLZ2";
 
 /**
  * ส่งการ์ดแจ้งเตือน Component V2 ผ่าน Webhook โดยแนบ ?with_components=true
@@ -417,7 +416,7 @@ function setupVoicePoints(client) {
         ],
       };
 
-      const voiceWebhookUrl = process.env.VOICE_POINTS_WEBHOOK_URL || DEFAULT_VOICE_WEBHOOK_URL;
+      const voiceWebhookUrl = process.env.VOICE_POINTS_WEBHOOK_URL;
       let sentViaWebhook = false;
 
       if (voiceWebhookUrl) {

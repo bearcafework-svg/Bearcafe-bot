@@ -8,7 +8,6 @@ const sharedSettings = require("../../sharedSettings.json");
 const roleBlacklist = sharedSettings.role_blacklist || [];
 
 const NOTIFY_CHANNEL_ID = "1569377817131487374"; // ห้องแจ้งเตือน Star Coin
-const DEFAULT_STAR_COIN_WEBHOOK_URL = "https://discord.com/api/webhooks/1569804023887040512/WmasqVl-jXmlOFW5NoEK7RBjFzqRTapy1nCo17gSBFt1PCPRooG6QKanwUS3CFdRNd6e";
 
 /**
  * ส่งการ์ดแจ้งเตือน Component V2 ผ่าน Webhook โดยแนบ ?with_components=true
@@ -163,7 +162,7 @@ async function tryAwardStarCoin(client, supabase, userId, source = "chat", guild
 
     // 3. ส่งการ์ดแจ้งเตือน Component V2 ผ่าน Webhook (พร้อม Fallback ไปยัง channel.send)
     const payload = buildStarCoinPayload(userId, row.coins_added, avatarUrl);
-    const starCoinWebhookUrl = process.env.STAR_COIN_WEBHOOK_URL || DEFAULT_STAR_COIN_WEBHOOK_URL;
+    const starCoinWebhookUrl = process.env.STAR_COIN_WEBHOOK_URL;
     let sentViaWebhook = false;
 
     if (starCoinWebhookUrl) {

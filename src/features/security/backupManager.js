@@ -120,18 +120,23 @@ async function serializeGuildStructure(guild) {
 async function saveBackupToSupabase(guildId, backupName, createdBy, data) {
   const sb = getSupabase();
   if (!sb) throw new Error("Supabase is not configured.");
+
+  const payload = {
+    backup_name: backupName || "Manual Backup",
+    created_by: createdBy,
+    categories: data.categories || [],
+    channels: data.channels || [],
+    roles: data.roles || [],
+    special_channels: data.specialChannels || [],
+  };
+
   const { data: result, error } = await sb
     .from("guild_structure_backups")
     .insert({
       guild_id: guildId,
-      backup_name: backupName || "Manual Backup",
-      created_by: createdBy,
-      categories: data.categories,
-      channels: data.channels,
-      roles: data.roles,
-      special_channels: data.specialChannels,
+      backup_data: payload,
     })
-    .select("id, backup_name, created_at")
+    .select("id, backup_data, created_at")
     .single();
 
   if (error) {
@@ -156,7 +161,11 @@ async function saveBackupToSupabase(guildId, backupName, createdBy, data) {
     logger.warn(`[backupManager] Failed auto-cleanup of old backups: ${cleanErr.message}`);
   }
 
-  return result;
+  return {
+    id: result.id,
+    backup_name: payload.backup_name,
+    created_at: result.created_at,
+  };
 }
 
 /**
@@ -167,7 +176,7 @@ async function listBackupsFromSupabase(guildId) {
   if (!sb) throw new Error("Supabase is not configured.");
   const { data, error } = await sb
     .from("guild_structure_backups")
-    .select("id, backup_name, created_by, created_at, categories, channels, roles")
+    .select("id, backup_data, created_at")
     .eq("guild_id", guildId)
     .order("created_at", { ascending: false })
     .limit(10);
@@ -177,15 +186,18 @@ async function listBackupsFromSupabase(guildId) {
     throw error;
   }
 
-  return (data || []).map((b) => ({
-    id: b.id,
-    name: b.backup_name,
-    createdBy: b.created_by,
-    createdAt: b.created_at,
-    categoryCount: Array.isArray(b.categories) ? b.categories.length : 0,
-    channelCount: Array.isArray(b.channels) ? b.channels.length : 0,
-    roleCount: Array.isArray(b.roles) ? b.roles.length : 0,
-  }));
+  return (data || []).map((b) => {
+    const bd = b.backup_data || {};
+    return {
+      id: b.id,
+      name: bd.backup_name || "Manual Backup",
+      createdBy: bd.created_by,
+      createdAt: b.created_at,
+      categoryCount: Array.isArray(bd.categories) ? bd.categories.length : 0,
+      channelCount: Array.isArray(bd.channels) ? bd.channels.length : 0,
+      roleCount: Array.isArray(bd.roles) ? bd.roles.length : 0,
+    };
+  });
 }
 
 /**
@@ -196,20 +208,21 @@ async function getBackupById(guildId, backupId) {
   if (!sb) throw new Error("Supabase is not configured.");
   const { data, error } = await sb
     .from("guild_structure_backups")
-    .select("id, backup_name, created_by, created_at, categories, channels, roles")
+    .select("id, backup_data, created_at")
     .eq("guild_id", guildId)
     .eq("id", backupId)
     .maybeSingle();
 
   if (error || !data) return null;
+  const bd = data.backup_data || {};
   return {
     id: data.id,
-    name: data.backup_name,
-    createdBy: data.created_by,
+    name: bd.backup_name || "Manual Backup",
+    createdBy: bd.created_by,
     createdAt: data.created_at,
-    categoryCount: Array.isArray(data.categories) ? data.categories.length : 0,
-    channelCount: Array.isArray(data.channels) ? data.channels.length : 0,
-    roleCount: Array.isArray(data.roles) ? data.roles.length : 0,
+    categoryCount: Array.isArray(bd.categories) ? bd.categories.length : 0,
+    channelCount: Array.isArray(bd.channels) ? bd.channels.length : 0,
+    roleCount: Array.isArray(bd.roles) ? bd.roles.length : 0,
   };
 }
 
@@ -221,7 +234,7 @@ async function restoreGuildStructure(guild, backupId) {
   if (!sb) throw new Error("Supabase is not configured.");
   const { data: backup, error } = await sb
     .from("guild_structure_backups")
-    .select("*")
+    .select("id, backup_data, created_at")
     .eq("id", backupId)
     .single();
 
@@ -229,7 +242,11 @@ async function restoreGuildStructure(guild, backupId) {
     throw new Error(`Backup not found with ID: ${backupId}`);
   }
 
-  const { categories, channels, roles } = backup;
+  const bd = backup.backup_data || {};
+  const categories = bd.categories || [];
+  const channels = bd.channels || [];
+  const roles = bd.roles || [];
+  const backupName = bd.backup_name || "Manual Backup";
   const channelIdMap = new Map(); // oldId -> newId
   const roleIdMap = new Map(); // oldId -> newId
 
@@ -341,7 +358,7 @@ async function restoreGuildStructure(guild, backupId) {
   logger.info(`[restore] Guild structure restored successfully from Backup ID: ${backupId}`);
 
   return {
-    backupName: backup.backup_name,
+    backupName: backupName,
     restoredCategories: categoryIdMap.size,
     restoredChannels: channelIdMap.size,
     restoredRoles: roleIdMap.size,

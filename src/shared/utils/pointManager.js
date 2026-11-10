@@ -32,6 +32,10 @@ function getDailyCap(maxCap, member = null) {
   return hasLimited ? (baseDaily + LIMITED_BONUS_DAILY) : baseDaily;
 }
 
+function getOverflowCap(maxCap, member = null) {
+  return getDailyCap(maxCap, member);
+}
+
 function getMaxPoints(member) {
   let maxPoints = cfg.DEFAULT_CAP || 750;
   if (!member || !member.roles) return maxPoints;
@@ -44,6 +48,86 @@ function getMaxPoints(member) {
     maxPoints += LIMITED_BONUS_CAP;
   }
   return maxPoints;
+}
+
+function checkAndCleanExpiredOverflow(row) {
+  if (!row) return { overflowPoints: 0, overflowExpiresAt: null, wasExpired: false };
+  const now = Date.now();
+  const expiresAt = row.overflow_expires_at ? new Date(row.overflow_expires_at).getTime() : null;
+  if (expiresAt && now > expiresAt) {
+    return {
+      overflowPoints: 0,
+      overflowExpiresAt: null,
+      wasExpired: true
+    };
+  }
+  return {
+    overflowPoints: row.overflow_points ?? 0,
+    overflowExpiresAt: row.overflow_expires_at ?? null,
+    wasExpired: false
+  };
+}
+
+async function autoDrainOverflow(supabase, member, userId) {
+  return withUserPointLock(userId, async () => {
+    const maxCap = member ? getMaxPoints(member) : 750;
+
+    const { data: row, error } = await supabase
+      .from('user_points')
+      .select('points, max_cap, daily_points, last_reset_date, overflow_points, overflow_expires_at')
+      .eq('discord_id', userId)
+      .maybeSingle();
+
+    if (error || !row) {
+      return { drained: 0, points: row?.points ?? 0, overflow: 0, overflowExpiresAt: null };
+    }
+
+    const currentPoints = row.points ?? 0;
+    const cleaned = checkAndCleanExpiredOverflow(row);
+    let overflowPoints = cleaned.overflowPoints;
+    let overflowExpiresAt = cleaned.overflowExpiresAt;
+
+    const availableSpace = Math.max(0, maxCap - currentPoints);
+    let drained = 0;
+
+    if (availableSpace > 0 && overflowPoints > 0) {
+      drained = Math.min(availableSpace, overflowPoints);
+      const newPoints = currentPoints + drained;
+      overflowPoints -= drained;
+      if (overflowPoints <= 0) {
+        overflowExpiresAt = null;
+        overflowPoints = 0;
+      }
+
+      await supabase.from('user_points').update({
+        points: newPoints,
+        max_cap: maxCap,
+        overflow_points: overflowPoints,
+        overflow_expires_at: overflowExpiresAt,
+        updated_at: new Date().toISOString()
+      }).eq('discord_id', userId);
+
+      return {
+        drained,
+        points: newPoints,
+        overflow: overflowPoints,
+        overflowExpiresAt
+      };
+    } else if (cleaned.wasExpired) {
+      await supabase.from('user_points').update({
+        overflow_points: 0,
+        overflow_expires_at: null,
+        updated_at: new Date().toISOString()
+      }).eq('discord_id', userId);
+    }
+
+    return {
+      drained: 0,
+      points: currentPoints,
+      overflow: overflowPoints,
+      overflowExpiresAt
+    };
+  });
 }
 
 function getDailyResetTimestamp() {
@@ -111,11 +195,12 @@ async function addPointsWithCap(supabase, member, userId, pointsDelta) {
   return withUserPointLock(userId, async () => {
     const maxCap = member ? getMaxPoints(member) : 750;
     const dailyCap = getDailyCap(maxCap, member);
+    const overflowCap = getOverflowCap(maxCap, member);
     const today = getTodayBangkok();
 
     const { data: row, error } = await supabase
       .from('user_points')
-      .select('points, max_cap, daily_points, last_reset_date')
+      .select('points, max_cap, daily_points, last_reset_date, overflow_points, overflow_expires_at')
       .eq('discord_id', userId)
       .maybeSingle();
 
@@ -128,45 +213,78 @@ async function addPointsWithCap(supabase, member, userId, pointsDelta) {
     const needsReset = lastReset !== today;
     const dailyPoints = needsReset ? 0 : (row?.daily_points ?? 0);
 
+    const cleaned = checkAndCleanExpiredOverflow(row);
+    let overflowPoints = cleaned.overflowPoints;
+    let overflowExpiresAt = cleaned.overflowExpiresAt;
+
     if (dailyPoints >= dailyCap) {
+      if (cleaned.wasExpired) {
+        await supabase.from('user_points').update({
+          overflow_points: 0,
+          overflow_expires_at: null,
+          updated_at: new Date().toISOString()
+        }).eq('discord_id', userId);
+      }
       return {
         awarded: 0,
+        toWallet: 0,
+        toOverflow: 0,
         reason: 'daily_cap',
         points: currentPoints,
+        overflowPoints,
+        overflowExpiresAt,
         dailyPoints,
         dailyCap,
-        maxCap
+        maxCap,
+        overflowCap
       };
     }
 
-    if (currentPoints >= maxCap) {
-      return {
-        awarded: 0,
-        reason: 'max_cap',
-        points: currentPoints,
-        dailyPoints,
-        dailyCap,
-        maxCap
-      };
-    }
+    const dailyRemaining = Math.max(0, dailyCap - dailyPoints);
+    const allowedByDaily = Math.min(pointsDelta, dailyRemaining);
 
-    const dailyRemaining = dailyCap - dailyPoints;
-    const maxRemaining = maxCap - currentPoints;
-    const actualEarned = Math.max(0, Math.min(pointsDelta, dailyRemaining, maxRemaining));
+    const spaceInWallet = Math.max(0, maxCap - currentPoints);
+    const toWallet = Math.min(allowedByDaily, spaceInWallet);
+    const remainder = allowedByDaily - toWallet;
+
+    const spaceInOverflow = Math.max(0, overflowCap - overflowPoints);
+    const toOverflow = Math.min(remainder, spaceInOverflow);
+
+    const actualEarned = toWallet + toOverflow;
 
     if (actualEarned <= 0) {
+      if (cleaned.wasExpired) {
+        await supabase.from('user_points').update({
+          overflow_points: 0,
+          overflow_expires_at: null,
+          updated_at: new Date().toISOString()
+        }).eq('discord_id', userId);
+      }
       return {
         awarded: 0,
-        reason: 'cap_reached',
+        toWallet: 0,
+        toOverflow: 0,
+        reason: 'max_and_overflow_cap',
         points: currentPoints,
+        overflowPoints,
+        overflowExpiresAt,
         dailyPoints,
         dailyCap,
-        maxCap
+        maxCap,
+        overflowCap
       };
     }
 
-    const newPoints = currentPoints + actualEarned;
+    const newPoints = currentPoints + toWallet;
     const newDailyPoints = dailyPoints + actualEarned;
+    let newOverflowPoints = overflowPoints + toOverflow;
+    let newOverflowExpiresAt = overflowExpiresAt;
+
+    if (toOverflow > 0) {
+      if (overflowPoints === 0 || !overflowExpiresAt) {
+        newOverflowExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      }
+    }
 
     const { error: upsertErr } = await supabase.from('user_points').upsert(
       {
@@ -174,7 +292,10 @@ async function addPointsWithCap(supabase, member, userId, pointsDelta) {
         points: newPoints,
         max_cap: maxCap,
         daily_points: newDailyPoints,
-        last_reset_date: today
+        last_reset_date: today,
+        overflow_points: newOverflowPoints,
+        overflow_expires_at: newOverflowExpiresAt,
+        updated_at: new Date().toISOString()
       },
       { onConflict: 'discord_id' }
     );
@@ -185,10 +306,15 @@ async function addPointsWithCap(supabase, member, userId, pointsDelta) {
 
     return {
       awarded: actualEarned,
+      toWallet,
+      toOverflow,
       points: newPoints,
+      overflowPoints: newOverflowPoints,
+      overflowExpiresAt: newOverflowExpiresAt,
       dailyPoints: newDailyPoints,
       dailyCap,
-      maxCap
+      maxCap,
+      overflowCap
     };
   });
 }
@@ -236,10 +362,13 @@ async function deductPoints(supabase, userId, pointsToDeduct) {
 module.exports = {
   getTodayBangkok,
   getDailyCap,
+  getOverflowCap,
   getMaxPoints,
   getDailyResetTimestamp,
   getVoicePointMultiplier,
   withUserPointLock,
+  checkAndCleanExpiredOverflow,
+  autoDrainOverflow,
   addPointsWithCap,
   deductPoints
 };

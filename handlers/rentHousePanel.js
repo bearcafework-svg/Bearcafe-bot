@@ -94,20 +94,7 @@ async function sendRentHousePanel(channel, ownerMember) {
 }
 
 async function sendInteractionResponse(interaction, payload) {
-  try {
-    if (interaction.replied || interaction.deferred) {
-      return await interaction.followUp(payload);
-    } else {
-      return await interaction.reply(payload);
-    }
-  } catch (err) {
-    if (err.code === 10062 || err.rawError?.code === 10062) {
-      // หมดเวลา 3 วินาทีของ Discord หรือ interaction ถูกตอบกลับไปแล้ว
-      return null;
-    }
-    console.error("[rentHousePanel] sendInteractionResponse error:", err.message);
-    return null;
-  }
+  return await safeRespond(interaction, payload);
 }
 
 /**
@@ -143,10 +130,10 @@ async function handleRentHousePanelInteraction(interaction) {
       await interaction.deferUpdate().catch(() => {});
     }
 
-    return await interaction.followUp({
-      ...createV2CardResponse("การเข้าถึงถูกปฏิเสธ", "> ❌ ขออภัยค่ะ เฉพาะเจ้าของบ้านเช่าหลังนี้เท่านั้นที่สามารถใช้งานแผงควบคุมได้ค่ะ", "🔒"),
-      flags: 64
-    });
+    return await sendInteractionResponse(
+      interaction,
+      createV2CardResponse("การเข้าถึงถูกปฏิเสธ", "> ❌ ขออภัยค่ะ เฉพาะเจ้าของบ้านเช่าหลังนี้เท่านั้นที่สามารถใช้งานแผงควบคุมได้ค่ะ", "🔒")
+    );
   }
 
   // 1. Select Menu หลักของแผงควบคุมบ้านเช่า
@@ -162,7 +149,10 @@ async function handleRentHousePanelInteraction(interaction) {
         const modal = buildRentNameModal(channel.name);
         await safeShowModal(interaction, modal);
         const updatedPayload = await buildRentPanelPayloadWithAds(interaction.member, channel, activeCustomImg);
-        await interaction.message?.edit(updatedPayload).catch(() => {});
+        if (updatedPayload) {
+          const { flags, ...editPayload } = updatedPayload;
+          await interaction.message?.edit(editPayload).catch(() => {});
+        }
         return true;
       }
       return false;
@@ -173,7 +163,10 @@ async function handleRentHousePanelInteraction(interaction) {
         const modal = buildRentLimitModal(channel.userLimit ?? 0);
         await safeShowModal(interaction, modal);
         const updatedPayload = await buildRentPanelPayloadWithAds(interaction.member, channel, activeCustomImg);
-        await interaction.message?.edit(updatedPayload).catch(() => {});
+        if (updatedPayload) {
+          const { flags, ...editPayload } = updatedPayload;
+          await interaction.message?.edit(editPayload).catch(() => {});
+        }
         return true;
       }
       return false;
@@ -196,7 +189,10 @@ async function handleRentHousePanelInteraction(interaction) {
         const modal = buildRentImageModal(memberSetting?.image_url || "");
         await safeShowModal(interaction, modal);
         const updatedPayload = await buildRentPanelPayloadWithAds(interaction.member, channel, activeCustomImg);
-        await interaction.message?.edit(updatedPayload).catch(() => {});
+        if (updatedPayload) {
+          const { flags, ...editPayload } = updatedPayload;
+          await interaction.message?.edit(editPayload).catch(() => {});
+        }
         return true;
       }
       return false;
@@ -332,9 +328,10 @@ async function handleRentHousePanelInteraction(interaction) {
 
     const refreshedPayload = await buildRentPanelPayloadWithAds(interaction.member, channel, currentSetting.image_url);
     if (refreshedPayload) {
+      const { flags, ...editPayload } = refreshedPayload;
       channel.messages.fetch({ limit: 5 }).then((msgs) => {
         const panelMsg = msgs.find((m) => m.author.id === interaction.client.user.id && (m.flags?.has(32768) || m.flags?.bitfield === 32768));
-        if (panelMsg) panelMsg.edit(refreshedPayload).catch(() => {});
+        if (panelMsg) panelMsg.edit(editPayload).catch(() => {});
       }).catch(() => {});
     }
 
@@ -594,7 +591,10 @@ async function handleRentHousePanelInteraction(interaction) {
         const botMsg = messages.find((m) => m.author.id === interaction.client.user.id && (m.flags?.has(32768) || m.flags?.bitfield === 32768));
         if (botMsg) {
           const updatedPayload = await buildRentPanelPayloadWithAds(member, channel, newImageUrl);
-          await botMsg.edit(updatedPayload);
+          if (updatedPayload) {
+            const { flags, ...editPayload } = updatedPayload;
+            await botMsg.edit(editPayload);
+          }
         }
       } catch (err) {
         console.warn("[rentHousePanel] Failed to edit existing panel message:", err.message);

@@ -19,6 +19,9 @@ function ephemeral(options) {
  */
 function sanitizeDiscordPayload(obj) {
   if (!obj || typeof obj !== "object") return obj;
+  if (typeof obj.toJSON === "function") {
+    obj = obj.toJSON();
+  }
   if (Array.isArray(obj)) return obj.map(sanitizeDiscordPayload);
   const copy = { ...obj };
 

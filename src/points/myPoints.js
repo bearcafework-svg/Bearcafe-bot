@@ -8,7 +8,7 @@ const { blacklistPayload } = require('../features/shared/tarotComponents');
 const FLAG_V2 = 32768; // MessageFlags.IsComponentsV2
 const FLAG_EPHEMERAL = 64; // MessageFlags.Ephemeral
 
-const { getTodayBangkok, getDailyCap, getDailyResetTimestamp } = require('../utils/pointManager');
+const { getTodayBangkok, getDailyCap, getOverflowCap, getDailyResetTimestamp, checkAndCleanExpiredOverflow, autoDrainOverflow } = require('../utils/pointManager');
 
 const LIMITED_ROLE_ID = cfg?.limited_role?.role_id || '1383998275711012956';
 const LIMITED_BONUS_CAP = cfg?.limited_role?.bonus_max_cap ?? 15000;
@@ -28,9 +28,13 @@ function getMaxPoints(member) {
 }
 
 async function getUserData(supabase, userId, member = null) {
+  // 1. Drain overflow if available
+  const drainRes = await autoDrainOverflow(supabase, member, userId);
+
+  // 2. Fetch user data
   const { data } = await supabase
     .from('user_points')
-    .select('points, cakes, daily_points, last_reset_date')
+    .select('points, cakes, daily_points, last_reset_date, overflow_points, overflow_expires_at')
     .eq('discord_id', userId)
     .maybeSingle();
 
@@ -38,41 +42,45 @@ async function getUserData(supabase, userId, member = null) {
   let cakes = data?.cakes ?? 0;
   const today = getTodayBangkok();
   let dailyPoints = (data?.last_reset_date === today) ? (data?.daily_points ?? 0) : 0;
+  let overflowPoints = data?.overflow_points ?? 0;
+  let overflowExpiresAt = data?.overflow_expires_at ?? null;
 
   if (member) {
     const maxPoints = getMaxPoints(member);
-    if (points > maxPoints) {
-      points = maxPoints;
-      await supabase
-        .from('user_points')
-        .update({ points: maxPoints, max_cap: maxPoints })
-        .eq('discord_id', userId);
-      console.log(`[myPoints] User ${userId} points (${data?.points}) exceeded max cap (${maxPoints}). Automatically capped to ${maxPoints}.`);
-    } else {
-      await supabase
-        .from('user_points')
-        .update({ max_cap: maxPoints })
-        .eq('discord_id', userId);
-    }
+    await supabase
+      .from('user_points')
+      .update({ max_cap: maxPoints })
+      .eq('discord_id', userId);
   }
 
   return {
     points,
     cakes,
-    dailyPoints
+    dailyPoints,
+    overflowPoints,
+    overflowExpiresAt,
+    drained: drainRes?.drained ?? 0
   };
 }
 
-function buildMainPayload(interaction, points, cakes, maxPoints, page = 1, dailyPoints = 0) {
-  const avatarUrl = interaction.member.displayAvatarURL({ extension: 'png', size: 128 });
+function buildMainPayload(interaction, points, cakes, maxPoints, page = 1, dailyPoints = 0, overflowPoints = 0, overflowCap = null, overflowExpiresAt = null, drainNotice = null) {
+  const avatarUrl = interaction.member?.displayAvatarURL?.({ extension: 'png', size: 128 }) || interaction.user.displayAvatarURL({ extension: 'png', size: 128 });
   const username = interaction.user.displayName || interaction.user.username;
   const cakeUrl = cfg.cake_images[Math.min(cakes, 4)];
   const dailyCap = getDailyCap(maxPoints, interaction.member);
+  const actualOverflowCap = overflowCap ?? getOverflowCap(maxPoints, interaction.member);
   const resetTimestamp = getDailyResetTimestamp();
-  const hasLimitedRole = Boolean(interaction.member?.roles?.cache?.has(LIMITED_ROLE_ID));
-  const limitedNotice = hasLimitedRole
-    ? '\n\nสุดยอด! <:Limited_26:1542162263253848164>︲`@💎⠀𝖬𝗈𝗈𝗇 𝖦𝖾𝗆 ₊  𓂃 ลิมิเต็ด 𝟤𝟢𝟤𝟨` ปลดล็อกความสามารถสุดพิเศษ ทำให้ปริมาณการรับแต้มต่อวันและพื้นที่เพิ่มขึ้นแบบเห็นได้ชัด!'
-    : '';
+
+  let expiryText = '';
+  if (overflowExpiresAt && overflowPoints > 0) {
+    const expirySec = Math.floor(new Date(overflowExpiresAt).getTime() / 1000);
+    expiryText = ` (หมดอายุ <t:${expirySec}:R>)`;
+  }
+
+  let drainNoticeLine = '';
+  if (drainNotice) {
+    drainNoticeLine = `\n  > \`\`\`${drainNotice}\`\`\``;
+  }
 
   const options = [];
   const rolesList = page === 1 ? cfg.roles_exchange : cfg.roles_exchange_page2;
@@ -103,66 +111,129 @@ function buildMainPayload(interaction, points, cakes, maxPoints, page = 1, daily
   let claimButton = {};
   if (cakes >= 4) {
     claimButton = {
-      style: 1, type: 2, custom_id: "mypoints_claim_max", disabled: true,
-      label: "︲คุณสามารถแลกยศได้แล้ว", emoji: { name: "⬆️" }
+      type: 2,
+      style: 1,
+      custom_id: `mypoints_claim_max_${interaction.user.id}`,
+      disabled: true,
+      label: "︲คุณสามารถแลกยศได้แล้ว",
+      emoji: { name: "⬆️" }
     };
   } else if (points < 750) {
     claimButton = {
-      style: 4, type: 2, custom_id: "mypoints_claim_not_enough", disabled: true,
+      type: 2,
+      style: 4,
+      custom_id: `mypoints_claim_not_enough_${interaction.user.id}`,
+      disabled: true,
       label: `︲ขาดอีก ${(750 - points).toLocaleString()} แต้มเพื่อแลกเค้ก`,
       emoji: { id: "1358584606911369226", name: "68440x", animated: false }
     };
   } else {
     claimButton = {
-      style: 3, type: 2, custom_id: `mypoints_claim_cake_${interaction.user.id}`, disabled: false,
-      label: "︲แต้มครบ! คลิกเพื่อแลกเค้ก",
+      type: 2,
+      style: 3,
+      custom_id: `mypoints_claim_cake_${interaction.user.id}`,
+      disabled: false,
+      label: "︲คลิกเพื่อแลกเค้ก",
       emoji: { id: "1358584609087946867", name: "50121checkmark", animated: false }
     };
   }
 
   return {
     flags: FLAG_V2,
-    components: [{
-      type: 17,
-      components: [
-        { type: 12, items: [{ media: { url: cakeUrl } }] },
-        { type: 14, spacing: 2 },
-        {
-          type: 9,
-          components: [{
-            type: 10,
-            content: `## <:bagpack_icon:1522154708200849449>︲__\` 𝖬𝗒 𝗉𝗈𝗂𝗇𝗍𝗌 ₊ ${username} \`__\n-# สะสมเค้กครบ 4 ชิ้น รับฟรี 1 ยศ เลือกได้จากคลังยศกว่า **30 ยศ** เปลี่ยนสไตล์ให้โปรไฟล์ของคุณได้ตามใจ พร้อมสะสมต่อเพื่อปลดล็อกรางวัลอีกมากมาย <:cuteplant:1152834055528783872>\n\n> <:bee20000:1256669436350562355>︰แต้มตอนนี้ของคุณ \`${points.toLocaleString()}\` / \`${maxPoints.toLocaleString()}\`\n> <a:7596clock:1160230591892029510>︰แต้มรับวันนี้ \`${dailyPoints.toLocaleString()}\` / \`${dailyCap.toLocaleString()}\` แต้ม (รีเซ็ตใน <t:${resetTimestamp}:R>)\n> <a:59217leaf:1512014878796152862>︰สะสมแต้ม <:strawberryv2:1520439075100688614> **750 แต้ม** เพื่อรับเค้ก **1 ชิ้น** สำหรับแลกยศฟรี!${limitedNotice}`
-          }],
-          accessory: { type: 11, media: { url: avatarUrl } }
-        },
-        { type: 14, spacing: 2 },
-        {
-          type: 1,
-          components: [{
-            type: 3,
-            custom_id: `mypoints_role_select_${interaction.user.id}`,
-            options: options,
-            placeholder: "🐻︲เลือกยศที่ต้องการแลก",
-            min_values: 1, max_values: 1, disabled: false
-          }]
-        },
-        { type: 14, divider: false },
-        {
-          type: 1,
-          components: [
-            claimButton,
-            {
+    components: [
+      {
+        type: 14
+      },
+      {
+        type: 17,
+        components: [
+          {
+            type: 12,
+            items: [
+              {
+                media: {
+                  url: cakeUrl
+                }
+              }
+            ]
+          },
+          {
+            type: 9,
+            components: [
+              {
+                type: 10,
+                content: `##  <:bagpack_icon:1522154708200849449>︲__\` 𝖬𝗒 𝗉𝗈𝗂𝗇𝗍𝗌 ₊ ${username} \`__\n-# สะสมแต้ม **750 แต้ม** แลกรับเค้ก 1 ชิ้น สะสมครบ **4 ชิ้น รับฟรี 1 ยศ** เลือกได้จากคลังกว่า **30 ยศ** พร้อมสะสมต่อเพื่อปลดล็อกรางวัลอีกมากมาย! <:cuteplant:1152834055528783872>`
+              }
+            ],
+            accessory: {
               type: 2,
               style: 1,
               custom_id: `mypoints_open_redeem_modal_${interaction.user.id}`,
-              label: "︲กรอกโค้ดรับรางวัล",
-              emoji: { id: "1276130500410605609", name: "68492gift", animated: false }
-            },
-            { type: 2, style: 5, label: "︲สุ่มรางวัลเช็กอิน (ฟรี)", emoji: { id: "1301541277992485005", name: "secret_box", animated: true }, url: "https://discord.com/channels/1144251788493602848/1524122838775238777" }
-          ]
-        }
-      ]
-    }]
+              label: "กรอกโค้ด"
+            }
+          },
+          {
+            type: 14,
+            spacing: 2
+          },
+          {
+            type: 9,
+            components: [
+              {
+                type: 10,
+                content: `- **\` 💼 กระเป๋าของคุณ \`** *!*\n  - <:strawberryv2:1520439075100688614>︰แต้มปัจจุบัน \`${points.toLocaleString()}\` / \`${maxPoints.toLocaleString()}\`\n  - <a:7596clock:1160230591892029510>︰แต้มรับวันนี้ \`${dailyPoints.toLocaleString()}\` / \`${dailyCap.toLocaleString()}\` แต้ม (รีเซ็ตใน <t:${resetTimestamp}:R>)\n  - <a:59217leaf:1512014878796152862>︰ตอนนี้มีแต้มส่วนเกิน \`${overflowPoints.toLocaleString()}\` / \`${actualOverflowCap.toLocaleString()}\` แต้ม${expiryText}${drainNoticeLine}\n`
+              }
+            ],
+            accessory: {
+              type: 11,
+              media: {
+                url: avatarUrl
+              }
+            }
+          },
+          {
+            type: 14,
+            spacing: 2,
+            divider: false
+          },
+          {
+            type: 1,
+            components: [
+              claimButton,
+              {
+                type: 2,
+                style: 5,
+                label: "︲สุ่มรางวัลเช็กอิน (ฟรี)",
+                emoji: {
+                  id: "1301541277992485005",
+                  name: "secret_box",
+                  animated: true
+                },
+                url: "https://discord.com/channels/1144251788493602848/1524122838775238777"
+              }
+            ]
+          },
+          {
+            type: 14,
+            spacing: 1,
+            divider: false
+          },
+          {
+            type: 1,
+            components: [
+              {
+                type: 3,
+                custom_id: `mypoints_role_select_${interaction.user.id}`,
+                placeholder: "🐻︲เลือกยศที่ต้องการแลก",
+                min_values: 1,
+                max_values: 1,
+                options: options
+              }
+            ]
+          }
+        ]
+      }
+    ]
   };
 }
 
@@ -183,10 +254,12 @@ function setupMyPoints(client) {
     }
 
     const userId = interaction.user.id;
-    const { points, cakes, dailyPoints } = await getUserData(supabase, userId, interaction.member);
+    const { points, cakes, dailyPoints, overflowPoints, overflowExpiresAt, drained } = await getUserData(supabase, userId, interaction.member);
     const maxPoints = getMaxPoints(interaction.member);
+    const overflowCap = getOverflowCap(maxPoints, interaction.member);
 
-    const payload = buildMainPayload(interaction, points, cakes, maxPoints, 1, dailyPoints);
+    const drainNotice = drained > 0 ? `✅ ดึงแต้มส่วนเกินมาเติมในกระเป๋า ${drained.toLocaleString()} แต้ม` : null;
+    const payload = buildMainPayload(interaction, points, cakes, maxPoints, 1, dailyPoints, overflowPoints, overflowCap, overflowExpiresAt, drainNotice);
     await interaction.reply(payload);
   });
 
@@ -199,8 +272,9 @@ function setupMyPoints(client) {
       return interaction.reply({ content: '## <:bear7:1148271118709436416>︲ปุ่มนี้กดได้เฉพาะเจ้าของคำสั่งเท่านั้นนะคะ ꒰⑅ᵕ༚ᵕ꒱˖\u2661', flags: FLAG_EPHEMERAL });
     }
 
-    let { points, cakes } = await getUserData(supabase, userId, interaction.member);
+    let { points, cakes, dailyPoints } = await getUserData(supabase, userId, interaction.member);
     const maxPoints = getMaxPoints(interaction.member);
+    const overflowCap = getOverflowCap(maxPoints, interaction.member);
 
     if (cakes >= 4 || points < 750) {
       return interaction.reply({ content: "## <:cat5:1297905123498000394> แหนะ เห็นนะ จะขี้โกงหรอ แต้มเธอไม่พอให้แลกนะคะ", flags: FLAG_EPHEMERAL });
@@ -212,7 +286,16 @@ function setupMyPoints(client) {
       points -= 750;
       cakes += 1;
       await supabase.from('user_points').upsert({ discord_id: userId, points, cakes }, { onConflict: 'discord_id' });
-      const payload = buildMainPayload(interaction, points, cakes, maxPoints, 1);
+
+      // Auto drain overflow into newly freed space
+      const drainRes = await autoDrainOverflow(supabase, interaction.member, userId);
+      const drained = drainRes.drained;
+      const currentPoints = drainRes.points;
+      const overflowPoints = drainRes.overflow;
+      const overflowExpiresAt = drainRes.overflowExpiresAt;
+
+      const drainNotice = drained > 0 ? `✅ ใช้แต้มสำเร็จ 750 แต้ม (ดึงแต้มส่วนเกินมาเติมในกระเป๋า ${drained.toLocaleString()} แต้ม)` : null;
+      const payload = buildMainPayload(interaction, currentPoints, cakes, maxPoints, 1, dailyPoints, overflowPoints, overflowCap, overflowExpiresAt, drainNotice);
       await interaction.update(payload);
     } else {
       // 15% fail
@@ -220,15 +303,21 @@ function setupMyPoints(client) {
       points = points - 750 + refund;
       await supabase.from('user_points').upsert({ discord_id: userId, points }, { onConflict: 'discord_id' });
 
-      let payload = buildMainPayload(interaction, points, cakes, maxPoints, 1);
+      // Auto drain overflow into newly freed space (750 - refund)
+      const drainRes = await autoDrainOverflow(supabase, interaction.member, userId);
+      const drained = drainRes.drained;
+      const currentPoints = drainRes.points;
+      const overflowPoints = drainRes.overflow;
+      const overflowExpiresAt = drainRes.overflowExpiresAt;
 
-      // Replace content for failure
-      payload.components[0].components[0].items[0].media.url = "https://cdn.discordapp.com/attachments/1524704267015819274/1524741224517472406/425f72edbda608d3.png";
+      const drainNotice = drained > 0
+        ? `❌ แลกเค้กไม่สำเร็จ ได้รับแต้มคืน ${refund.toLocaleString()} แต้ม (ดึงแต้มส่วนเกินมาเติมในกระเป๋า ${drained.toLocaleString()} แต้ม)`
+        : `❌ แลกเค้กไม่สำเร็จ แต่ได้รับแต้มคืน ${refund.toLocaleString()} แต้ม ลองใหม่อีกครั้งนะ!`;
 
-      payload.components[0].components[2].components[0].content = payload.components[0].components[2].components[0].content.replace(
-        "> <a:59217leaf:1512014878796152862>︰สะสมแต้ม <:strawberryv2:1520439075100688614> **750 แต้ม** เพื่อรับเค้ก **1 ชิ้น** สำหรับแลกยศฟรี!",
-        `> <a:59217leaf:1512014878796152862>︰คุณแลกเค้กไม่สำเร็จ แต่ได้รับแต้มคืน <:strawberryv2:1520439075100688614> **${refund.toLocaleString()} แต้ม** ลองใหม่อีกครั้งนะ!`
-      );
+      let payload = buildMainPayload(interaction, currentPoints, cakes, maxPoints, 1, dailyPoints, overflowPoints, overflowCap, overflowExpiresAt, drainNotice);
+
+      // Set fail image
+      payload.components[1].components[0].items[0].media.url = "https://cdn.discordapp.com/attachments/1524704267015819274/1524741224517472406/425f72edbda608d3.png";
 
       await interaction.update(payload);
     }
@@ -557,24 +646,46 @@ function setupMyPoints(client) {
 
       // จัดการแต้ม
       let currentPoints = 0;
+      let newOverflowPoints = 0;
       const maxCap = getMaxPoints(interaction.member);
+      const overflowCap = getOverflowCap(maxCap, interaction.member);
       if (codeData.reward_type === 'points' || codeData.reward_type === 'both') {
         pointsAdded = codeData.points ?? 0;
         granted.pointsAdded = pointsAdded;
 
         const { data: userRow } = await supabase
           .from('user_points')
-          .select('points, max_cap')
+          .select('points, max_cap, overflow_points, overflow_expires_at')
           .eq('discord_id', userId)
           .maybeSingle();
 
         currentPoints = userRow?.points ?? 0;
-        const newPoints = Math.min(currentPoints + pointsAdded, maxCap);
+        const cleaned = checkAndCleanExpiredOverflow(userRow);
+        let overflowPoints = cleaned.overflowPoints;
+        let overflowExpiresAt = cleaned.overflowExpiresAt;
+
+        const spaceInWallet = Math.max(0, maxCap - currentPoints);
+        const toWallet = Math.min(pointsAdded, spaceInWallet);
+        const remainder = pointsAdded - toWallet;
+        const spaceInOverflow = Math.max(0, overflowCap - overflowPoints);
+        const toOverflow = Math.min(remainder, spaceInOverflow);
+
+        const newPoints = currentPoints + toWallet;
+        newOverflowPoints = overflowPoints + toOverflow;
+        let newOverflowExpiresAt = overflowExpiresAt;
+
+        if (toOverflow > 0) {
+          if (overflowPoints === 0 || !overflowExpiresAt) {
+            newOverflowExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+          }
+        }
 
         await supabase.from('user_points').upsert({
           discord_id: userId,
           points: newPoints,
           max_cap: maxCap,
+          overflow_points: newOverflowPoints,
+          overflow_expires_at: newOverflowExpiresAt,
           updated_at: new Date().toISOString()
         }, { onConflict: 'discord_id' });
 

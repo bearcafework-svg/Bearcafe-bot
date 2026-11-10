@@ -255,7 +255,7 @@ function buildUserSelectMenuPayload(customId, placeholder, maxValues = 25) {
             content: `## 👤︲__\` การจัดการสิทธิ์สมาชิก \`__\n> เลือกสมาชิกที่ต้องการจัดการสิทธิ์ในเมนูด้านล่างนี้ได้เลยค่ะ:`,
           },
           { type: 14, spacing: 2 },
-          row,
+          row.toJSON(),
         ],
       },
     ],

@@ -12,7 +12,7 @@ const {
   OverwriteType,
 } = require("discord.js");
 const config = require("../config");
-const { deleteRoom, getAllRooms, getRoom, updateRoom } = require("../state/redisClient");
+const { deleteRoom, getAllRooms, getRoom, updateRoom, saveRoom } = require("../state/redisClient");
 const { saveSmartRoomPreset, getSmartRoomPreset } = require("../utils/smartRoomPresets");
 const {
   EPHEMERAL_FLAG,
@@ -382,14 +382,20 @@ async function handleVipPanelSelect(interaction) {
   if (selected === "vip_opt_name") {
     await showNameModal(interaction);
     const updatedPayload = await buildUpdatedVipPanelPayload(member, room, channel);
-    if (updatedPayload) await interaction.message?.edit(updatedPayload).catch(() => {});
+    if (updatedPayload) {
+      const { flags, ...editPayload } = updatedPayload;
+      await interaction.message?.edit(editPayload).catch(() => {});
+    }
     return true;
   }
 
   if (selected === "vip_opt_limit") {
     await showLimitModal(interaction);
     const updatedPayload = await buildUpdatedVipPanelPayload(member, room, channel);
-    if (updatedPayload) await interaction.message?.edit(updatedPayload).catch(() => {});
+    if (updatedPayload) {
+      const { flags, ...editPayload } = updatedPayload;
+      await interaction.message?.edit(editPayload).catch(() => {});
+    }
     return true;
   }
 
@@ -405,7 +411,10 @@ async function handleVipPanelSelect(interaction) {
 
     await showImageModal(interaction);
     const updatedPayload = await buildUpdatedVipPanelPayload(member, room, channel);
-    if (updatedPayload) await interaction.message?.edit(updatedPayload).catch(() => {});
+    if (updatedPayload) {
+      const { flags, ...editPayload } = updatedPayload;
+      await interaction.message?.edit(editPayload).catch(() => {});
+    }
     return true;
   }
 
@@ -424,7 +433,10 @@ async function handleVipPanelSelect(interaction) {
     await persistRoomPreset(channel, updatedRoom);
     await applyRoomPermissions(channel, updatedRoom);
     const refreshed = await buildUpdatedVipPanelPayload(member, updatedRoom, channel);
-    if (refreshed) await interaction.message?.edit(refreshed).catch(() => {});
+    if (refreshed) {
+      const { flags, ...editPayload } = refreshed;
+      await interaction.message?.edit(editPayload).catch(() => {});
+    }
     return await respondEphemeral(interaction, {
       content: `อัปเดตแล้วค่ะ\n${getPanelSummary(updatedRoom)}`,
     });
@@ -438,7 +450,10 @@ async function handleVipPanelSelect(interaction) {
     await persistRoomPreset(channel, updatedRoom);
     await applyRoomPermissions(channel, updatedRoom);
     const refreshed = await buildUpdatedVipPanelPayload(member, updatedRoom, channel);
-    if (refreshed) await interaction.message?.edit(refreshed).catch(() => {});
+    if (refreshed) {
+      const { flags, ...editPayload } = refreshed;
+      await interaction.message?.edit(editPayload).catch(() => {});
+    }
     return await respondEphemeral(interaction, {
       content: `อัปเดตแล้วค่ะ\n${getPanelSummary(updatedRoom)}`,
     });
@@ -862,7 +877,10 @@ async function handlePanelModal(interaction) {
       const botMsg = messages.find((m) => m.author.id === interaction.client.user.id && (m.flags?.has(32768) || m.flags?.bitfield === 32768));
       if (botMsg) {
         const updatedPayload = createComponentV2PanelPayload(member, room, newImageUrl);
-        await botMsg.edit(updatedPayload);
+        if (updatedPayload) {
+          const { flags, ...editPayload } = updatedPayload;
+          await botMsg.edit(editPayload);
+        }
       }
     } catch (err) {
       console.warn("[roomPanel] Failed to edit existing panel message:", err.message);
@@ -898,9 +916,10 @@ async function applyVipPresetToRoom(context, targetPreset, member, channel) {
 
   const refreshed = await buildUpdatedVipPanelPayload(member, updatedRoom, channel);
   if (refreshed) {
+    const { flags, ...editPayload } = refreshed;
     channel.messages.fetch({ limit: 5 }).then((msgs) => {
       const botMsg = msgs.find((m) => m.author.id === channel.client.user.id && (m.flags?.has(32768) || m.flags?.bitfield === 32768));
-      if (botMsg) botMsg.edit(refreshed).catch(() => {});
+      if (botMsg) botMsg.edit(editPayload).catch(() => {});
     }).catch(() => {});
   }
 
@@ -1124,8 +1143,33 @@ async function getOwnedRoomContextFromMessage(message) {
 }
 
 async function getOwnedRoomContextFromInteraction(interaction) {
-  const room = await getRoom(interaction.channelId);
+  let room = await getRoom(interaction.channelId);
   const channel = interaction.channel;
+
+  if (!room && channel) {
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        const { data } = await supabase
+          .from("vip_active_rooms")
+          .select("*")
+          .eq("channel_id", channel.id)
+          .maybeSingle();
+
+        if (data && data.owner_id === interaction.user.id) {
+          room = {
+            channelId: data.channel_id,
+            ownerId: data.owner_id,
+            zoneId: "vip",
+            settings: data.settings || {},
+          };
+          await saveRoom(channel.id, room).catch(() => {});
+        }
+      } catch (err) {
+        console.warn("[roomPanel] fallback getRoom from supabase error:", err.message);
+      }
+    }
+  }
 
   if (!room || !channel || room.ownerId !== interaction.user.id) return null;
   if (room.zoneId !== PANEL_ZONE_ID) {

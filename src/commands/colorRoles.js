@@ -21,6 +21,8 @@ const FLAG_V2_EPH = FLAG_V2 | FLAG_EPHEMERAL; // 32832
 const COLOR_SELECT_ID = "p_322736558815842375";
 const TOOLS_SELECT_ID = "p_322751210127888385";
 const RANDOM_BUTTON_ID = "p_322752340668977153";
+const RANDOM_COLOR_BUTTON_ID = "p_367346693940711440";
+const REMOVE_COLOR_BUTTON_ID = "p_367346770335764497";
 
 // ค่าคงที่ของระบบสุ่มและถอดสี
 const RANDOM_COLOR_VALUE = "uHZmEDv8tH";
@@ -110,10 +112,14 @@ function buildMainPanel() {
             items: [
               {
                 media: {
-                  url: "https://cdn.discordapp.com/attachments/1524704267015819274/1524758921233825852/-_6.png?ex=6a523b67&is=6a50e9e7&hm=484197e906e52adfc62a6f67f0a34cc107f9185435225448d39681b30ac6107c&"
+                  url: "https://media.discordapp.net/attachments/1565840974737973428/1567595341522407484/64f55885cca18dc8.jpg?ex=6af400ad&is=6af2af2d&hm=0a9218dbff05f04c3d3da85ca9e232ca365f1bc00230b4dea7df63f95f80a5ff&=&format=webp&width=1006&height=1006"
                 }
               }
             ]
+          },
+          {
+            type: 10,
+            content: "## <:bee20000:1256669436350562355>︲__` 𝖱𝖺𝗂𝗇𝖾𝗒 𝖻𝖾𝖾 ₊ ยศเปลี่ยนสีชื่อ 𓂃 `__\n-# เบื่อสีชื่อเดิม ๆ แล้วหรือยัง? เปลี่ยนสีชื่อให้เป็นสไตล์ที่ชอบได้ตามใจ จะสีสด สีพาสเทล หรือโทนไหนก็เลือกได้ แถมยังสุ่มสีชื่อได้อีกด้วย! <:cuteplant:1152834055528783872>"
           },
           {
             type: 14,
@@ -121,11 +127,12 @@ function buildMainPanel() {
           },
           {
             type: 10,
-            content: "## <:lgbeet:1202930121149775914>︲__` Rainey Bee ₊ ยศเปลี่ยนสีชื่อ 𓂃 `__\n> (<:cuteplant:1152834055528783872>)⠀กดตัวเลือก **\"เลือกสีที่คุณต้องการเปลี่ยน\"** เพื่อเปลี่ยนสีชื่อของคุณ\n> (<a:99322sparkles:1372427884479778908>)⠀กดตัวเลือก **\"เครื่องมือเพิ่มเติม\"** เพื่อดูเครื่องมือต่าง ๆ"
+            content: "- **` ❔วิธีใช้งาน `** *!*\n  - *กดตัวเลือก **\"เลือกสีที่คุณต้องการเปลี่ยน\"** เพื่อเปลี่ยนสีชื่อของคุณ <:cuteplant:1152834055528783872>*\n  - *สุ่มสีชื่อ / สุ่มชื่อขำ ๆ / ลบสีชื่ออก กดตัวเลือก **\"เครื่องมือเพิ่มเติม\"** เพื่อดูเครื่องมือต่าง ๆ <a:99322sparkles:1372427884479778908>*"
           },
           {
             type: 14,
-            spacing: 2
+            spacing: 1,
+            divider: false
           },
           {
             type: 1,
@@ -138,37 +145,7 @@ function buildMainPanel() {
                   value: c.value,
                   emoji: parseEmojiForSelect(c.emoji)
                 })),
-                placeholder: "🐻︲เลือกสีที่คุณต้องการเปลี่ยน",
-                min_values: 1,
-                max_values: 1
-              }
-            ]
-          },
-          {
-            type: 1,
-            components: [
-              {
-                type: 3,
-                custom_id: TOOLS_SELECT_ID,
-                options: [
-                  {
-                    label: "ระบบสุ่มสีชื่อ",
-                    value: RANDOM_COLOR_VALUE,
-                    emoji: {
-                      id: "1150845686628229151",
-                      name: "rollingstar",
-                      animated: true
-                    }
-                  },
-                  {
-                    label: "ถอดสียศออก",
-                    value: REMOVE_COLOR_VALUE,
-                    emoji: {
-                      name: "🗑️"
-                    }
-                  }
-                ],
-                placeholder: "🐻︲เครื่องมือเพิ่มเติม",
+                placeholder: "🎨︲เลือกสีที่คุณต้องการเปลี่ยน",
                 min_values: 1,
                 max_values: 1
               }
@@ -182,22 +159,22 @@ function buildMainPanel() {
             type: 1,
             components: [
               {
-                style: 3,
+                style: 1,
                 type: 2,
-                label: "︲คลิกเพื่อสุ่มชื่อ (ฟรี)",
-                emoji: {
-                  id: "1212856675053346897",
-                  name: "bearcafe_star",
-                  animated: false
-                },
-                custom_id: RANDOM_BUTTON_ID
+                custom_id: RANDOM_COLOR_BUTTON_ID,
+                label: "ระบบสุ่มสีชื่อ"
               },
               {
                 type: 2,
-                style: 5,
-                label: "︲สนใจซื้อยศ",
-                emoji: { id: "1520507942842007694", name: "54879croissant", animated: true },
-                url: "https://discord.com/channels/1144251788493602848/1524124116053917747"
+                style: 3,
+                custom_id: RANDOM_BUTTON_ID,
+                label: "คลิกเพื่อสุ่มชื่อ (ฟรี)"
+              },
+              {
+                style: 4,
+                type: 2,
+                custom_id: REMOVE_COLOR_BUTTON_ID,
+                label: "ถอดสียศออก"
               }
             ]
           }
@@ -298,7 +275,9 @@ function setupColorRoles(client) {
     if (
       customId !== COLOR_SELECT_ID &&
       customId !== TOOLS_SELECT_ID &&
-      customId !== RANDOM_BUTTON_ID
+      customId !== RANDOM_BUTTON_ID &&
+      customId !== RANDOM_COLOR_BUTTON_ID &&
+      customId !== REMOVE_COLOR_BUTTON_ID
     ) {
       return;
     }
@@ -314,12 +293,16 @@ function setupColorRoles(client) {
     }
 
     // ตรวจสอบประเภท Action
-    let actionType = "change"; // "change", "random", "remove"
+    let actionType = "change"; // "change", "random", "remove", "random_name"
     let selectedColorValue = null;
 
     if (customId === COLOR_SELECT_ID) {
       selectedColorValue = interaction.values[0];
       actionType = "change";
+    } else if (customId === RANDOM_COLOR_BUTTON_ID) {
+      actionType = "random";
+    } else if (customId === REMOVE_COLOR_BUTTON_ID) {
+      actionType = "remove";
     } else if (customId === TOOLS_SELECT_ID) {
       const selectedValue = interaction.values[0];
       if (selectedValue === RANDOM_COLOR_VALUE) {

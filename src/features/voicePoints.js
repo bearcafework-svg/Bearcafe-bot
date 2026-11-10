@@ -144,7 +144,7 @@ function setupVoicePoints(client) {
 
         const { data: row, error: fetchErr } = await supabase
           .from("user_points")
-          .select("points, max_cap, daily_points, last_reset_date")
+          .select("points, max_cap, daily_points, last_reset_date, overflow_points, overflow_expires_at")
           .eq("discord_id", userId)
           .maybeSingle();
 
@@ -156,12 +156,18 @@ function setupVoicePoints(client) {
         const current = row?.points ?? 0;
         const maxCap = row?.max_cap ?? 500;
         const dailyCap = getDailyCap(maxCap);
+        const overflowCap = getDailyCap(maxCap);
         const today = getTodayBangkok();
         const lastReset = row?.last_reset_date ?? "";
         const needsReset = lastReset !== today;
         const dailyPoints = needsReset ? 0 : (row?.daily_points ?? 0);
 
-        if (current >= maxCap || dailyPoints >= dailyCap) {
+        const now = Date.now();
+        const rawExpiresAt = row?.overflow_expires_at ? new Date(row.overflow_expires_at).getTime() : null;
+        let overflowPoints = (rawExpiresAt && now > rawExpiresAt) ? 0 : (row?.overflow_points ?? 0);
+        let overflowExpiresAt = (rawExpiresAt && now > rawExpiresAt) ? null : (row?.overflow_expires_at ?? null);
+
+        if (dailyPoints >= dailyCap) {
           // แม้แต้มหลักเต็ม ยังเปิดโอกาสสุ่มดรอป Star Coin ในรอบเรียลไทม์ได้
           if (isRealtimeCycle) {
             try {
@@ -175,33 +181,71 @@ function setupVoicePoints(client) {
         }
 
         let adjusted = applyDiminishing(current, maxCap, rawEarned);
-        const dailyRemaining = dailyCap - dailyPoints;
+        const dailyRemaining = Math.max(0, dailyCap - dailyPoints);
         adjusted = Math.min(adjusted, dailyRemaining);
 
-        const newPoints = Math.min(current + adjusted, maxCap);
-        const earned = newPoints - current;
-        if (earned <= 0) return;
+        const spaceInWallet = Math.max(0, maxCap - current);
+        const toWallet = Math.min(adjusted, spaceInWallet);
+        const remainder = adjusted - toWallet;
+
+        const spaceInOverflow = Math.max(0, overflowCap - overflowPoints);
+        const toOverflow = Math.min(remainder, spaceInOverflow);
+
+        const earned = toWallet + toOverflow;
+        if (earned <= 0) {
+          if (rawExpiresAt && now > rawExpiresAt) {
+            await supabase.from("user_points").update({
+              overflow_points: 0,
+              overflow_expires_at: null,
+              updated_at: new Date().toISOString()
+            }).eq("discord_id", userId);
+          }
+          if (isRealtimeCycle) {
+            try {
+              const { checkVoiceStarCoinDrop } = require("./starCoin");
+              if (typeof checkVoiceStarCoinDrop === "function") {
+                checkVoiceStarCoinDrop(client, supabase, userId, member?.guild);
+              }
+            } catch {}
+          }
+          return;
+        }
 
         actualEarned = earned;
+        const newPoints = current + toWallet;
         const newDailyPoints = dailyPoints + actualEarned;
+        let newOverflowPoints = overflowPoints + toOverflow;
+        let newOverflowExpiresAt = overflowExpiresAt;
+
+        if (toOverflow > 0) {
+          if (overflowPoints === 0 || !overflowExpiresAt) {
+            newOverflowExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+          }
+        }
 
         if (row) {
           await supabase.from("user_points").update({
             points: newPoints,
             daily_points: newDailyPoints,
             last_reset_date: today,
+            overflow_points: newOverflowPoints,
+            overflow_expires_at: newOverflowExpiresAt,
+            updated_at: new Date().toISOString()
           }).eq("discord_id", userId);
         } else {
           await supabase.from("user_points").insert({
             discord_id: userId,
-            points: actualEarned,
+            points: newPoints,
             max_cap: 500,
-            daily_points: actualEarned,
+            daily_points: newDailyPoints,
             last_reset_date: today,
+            overflow_points: newOverflowPoints,
+            overflow_expires_at: newOverflowExpiresAt,
+            updated_at: new Date().toISOString()
           });
         }
 
-        console.log(`[voice-points] ${userId} +${actualEarned} pts (total: ${newPoints}/${maxCap})`);
+        console.log(`[voice-points] ${userId} +${actualEarned} pts (wallet: ${newPoints}/${maxCap}, overflow: ${newOverflowPoints}/${overflowCap})`);
         });
 
         if (actualEarned > 0) {

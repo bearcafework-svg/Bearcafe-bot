@@ -2,11 +2,14 @@
 // ระบบ Star Coin ₊ เหรียญดาวตก (Gacha Coin)
 // สุ่มดรอปจากการพิมพ์แชทและการลงห้องเสียง พร้อมการ์ดแจ้งเตือน Component V2
 
+const { WebhookClient } = require("discord.js");
 const { getSupabaseClient } = require("../../services/supabaseClient");
 const sharedSettings = require("../../sharedSettings.json");
 const roleBlacklist = sharedSettings.role_blacklist || [];
 
 const NOTIFY_CHANNEL_ID = "1569377817131487374"; // ห้องแจ้งเตือน Star Coin
+const DEFAULT_STAR_COIN_WEBHOOK_URL = "https://discord.com/api/webhooks/1569804023887040512/WmasqVl-jXmlOFW5NoEK7RBjFzqRTapy1nCo17gSBFt1PCPRooG6QKanwUS3CFdRNd6e";
+let starCoinWebhookClient = null;
 const CHAT_COOLDOWN_MS = 60 * 1000; // 60 วินาที คูลดาวน์รายบุคคลใน RAM (0% DB load)
 const CHAT_DROP_CHANCE = 0.04;      // โอกาสดรอป 4% ต่อข้อความที่ผ่านเกณฑ์
 const VOICE_DROP_CHANCE = 0.15;     // โอกาสดรอป 15% ต่อรอบแต้มเสียง
@@ -123,18 +126,20 @@ async function tryAwardStarCoin(client, supabase, userId, source = "chat", guild
 
     console.log(`[starCoin] 🌟 ${userId} received +${row.coins_added} Star Coins via ${source}! (Total: ${row.total_coins}, Daily: ${row.daily_coins}/${DAILY_CAP})`);
 
-    // 2. ดึง Avatar ผู้ใช้
+    // 2. ดึง Avatar ผู้ใช้ (ตรวจ Cache ก่อนเพื่อลดการยิง Discord API)
     let avatarUrl = null;
     try {
       const targetGuild = guild || client.guilds.cache.first();
       if (targetGuild) {
-        const member = await targetGuild.members.fetch(userId).catch(() => null);
+        const cachedMember = targetGuild.members.cache.get(userId);
+        const member = cachedMember || (await targetGuild.members.fetch(userId).catch(() => null));
         if (member) {
           avatarUrl = member.displayAvatarURL({ extension: "png", size: 256, forceStatic: true });
         }
       }
       if (!avatarUrl) {
-        const user = await client.users.fetch(userId).catch(() => null);
+        const cachedUser = client.users.cache.get(userId);
+        const user = cachedUser || (await client.users.fetch(userId).catch(() => null));
         if (user) {
           avatarUrl = user.displayAvatarURL({ extension: "png", size: 256, forceStatic: true });
         }
@@ -143,15 +148,32 @@ async function tryAwardStarCoin(client, supabase, userId, source = "chat", guild
       avatarUrl = "https://cdn.discordapp.com/embed/avatars/0.png";
     }
 
-    // 3. ส่งการ์ดแจ้งเตือน Component V2 ไปยังห้องแจ้งเตือน
+    // 3. ส่งการ์ดแจ้งเตือน Component V2 ผ่าน Webhook (พร้อม Fallback ไปยัง channel.send)
     const payload = buildStarCoinPayload(userId, row.coins_added, avatarUrl);
-    const channel = client.channels.cache.get(NOTIFY_CHANNEL_ID) ||
-                    await client.channels.fetch(NOTIFY_CHANNEL_ID).catch(() => null);
+    const starCoinWebhookUrl = process.env.STAR_COIN_WEBHOOK_URL || DEFAULT_STAR_COIN_WEBHOOK_URL;
+    let sentViaWebhook = false;
 
-    if (channel && typeof channel.send === "function") {
-      await channel.send(payload).catch((sendErr) => {
-        console.error("[starCoin] Failed to send notification card:", sendErr.message);
-      });
+    if (starCoinWebhookUrl) {
+      try {
+        if (!starCoinWebhookClient || starCoinWebhookClient.url !== starCoinWebhookUrl) {
+          starCoinWebhookClient = new WebhookClient({ url: starCoinWebhookUrl });
+        }
+        await starCoinWebhookClient.send(payload);
+        sentViaWebhook = true;
+      } catch (webhookErr) {
+        console.error("[starCoin] Webhook notification failed, falling back to channel.send:", webhookErr.message);
+      }
+    }
+
+    if (!sentViaWebhook) {
+      const channel = client.channels.cache.get(NOTIFY_CHANNEL_ID) ||
+                      await client.channels.fetch(NOTIFY_CHANNEL_ID).catch(() => null);
+
+      if (channel && typeof channel.send === "function") {
+        await channel.send(payload).catch((sendErr) => {
+          console.error("[starCoin] Failed to send notification card:", sendErr.message);
+        });
+      }
     }
   } catch (err) {
     console.error("[starCoin] tryAwardStarCoin error:", err.message);

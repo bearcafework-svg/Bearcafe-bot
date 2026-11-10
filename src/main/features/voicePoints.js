@@ -1,5 +1,6 @@
 const axios = require("axios");
 const crypto = require("crypto");
+const { WebhookClient } = require("discord.js");
 const { getSupabaseClient } = require("../../services/supabaseClient");
 const { isSupabaseQuotaError, shouldLogThrottledError } = require("../../../utils/errorThrottler");
 const sharedSettings = require("../sharedSettings.json");
@@ -12,6 +13,8 @@ const BASE_PER_CYCLE = 8;
 const MAX_EARNED = 150;
 const NOTIFY_CHANNEL_ID = "1524123147987714158";
 const NOTIFY_COOLDOWN_MS = 15 * 60 * 1000;
+const DEFAULT_VOICE_WEBHOOK_URL = "https://discord.com/api/webhooks/1569800727734263811/c0Tftj0s5y2BzPdp7ryDtgi6tKKZ2tGzj2nsxc16exhy0wKN-VmUIW7mZRcbJiM-fLZ2";
+let voiceWebhookClient = null;
 
 const MULTIPLIER_TABLE = [
   { weight: 50, value: 1.0 },
@@ -198,8 +201,8 @@ function setupVoicePoints(client) {
 
         console.log(`[voice-points] ${userId} +${actualEarned} pts (total: ${newPoints}/${maxCap})`);
 
-        // แจ้งเตือนลงห้อง Discord
-        await handleVoiceNotification(userId, actualEarned, channelName);
+        // แจ้งเตือนลงห้อง Discord (สะสมแต้มไว้ใน Buffer ระหว่างอยู่ในห้อง)
+        await handleVoiceNotification(userId, actualEarned, channelName, isRealtimeCycle);
 
         // 🌟 สุ่มดรอป Star Coin (Gacha Coin) เฉพาะรอบเรียลไทม์
         if (isRealtimeCycle) {
@@ -229,7 +232,7 @@ function setupVoicePoints(client) {
     });
   }
 
-  async function handleVoiceNotification(userId, earned, channelName) {
+  async function handleVoiceNotification(userId, earned, channelName, isRealtimeCycle = false) {
     try {
       if (!supabase) return;
       const { data: buf } = await supabase
@@ -239,38 +242,47 @@ function setupVoicePoints(client) {
         .maybeSingle();
 
       const now = new Date();
-      const pending = (buf?.pending_points ?? 0) + earned;
-      const lastSentAt = buf?.last_sent_at ? new Date(buf.last_sent_at) : new Date(0);
-      const msSinceLast = now.getTime() - lastSentAt.getTime();
+      const pending = (buf?.pending_points ?? 0) + (earned || 0);
 
-      if (msSinceLast < NOTIFY_COOLDOWN_MS) {
-        await supabase.from("user_notify_buffer").upsert(
-          { user_id: userId, pending_points: pending, last_sent_at: lastSentAt.toISOString() },
-          { onConflict: "user_id" }
-        );
+      // 1. ระหว่างที่ยังอยู่ในห้องเสียง (รอบคำนวณเรียลไทม์): สะสมแต้มไว้ใน Buffer เท่านั้น ไม่ส่งแจ้งเตือน
+      if (isRealtimeCycle) {
+        if (earned > 0) {
+          await supabase.from("user_notify_buffer").upsert(
+            { user_id: userId, pending_points: pending, last_sent_at: buf?.last_sent_at || now.toISOString() },
+            { onConflict: "user_id" }
+          );
+        }
         return;
       }
 
+      // 2. เมื่อออกจากห้องเสียง หรือย้ายห้อง: เคลียร์ยอดสะสมใน Buffer คืนค่า 0
       await supabase.from("user_notify_buffer").upsert(
         { user_id: userId, pending_points: 0, last_sent_at: now.toISOString() },
         { onConflict: "user_id" }
       );
 
+      // 3. เงื่อนไข: ต้องได้รับแต้มสะสมใน Session นั้นอย่างน้อย 1 แต้มขึ้นไป ถึงจะส่งการ์ดสรุปยอด
+      if (pending < 1) {
+        return;
+      }
+
       let avatarUrl = null;
       try {
-        // 1. ลองดึงจาก Guild Member เพื่อให้ได้ Server Avatar (ถ้ามี)
+        // 1. ดึงจาก Guild Member Cache ก่อนเพื่อลดการยิง Discord API
         const notifyChannel = client.channels.cache.get(NOTIFY_CHANNEL_ID);
         const targetGuild = notifyChannel?.guild || client.guilds.cache.first();
         if (targetGuild) {
-          const member = await targetGuild.members.fetch(userId).catch(() => null);
+          const cachedMember = targetGuild.members.cache.get(userId);
+          const member = cachedMember || (await targetGuild.members.fetch(userId).catch(() => null));
           if (member) {
             avatarUrl = member.displayAvatarURL({ extension: "png", size: 256, forceStatic: true });
           }
         }
 
-        // 2. ถ้าไม่มีใน Guild หรือดึงไม่สำเร็จ ให้ดึงจาก Discord User API ตรงๆ
+        // 2. ถ้าไม่มีใน Guild ให้ลองดึงจาก User Cache หรือ User API
         if (!avatarUrl) {
-          const user = await client.users.fetch(userId).catch(() => null);
+          const cachedUser = client.users.cache.get(userId);
+          const user = cachedUser || (await client.users.fetch(userId).catch(() => null));
           if (user) {
             avatarUrl = user.displayAvatarURL({ extension: "png", size: 256, forceStatic: true });
           }
@@ -340,13 +352,30 @@ function setupVoicePoints(client) {
         ],
       };
 
-      const targetChannel = client?.channels?.cache?.get(NOTIFY_CHANNEL_ID) ||
-        await client?.channels?.fetch(NOTIFY_CHANNEL_ID).catch(() => null);
+      const voiceWebhookUrl = process.env.VOICE_POINTS_WEBHOOK_URL || DEFAULT_VOICE_WEBHOOK_URL;
+      let sentViaWebhook = false;
 
-      if (targetChannel && typeof targetChannel.send === "function") {
-        await targetChannel.send(componentPayload).catch(() => {});
-      } else if (client?.rest) {
-        await client.rest.post(`/channels/${NOTIFY_CHANNEL_ID}/messages`, { body: componentPayload }).catch(() => {});
+      if (voiceWebhookUrl) {
+        try {
+          if (!voiceWebhookClient || voiceWebhookClient.url !== voiceWebhookUrl) {
+            voiceWebhookClient = new WebhookClient({ url: voiceWebhookUrl });
+          }
+          await voiceWebhookClient.send(componentPayload);
+          sentViaWebhook = true;
+        } catch (webhookErr) {
+          console.error("[voice-points] Webhook notification failed, falling back to channel.send:", webhookErr.message);
+        }
+      }
+
+      if (!sentViaWebhook) {
+        const targetChannel = client?.channels?.cache?.get(NOTIFY_CHANNEL_ID) ||
+          await client?.channels?.fetch(NOTIFY_CHANNEL_ID).catch(() => null);
+
+        if (targetChannel && typeof targetChannel.send === "function") {
+          await targetChannel.send(componentPayload).catch(() => {});
+        } else if (client?.rest) {
+          await client.rest.post(`/channels/${NOTIFY_CHANNEL_ID}/messages`, { body: componentPayload }).catch(() => {});
+        }
       }
     } catch (err) {
       console.error("[voice-points] handleVoiceNotification error:", err.message);
@@ -556,21 +585,24 @@ function setupVoicePoints(client) {
 
     if (oldState.channelId) {
       const session = voiceJoinTimes.get(userId);
+      const channelName = oldState.channel?.name ?? session?.channelName ?? "ห้องพูดคุย";
       if (session) {
         const remainingSeconds = Math.floor((Date.now() - (session.lastRewardAt || session.joinedAt)) / 1000);
         const userCount = getUserCountInChannel(oldState.guild, oldState.channelId) + 1;
-        const channelName = oldState.channel?.name ?? session.channelName ?? "ห้องพูดคุย";
         const parentId = oldState.channel?.parentId ?? session.parentId ?? null;
         const member = oldState.member || newState.member;
 
         const isMuted = Boolean(oldState.selfMute || oldState.serverMute || oldState.mute);
         const isDeaf = Boolean(oldState.selfDeaf || oldState.serverDeaf || oldState.deaf);
 
-        // ถ้ามีเศษเวลาเกิน 10 นาที (CYCLE_SECONDS) และไมค์/หูฟังไม่แดง ให้คิดแต้มสตรอว์เบอร์รี่ส่วนที่เหลือ (ไม่ลุ้นเหรียญ)
+        // ถ้ามีเศษเวลาเกิน 10 นาที (CYCLE_SECONDS) และไมค์/หูฟังไม่แดง ให้คิดแต้มสตรอว์เบอร์รี่ส่วนที่เหลือ
         if (remainingSeconds >= CYCLE_SECONDS && !isMuted && !isDeaf) {
           await awardVoicePoints(userId, remainingSeconds, userCount, channelName, parentId, member, false);
         }
       }
+
+      // สรุปยอดแต้มที่สะสมมาทั้งหมดใน Session และส่งการ์ดแจ้งเตือนตอนออกจากห้อง (ถ้าได้รับแต้มสะสม >= 1)
+      await handleVoiceNotification(userId, 0, channelName, false);
       voiceJoinTimes.delete(userId);
     }
 

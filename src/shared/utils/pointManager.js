@@ -1,5 +1,5 @@
 // src/utils/pointManager.js — จัดการแจกแต้มพร้อมระบบ Daily Cap และ Max Cap
-const cfg = require('../points/settingCheckIn.json');
+const cfg = require('../../points/settingCheckIn.json');
 
 const DAILY_CAP_MAP = {
   750: 150,
@@ -193,9 +193,6 @@ function withUserPointLock(userId, fn) {
 
 async function addPointsWithCap(supabase, member, userId, pointsDelta) {
   return withUserPointLock(userId, async () => {
-    const maxCap = member ? getMaxPoints(member) : 750;
-    const dailyCap = getDailyCap(maxCap, member);
-    const overflowCap = getOverflowCap(maxCap, member);
     const today = getTodayBangkok();
 
     const { data: row, error } = await supabase
@@ -207,6 +204,11 @@ async function addPointsWithCap(supabase, member, userId, pointsDelta) {
     if (error) {
       console.error('[pointManager] fetch error:', error.message);
     }
+
+    const calculatedCap = member ? getMaxPoints(member) : 750;
+    const maxCap = Math.max(calculatedCap, row?.max_cap ?? 750);
+    const dailyCap = getDailyCap(maxCap, member);
+    const overflowCap = getOverflowCap(maxCap, member);
 
     const currentPoints = row?.points ?? 0;
     const lastReset = row?.last_reset_date ?? '';

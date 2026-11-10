@@ -11,6 +11,7 @@ const { blacklistPayload, cooldownContent } = require('../features/shared/tarotC
 
 // ─── Cooldown store (in-memory) ───────────────────────────────────────────────
 const { getCooldown, setCooldown } = require('../utils/cooldownManager');
+const { addPointsWithCap } = require('../utils/pointManager');
 
 const FLAG_V2 = MessageFlags.IsComponentsV2; // 32768
 const FLAG_EPHEMERAL = MessageFlags.Ephemeral; // 64
@@ -203,14 +204,7 @@ function setupCheckIn(client) {
 
     // ── สุ่มรางวัล & แจกแต้ม ──────────────────────────────────────────────────
     const rewardTier = rollReward();
-    const newPoints = await addPoints(supabase, userId, rewardTier.points);
-    const maxPoints = getMaxPoints(member);
-    if (newPoints > maxPoints) {
-      await supabase
-        .from('user_points')
-        .update({ points: maxPoints })
-        .eq('discord_id', userId);
-    }
+    await addPointsWithCap(supabase, member, userId, rewardTier.points);
 
     // ── สร้างข้อความเคลมรางวัลและอัปเดต ──────────────────────────────────────────
     let premiumRoleInfo = null;

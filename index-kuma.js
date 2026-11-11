@@ -201,7 +201,8 @@ client.on("interactionCreate", async (interaction) => {
         interaction.customId === "p_364041959792185353" ||
         interaction.customId === "kuma_setup_games_confirm_reset" ||
         interaction.customId === "p_364036843668246533" ||
-        interaction.customId === "kuma_setup_games_confirm_install"
+        interaction.customId === "kuma_setup_games_confirm_install" ||
+        interaction.customId === "kuma_setup_games_btn_create_category"
       ) {
         return await handleSetupGamesButton(interaction, kumaSupabase, client);
       }
@@ -384,6 +385,12 @@ client.on("interactionCreate", async (interaction) => {
         return await handleSettingPointsSelect(interaction, kumaSupabase);
       }
     } else if (Boolean(interaction.isChannelSelectMenu && interaction.isChannelSelectMenu())) {
+      if (
+        interaction.customId === "p_364035091917180932" ||
+        interaction.customId === "kuma_setup_games_select_category"
+      ) {
+        return await handleSetupGamesSelect(interaction, kumaSupabase, client);
+      }
       if (interaction.customId.startsWith("akari_setting_bind_channel:")) {
         return await handleSettingBindChannel(interaction, kumaSupabase, client);
       }
@@ -392,9 +399,24 @@ client.on("interactionCreate", async (interaction) => {
     if ([10008, 10062, 10003, 40060].includes(error?.code) || [10008, 10062, 10003, 40060].includes(error?.rawError?.code)) {
       return;
     }
-    console.error("❌ [KumaBot] Interaction Handling Error:", error.message);
+
+    const isOversized =
+      error?.message?.includes("Message size exceeds maximum allowed") ||
+      error?.message?.includes("Oversized fields");
+
+    if (isOversized) {
+      console.error(
+        `⚠️ [KumaBot] Interaction Payload Oversized for guild "${interaction.guild?.name || "Unknown"}" (${interaction.guildId || "DM"}):`,
+        error.message
+      );
+    } else {
+      console.error("❌ [KumaBot] Interaction Handling Error:", error.message);
+    }
+
     const replyPayload = {
-      content: `❌ เกิดข้อผิดพลาดในการทำคำสั่ง: ${error.message}`,
+      content: isOversized
+        ? "⚠️ **ไม่สามารถแสดงผลหน้าต่างตั้งค่าได้ชั่วคราว**\n> เนื่องจากข้อมูลในเซิร์ฟเวอร์ (เช่น หมวดหมู่หรือช่องแชท) มีจำนวนมากเกินขีดจำกัดที่ Discord กำหนด กรุณาลองใหม่อีกครั้ง หรือติดต่อผู้ดูแลระบบบอทครับ"
+        : `❌ เกิดข้อผิดพลาดในการทำคำสั่ง: ${error.message}`,
       flags: MessageFlags.Ephemeral,
     };
     if (interaction.deferred || interaction.replied) {

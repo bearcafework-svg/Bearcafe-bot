@@ -563,35 +563,10 @@ function buildSetupGamesMainPayload(guild, isPremium, selectedGameValues = new S
     };
   });
 
-  // รายการตัวเลือกหมวดหมู่ (จำกัดไม่เกิน 25 ตัวเลือกรวม)
-  const categoryOptions = [
-    {
-      label: "สร้างหมวดหมู่ใหม่อัตโนมัติ",
-      value: "create_new",
-      description: "สร้างหมวดหมู่ 🎮・โซนมินิเกม (Kuma bot) ให้อัตโนมัติ",
-      emoji: { name: "✨" },
-      default: !selectedCategoryId || selectedCategoryId === "create_new",
-    },
-  ];
-
-  const guildCats = guild.channels.cache.filter((c) => c.type === ChannelType.GuildCategory);
-  let catCount = 0;
-  for (const [catId, cat] of guildCats) {
-    if (catCount >= 24) break;
-    categoryOptions.push({
-      label: cat.name.length > 100 ? cat.name.slice(0, 97) + "..." : cat.name,
-      value: catId,
-      description: `ใช้หมวดหมู่ ${cat.name}`.slice(0, 100),
-      emoji: { name: "📂" },
-      default: selectedCategoryId === catId,
-    });
-    catCount++;
-  }
-
   // ชื่อหมวดหมู่ที่แสดงในหัวข้อที่ 4
   let categoryNameDisplay = "สร้างใหม่";
   if (selectedCategoryId && selectedCategoryId !== "create_new") {
-    const chosenCat = guild.channels.cache.get(selectedCategoryId);
+    const chosenCat = guild.channels?.cache?.get(selectedCategoryId);
     if (chosenCat) {
       categoryNameDisplay = chosenCat.name;
     }
@@ -674,19 +649,37 @@ function buildSetupGamesMainPayload(guild, isPremium, selectedGameValues = new S
             {
               type: 10,
               content:
-                "3. **\` 📂 เลือกหมวดหมู่ (ไม่จำเป็นต้องเลือก) \` *!***\n  - *เลือกหมวดหมู่ที่ต้องการให้บอทสร้างห้องแชทสำหรับเล่นมินิเกมได้ตามต้องการ หากไม่เลือก บอทจะสร้างหมวดหมู่ใหม่ให้อัตโนมัติ*",
+                "3. **\` 📂 เลือกหมวดหมู่ (ไม่จำเป็นต้องเลือก) \` *!***\n  - *เลือกหมวดหมู่ที่ต้องการให้บอทสร้างห้องแชทสำหรับเล่นมินิเกมได้ตามต้องการ หากไม่เลือก ระบบจะสร้างหมวดหมู่ใหม่ให้อัตโนมัติ*",
             },
             {
               type: 1,
               components: [
                 {
-                  type: 3,
-                  options: categoryOptions,
-                  flows: {},
+                  type: 2,
+                  style: (!selectedCategoryId || selectedCategoryId === "create_new") ? 3 : 2,
+                  custom_id: "kuma_setup_games_btn_create_category",
+                  label: (!selectedCategoryId || selectedCategoryId === "create_new")
+                    ? "✨ โหมด: สร้างหมวดหมู่ใหม่อัตโนมัติ (เลือกแล้ว)"
+                    : "✨ คลิกเพื่อเปลี่ยนเป็น: สร้างหมวดหมู่ใหม่อัตโนมัติ",
+                  emoji: { name: "✨" },
+                },
+              ],
+            },
+            {
+              type: 1,
+              components: [
+                {
+                  type: 8, // ChannelSelectMenu (Discord native category picker)
                   custom_id: "p_364035091917180932",
+                  channel_types: [ChannelType.GuildCategory],
                   min_values: 1,
                   max_values: 1,
-                  placeholder: "✏️︲เลือกหมวดหมู่ที่ต้องการ...",
+                  placeholder: (selectedCategoryId && selectedCategoryId !== "create_new")
+                    ? `📁︲เลือกแล้ว: ${categoryNameDisplay.slice(0, 50)}`
+                    : "📁︲หรือเลือกหมวดหมู่เดิมที่มีอยู่แล้วในเซิร์ฟเวอร์...",
+                  default_values: (selectedCategoryId && selectedCategoryId !== "create_new" && guild.channels?.cache?.has(selectedCategoryId))
+                    ? [{ id: selectedCategoryId, type: "channel" }]
+                    : [],
                 },
               ],
             },
@@ -798,19 +791,37 @@ function buildSetupGamesMainPayload(guild, isPremium, selectedGameValues = new S
           {
             type: 10,
             content:
-              "3. **\` 📂 เลือกหมวดหมู่ (ไม่จำเป็นต้องเลือก) \` *!***\n  - *เลือกหมวดหมู่ที่ต้องการให้บอทสร้างห้องแชทสำหรับเล่นมินิเกมได้ตามต้องการ หากไม่เลือก บอทจะสร้างหมวดหมู่ใหม่ให้อัตโนมัติ*",
+              "3. **\` 📂 เลือกหมวดหมู่ (ไม่จำเป็นต้องเลือก) \` *!***\n  - *เลือกหมวดหมู่ที่ต้องการให้บอทสร้างห้องแชทสำหรับเล่นมินิเกมได้ตามต้องการ หากไม่เลือก ระบบจะสร้างหมวดหมู่ใหม่ให้อัตโนมัติ*",
           },
           {
             type: 1,
             components: [
               {
-                type: 3,
-                options: categoryOptions,
-                flows: {},
+                type: 2,
+                style: (!selectedCategoryId || selectedCategoryId === "create_new") ? 3 : 2,
+                custom_id: "kuma_setup_games_btn_create_category",
+                label: (!selectedCategoryId || selectedCategoryId === "create_new")
+                  ? "✨ โหมด: สร้างหมวดหมู่ใหม่อัตโนมัติ (เลือกแล้ว)"
+                  : "✨ คลิกเพื่อเปลี่ยนเป็น: สร้างหมวดหมู่ใหม่อัตโนมัติ",
+                emoji: { name: "✨" },
+              },
+            ],
+          },
+          {
+            type: 1,
+            components: [
+              {
+                type: 8, // ChannelSelectMenu (Discord native category picker)
                 custom_id: "p_364035091917180932",
+                channel_types: [ChannelType.GuildCategory],
                 min_values: 1,
                 max_values: 1,
-                placeholder: "✏️︲เลือกหมวดหมู่ที่ต้องการ...",
+                placeholder: (selectedCategoryId && selectedCategoryId !== "create_new")
+                  ? `📁︲เลือกแล้ว: ${categoryNameDisplay.slice(0, 50)}`
+                  : "📁︲หรือเลือกหมวดหมู่เดิมที่มีอยู่แล้วในเซิร์ฟเวอร์...",
+                default_values: (selectedCategoryId && selectedCategoryId !== "create_new" && guild.channels?.cache?.has(selectedCategoryId))
+                  ? [{ id: selectedCategoryId, type: "channel" }]
+                  : [],
               },
             ],
           },
@@ -1075,6 +1086,32 @@ async function handleSetupGamesButton(interaction, supabase, client) {
     return;
   }
 
+  // ── ปุ่มสลับไปสร้างหมวดหมู่ใหม่อัตโนมัติ (Create New Category Button) ──
+  if (customId === "kuma_setup_games_btn_create_category") {
+    let session = setupGameSessions.get(message.id);
+    if (!session) {
+      const planInfo = await getTenantPlan(guild.id, supabase);
+      session = {
+        guildId: guild.id,
+        isPremium: planInfo.isPremium,
+        selectedGameValues: new Set(),
+        selectedCategoryId: "create_new",
+      };
+      setupGameSessions.set(message.id, session);
+    }
+    session.selectedCategoryId = "create_new";
+
+    const updatedPayload = buildSetupGamesMainPayload(
+      guild,
+      session.isPremium,
+      session.selectedGameValues,
+      session.selectedCategoryId,
+      client
+    );
+    await interaction.update(updatedPayload);
+    return;
+  }
+
   // ── ปุ่มยืนยันการติดตั้งมินิเกม (Main Setup Confirm) ──
   if (customId === "p_364036843668246533" || customId === "kuma_setup_games_confirm_install") {
     let session = setupGameSessions.get(message.id);
@@ -1087,15 +1124,19 @@ async function handleSetupGamesButton(interaction, supabase, client) {
         selectedCategoryId: "create_new",
       };
       try {
-        const comp = message.components?.[0]?.components;
-        if (comp && comp[6]?.components?.[0]?.options) {
-          comp[6].components[0].options.forEach((opt) => {
-            if (opt.default) session.selectedGameValues.add(opt.value);
-          });
-        }
-        if (comp && comp[9]?.components?.[0]?.options) {
-          const catOpt = comp[9].components[0].options.find((opt) => opt.default);
-          if (catOpt) session.selectedCategoryId = catOpt.value;
+        const comp = message.components?.[0]?.components || [];
+        for (const c of comp) {
+          const innerComp = c.components?.[0];
+          if (!innerComp) continue;
+          if (innerComp.custom_id === "p_364022146659258369" || innerComp.custom_id === "kuma_setup_games_select_game") {
+            (innerComp.options || []).forEach((opt) => {
+              if (opt.default) session.selectedGameValues.add(opt.value);
+            });
+          }
+          if (innerComp.custom_id === "p_364035091917180932" || innerComp.custom_id === "kuma_setup_games_select_category") {
+            const defVal = innerComp.default_values?.[0]?.id || innerComp.values?.[0];
+            if (defVal) session.selectedCategoryId = defVal;
+          }
         }
       } catch (e) { }
     }
@@ -1254,15 +1295,19 @@ async function handleSetupGamesSelect(interaction, supabase, client) {
       selectedCategoryId: "create_new",
     };
     try {
-      const comp = message.components?.[0]?.components;
-      if (comp && comp[6]?.components?.[0]?.options) {
-        comp[6].components[0].options.forEach((opt) => {
-          if (opt.default) session.selectedGameValues.add(opt.value);
-        });
-      }
-      if (comp && comp[9]?.components?.[0]?.options) {
-        const catOpt = comp[9].components[0].options.find((opt) => opt.default);
-        if (catOpt) session.selectedCategoryId = catOpt.value;
+      const comp = message.components?.[0]?.components || [];
+      for (const c of comp) {
+        const innerComp = c.components?.[0];
+        if (!innerComp) continue;
+        if (innerComp.custom_id === "p_364022146659258369" || innerComp.custom_id === "kuma_setup_games_select_game") {
+          (innerComp.options || []).forEach((opt) => {
+            if (opt.default) session.selectedGameValues.add(opt.value);
+          });
+        }
+        if (innerComp.custom_id === "p_364035091917180932" || innerComp.custom_id === "kuma_setup_games_select_category") {
+          const defVal = innerComp.default_values?.[0]?.id || innerComp.values?.[0];
+          if (defVal) session.selectedCategoryId = defVal;
+        }
       }
     } catch (e) { }
     setupGameSessions.set(message.id, session);

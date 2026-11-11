@@ -2,7 +2,7 @@
 // ระบบปักหมุดข้อความหนึบท้ายห้อง (Sticky Message) ประจำห้องแบบอัปเดตเรียลไทม์ผ่าน Supabase Realtime DB
 // ป้องกันการค้างของข้อความเก่า 100% ด้วย Hybrid Cache + Deep Fallback Cleanup + Concurrency Lock
 
-const { createClient } = require("@supabase/supabase-js");
+const { getSupabaseClient } = require("../../services/supabaseClient");
 const logger = require("../../../utils/logger");
 
 // เก็บโครงสร้างการตั้งค่าของแต่ละแชนแนล (Sync กับ Database)
@@ -22,17 +22,11 @@ function setupStickyPanels(client) {
   }
   if (!isDev) console.log("[stickyPanels] Initializing setupStickyPanels...");
 
-  const supabaseUrl = process.env.POINTS_SUPABASE_URL || process.env.SUPABASE_URL;
-  const supabaseKey = process.env.POINTS_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !supabaseKey) {
-    console.error("[stickyPanels] Critical: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is missing from environment variables.");
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    console.error("[stickyPanels] Critical: Supabase client is not configured.");
     return;
   }
-
-  const supabase = createClient(supabaseUrl, supabaseKey, {
-    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
-  });
 
   // ─── Helper: ทำความสะอาดและตรวจเช็ก Payload ของ Discord ────────────────────
   function sanitizePayload(payload) {
@@ -342,12 +336,23 @@ function setupStickyPanels(client) {
         }
       );
 
+    let lastStatus = null;
     realtimeChannel.subscribe((status, err) => {
-      if (!isDev) console.log(`[stickyPanels] Realtime subscription status: ${status}`);
-      if (err && status !== "CHANNEL_ERROR") {
+      if (status === lastStatus) return;
+      lastStatus = status;
+
+      if (status === "SUBSCRIBED") {
+        if (!isDev) console.log("[stickyPanels] ✅ Realtime connected & subscribed to sticky_channels");
+      } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+        if (isDev) {
+          console.warn(`[stickyPanels] Realtime connection transient (${status}), reconnecting...`);
+        }
+      } else {
+        if (!isDev) console.log(`[stickyPanels] Realtime subscription status: ${status}`);
+      }
+
+      if (err && status !== "CHANNEL_ERROR" && status !== "TIMED_OUT") {
         console.error("[stickyPanels] Realtime subscription error details:", err.message || err);
-      } else if (status === "CHANNEL_ERROR") {
-        console.warn("[stickyPanels] Realtime connection transport flicker (auto-reconnecting...)");
       }
     });
   }

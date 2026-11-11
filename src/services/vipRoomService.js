@@ -19,7 +19,7 @@ async function syncVipRoomToDatabase(channelId, { ownerId, guildId = null, chann
       owner_id: ownerId,
       guild_id: guildId,
       channel_name: channelName,
-      empty_at: emptyAt ? Number(emptyAt) : null,
+      empty_at: emptyAt ? new Date(Number(emptyAt)).toISOString() : null,
       updated_at: new Date().toISOString(),
     };
 
@@ -51,7 +51,7 @@ async function updateVipRoomEmptyStateInDatabase(channelId, emptyAt) {
     const { error } = await supabase
       .from("vip_active_rooms")
       .update({
-        empty_at: emptyAt ? Number(emptyAt) : null,
+        empty_at: emptyAt ? new Date(Number(emptyAt)).toISOString() : null,
         updated_at: new Date().toISOString(),
       })
       .eq("channel_id", channelId);
@@ -133,13 +133,15 @@ async function restoreVipRoomsFromDatabaseToRedis() {
         // หากไม่มีใน Redis ให้กู้คืนกลับมา
         await saveRoom(row.channel_id, "vip", row.owner_id, {});
         if (row.empty_at) {
-          await setRoomEmpty(row.channel_id, Number(row.empty_at));
+          const emptyAtMs = isNaN(Number(row.empty_at)) ? new Date(row.empty_at).getTime() : Number(row.empty_at);
+          await setRoomEmpty(row.channel_id, emptyAtMs);
         }
         restoredCount++;
         console.log(`♻️ [VIP Recovery] กู้คืนห้อง VIP "${row.channel_name || row.channel_id}" จาก Supabase เข้า Redis สำเร็จ`);
       } else if (!existing.emptyAt && row.empty_at) {
         // หากใน Redis ไม่มี emptyAt แต่ใน Supabase มี ให้ใช้ค่าเดิมของ Supabase
-        await setRoomEmpty(row.channel_id, Number(row.empty_at));
+        const emptyAtMs = isNaN(Number(row.empty_at)) ? new Date(row.empty_at).getTime() : Number(row.empty_at);
+        await setRoomEmpty(row.channel_id, emptyAtMs);
       }
     }
 

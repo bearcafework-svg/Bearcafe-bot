@@ -1245,6 +1245,7 @@ async function handleSetupGamesButton(interaction, supabase, client) {
             },
             { onConflict: "guild_id,game_id" }
           );
+          invalidateSettingsCache(guild.id);
         }
 
         await spawnQuestion(client, channel, gameId, guild.id, supabase);
@@ -3386,6 +3387,7 @@ async function handleSetGame(interaction, supabase, client) {
         },
         { onConflict: "guild_id,game_id" }
       );
+      invalidateSettingsCache(guild.id);
     }
 
     // ล้าง session เดิมก่อนเริ่มเกมใหม่

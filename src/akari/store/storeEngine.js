@@ -225,6 +225,10 @@ async function getUserTenantScore(supabase, guildId, userId) {
 
   if (supabase) {
     try {
+      const { flushTenantPoints } = require("../minigames/minigamesEngine");
+      if (typeof flushTenantPoints === "function") {
+        await flushTenantPoints(supabase, guildId, userId, 0, 0).catch(() => {});
+      }
       const { data, error } = await supabase
         .from("tenant_minigame_scores")
         .select("points, wins")

@@ -94,6 +94,80 @@ const TRANSITION_MIN_MS = {
 const userLastMinigameAction = new Map();
 // ล็อกกันการยิงคำตอบซ้อนกันในระดับ millisecond เดียวกัน (In-Flight Concurrency Mutex)
 const userInFlightProcessing = new Set();
+// เก็บสถานะคูลดาวน์เมื่อตอบผิดของผู้เล่น (Global Scope Per User: userId -> expireTimestamp)
+const userWrongCooldowns = new Map();
+const WRONG_COOLDOWN_MS = 10 * 1000; // บอทหลักล็อคคูลดาวน์ 10 วินาที
+
+/**
+ * ตรวจสอบว่าผู้เล่นกำลังติดคูลดาวน์จากการตอบผิดหรือไม่ (Global Scope)
+ * @param {string} userId Discord User ID
+ * @returns {{ inCooldown: boolean, expireTs: number }}
+ */
+function checkUserWrongCooldown(userId) {
+  const expire = userWrongCooldowns.get(userId);
+  if (expire && expire > Date.now()) {
+    return { inCooldown: true, expireTs: Math.ceil(expire / 1000) };
+  }
+  if (expire) {
+    userWrongCooldowns.delete(userId);
+  }
+  return { inCooldown: false, expireTs: 0 };
+}
+
+/**
+ * สร้าง Component V2 เมื่อผู้เล่นตอบผิดและถูกหักแต้ม (บอทหลัก)
+ * @param {string} userId
+ * @param {number} penalty
+ * @param {number} expireTimestamp
+ * @returns {object}
+ */
+function buildMainBotPenaltyPayload(userId, penalty, expireTimestamp) {
+  const endTs = expireTimestamp || Math.ceil((Date.now() + WRONG_COOLDOWN_MS) / 1000);
+  return {
+    flags: FLAG_V2,
+    components: [
+      {
+        type: 17,
+        components: [
+          {
+            type: 10,
+            content: `## <:68440x:1358584606911369226> <@${userId}> ตอบไม่ถูก โดนหัก <:strawberryv2:1520439075100688614> **-${penalty}** ติดคูลดาวน์ <t:${endTs}:R>`
+          },
+          {
+            type: 14,
+            spacing: 2
+          },
+          {
+            type: 10,
+            content: "-# เมื่อท่านตอบผิดจะติดดูลดาวน์ทุกเกม เพื่อป้องกันการสลับห้องสแปม"
+          }
+        ]
+      }
+    ]
+  };
+}
+
+/**
+ * บันทึก Log ข้อผิดพลาดของ Interaction (ยกเว้น Interaction หมดอายุหรือถูกตอบไปแล้ว)
+ */
+function logInteractionError(context, err) {
+  if (!err) return;
+  const code = err.code ?? err.rawError?.code;
+  if (code === 10062 || code === 40060 || code === 10008) return;
+  console.error(`[minigames] ${context}:`, err.message || err);
+}
+
+/**
+ * ตอบกลับหรืออัปเดตข้อความ Ephemeral อย่างปลอดภัย (ถอด flags ออกเมื่อเป็นการ update เพื่อป้องกัน Discord API 50035)
+ */
+async function respondEphemeralSafe(interaction, payload, isUpdate = false) {
+  if (isUpdate) {
+    const { flags, ...cleanPayload } = payload;
+    return interaction.update(cleanPayload).catch((err) => logInteractionError('interaction.update failed', err));
+  }
+  const replyFlags = payload.flags ? (payload.flags | FLAG_EPHEMERAL) : FLAG_EPHEMERAL;
+  return interaction.reply({ ...payload, flags: replyFlags }).catch((err) => logInteractionError('interaction.reply failed', err));
+}
 
 // ล้างข้อมูลผู้เล่นที่ไม่มีกิจกรรมเกิน 1 นาที เพื่อไม่ให้กินหน่วยความจำ
 setInterval(() => {
@@ -401,7 +475,7 @@ function buildGamePayload(gameId, questionData) {
         return {
           style: isTrueBtn ? 3 : 4,
           type: 2,
-          label: optionLabel,
+          label: String(optionLabel || ' ').slice(0, 80),
           custom_id: `mg_opt_${gameId}_${idx}_${Date.now()}`
         };
       });
@@ -415,7 +489,7 @@ function buildGamePayload(gameId, questionData) {
       const allButtons = questionData.options.map((optionLabel, idx) => ({
         style: choiceStyles[idx % choiceStyles.length],
         type: 2,
-        label: optionLabel,
+        label: String(optionLabel || ' ').slice(0, 80),
         custom_id: `mg_sb_${gameId}_${idx}_${Date.now()}`
       }));
       // Split into ActionRows of max 5 buttons
@@ -431,25 +505,29 @@ function buildGamePayload(gameId, questionData) {
       buttonComponents = questionData.options.map((optionLabel, idx) => ({
         style: choiceStyles[idx % choiceStyles.length],
         type: 2,
-        label: String(optionLabel),
+        label: String(optionLabel || ' ').slice(0, 80),
         custom_id: `mg_opt_${gameId}_${idx}_${Date.now()}`
       }));
-      containerComponents.push({
-        type: 1,
-        components: buttonComponents
-      });
+      for (let i = 0; i < buttonComponents.length; i += 5) {
+        containerComponents.push({
+          type: 1,
+          components: buttonComponents.slice(i, i + 5)
+        });
+      }
     } else {
       const choiceStyles = [1, 4, 3, 2];
       buttonComponents = questionData.options.map((optionLabel, idx) => ({
         style: choiceStyles[idx % choiceStyles.length],
         type: 2,
-        label: optionLabel,
+        label: String(optionLabel || ' ').slice(0, 80),
         custom_id: `mg_opt_${gameId}_${idx}_${Date.now()}`
       }));
-      containerComponents.push({
-        type: 1,
-        components: buttonComponents
-      });
+      for (let i = 0; i < buttonComponents.length; i += 5) {
+        containerComponents.push({
+          type: 1,
+          components: buttonComponents.slice(i, i + 5)
+        });
+      }
     }
   }
 
@@ -551,7 +629,7 @@ function buildWinnerPayload(gameId, questionData, winnerDisplayName) {
   const actionButtons = [{
     style: 3,
     type: 2,
-    label: `@${winnerDisplayName} ตอบถูก`,
+    label: `@${winnerDisplayName} ตอบถูก`.slice(0, 80),
     custom_id: `mg_winner_disabled_${Date.now()}`,
     disabled: true
   }];
@@ -732,14 +810,17 @@ async function syncGameSettings(supabase) {
   }
 }
 
+const { createProtectedSupabaseClient } = require('../../services/supabaseTrafficGuard');
+
 /**
  * Main feature setup
  */
 function setupMinigames(client) {
-  const supabase = createClient(
+  const supabase = createProtectedSupabaseClient(
     process.env.POINTS_SUPABASE_URL || process.env.SUPABASE_URL,
     process.env.POINTS_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY,
-    { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
+    { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } },
+    "minigames"
   );
 
   // Initialize b!reset-top command & refresh handler
@@ -956,18 +1037,18 @@ function setupMinigames(client) {
       const session = activeSessions.get(interaction.channelId);
       if (!session || session.gameId !== gameId) {
         // Auto-Heal: ถ้าเซสชันขาดหลุดไป ให้สร้างโจทย์ข้อใหม่ส่งเข้าช่องนี้ให้อัตโนมัติทันที!
-        sendNextGameQuestion(client, supabase, interaction.channelId, gameId).catch(() => { });
-        return interaction.reply({ content: 'โจทย์ข้อนี้จบไปแล้วค่ะ! กำลังส่งโจทย์ข้อใหม่ให้ในช่องเรียบร้อยแล้วนะคะ 🎮', flags: FLAG_EPHEMERAL });
+        sendNextGameQuestion(client, supabase, interaction.channelId, gameId).catch((err) => logInteractionError('auto-heal spawn failed', err));
+        return respondEphemeralSafe(interaction, { content: 'โจทย์ข้อนี้จบไปแล้วค่ะ! กำลังส่งโจทย์ข้อใหม่ให้ในช่องเรียบร้อยแล้วนะคะ 🎮' }, false);
       }
 
       // Message ID strict check: reject interactions on old question messages
       if (session.messageId && interaction.message.id !== session.messageId) {
-        return interaction.reply({ content: 'ข้อความนี้เป็นโจทย์ข้อเก่าแล้วนะคะ กรุณาตอบที่ข้อความล่าสุดในช่องค่ะ 🎮', flags: FLAG_EPHEMERAL });
+        return respondEphemeralSafe(interaction, { content: 'ข้อความนี้เป็นโจทย์ข้อเก่าแล้วนะคะ กรุณาตอบที่ข้อความล่าสุดในช่องค่ะ 🎮' }, false);
       }
 
       // Lock check: ignore if another win is currently processing for this channel
       if (processingChannels.has(interaction.channelId)) {
-        return interaction.reply({ content: 'กำลังเปลี่ยนโจทย์ข้อใหม่ค่ะ กรุณารอแปปนึงนะคะ', flags: FLAG_EPHEMERAL });
+        return respondEphemeralSafe(interaction, { content: 'กำลังเปลี่ยนโจทย์ข้อใหม่ค่ะ กรุณารอแปปนึงนะคะ' }, false);
       }
 
       const questionData = session.questionData;
@@ -975,20 +1056,26 @@ function setupMinigames(client) {
       const isCorrect = String(selectedChoice).trim().toLowerCase() === String(questionData.answer).trim().toLowerCase();
       const userId = interaction.user.id;
 
+      // ── Global Wrong Cooldown Check ─────────────────────────────────
+      const cooldownCheck = checkUserWrongCooldown(userId);
+      if (cooldownCheck.inCooldown) {
+        return respondEphemeralSafe(interaction, {
+          content: `⏳ คุณกำลังติดคูลดาวน์จากการตอบผิด กรุณารออีก <t:${cooldownCheck.expireTs}:R> ก่อนกดใหม่อีกครั้งนะคะ`,
+        }, false);
+      }
+
       // ── Cross-Channel Feasibility Guard ─────────────────────────────
       const feasibility = checkCrossChannelFeasibility(userId, interaction.channelId, gameId);
       if (!feasibility.allowed) {
         if (feasibility.reason === 'IN_FLIGHT_CONFLICT') {
-          return interaction.reply({
+          return respondEphemeralSafe(interaction, {
             content: '⚠️ กำลังประมวลผลคำตอบจากเกมอื่นอยู่ กรุณารอสักครู่นะคะ 🐻',
-            flags: FLAG_EPHEMERAL
-          });
+          }, false);
         }
         console.log(`[minigames] 🛡️ Blocked concurrent attempt by User: ${interaction.user.tag || interaction.user.username} (${userId}) (from Game ${feasibility.fromGameId} to Game ${feasibility.toGameId} in ${feasibility.elapsed}ms, required >= ${feasibility.requiredMs}ms)`);
-        return interaction.reply({
+        return respondEphemeralSafe(interaction, {
           content: '⚠️ ตรวจพบการเล่นหลายเกมพร้อมกัน กรุณารอสักครู่แล้วลองใหม่อีกครั้งนะคะ (เล่นทีละเกมนะคะ 🐻)',
-          flags: FLAG_EPHEMERAL
-        });
+        }, false);
       }
 
       // Record this user action
@@ -996,16 +1083,17 @@ function setupMinigames(client) {
 
       if (!isCorrect) {
         const penalty = Math.floor(Math.random() * 11) + 5; // 5-15
+        const endTs = Math.ceil((Date.now() + WRONG_COOLDOWN_MS) / 1000);
+        userWrongCooldowns.set(userId, Date.now() + WRONG_COOLDOWN_MS);
+
         if (supabase) {
           deductPoints(supabase, userId, penalty).catch(err => {
             console.error('[minigames] deductPoints error:', err.message);
           });
         }
 
-        return interaction.reply({
-          content: `❌ คำตอบไม่ถูกต้องค่ะ! ถูกหักแต้ม **${penalty} แต้ม** 🔻`,
-          flags: FLAG_EPHEMERAL
-        });
+        const penaltyPayload = buildMainBotPenaltyPayload(userId, penalty, endTs);
+        return respondEphemeralSafe(interaction, penaltyPayload, false);
       }
 
       // Correct Answer! Lock user in-flight, lock channel & clear session immediately
@@ -1029,7 +1117,19 @@ function setupMinigames(client) {
         // 1. Immediately update interaction UI to show winner (Ultra-Fast response!)
         const winnerName = interaction.user.displayName || interaction.user.username;
         const winnerPayload = buildWinnerPayload(gameId, questionData, winnerName);
-        await interaction.update(winnerPayload);
+        let updated = false;
+        try {
+          await interaction.update(winnerPayload);
+          updated = true;
+        } catch (updErr) {
+          logInteractionError('winner interaction.update failed', updErr);
+        }
+        if (!updated && session.messageId && interaction.channel) {
+          const fallbackMsg = await interaction.channel.messages.fetch(session.messageId).catch(() => null);
+          if (fallbackMsg) {
+            await fallbackMsg.edit(winnerPayload).catch((e) => logInteractionError('winner fallback edit failed', e));
+          }
+        }
 
         // 2. Process points and DB recording asynchronously in background
         const member = interaction.member;
@@ -1104,29 +1204,49 @@ function setupMinigames(client) {
 
       const isReset = interaction.customId.startsWith('mg_sb_reset_');
       const parts = interaction.customId.split('_');
-      // For reset: mg_sb_reset_{gameId}_{timestamp} -> parts[3] is gameId
-      // For choice: mg_sb_{gameId}_{choiceIndex}_{timestamp} -> parts[2] is gameId
+      // For reset: mg_sb_reset_{gameId}_{msgIdOrTs} -> parts[3] is gameId, parts[4] is msgIdOrTs
+      // For choice: mg_sb_{gameId}_{choiceIndex}_{msgIdOrTs} -> parts[2] is gameId, parts[3] is choiceIndex, parts[4] is msgIdOrTs
       const targetGameId = parseInt(isReset ? parts[3] : parts[2], 10);
       if (targetGameId !== 13) return;
+
+      const isEphemeralInteraction = Boolean(
+        interaction.message &&
+        (interaction.message.flags?.has(MessageFlags.Ephemeral) || (interaction.message.flags?.bitfield & 64))
+      );
+      const roundMsgId = parts[4] && parts[4].length >= 17 ? parts[4] : null;
 
       try {
         const session = activeSessions.get(channelId);
 
-        if (!session || session.gameId !== targetGameId) {
-          sendNextGameQuestion(client, supabase, channelId, targetGameId).catch(() => { });
-          return interaction.reply({ content: 'โจทย์ข้อนี้จบไปแล้วค่ะ! กำลังส่งโจทย์ข้อใหม่ให้ในช่องเรียบร้อยแล้วนะคะ 🎮', flags: FLAG_EPHEMERAL }).catch(() => { });
+        if (!session || session.gameId !== targetGameId || (roundMsgId && session.messageId && roundMsgId !== session.messageId)) {
+          if (!session || session.gameId !== targetGameId) {
+            sendNextGameQuestion(client, supabase, channelId, targetGameId).catch((err) => logInteractionError('auto-heal Game 13 failed', err));
+          }
+          return respondEphemeralSafe(
+            interaction,
+            {
+              content: '⚠️ โจทย์ข้อนี้จบไปแล้วค่ะ! กรุณากดเล่นที่ข้อความโจทย์ล่าสุดในช่องนะคะ 🎮',
+              components: []
+            },
+            isEphemeralInteraction
+          );
         }
 
         if (processingChannels.has(channelId)) {
-          return interaction.reply({ content: 'กำลังเปลี่ยนโจทย์ข้อใหม่ค่ะ กรุณารอแปปนึงนะคะ', flags: FLAG_EPHEMERAL }).catch(() => { });
+          return respondEphemeralSafe(
+            interaction,
+            { content: 'กำลังเปลี่ยนโจทย์ข้อใหม่ค่ะ กรุณารอแปปนึงนะคะ' },
+            false
+          );
         }
 
         const feasibility = checkCrossChannelFeasibility(userId, channelId, targetGameId);
         if (!feasibility.allowed) {
-          return interaction.reply({
-            content: '⚠️ ตรวจพบการเล่นหลายเกมพร้อมกัน กรุณารอสักครู่แล้วลองใหม่อีกครั้งนะคะ (เล่นทีละเกมนะคะ 🐻)',
-            flags: FLAG_EPHEMERAL
-          }).catch(() => { });
+          return respondEphemeralSafe(
+            interaction,
+            { content: '⚠️ ตรวจพบการเล่นหลายเกมพร้อมกัน กรุณารอสักครู่แล้วลองใหม่อีกครั้งนะคะ (เล่นทีละเกมนะคะ 🐻)' },
+            false
+          );
         }
         recordUserAction(userId, channelId, targetGameId);
 
@@ -1134,6 +1254,7 @@ function setupMinigames(client) {
         const correctWords = questionData.correctWords || String(questionData.answer || '').split(/[,|]/).map(s => s.trim()).filter(Boolean);
         const allOptions = questionData.options || [];
         const userKey = `${channelId}:${userId}:${session.messageId}`;
+        const roundTag = session.messageId || Date.now();
 
         // ── Handle Reset Button ──
         if (isReset) {
@@ -1144,8 +1265,8 @@ function setupMinigames(client) {
           const buttons = allOptions.map((optLabel, idx) => ({
             style: btnStyles[idx % btnStyles.length],
             type: 2,
-            label: optLabel,
-            custom_id: `mg_sb_${targetGameId}_${idx}_${Date.now()}`
+            label: String(optLabel || ' ').slice(0, 80),
+            custom_id: `mg_sb_${targetGameId}_${idx}_${roundTag}`
           }));
           for (let i = 0; i < buttons.length; i += 5) {
             btnRows.push({ type: 1, components: buttons.slice(i, i + 5) });
@@ -1159,16 +1280,20 @@ function setupMinigames(client) {
 
           const resetPayload = {
             content: `🔄 **รีเซ็ตประโยคเรียบร้อยแล้วค่ะ!**\n> 📝 โจทย์: **${questionData.wordOrQuestion}**\n> 🔤 กำลังต่อ: ${maskedPreview}\n\n👉 เลือกคำแรกด้านล่างได้เลยค่ะ:`,
-            components: btnRows,
-            flags: FLAG_EPHEMERAL
+            components: btnRows
           };
 
-          const isEphemeralInteraction = interaction.message && (interaction.message.flags?.has(MessageFlags.Ephemeral) || Boolean(interaction.message.flags?.bitfield & 64));
-          if (isEphemeralInteraction) {
-            return interaction.update(resetPayload).catch(() => { });
-          } else {
-            return interaction.reply(resetPayload).catch(() => { });
-          }
+          return respondEphemeralSafe(interaction, resetPayload, isEphemeralInteraction);
+        }
+
+        // ── Global Wrong Cooldown Check ──
+        const cooldownCheck = checkUserWrongCooldown(interaction.user.id);
+        if (cooldownCheck.inCooldown) {
+          return respondEphemeralSafe(
+            interaction,
+            { content: `⏳ คุณกำลังติดคูลดาวน์จากการตอบผิด กรุณารออีก <t:${cooldownCheck.expireTs}:R> ก่อนกดใหม่อีกครั้งนะคะ` },
+            false
+          );
         }
 
         // ── Handle Word Choice Click ──
@@ -1178,49 +1303,43 @@ function setupMinigames(client) {
         let progress = userSentenceProgress.get(userKey) || { pickedIndices: [], pickedWords: [] };
 
         if (progress.pickedIndices.includes(choiceIndex)) {
-          return interaction.reply({
-            content: `คุณได้เลือกคำว่า **"${clickedWord}"** ไปแล้วค่ะ กรุณาเลือกคำถัดไปนะคะ!`,
-            flags: FLAG_EPHEMERAL
-          }).catch(() => { });
+          return respondEphemeralSafe(
+            interaction,
+            { content: `คุณได้เลือกคำว่า **"${clickedWord}"** ไปแล้วค่ะ กรุณาเลือกคำถัดไปนะคะ!` },
+            false
+          );
         }
 
         const nextExpectedWord = correctWords[progress.pickedWords.length];
         const isCorrectWord = String(clickedWord || '').trim().toLowerCase() === String(nextExpectedWord || '').trim().toLowerCase();
 
-        // Case 1: Wrong word / Wrong order -> Immediate reset
+        // Case 1: Wrong word / Wrong order -> Immediate penalty & cooldown
         if (!isCorrectWord) {
           userSentenceProgress.delete(userKey);
+          const penalty = Math.floor(Math.random() * 11) + 5; // 5-15
+          const endTs = Math.ceil((Date.now() + WRONG_COOLDOWN_MS) / 1000);
+          userWrongCooldowns.set(interaction.user.id, Date.now() + WRONG_COOLDOWN_MS);
 
-          const btnRows = [];
-          const btnStyles = [2, 1, 2, 1, 2, 1];
-          const buttons = allOptions.map((optLabel, idx) => ({
-            style: btnStyles[idx % btnStyles.length],
-            type: 2,
-            label: optLabel,
-            custom_id: `mg_sb_${targetGameId}_${idx}_${Date.now()}`
-          }));
-          for (let i = 0; i < buttons.length; i += 5) {
-            btnRows.push({ type: 1, components: buttons.slice(i, i + 5) });
+          if (supabase) {
+            deductPoints(supabase, interaction.user.id, penalty).catch(err => {
+              console.error('[minigames] deductPoints error (sentence):', err.message);
+            });
           }
 
-          const templateStr = questionData.englishTemplate || (Array.isArray(questionData.hints) ? questionData.hints[0] : '') || '';
-          let maskedPreview = templateStr;
-          for (let i = 1; i <= correctWords.length; i++) {
-            maskedPreview = maskedPreview.replace(new RegExp(`\\{${i}\\}`, 'g'), '`[ ___ ]`');
-          }
-
-          const wrongPayload = {
-            content: `❌ คำว่า **"${clickedWord}"** ยังไม่ถูกต้องสำหรับช่องนี้ค่ะ!\n🔄 ระบบรีเซ็ตให้ใหม่แล้ว ลองกดเริ่มใหม่อีกครั้งนะคะ ✨\n> 📝 โจทย์: **${questionData.wordOrQuestion}**\n> 🔤 ประโยค: ${maskedPreview}`,
-            components: btnRows,
-            flags: FLAG_EPHEMERAL
-          };
-
-          const isEphemeralInteraction = interaction.message && (interaction.message.flags?.has(MessageFlags.Ephemeral) || Boolean(interaction.message.flags?.bitfield & 64));
           if (isEphemeralInteraction) {
-            return interaction.update(wrongPayload).catch(() => { });
-          } else {
-            return interaction.reply(wrongPayload).catch(() => { });
+            // อัปเดตข้อความ Ephemeral เดิมด้วย Text format เพื่อไม่ให้ขัดแย้งกับ FLAG_V2 ของ Discord API
+            return respondEphemeralSafe(
+              interaction,
+              {
+                content: `<:68440x:1358584606911369226> <@${interaction.user.id}> ตอบไม่ถูก โดนหัก <:strawberryv2:1520439075100688614> **-${penalty}** ติดคูลดาวน์ <t:${endTs}:R>\n-# เมื่อท่านตอบผิดจะติดคูลดาวน์ทุกเกม เพื่อป้องกันการสลับห้องสแปม`,
+                components: []
+              },
+              true
+            );
           }
+
+          const penaltyPayload = buildMainBotPenaltyPayload(interaction.user.id, penalty, endTs);
+          return respondEphemeralSafe(interaction, penaltyPayload, false);
         }
 
         // Case 2: Correct word!
@@ -1243,8 +1362,8 @@ function setupMinigames(client) {
               remainingButtons.push({
                 style: 1,
                 type: 2,
-                label: optLabel,
-                custom_id: `mg_sb_${targetGameId}_${idx}_${Date.now()}`
+                label: String(optLabel || ' ').slice(0, 80),
+                custom_id: `mg_sb_${targetGameId}_${idx}_${roundTag}`
               });
             }
           });
@@ -1255,7 +1374,7 @@ function setupMinigames(client) {
             type: 2,
             label: '︲เริ่มใหม่',
             emoji: { name: '🔄' },
-            custom_id: `mg_sb_reset_${targetGameId}_${Date.now()}`
+            custom_id: `mg_sb_reset_${targetGameId}_${roundTag}`
           });
 
           const btnRows = [];
@@ -1275,16 +1394,10 @@ function setupMinigames(client) {
 
           const stepPayload = {
             content: `✅ ถูกต้อง! ต่อคำถัดไปได้เลยค่ะ (เหลืออีก **${correctWords.length - progress.pickedWords.length}** คำ)\n> 📝 โจทย์: **${questionData.wordOrQuestion}**\n> 🔤 กำลังต่อ: ${previewStr}`,
-            components: btnRows,
-            flags: FLAG_EPHEMERAL
+            components: btnRows
           };
 
-          const isEphemeralInteraction = interaction.message && (interaction.message.flags?.has(MessageFlags.Ephemeral) || Boolean(interaction.message.flags?.bitfield & 64));
-          if (isEphemeralInteraction) {
-            return interaction.update(stepPayload).catch(() => { });
-          } else {
-            return interaction.reply(stepPayload).catch(() => { });
-          }
+          return respondEphemeralSafe(interaction, stepPayload, isEphemeralInteraction);
         }
 
         // Case 3: Completed & WINNER!
@@ -1296,17 +1409,14 @@ function setupMinigames(client) {
         }
 
         if (processingChannels.has(channelId) || userInFlightProcessing.has(userId)) {
-          const lateMsg = {
-            content: 'คุณต่อคำได้ถูกต้องแล้วค่ะ แต่มีผู้เล่นคนอื่นตอบเสร็จก่อนหน้าไปเสี้ยววินาที! 🎮',
-            components: [],
-            flags: FLAG_EPHEMERAL
-          };
-          const isEphemeralInteraction = interaction.message && (interaction.message.flags?.has(MessageFlags.Ephemeral) || Boolean(interaction.message.flags?.bitfield & 64));
-          if (isEphemeralInteraction) {
-            return interaction.update(lateMsg).catch(() => { });
-          } else {
-            return interaction.reply(lateMsg).catch(() => { });
-          }
+          return respondEphemeralSafe(
+            interaction,
+            {
+              content: 'คุณต่อคำได้ถูกต้องแล้วค่ะ แต่มีผู้เล่นคนอื่นตอบเสร็จก่อนหน้าไปเสี้ยววินาที! 🎮',
+              components: []
+            },
+            isEphemeralInteraction
+          );
         }
 
         userInFlightProcessing.add(userId);
@@ -1327,23 +1437,19 @@ function setupMinigames(client) {
           const winnerName = interaction.user.displayName || interaction.user.username;
           const winnerPayload = buildWinnerPayload(targetGameId, questionData, winnerName);
 
-          const isEphemeralInteraction = interaction.message && (interaction.message.flags?.has(MessageFlags.Ephemeral) || Boolean(interaction.message.flags?.bitfield & 64));
-          if (isEphemeralInteraction) {
-            await interaction.update({
+          await respondEphemeralSafe(
+            interaction,
+            {
               content: `🎉 **ยอดเยี่ยมมากค่ะ! คุณต่อประโยคถูกต้องครบถ้วนเป็นคนแรก!**\n> 🌟 รางวัล: **+${questionData.rewardPoints || 4} แต้ม**`,
               components: []
-            }).catch(() => { });
-          } else {
-            await interaction.reply({
-              content: `🎉 **ยอดเยี่ยมมากค่ะ! คุณต่อประโยคถูกต้องครบถ้วนเป็นคนแรก!**\n> 🌟 รางวัล: **+${questionData.rewardPoints || 4} แต้ม**`,
-              flags: FLAG_EPHEMERAL
-            }).catch(() => { });
-          }
+            },
+            isEphemeralInteraction
+          );
 
           if (session.messageId) {
             const publicMsg = await interaction.channel.messages.fetch(session.messageId).catch(() => null);
             if (publicMsg) {
-              await publicMsg.edit(winnerPayload).catch(() => { });
+              await publicMsg.edit(winnerPayload).catch((e) => logInteractionError('Game 13 public winner edit failed', e));
             }
           }
 
@@ -1458,6 +1564,19 @@ function setupMinigames(client) {
       return;
     }
 
+    // ── Global Wrong Cooldown Check ─────────────────────────────────
+    const cooldownCheck = checkUserWrongCooldown(userId);
+    if (cooldownCheck.inCooldown) {
+      message.delete().catch(() => { });
+      const warnMsg = await message.channel.send({
+        content: `${message.author} ⏳ คุณกำลังติดคูลดาวน์จากการตอบผิด กรุณารออีก <t:${cooldownCheck.expireTs}:R> ก่อนพิมพ์ใหม่นะคะ`
+      }).catch(() => null);
+      if (warnMsg) {
+        setTimeout(() => warnMsg.delete().catch(() => { }), 5000);
+      }
+      return;
+    }
+
     // ── Cross-Channel Feasibility Guard ─────────────────────────────
     const feasibility = checkCrossChannelFeasibility(userId, message.channelId, matchedGameId);
     if (!feasibility.allowed) {
@@ -1483,17 +1602,21 @@ function setupMinigames(client) {
       message.delete().catch(() => { });
 
       const penalty = Math.floor(Math.random() * 11) + 5; // 5-15
+      const endTs = Math.ceil((Date.now() + WRONG_COOLDOWN_MS) / 1000);
+      userWrongCooldowns.set(userId, Date.now() + WRONG_COOLDOWN_MS);
+
       if (supabase) {
         deductPoints(supabase, userId, penalty).catch(err => {
           console.error('[minigames] deductPoints error (text game):', err.message);
         });
       }
 
-      // Send penalty notice (auto-delete after 5s)
-      const penaltyMsg = await message.channel.send({
-        content: `${message.author} ❌ ตอบผิดค่ะ! ถูกหักแต้ม **${penalty} แต้ม** 🔻`
-      });
-      setTimeout(() => penaltyMsg.delete().catch(() => { }), 5000);
+      // Send penalty notice Component V2 (auto-delete after 5s)
+      const penaltyPayload = buildMainBotPenaltyPayload(userId, penalty, endTs);
+      const penaltyMsg = await message.channel.send(penaltyPayload).catch(() => null);
+      if (penaltyMsg) {
+        setTimeout(() => penaltyMsg.delete().catch(() => { }), 5000);
+      }
       return;
     }
 
@@ -1533,15 +1656,12 @@ function setupMinigames(client) {
                   type: 17,
                   components: [
                     {
-                      type: 9,
-                      components: [{
-                        type: 10,
-                        content: `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ ${gameTitle} 𓂃 \`__\n# ${correctAnswer}\n-# ✅ @${winnerName} ตอบถูกเรียบร้อยแล้วค่ะ`
-                      }]
+                      type: 10,
+                      content: `### <:bee20000:1256669436350562355>︲__\` 𝖦𝖺𝗆𝖾 ₊ ${gameTitle} 𓂃 \`__\n# ${correctAnswer}\n-# ✅ @${winnerName} ตอบถูกเรียบร้อยแล้วค่ะ`
                     }
                   ]
                 }]
-              }).catch(() => { });
+              }).catch((err) => logInteractionError('oldMsg.edit failed', err));
             }
           })
           .catch(() => { });

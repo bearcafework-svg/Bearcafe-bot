@@ -1,6 +1,6 @@
 // src/services/broadcastScheduler.js
 const { createClient } = require("@supabase/supabase-js");
-const { isSupabaseQuotaError, shouldLogThrottledError } = require("../../../utils/errorThrottler");
+const { isSupabaseQuotaError, shouldLogThrottledError } = require("../../utils/errorThrottler");
 const chatActivityBridge = require("../shared/chatActivityBridge");
 if (!global.WebSocket) global.WebSocket = require("ws");
 
@@ -22,7 +22,7 @@ let hasLoggedDisabledWarning = false;
 let cachedScheduleConfig = null;
 let lastConfigFetchTime = 0;
 
-// ── Payload Sanitizer for Component V2 ─────────────────────────────────────
+// ── Payload Sanitizer & Variable Interpolation for Component V2 ───────────────
 // Discord API rejects Link buttons (style: 5 or having url) if custom_id is present
 function sanitizePayload(obj) {
   if (!obj || typeof obj !== "object") return obj;
@@ -39,6 +39,24 @@ function sanitizePayload(obj) {
     }
   }
   return copy;
+}
+
+/**
+ * แทนที่ตัวแปร {time} ด้วย Discord Relative Timestamp <t:xxxx:R>
+ * targetTimestampSec คือเวลาเป้าหมาย (วินาที) ที่จะแสดง
+ */
+function interpolatePayloadVariables(obj, targetTimestampSec) {
+  if (!obj) return obj;
+  const timeTag = `<t:${targetTimestampSec}:R>`;
+  const jsonStr = JSON.stringify(obj);
+  if (!jsonStr.includes("{time}")) return obj;
+  const replaced = jsonStr.replaceAll("{time}", timeTag);
+  try {
+    return JSON.parse(replaced);
+  } catch (err) {
+    console.warn("[broadcastScheduler] Failed to parse interpolated payload, falling back to original:", err.message);
+    return obj;
+  }
 }
 
 async function checkAndSendBroadcasts(client) {
@@ -145,7 +163,16 @@ async function checkAndSendBroadcasts(client) {
 
     // 5. Process the single selected campaign
     const targetChannels = Array.isArray(campaign.target_channels) ? campaign.target_channels : [];
-    const cleanPayload = sanitizePayload(campaign.payload);
+    const autoDeleteSeconds = Math.max(0, Number(campaign.auto_delete_seconds) || 0);
+
+    // Calculate target timestamp for {time} variable:
+    // If auto_delete_seconds > 0, point to deletion time. Otherwise point to next schedule interval.
+    const nowTimestampSec = Math.floor(Date.now() / 1000);
+    const targetTimestampSec = autoDeleteSeconds > 0
+      ? nowTimestampSec + autoDeleteSeconds
+      : nowTimestampSec + (intervalMinutes * 60);
+
+    const cleanPayload = interpolatePayloadVariables(sanitizePayload(campaign.payload), targetTimestampSec);
 
     if (targetChannels.length === 0 || !cleanPayload) {
       console.warn(`[broadcastScheduler] Campaign "${campaign.internal_name}" (${campaign.id}) has no target channels or valid payload.`);
@@ -209,6 +236,23 @@ async function checkAndSendBroadcasts(client) {
             const sentMsg = await ch.send(cleanPayload);
             chatActivityBridge.recordBroadcast(channelId, sentMsg.id);
             sentCount++;
+
+            // In-Memory auto-delete timer if auto_delete_seconds > 0
+            if (autoDeleteSeconds > 0) {
+              const deleteDelayMs = autoDeleteSeconds * 1000;
+              const targetMsgId = sentMsg.id;
+              setTimeout(async () => {
+                try {
+                  const targetMsg = await ch.messages.fetch(targetMsgId).catch(() => null);
+                  if (targetMsg) {
+                    await targetMsg.delete().catch(() => {});
+                    console.log(`[broadcastScheduler] ⏰ Auto-deleted campaign message ${targetMsgId} in channel ${channelId} after ${autoDeleteSeconds}s`);
+                  }
+                } catch (delErr) {
+                  console.warn(`[broadcastScheduler] Failed to auto-delete campaign message ${targetMsgId}:`, delErr.message);
+                }
+              }, deleteDelayMs);
+            }
           } else {
             console.warn(`[broadcastScheduler] Channel ${channelId} not found or bot lacks permissions.`);
           }

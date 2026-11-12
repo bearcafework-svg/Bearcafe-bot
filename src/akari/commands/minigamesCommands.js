@@ -174,6 +174,26 @@ function buildNoPermissionPayload(customText = "คุณต้องมีส�
   };
 }
 
+function buildBotMissingPermissionPayload(missingPermission = "จัดการช่อง (Manage Channels)") {
+  return {
+    flags: FLAG_V2,
+    components: [
+      {
+        type: 17,
+        components: [
+          {
+            type: 10,
+            content:
+              `## <:lowwarning:1548772721679278180>︲__\` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ สิทธิ์บอทไม่เพียงพอ 𓂃 \`__\n` +
+              `> บอทคุมะไม่มีสิทธิ์ **${missingPermission}** ในเซิร์ฟเวอร์หรือหมวดหมู่นี้ครับ 🐻\n` +
+              `> กรุณาตรวจสอบให้แน่ใจว่ายศของบอทมีสิทธิ์ **Manage Channels** หรือย้ายยศของบอทให้อยู่สูงกว่าหมวดหมู่ที่ต้องการสร้างนะครับ! <:cuteplant:1152834055528783872>`,
+          },
+        ],
+      },
+    ],
+  };
+}
+
 const DEFAULT_GAMES_CATEGORY_NAME = "🎮・โซนมินิเกม (Kuma bot)";
 
 const SETUP_GAMES_CATALOG = [
@@ -978,6 +998,12 @@ async function handleSetupGames(interaction, supabase, client) {
     return interaction.reply(buildNoPermissionPayload());
   }
 
+  // ตรวจสอบสิทธิ์ของตัวบอทในเซิร์ฟเวอร์ก่อนเริ่มกระบวนการ
+  const botMember = guild.members.me || (await guild.members.fetchMe().catch(() => null));
+  if (!botMember?.permissions?.has(PermissionFlagsBits.ManageChannels) && !botMember?.permissions?.has(PermissionFlagsBits.Administrator)) {
+    return interaction.reply(buildBotMissingPermissionPayload("จัดการช่อง (Manage Channels) ในเซิร์ฟเวอร์"));
+  }
+
   await guild.channels.fetch().catch(() => { });
 
   // 1. ตรวจสอบว่ามีข้อมูลการตั้งค่าเกมเดิมอยู่แล้วหรือไม่
@@ -1024,6 +1050,12 @@ async function handleSetupGamesButton(interaction, supabase, client) {
 
   if (!member.permissions.has(PermissionFlagsBits.ManageChannels) && !member.permissions.has(PermissionFlagsBits.Administrator)) {
     return interaction.reply(buildNoPermissionPayload());
+  }
+
+  // ตรวจสอบสิทธิ์ของตัวบอทในเซิร์ฟเวอร์ก่อนเริ่มกระบวนการ
+  const botMember = guild.members.me || (await guild.members.fetchMe().catch(() => null));
+  if (!botMember?.permissions?.has(PermissionFlagsBits.ManageChannels) && !botMember?.permissions?.has(PermissionFlagsBits.Administrator)) {
+    return interaction.reply(buildBotMissingPermissionPayload("จัดการช่อง (Manage Channels) ในเซิร์ฟเวอร์"));
   }
 
   // ── ปุ่มยืนยันลบการตั้งค่าเดิม (Pre-setup Warning Confirm) ──
@@ -1171,6 +1203,14 @@ async function handleSetupGamesButton(interaction, supabase, client) {
       targetCategory =
         guild.channels.cache.get(session.selectedCategoryId) ||
         (await guild.channels.fetch(session.selectedCategoryId).catch(() => null));
+      
+      // ตรวจสอบว่าใน Category เป้าหมาย บอทมีสิทธิ์สร้างห้องหรือไม่
+      if (targetCategory) {
+        const catPerms = targetCategory.permissionsFor(botMember);
+        if (!catPerms?.has(PermissionFlagsBits.ManageChannels) && !catPerms?.has(PermissionFlagsBits.Administrator)) {
+          return interaction.editReply(buildBotMissingPermissionPayload(`จัดการช่อง (Manage Channels) ในหมวดหมู่ ${targetCategory.name}`));
+        }
+      }
     }
 
     if (!targetCategory) {
@@ -1186,11 +1226,13 @@ async function handleSetupGamesButton(interaction, supabase, client) {
           });
         } catch (catErr) {
           console.error("[SetupGames] Category creation error:", catErr.message);
+          return interaction.editReply(buildBotMissingPermissionPayload("สร้างหมวดหมู่ช่อง (Manage Channels) ในเซิร์ฟเวอร์"));
         }
       }
     }
 
     const createdChannels = [];
+    const failedChannels = [];
     for (const val of session.selectedGameValues) {
       const item = SETUP_CATALOG_BY_VALUE[val];
       if (!item) continue;
@@ -1263,7 +1305,13 @@ async function handleSetupGamesButton(interaction, supabase, client) {
         });
       } catch (err) {
         console.error(`[SetupGames] Error creating channel for ${item.label}:`, err.message);
+        failedChannels.push(item.label);
       }
+    }
+
+    // หากไม่สามารถสร้างห้องได้เลยสักห้อง และเกิด Missing Permissions
+    if (createdChannels.length === 0) {
+      return interaction.editReply(buildBotMissingPermissionPayload("สร้างห้องข้อความในหมวดหมู่ที่เลือก"));
     }
 
     // 3. ลบข้อความคำสั่ง /setup-games เดิมทิ้ง
@@ -1285,6 +1333,12 @@ async function handleSetupGamesSelect(interaction, supabase, client) {
 
   if (!member.permissions.has(PermissionFlagsBits.ManageChannels) && !member.permissions.has(PermissionFlagsBits.Administrator)) {
     return interaction.reply(buildNoPermissionPayload());
+  }
+
+  // ตรวจสอบสิทธิ์ของตัวบอทในเซิร์ฟเวอร์ก่อนเริ่มกระบวนการ
+  const botMember = guild.members.me || (await guild.members.fetchMe().catch(() => null));
+  if (!botMember?.permissions?.has(PermissionFlagsBits.ManageChannels) && !botMember?.permissions?.has(PermissionFlagsBits.Administrator)) {
+    return interaction.reply(buildBotMissingPermissionPayload("จัดการช่อง (Manage Channels) ในเซิร์ฟเวอร์"));
   }
 
   let session = setupGameSessions.get(message.id);
@@ -1993,6 +2047,12 @@ async function handleSettingGames(interaction, supabase) {
 
   if (!member.permissions.has(PermissionFlagsBits.ManageChannels) && !member.permissions.has(PermissionFlagsBits.Administrator)) {
     return interaction.reply(buildNoPermissionPayload());
+  }
+
+  // ตรวจสอบสิทธิ์ของตัวบอทในเซิร์ฟเวอร์ก่อนเริ่มกระบวนการ
+  const botMember = guild.members.me || (await guild.members.fetchMe().catch(() => null));
+  if (!botMember?.permissions?.has(PermissionFlagsBits.ManageChannels) && !botMember?.permissions?.has(PermissionFlagsBits.Administrator)) {
+    return interaction.reply(buildBotMissingPermissionPayload("จัดการช่อง (Manage Channels) ในเซิร์ฟเวอร์"));
   }
 
   await interaction.deferReply({ flags: FLAG_V2 });
@@ -3244,6 +3304,12 @@ async function handleSetGame(interaction, supabase, client) {
     return interaction.reply(buildNoPermissionPayload());
   }
 
+  // ตรวจสอบสิทธิ์ของตัวบอทในเซิร์ฟเวอร์ก่อนเริ่มกระบวนการ
+  const botMember = guild.members.me || (await guild.members.fetchMe().catch(() => null));
+  if (!botMember?.permissions?.has(PermissionFlagsBits.ManageChannels) && !botMember?.permissions?.has(PermissionFlagsBits.Administrator)) {
+    return interaction.reply(buildBotMissingPermissionPayload("จัดการช่อง (Manage Channels) ในเซิร์ฟเวอร์"));
+  }
+
   await interaction.deferReply({ flags: FLAG_V2 });
 
   const gameId = options.getInteger("game");
@@ -3444,6 +3510,12 @@ async function handleRemoveGame(interaction, supabase) {
 
   if (!member.permissions.has(PermissionFlagsBits.ManageChannels) && !member.permissions.has(PermissionFlagsBits.Administrator)) {
     return interaction.reply(buildNoPermissionPayload());
+  }
+
+  // ตรวจสอบสิทธิ์ของตัวบอทในเซิร์ฟเวอร์ก่อนเริ่มกระบวนการ
+  const botMember = guild.members.me || (await guild.members.fetchMe().catch(() => null));
+  if (!botMember?.permissions?.has(PermissionFlagsBits.ManageChannels) && !botMember?.permissions?.has(PermissionFlagsBits.Administrator)) {
+    return interaction.reply(buildBotMissingPermissionPayload("จัดการช่อง (Manage Channels) ในเซิร์ฟเวอร์"));
   }
 
   await interaction.deferReply({ flags: FLAG_V2 });

@@ -19,7 +19,13 @@ const {
   generateHint,
 } = require('../../features/minigames/questionBank');
 const { createTextImageBuffer, createSentenceBuilderImageBuffer } = require('../../features/minigames/canvasGenerator');
-const { safeDeferReply, safeRespond } = require('../../../utils/discordSafety');
+const {
+  safeDeferReply,
+  safeRespond,
+  safeUpdate,
+  withTransientRetry,
+  formatInteractionContext,
+} = require('../../../utils/discordSafety');
 
 // ─── ภาวะแวดล้อม / Emojis / Config (ตรงตามบอทหลัก 100%) ──────────────
 
@@ -154,22 +160,25 @@ function buildKumaPenaltyPayload(userId, penalty, endTs, template, currencyEmoji
 }
 
 /**
- * บันทึก Log ข้อผิดพลาดของ Interaction (ยกเว้น Interaction หมดอายุหรือถูกตอบไปแล้ว)
+ * บันทึก Log ข้อผิดพลาดของ Interaction พร้อม Context (Server/Channel/User)
  */
-function logAkariInteractionError(context, err) {
+function logAkariInteractionError(context, err, interaction = null) {
   if (!err) return;
   const code = err.code ?? err.rawError?.code;
   if (code === 10062 || code === 40060 || code === 10008) return;
-  console.error(`[akari-minigames] ${context}:`, err.message || err);
+  const ctx = interaction ? ` ${formatInteractionContext(interaction)}` : '';
+  console.error(`[akari-minigames] ${context}${ctx}:`, err.message || err);
 }
 
 /**
- * ตอบกลับหรืออัปเดตข้อความ Ephemeral อย่างปลอดภัย (ถอด flags ออกเมื่อเป็นการ update เพื่อป้องกัน Discord API 50035)
+ * ตอบกลับหรืออัปเดตข้อความ Ephemeral อย่างปลอดภัย (ถอด flags ออกเมื่อเป็นการ update และ retry อัตโนมัติเมื่อ Discord 503)
  */
 async function respondAkariEphemeralSafe(interaction, payload, isUpdate = false) {
   if (isUpdate) {
     const { flags, ...cleanPayload } = payload;
-    return interaction.update(cleanPayload).catch((err) => logAkariInteractionError('interaction.update failed', err));
+    return withTransientRetry(() => interaction.update(cleanPayload)).catch((err) =>
+      logAkariInteractionError('interaction.update failed', err, interaction)
+    );
   }
   const replyFlags = payload.flags ? (payload.flags | MessageFlags.Ephemeral) : MessageFlags.Ephemeral;
   return safeRespond(interaction, { ...payload, flags: replyFlags });
@@ -2018,15 +2027,15 @@ function setupAkariMinigames(client, supabase) {
           if (session.messageId) {
             const originalMsg = await channel.messages.fetch(session.messageId).catch(() => null);
             if (originalMsg) {
-              await originalMsg.edit(winnerPayload).catch((err) => logAkariInteractionError('Game 13 originalMsg.edit failed', err));
+              await originalMsg.edit(winnerPayload).catch((err) => logAkariInteractionError('Game 13 originalMsg.edit failed', err, interaction));
             } else {
-              await channel.send(winnerPayload).catch((err) => logAkariInteractionError('Game 13 winner fallback send failed', err));
+              await channel.send(winnerPayload).catch((err) => logAkariInteractionError('Game 13 winner fallback send failed', err, interaction));
             }
           } else {
-            await channel.send(winnerPayload).catch((err) => logAkariInteractionError('Game 13 winner send failed', err));
+            await channel.send(winnerPayload).catch((err) => logAkariInteractionError('Game 13 winner send failed', err, interaction));
           }
         } else {
-          await interaction.update(winnerPayload).catch((err) => logAkariInteractionError('Game 13 winner interaction.update failed', err));
+          await withTransientRetry(() => interaction.update(winnerPayload)).catch((err) => logAkariInteractionError('Game 13 winner interaction.update failed', err, interaction));
         }
 
         activeTenantSessions.delete(sessionKey);
@@ -2170,15 +2179,15 @@ function setupAkariMinigames(client, supabase) {
 
         let updated = false;
         try {
-          await interaction.update(winnerPayload);
+          await withTransientRetry(() => interaction.update(winnerPayload));
           updated = true;
         } catch (updErr) {
-          logAkariInteractionError('choice winner interaction.update failed', updErr);
+          logAkariInteractionError('choice winner interaction.update failed', updErr, interaction);
         }
         if (!updated && session.messageId && channel) {
           const fallbackMsg = await channel.messages.fetch(session.messageId).catch(() => null);
           if (fallbackMsg) {
-            await fallbackMsg.edit(winnerPayload).catch((e) => logAkariInteractionError('choice winner fallback edit failed', e));
+            await fallbackMsg.edit(winnerPayload).catch((e) => logAkariInteractionError('choice winner fallback edit failed', e, interaction));
           }
         }
 

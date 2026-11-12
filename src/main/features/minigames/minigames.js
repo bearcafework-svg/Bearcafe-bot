@@ -9,6 +9,7 @@ const { getNextQuestion, maskWord, scrambleWord } = require('./questionBank');
 const { createTextImageBuffer, createSentenceBuilderImageBuffer } = require('./canvasGenerator');
 const { setupResetTop } = require('./resetTop');
 const { processTriggerEvent } = require('../dailyQuest/questEngine');
+const { withTransientRetry, formatInteractionContext } = require('../../../../utils/discordSafety');
 
 const FLAG_V2 = MessageFlags.IsComponentsV2 || 32768;
 const FLAG_EPHEMERAL = MessageFlags.Ephemeral || 64;
@@ -148,25 +149,30 @@ function buildMainBotPenaltyPayload(userId, penalty, expireTimestamp) {
 }
 
 /**
- * บันทึก Log ข้อผิดพลาดของ Interaction (ยกเว้น Interaction หมดอายุหรือถูกตอบไปแล้ว)
+ * บันทึก Log ข้อผิดพลาดของ Interaction พร้อม Context (Server/Channel/User)
  */
-function logInteractionError(context, err) {
+function logInteractionError(context, err, interaction = null) {
   if (!err) return;
   const code = err.code ?? err.rawError?.code;
   if (code === 10062 || code === 40060 || code === 10008) return;
-  console.error(`[minigames] ${context}:`, err.message || err);
+  const ctx = interaction ? ` ${formatInteractionContext(interaction)}` : '';
+  console.error(`[minigames] ${context}${ctx}:`, err.message || err);
 }
 
 /**
- * ตอบกลับหรืออัปเดตข้อความ Ephemeral อย่างปลอดภัย (ถอด flags ออกเมื่อเป็นการ update เพื่อป้องกัน Discord API 50035)
+ * ตอบกลับหรืออัปเดตข้อความ Ephemeral อย่างปลอดภัย (ถอด flags ออกเมื่อเป็นการ update และ retry อัตโนมัติเมื่อ Discord 503)
  */
 async function respondEphemeralSafe(interaction, payload, isUpdate = false) {
   if (isUpdate) {
     const { flags, ...cleanPayload } = payload;
-    return interaction.update(cleanPayload).catch((err) => logInteractionError('interaction.update failed', err));
+    return withTransientRetry(() => interaction.update(cleanPayload)).catch((err) =>
+      logInteractionError('interaction.update failed', err, interaction)
+    );
   }
   const replyFlags = payload.flags ? (payload.flags | FLAG_EPHEMERAL) : FLAG_EPHEMERAL;
-  return interaction.reply({ ...payload, flags: replyFlags }).catch((err) => logInteractionError('interaction.reply failed', err));
+  return withTransientRetry(() => interaction.reply({ ...payload, flags: replyFlags })).catch((err) =>
+    logInteractionError('interaction.reply failed', err, interaction)
+  );
 }
 
 // ล้างข้อมูลผู้เล่นที่ไม่มีกิจกรรมเกิน 1 นาที เพื่อไม่ให้กินหน่วยความจำ
@@ -1119,15 +1125,15 @@ function setupMinigames(client) {
         const winnerPayload = buildWinnerPayload(gameId, questionData, winnerName);
         let updated = false;
         try {
-          await interaction.update(winnerPayload);
+          await withTransientRetry(() => interaction.update(winnerPayload));
           updated = true;
         } catch (updErr) {
-          logInteractionError('winner interaction.update failed', updErr);
+          logInteractionError('winner interaction.update failed', updErr, interaction);
         }
         if (!updated && session.messageId && interaction.channel) {
           const fallbackMsg = await interaction.channel.messages.fetch(session.messageId).catch(() => null);
           if (fallbackMsg) {
-            await fallbackMsg.edit(winnerPayload).catch((e) => logInteractionError('winner fallback edit failed', e));
+            await fallbackMsg.edit(winnerPayload).catch((e) => logInteractionError('winner fallback edit failed', e, interaction));
           }
         }
 

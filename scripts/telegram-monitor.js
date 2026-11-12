@@ -37,7 +37,21 @@ const TARGET_APPS = (process.env.MONITOR_TARGETS || 'bearcafe-bot,bearcafe-prod,
 
 const SELF_NAME = 'bearcafe-monitor';
 const COOLDOWN_MS = 15000; // ป้องกันข้อความซ้ำสแปมภายใน 15 วินาที
+const TRANSIENT_WINDOW_MS = 60000; // หน้าต่าง 60 วินาทีสำหรับตรวจจับ Discord API 5xx ล่มต่อเนื่อง
+const TRANSIENT_THRESHOLD = 3; // แจ้งเตือนเมื่อเจอ 5xx ซ้ำตั้งแต่ 3 ครั้งขึ้นไปใน 60 วิ
 const lastSentMap = new Map();
+const transientTracker = new Map(); // appName -> { timestamps: number[], lastAlertAt: number }
+
+function isTransientNetworkOrDiscord5xx(logText) {
+  if (!logText) return false;
+  return (
+    logText.includes('Service Unavailable') ||
+    logText.includes('(Transient 50') ||
+    logText.includes('status: 503') ||
+    logText.includes('status: 502') ||
+    logText.includes('status: 504')
+  );
+}
 
 if (!BOT_TOKEN || !CHAT_ID) {
   console.error('❌ กรุณาตั้งค่า TELEGRAM_BOT_TOKEN และ TELEGRAM_CHAT_ID ในไฟล์ .env');
@@ -131,11 +145,41 @@ pm2.connect((err) => {
       if (!isTargetApp(appName) || !rawData) return;
       if (shouldIgnoreError(rawData)) return;
 
+      const now = Date.now();
+
+      // คัดกรอง Transient Discord 5xx (502/503/504): แจ้งเตือนเฉพาะเมื่อเกิดถี่ต่อเนื่อง (>= 3 ครั้งใน 60 วิ)
+      if (isTransientNetworkOrDiscord5xx(rawData)) {
+        const entry = transientTracker.get(appName) || { timestamps: [], lastAlertAt: 0 };
+        entry.timestamps = entry.timestamps.filter((ts) => now - ts < TRANSIENT_WINDOW_MS);
+        entry.timestamps.push(now);
+        transientTracker.set(appName, entry);
+
+        if (entry.timestamps.length < TRANSIENT_THRESHOLD) {
+          return; // ยังไม่ถึงเกณฑ์ล่มต่อเนื่อง -> ข้ามการสแปม
+        }
+        if (now - entry.lastAlertAt < TRANSIENT_WINDOW_MS) {
+          return; // ติด cooldown การแจ้งเตือน 5xx
+        }
+        entry.lastAlertAt = now;
+
+        const truncatedLog = rawData.length > 2000 ? rawData.slice(0, 2000) + '... (truncated)' : rawData;
+        sendTelegram(
+          `⚠️ <b>[${appName}] Discord API Instability (${entry.timestamps.length}x in 60s)</b>\n` +
+          `⏰ <i>${new Date().toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })}</i>\n\n` +
+          `<pre><code>${escapeHtml(truncatedLog)}</code></pre>`
+        );
+        return;
+      }
+
       // ระบบ Cooldown ป้องกันการสแปมข้อความซ้ำ
       const errorKey = `${appName}:${rawData.slice(0, 80)}`;
-      const now = Date.now();
       if (lastSentMap.has(errorKey) && now - lastSentMap.get(errorKey) < COOLDOWN_MS) {
         return;
+      }
+      if (lastSentMap.size > 500) {
+        for (const [k, ts] of lastSentMap.entries()) {
+          if (now - ts > COOLDOWN_MS * 4) lastSentMap.delete(k);
+        }
       }
       lastSentMap.set(errorKey, now);
 

@@ -33,6 +33,13 @@ const {
   buildRedeemConfirmCard,
   buildRedeemSuccessCard,
 } = require("../store/storePayloads");
+const {
+  safeDeferReply,
+  safeDeferUpdate,
+  safeEditReply,
+  safeFollowUp,
+  safeUpdate,
+} = require("../../../utils/discordSafety");
 
 const FLAG_V2 = MessageFlags.IsComponentsV2 || 32768;
 
@@ -630,7 +637,7 @@ async function handleStoreModalSubmit(interaction, supabase) {
       });
     }
 
-    await interaction.deferUpdate().catch(() => {});
+    if (!(await safeDeferUpdate(interaction))) return;
 
     const rawJson = interaction.fields.getTextInputValue("theme_json")?.trim();
 
@@ -643,9 +650,9 @@ async function handleStoreModalSubmit(interaction, supabase) {
       const storeConfig = await getTenantStoreConfig(supabase, interaction.guildId);
       const items = await getTenantStoreItems(supabase, interaction.guildId);
       const updatedDashboard = buildStoreSettingsDashboard(interaction.guild, storeConfig, items);
-      await interaction.editReply(updatedDashboard);
+      await safeEditReply(interaction, updatedDashboard);
 
-      return interaction.followUp({
+      return safeFollowUp(interaction, {
         flags: FLAG_V2 | MessageFlags.Ephemeral,
         components: [
           {
@@ -667,7 +674,7 @@ async function handleStoreModalSubmit(interaction, supabase) {
     try {
       parsedJson = JSON.parse(rawJson);
     } catch (parseErr) {
-      return interaction.followUp({
+      return safeFollowUp(interaction, {
         flags: FLAG_V2 | MessageFlags.Ephemeral,
         components: [
           {
@@ -686,7 +693,7 @@ async function handleStoreModalSubmit(interaction, supabase) {
     }
 
     if (!parsedJson || !Array.isArray(parsedJson.components) || parsedJson.components.length === 0) {
-      return interaction.followUp({
+      return safeFollowUp(interaction, {
         flags: FLAG_V2 | MessageFlags.Ephemeral,
         components: [
           {
@@ -711,9 +718,9 @@ async function handleStoreModalSubmit(interaction, supabase) {
     const storeConfig = await getTenantStoreConfig(supabase, interaction.guildId);
     const items = await getTenantStoreItems(supabase, interaction.guildId);
     const updatedDashboard = buildStoreSettingsDashboard(interaction.guild, storeConfig, items);
-    await interaction.editReply(updatedDashboard);
+    await safeEditReply(interaction, updatedDashboard);
 
-    return interaction.followUp({
+    return safeFollowUp(interaction, {
       flags: FLAG_V2 | MessageFlags.Ephemeral,
       components: [
         {
@@ -905,7 +912,7 @@ async function handleStoreModalSubmit(interaction, supabase) {
   const stock = parsedStock === 0 ? -1 : parsedStock;
 
   // 1. รับทราบ interaction ทันทีเพื่อป้องกัน Timeout 3 วินาทีของ Discord
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => {});
+  if (!(await safeDeferReply(interaction))) return;
 
   const existingItems = await getTenantStoreItems(supabase, interaction.guildId);
   const existingItem = existingItems.find((i) => i.slot === slot);
@@ -1189,7 +1196,7 @@ async function handleStoreSelectMenus(interaction, supabase) {
       });
     }
 
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => {});
+    if (!(await safeDeferReply(interaction))) return;
 
     const newLimit = item.limit_type === "once_per_user" ? "unlimited" : "once_per_user";
     await saveTenantStoreItem(supabase, interaction.guildId, slot, {
@@ -1233,7 +1240,7 @@ async function handleStoreSelectMenus(interaction, supabase) {
   // เมนูเลือกยศ Discord สำหรับช่องที่ระบุ: akari_store_role_selected_slot_1/2/3
   if (customId.startsWith("akari_store_role_selected_slot_")) {
     // 1. รับทราบ interaction ทันทีเพื่อป้องกัน Timeout 3 วินาทีของ Discord
-    await interaction.deferUpdate().catch(() => {});
+    if (!(await safeDeferUpdate(interaction))) return;
 
     const raw = customId.replace("akari_store_role_selected_slot_", "");
     const [slotStr, msgId] = raw.split(":");
@@ -1335,13 +1342,13 @@ async function handleStoreSelectMenus(interaction, supabase) {
     const storeConfig = await getTenantStoreConfig(supabase, interaction.guildId);
     const updatedItems = await getTenantStoreItems(supabase, interaction.guildId);
     const updatedPayload = buildStoreSettingsDashboard(interaction.guild, storeConfig, updatedItems);
-    return interaction.update(updatedPayload);
+    return safeUpdate(interaction, updatedPayload);
   }
 
   // เมนูเลือกห้อง Log Channel: akari_store_log_channel_selected (Ephemeral Fallback)
   if (customId.startsWith("akari_store_log_channel_selected")) {
     // 1. รับทราบ interaction ทันทีเพื่อป้องกัน Timeout 3 วินาทีของ Discord
-    await interaction.deferUpdate().catch(() => {});
+    if (!(await safeDeferUpdate(interaction))) return;
 
     const [_, msgId] = customId.split(":");
     const selectedChannelId = interaction.values[0];

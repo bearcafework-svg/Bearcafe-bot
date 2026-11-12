@@ -30,6 +30,7 @@ const {
   getTenantStoreConfig,
   saveTenantStoreConfig,
 } = require("../store/storeEngine");
+const { safeDeferReply } = require("../../../utils/discordSafety");
 const {
   STORE_SLASH_COMMANDS,
   handleSettingStore,
@@ -2101,7 +2102,7 @@ async function handleSettingCurrencyModalSubmit(interaction, supabase) {
   }
 
   // 1. รับทราบ interaction ทันทีเพื่อป้องกัน Timeout 3 วินาทีของ Discord
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral | FLAG_V2 }).catch(() => { });
+  if (!(await safeDeferReply(interaction, { flags: FLAG_V2 }))) return;
 
   const currentConfig = await getTenantStoreConfig(supabase, interaction.guildId);
 
@@ -2345,7 +2346,7 @@ async function handleSettingToggle(interaction, supabase) {
   }
 
   // แจ้งสถานะกำลังแก้ไขข้อมูลแบบ Ephemeral ทันที
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral | FLAG_V2 }).catch(() => { });
+  if (!(await safeDeferReply(interaction, { flags: FLAG_V2 }))) return;
 
   // 0. ตรวจสอบสถานะ Premium: หากกดเกมที่ติดพรีเมี่ยม และเซิร์ฟเวอร์ยังไม่ได้เป็น Premium ให้แสดงการ์ดแบบ Ephemeral ทันที
   const planInfo = await getTenantPlan(guildId, supabase);
@@ -2985,7 +2986,7 @@ async function handleSettingReset(interaction, supabase, client) {
   const guildId = guild.id;
 
   // แจ้งสถานะกำลังแก้ไขข้อมูลแบบ Ephemeral ทันที
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral | FLAG_V2 }).catch(() => { });
+  if (!(await safeDeferReply(interaction, { flags: FLAG_V2 }))) return;
 
   if (selectedValue === "reset_all") {
     let resetCount = 0;
@@ -3185,7 +3186,7 @@ async function handleSettingPointsModalSubmit(interaction, supabase) {
     });
   }
 
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral | FLAG_V2 }).catch(() => { });
+  if (!(await safeDeferReply(interaction, { flags: FLAG_V2 }))) return;
 
   if (supabase) {
     await supabase.from("tenant_minigame_settings").upsert(

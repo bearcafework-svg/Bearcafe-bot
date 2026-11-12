@@ -9,6 +9,57 @@ function isDiscordCode(error, codes) {
   return codes.includes(error?.code) || codes.includes(error?.rawError?.code);
 }
 
+function isTransientDiscordError(error) {
+  if (!error) return false;
+  const status = error.status ?? error.httpStatus ?? error.rawError?.status;
+  if (typeof status === "number" && status >= 500 && status < 600) return true;
+
+  const netCodes = ["ECONNRESET", "ETIMEDOUT", "EAI_AGAIN", "UND_ERR_CONNECT_TIMEOUT", "ECONNREFUSED"];
+  if (netCodes.includes(error.code)) return true;
+
+  const msg = String(error.message || "");
+  return msg.includes("Service Unavailable") || msg.includes("Bad Gateway") || msg.includes("Gateway Timeout");
+}
+
+function formatInteractionContext(interaction) {
+  if (!interaction) return "[Guild:unknown]";
+  const guildId = interaction.guildId || interaction.guild?.id || "DM";
+  const channelId = interaction.channelId || "-";
+  const userId = interaction.user?.id || "-";
+  const ref = interaction.commandName || interaction.customId || "-";
+  return `[Guild:${guildId} | Ch:${channelId} | User:${userId} | Ref:${ref}]`;
+}
+
+function logDiscordSafetyError(label, interaction, error, ignoredCodes = [INTERACTION_ALREADY_ACKNOWLEDGED, UNKNOWN_INTERACTION]) {
+  if (!error) return;
+  if (isDiscordCode(error, ignoredCodes)) return;
+
+  const ctx = formatInteractionContext(interaction);
+  if (isTransientDiscordError(error)) {
+    const status = error.status ?? error.code ?? "5xx";
+    console.error(`[discordSafety] ${label} (Transient ${status}) ${ctx}: ${error.message}`);
+    return;
+  }
+
+  console.error(`[discordSafety] ${label} ${ctx}:`, error.message || error);
+}
+
+async function withTransientRetry(fn, { maxRetries = 1, delayMs = 300 } = {}) {
+  let attempt = 0;
+  while (true) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (attempt < maxRetries && isTransientDiscordError(error)) {
+        attempt++;
+        await new Promise((r) => setTimeout(r, delayMs));
+        continue;
+      }
+      throw error;
+    }
+  }
+}
+
 function ephemeral(options) {
   return { ...options, flags: (options?.flags || 0) | EPHEMERAL_FLAG };
 }
@@ -38,16 +89,25 @@ function sanitizeDiscordPayload(obj) {
   return copy;
 }
 
+/**
+ * Defer reply อย่างปลอดภัย พร้อม retry เมื่อ Discord 503
+ * @param {import("discord.js").Interaction} interaction
+ * @param {object} options สามารถระบุ { ephemeral: false } เพื่อตอบแบบสาธารณะได้ (ค่าเริ่มต้นเป็น Ephemeral)
+ */
 async function safeDeferReply(interaction, options = {}) {
   if (!interaction || interaction.replied || interaction.deferred) return true;
 
+  const { ephemeral: isEphemeralOption, ...rest } = options || {};
+  const deferOptions = isEphemeralOption === false ? rest : ephemeral(rest);
+
   try {
-    await interaction.deferReply(ephemeral(options));
+    await withTransientRetry(() => interaction.deferReply(deferOptions));
     return true;
   } catch (error) {
-    if (!isDiscordCode(error, [INTERACTION_ALREADY_ACKNOWLEDGED, UNKNOWN_INTERACTION])) {
-      console.error("[discordSafety] deferReply failed:", error);
-    }
+    logDiscordSafetyError("deferReply failed", interaction, error, [
+      INTERACTION_ALREADY_ACKNOWLEDGED,
+      UNKNOWN_INTERACTION,
+    ]);
     return false;
   }
 }
@@ -59,17 +119,20 @@ async function safeRespond(interaction, payload = {}) {
 
   try {
     if (interaction.deferred && !interaction.replied) {
-      await interaction.editReply(sanitized);
+      await withTransientRetry(() => interaction.editReply(sanitized));
     } else if (interaction.replied || interaction.deferred) {
-      await interaction.followUp(ephemeral(sanitized));
+      await withTransientRetry(() => interaction.followUp(ephemeral(sanitized)));
     } else {
-      await interaction.reply(ephemeral(sanitized));
+      await withTransientRetry(() => interaction.reply(ephemeral(sanitized)));
     }
     return true;
   } catch (error) {
-    if (!isDiscordCode(error, [INTERACTION_ALREADY_ACKNOWLEDGED, UNKNOWN_INTERACTION, UNKNOWN_CHANNEL, UNKNOWN_MESSAGE])) {
-      console.error("[discordSafety] interaction response failed:", error);
-    }
+    logDiscordSafetyError("interaction response failed", interaction, error, [
+      INTERACTION_ALREADY_ACKNOWLEDGED,
+      UNKNOWN_INTERACTION,
+      UNKNOWN_CHANNEL,
+      UNKNOWN_MESSAGE,
+    ]);
     return false;
   }
 }
@@ -81,12 +144,15 @@ async function safeEditReply(interaction, payload = {}) {
   const sanitized = sanitizeDiscordPayload(payload);
 
   try {
-    await interaction.editReply(sanitized);
+    await withTransientRetry(() => interaction.editReply(sanitized));
     return true;
   } catch (error) {
-    if (!isDiscordCode(error, [INTERACTION_ALREADY_ACKNOWLEDGED, UNKNOWN_INTERACTION, UNKNOWN_CHANNEL, UNKNOWN_MESSAGE])) {
-      console.error("[discordSafety] editReply failed:", error);
-    }
+    logDiscordSafetyError("editReply failed", interaction, error, [
+      INTERACTION_ALREADY_ACKNOWLEDGED,
+      UNKNOWN_INTERACTION,
+      UNKNOWN_CHANNEL,
+      UNKNOWN_MESSAGE,
+    ]);
     return false;
   }
 }
@@ -97,12 +163,15 @@ async function safeFollowUp(interaction, payload = {}) {
   const sanitized = sanitizeDiscordPayload(payload);
 
   try {
-    await interaction.followUp(ephemeral(sanitized));
+    await withTransientRetry(() => interaction.followUp(ephemeral(sanitized)));
     return true;
   } catch (error) {
-    if (!isDiscordCode(error, [INTERACTION_ALREADY_ACKNOWLEDGED, UNKNOWN_INTERACTION, UNKNOWN_CHANNEL, UNKNOWN_MESSAGE])) {
-      console.error("[discordSafety] followUp failed:", error);
-    }
+    logDiscordSafetyError("followUp failed", interaction, error, [
+      INTERACTION_ALREADY_ACKNOWLEDGED,
+      UNKNOWN_INTERACTION,
+      UNKNOWN_CHANNEL,
+      UNKNOWN_MESSAGE,
+    ]);
     return false;
   }
 }
@@ -158,9 +227,10 @@ async function safeShowModal(interaction, modal) {
     await interaction.showModal(modal);
     return true;
   } catch (error) {
-    if (!isDiscordCode(error, [INTERACTION_ALREADY_ACKNOWLEDGED, UNKNOWN_INTERACTION])) {
-      console.error("[discordSafety] showModal failed:", error);
-    }
+    logDiscordSafetyError("showModal failed", interaction, error, [
+      INTERACTION_ALREADY_ACKNOWLEDGED,
+      UNKNOWN_INTERACTION,
+    ]);
     return false;
   }
 }
@@ -172,14 +242,26 @@ async function safeUpdate(interaction, payload = {}) {
   }
 
   const sanitized = sanitizeDiscordPayload(payload);
+  // ถอด EPHEMERAL_FLAG ออกเสมอเมื่อเรียก interaction.update เพื่อป้องกัน DiscordAPIError 50035
+  if (typeof sanitized.flags === "number" && (sanitized.flags & EPHEMERAL_FLAG)) {
+    const cleanedFlags = sanitized.flags & ~EPHEMERAL_FLAG;
+    if (cleanedFlags === 0) {
+      delete sanitized.flags;
+    } else {
+      sanitized.flags = cleanedFlags;
+    }
+  }
 
   try {
-    await interaction.update(sanitized);
+    await withTransientRetry(() => interaction.update(sanitized));
     return true;
   } catch (error) {
-    if (!isDiscordCode(error, [INTERACTION_ALREADY_ACKNOWLEDGED, UNKNOWN_INTERACTION, UNKNOWN_CHANNEL])) {
-      console.error("[discordSafety] update failed:", error);
-    }
+    logDiscordSafetyError("update failed", interaction, error, [
+      INTERACTION_ALREADY_ACKNOWLEDGED,
+      UNKNOWN_INTERACTION,
+      UNKNOWN_CHANNEL,
+      UNKNOWN_MESSAGE,
+    ]);
     return false;
   }
 }
@@ -188,18 +270,22 @@ async function safeDeferUpdate(interaction) {
   if (!interaction || interaction.replied || interaction.deferred) return true;
 
   try {
-    await interaction.deferUpdate();
+    await withTransientRetry(() => interaction.deferUpdate());
     return true;
   } catch (error) {
-    if (!isDiscordCode(error, [INTERACTION_ALREADY_ACKNOWLEDGED, UNKNOWN_INTERACTION])) {
-      console.error("[discordSafety] deferUpdate failed:", error);
-    }
+    logDiscordSafetyError("deferUpdate failed", interaction, error, [
+      INTERACTION_ALREADY_ACKNOWLEDGED,
+      UNKNOWN_INTERACTION,
+    ]);
     return false;
   }
 }
 
 module.exports = {
   EPHEMERAL_FLAG,
+  formatInteractionContext,
+  isDiscordCode,
+  isTransientDiscordError,
   sanitizeDiscordPayload,
   safeDeferReply,
   safeDeferUpdate,
@@ -211,4 +297,5 @@ module.exports = {
   safeRespond,
   safeShowModal,
   safeUpdate,
+  withTransientRetry,
 };

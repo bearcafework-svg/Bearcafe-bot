@@ -11,6 +11,13 @@ const {
   flushTenantPoints,
 } = require("../minigames/minigamesEngine");
 const { getTenantStoreConfig } = require("../store/storeEngine");
+const {
+  safeDeferReply,
+  safeDeferUpdate,
+  safeEditReply,
+  safeRespond,
+  formatInteractionContext,
+} = require("../../../utils/discordSafety");
 
 const FLAG_V2 = MessageFlags.IsComponentsV2 || 32768;
 
@@ -218,7 +225,8 @@ function buildLeaderboardPayload(guild, leaderboardList, sortBy = "points", curr
  * จัดการคำสั่ง /points
  */
 async function handlePointsCommand(interaction, supabase) {
-  await interaction.deferReply({ flags: FLAG_V2 }).catch(() => {});
+  const deferred = await safeDeferReply(interaction, { flags: FLAG_V2, ephemeral: false });
+  if (!deferred) return;
 
   const guildId = interaction.guildId;
   const targetUser = interaction.options.getUser("user") || interaction.user;
@@ -237,10 +245,10 @@ async function handlePointsCommand(interaction, supabase) {
     const currencyEmoji = storeConfig?.currency_emoji || DEFAULT_CURRENCY_EMOJI;
     const payload = buildUserPointsPayload(targetUser, scoreData, currencyEmoji);
 
-    await interaction.editReply(payload);
+    await safeEditReply(interaction, payload);
   } catch (err) {
-    console.error("[akari-points] handlePointsCommand error:", err.message);
-    await interaction.editReply({
+    console.error(`[akari-points] handlePointsCommand error ${formatInteractionContext(interaction)}:`, err.message);
+    await safeRespond(interaction, {
       flags: FLAG_V2,
       components: [
         {
@@ -253,7 +261,7 @@ async function handlePointsCommand(interaction, supabase) {
           ],
         },
       ],
-    }).catch(() => {});
+    });
   }
 }
 
@@ -261,7 +269,8 @@ async function handlePointsCommand(interaction, supabase) {
  * จัดการคำสั่ง /leaderboard
  */
 async function handleLeaderboardCommand(interaction, supabase, sortBy = "points") {
-  await interaction.deferReply({ flags: FLAG_V2 }).catch(() => {});
+  const deferred = await safeDeferReply(interaction, { flags: FLAG_V2, ephemeral: false });
+  if (!deferred) return;
 
   const guildId = interaction.guildId;
 
@@ -274,10 +283,10 @@ async function handleLeaderboardCommand(interaction, supabase, sortBy = "points"
     const currencyEmoji = storeConfig?.currency_emoji || DEFAULT_CURRENCY_EMOJI;
     const payload = buildLeaderboardPayload(interaction.guild, leaderboardList, sortBy, currencyEmoji);
 
-    await interaction.editReply(payload);
+    await safeEditReply(interaction, payload);
   } catch (err) {
-    console.error("[akari-points] handleLeaderboardCommand error:", err.message);
-    await interaction.editReply({
+    console.error(`[akari-points] handleLeaderboardCommand error ${formatInteractionContext(interaction)}:`, err.message);
+    await safeRespond(interaction, {
       flags: FLAG_V2,
       components: [
         {
@@ -290,7 +299,30 @@ async function handleLeaderboardCommand(interaction, supabase, sortBy = "points"
           ],
         },
       ],
-    }).catch(() => {});
+    });
+  }
+}
+
+/**
+ * โหลดและอัปเดตหน้า Leaderboard จากปุ่มกดอย่างปลอดภัย
+ */
+async function updateLeaderboardFromButton(interaction, supabase, sortBy, force = false, label = "leaderboard_btn") {
+  const deferred = await safeDeferUpdate(interaction);
+  if (!deferred) return;
+
+  const guildId = interaction.guildId;
+  try {
+    const [leaderboardList, storeConfig] = await Promise.all([
+      getTenantLeaderboard(supabase, guildId, 10, force, sortBy),
+      getTenantStoreConfig(supabase, guildId),
+    ]);
+
+    const currencyEmoji = storeConfig?.currency_emoji || DEFAULT_CURRENCY_EMOJI;
+    const payload = buildLeaderboardPayload(interaction.guild, leaderboardList, sortBy, currencyEmoji);
+
+    await safeEditReply(interaction, payload);
+  } catch (err) {
+    console.error(`[akari-points] ${label} error ${formatInteractionContext(interaction)}:`, err.message);
   }
 }
 
@@ -299,92 +331,28 @@ async function handleLeaderboardCommand(interaction, supabase, sortBy = "points"
  */
 async function handlePointsButtonInteraction(interaction, supabase) {
   const customId = interaction.customId;
-  const guildId = interaction.guildId;
 
   // 1. ปุ่มดูกระดานจัดอันดับจากการ์ดเช็กแต้ม
   if (customId === "akari_view_leaderboard") {
-    await interaction.deferUpdate().catch(() => {});
-
-    try {
-      const [leaderboardList, storeConfig] = await Promise.all([
-        getTenantLeaderboard(supabase, guildId, 10, false, "points"),
-        getTenantStoreConfig(supabase, guildId),
-      ]);
-
-      const currencyEmoji = storeConfig?.currency_emoji || DEFAULT_CURRENCY_EMOJI;
-      const payload = buildLeaderboardPayload(interaction.guild, leaderboardList, "points", currencyEmoji);
-
-      await interaction.editReply(payload);
-    } catch (err) {
-      console.error("[akari-points] akari_view_leaderboard error:", err.message);
-    }
-    return;
+    return updateLeaderboardFromButton(interaction, supabase, "points", false, "akari_view_leaderboard");
   }
 
   // 2. ปุ่มสลับเรียงตามแต้ม
   if (customId === "akari_lb_by_points") {
-    await interaction.deferUpdate().catch(() => {});
-
-    try {
-      const [leaderboardList, storeConfig] = await Promise.all([
-        getTenantLeaderboard(supabase, guildId, 10, false, "points"),
-        getTenantStoreConfig(supabase, guildId),
-      ]);
-
-      const currencyEmoji = storeConfig?.currency_emoji || DEFAULT_CURRENCY_EMOJI;
-      const payload = buildLeaderboardPayload(interaction.guild, leaderboardList, "points", currencyEmoji);
-
-      await interaction.editReply(payload);
-    } catch (err) {
-      console.error("[akari-points] akari_lb_by_points error:", err.message);
-    }
-    return;
+    return updateLeaderboardFromButton(interaction, supabase, "points", false, "akari_lb_by_points");
   }
 
   // 3. ปุ่มสลับเรียงตามจำนวนชนะ
   if (customId === "akari_lb_by_wins") {
-    await interaction.deferUpdate().catch(() => {});
-
-    try {
-      const [leaderboardList, storeConfig] = await Promise.all([
-        getTenantLeaderboard(supabase, guildId, 10, false, "wins"),
-        getTenantStoreConfig(supabase, guildId),
-      ]);
-
-      const currencyEmoji = storeConfig?.currency_emoji || DEFAULT_CURRENCY_EMOJI;
-      const payload = buildLeaderboardPayload(interaction.guild, leaderboardList, "wins", currencyEmoji);
-
-      await interaction.editReply(payload);
-    } catch (err) {
-      console.error("[akari-points] akari_lb_by_wins error:", err.message);
-    }
-    return;
+    return updateLeaderboardFromButton(interaction, supabase, "wins", false, "akari_lb_by_wins");
   }
 
   // 4. ปุ่มรีเฟรชกระดานจัดอันดับ
   if (customId === "akari_lb_refresh") {
-    await interaction.deferUpdate().catch(() => {});
-
-    try {
-      // ตรวจสอบจากข้อความเดิมว่าเป็นโหมดชนะหรือแต้ม
-      const currentContent = interaction.message?.components?.[0]?.components?.[0]?.content || "";
-      const isWins = currentContent.includes("จำนวนชนะสูงสุด");
-      const sortBy = isWins ? "wins" : "points";
-
-      // บังคับ force fetch ล่าสุด
-      const [leaderboardList, storeConfig] = await Promise.all([
-        getTenantLeaderboard(supabase, guildId, 10, true, sortBy),
-        getTenantStoreConfig(supabase, guildId),
-      ]);
-
-      const currencyEmoji = storeConfig?.currency_emoji || DEFAULT_CURRENCY_EMOJI;
-      const payload = buildLeaderboardPayload(interaction.guild, leaderboardList, sortBy, currencyEmoji);
-
-      await interaction.editReply(payload);
-    } catch (err) {
-      console.error("[akari-points] akari_lb_refresh error:", err.message);
-    }
-    return;
+    const currentContent = interaction.message?.components?.[0]?.components?.[0]?.content || "";
+    const isWins = currentContent.includes("จำนวนชนะสูงสุด");
+    const sortBy = isWins ? "wins" : "points";
+    return updateLeaderboardFromButton(interaction, supabase, sortBy, true, "akari_lb_refresh");
   }
 }
 

@@ -38,6 +38,8 @@ function sanitizeCurrencyEmoji(emoji) {
   return emoji;
 }
 
+const STORE_CONFIG_TTL_MS = 5 * 60 * 1000; // แคชการตั้งค่าร้านค้า 5 นาทีเพื่อความสดใหม่
+
 /**
  * ดึงการตั้งค่าร้านค้าของแต่ละ Guild
  */
@@ -52,14 +54,23 @@ async function getTenantStoreConfig(supabase, guildId) {
 
   if (!guildId) return fallback;
 
+  const now = Date.now();
   if (storeConfigCache.has(guildId)) {
-    const cached = storeConfigCache.get(guildId);
-    cached.currency_emoji = sanitizeCurrencyEmoji(cached.currency_emoji);
-    return cached;
+    const cachedEntry = storeConfigCache.get(guildId);
+    if (cachedEntry && typeof cachedEntry === "object") {
+      if (cachedEntry.expiresAt && now < cachedEntry.expiresAt && cachedEntry.data) {
+        cachedEntry.data.currency_emoji = sanitizeCurrencyEmoji(cachedEntry.data.currency_emoji);
+        return cachedEntry.data;
+      }
+      if (!cachedEntry.expiresAt && cachedEntry.guild_id) {
+        cachedEntry.currency_emoji = sanitizeCurrencyEmoji(cachedEntry.currency_emoji);
+        return cachedEntry;
+      }
+    }
   }
 
   if (!supabase) {
-    storeConfigCache.set(guildId, fallback);
+    storeConfigCache.set(guildId, { data: fallback, expiresAt: now + STORE_CONFIG_TTL_MS });
     return fallback;
   }
 
@@ -70,8 +81,20 @@ async function getTenantStoreConfig(supabase, guildId) {
       .eq("guild_id", guildId)
       .maybeSingle();
 
-    if (error || !data) {
-      storeConfigCache.set(guildId, fallback);
+    if (error) {
+      console.warn(`[akari-store] ⚠️ getTenantStoreConfig DB error for ${guildId}:`, error.message || error);
+      // ไม่เซ็ต fallback ทับลงแคชอย่างถาวรหากเกิดข้อผิดพลาดชั่วคราว
+      if (storeConfigCache.has(guildId)) {
+        const stale = storeConfigCache.get(guildId);
+        if (stale?.data) return stale.data;
+        if (stale?.guild_id) return stale;
+      }
+      return fallback;
+    }
+
+    if (!data) {
+      // ยังไม่มีข้อมูลใน DB -> แคช fallback แบบ TTL สั้น (60 วินาที) เผื่อมีการสร้างใหม่
+      storeConfigCache.set(guildId, { data: fallback, expiresAt: now + 60 * 1000 });
       return fallback;
     }
 
@@ -80,11 +103,15 @@ async function getTenantStoreConfig(supabase, guildId) {
       ...data,
       currency_emoji: sanitizeCurrencyEmoji(data.currency_emoji),
     };
-    storeConfigCache.set(guildId, config);
+    storeConfigCache.set(guildId, { data: config, expiresAt: now + STORE_CONFIG_TTL_MS });
     return config;
   } catch (err) {
-    console.warn(`[akari-store] getTenantStoreConfig error for ${guildId}:`, err.message);
-    storeConfigCache.set(guildId, fallback);
+    console.warn(`[akari-store] ⚠️ getTenantStoreConfig unexpected error for ${guildId}:`, err.message);
+    if (storeConfigCache.has(guildId)) {
+      const stale = storeConfigCache.get(guildId);
+      if (stale?.data) return stale.data;
+      if (stale?.guild_id) return stale;
+    }
     return fallback;
   }
 }
@@ -103,15 +130,37 @@ async function saveTenantStoreConfig(supabase, guildId, updates) {
     updated_at: new Date().toISOString(),
   };
 
-  storeConfigCache.set(guildId, updated);
-
   if (supabase) {
     try {
-      await supabase.from("tenant_store_configs").upsert(updated);
+      const { error } = await supabase
+        .from("tenant_store_configs")
+        .upsert(
+          {
+            guild_id: guildId,
+            log_channel_id: updated.log_channel_id ?? null,
+            currency_emoji: updated.currency_emoji ?? DEFAULT_CURRENCY_EMOJI,
+            is_enabled: updated.is_enabled ?? true,
+            custom_layout_json: updated.custom_layout_json ?? null,
+            updated_at: updated.updated_at,
+          },
+          { onConflict: "guild_id" }
+        );
+
+      if (error) {
+        console.error(`[akari-store] ❌ saveTenantStoreConfig DB error for ${guildId}:`, error.message || error);
+        return null;
+      }
     } catch (err) {
-      console.warn(`[akari-store] saveTenantStoreConfig DB error:`, err.message);
+      console.error(`[akari-store] ❌ saveTenantStoreConfig unexpected error for ${guildId}:`, err.message);
+      return null;
     }
   }
+
+  // อัปเดตแคชเฉพาะเมื่อบันทึกลง DB สำเร็จ (หรือรันโหมดไม่มี supabase)
+  storeConfigCache.set(guildId, {
+    data: updated,
+    expiresAt: Date.now() + STORE_CONFIG_TTL_MS,
+  });
 
   return updated;
 }

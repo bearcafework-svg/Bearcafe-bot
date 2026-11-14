@@ -2115,9 +2115,9 @@ async function handleSettingCurrencyButton(interaction, supabase) {
  */
 async function handleSettingCurrencyModalSubmit(interaction, supabase) {
   const customId = interaction.customId;
-  if (!customId.startsWith("akari_currency_modal_submit:")) return;
+  if (!customId.startsWith("akari_currency_modal_submit:") && !customId.startsWith("kuma_currency_modal_submit:")) return;
 
-  const msgId = customId.replace("akari_currency_modal_submit:", "");
+  const msgId = customId.replace(/^(akari|kuma)_currency_modal_submit:/, "");
   let input = interaction.fields.getTextInputValue("currency_input")?.trim() || "";
 
   // แปลงอัตโนมัติหากผู้ใช้พิมพ์แค่ :strawberryv2: หรือ strawberryv2 หรือ ID เก่าที่บอทเข้าไม่ถึง
@@ -2186,10 +2186,29 @@ async function handleSettingCurrencyModalSubmit(interaction, supabase) {
     });
   }
 
-  // บันทึกลง Supabase / In-Memory Cache
-  await saveTenantStoreConfig(supabase, interaction.guildId, {
+  // บันทึกลง Supabase / In-Memory Cache พร้อมตรวจสอบผลลัพธ์
+  const savedResult = await saveTenantStoreConfig(supabase, interaction.guildId, {
     currency_emoji: input,
   });
+
+  if (!savedResult) {
+    return interaction.editReply({
+      flags: FLAG_V2,
+      components: [
+        {
+          type: 17,
+          components: [
+            {
+              type: 10,
+              content: `## <:lowwarning:1548772721679278180>︲__\` 𝖤𝗋𝗋𝗈𝗋 ₊ บันทึกข้อมูลไม่สำเร็จ 𓂃 \`__\n` +
+                `> ไม่สามารถบันทึกสกุลเงินแต้มลงฐานข้อมูลได้ในขณะนี้ กรุณาลองใหม่อีกครั้งในภายหลังครับ\n\n` +
+                `-# หากปัญหายังคงเกิดซ้ำ กรุณาติดต่อทีมงานผู้ดูแลระบบครับ <:cuteplant:1152834055528783872>`,
+            },
+          ],
+        },
+      ],
+    });
+  }
 
   // อัปเดตแดชบอร์ด /setting-games ในพื้นหลัง
   if (msgId && interaction.channel) {

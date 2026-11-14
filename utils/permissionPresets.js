@@ -200,28 +200,52 @@ async function getRentHousePresets(channelId, currentSettings = null) {
 }
 
 /**
- * บันทึกรายการ Presets ของห้องบ้านเช่าลง Supabase
+ * บันทึกรายการ Presets ของห้องบ้านเช่าลง Supabase (Update-then-Insert เพื่อความทนทานต่อ Schema Constraints)
  */
 async function saveRentHousePresets(channelId, presets) {
   const client = getSupabaseClient();
   if (!client) return false;
 
   const normalized = normalizePresets(presets);
-  const { error } = await client
+  const updatedAt = new Date().toISOString();
+
+  // 1. ลองทำการ update ข้อมูลแถวที่มี channel_id อยู่แล้วก่อน
+  const { data: updateData, error: updateError } = await client
     .from("rent_house_settings")
-    .upsert(
-      {
+    .update({
+      permission_presets: normalized,
+      updated_at: updatedAt,
+    })
+    .eq("channel_id", channelId)
+    .select("id");
+
+  // หากพบแถวและอัปเดตสำเร็จ
+  if (!updateError && Array.isArray(updateData) && updateData.length > 0) {
+    return true;
+  }
+
+  // 2. หากยังไม่มีแถวเดิมในตาราง ให้ทำการ insert แถวใหม่
+  if (!updateError && (!updateData || updateData.length === 0)) {
+    const { error: insertError } = await client
+      .from("rent_house_settings")
+      .insert({
         channel_id: channelId,
         permission_presets: normalized,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "channel_id" }
-    );
+        updated_at: updatedAt,
+      });
 
-  if (error) {
-    console.error(`[permissionPresets] Failed to save rent house presets for ${channelId}:`, error.message);
+    if (!insertError) return true;
+
+    // หาก insert ชน constraint หรือ error ให้ log
+    console.error(`[permissionPresets] Failed to insert rent house presets for ${channelId}:`, insertError.message);
     return false;
   }
+
+  if (updateError) {
+    console.error(`[permissionPresets] Failed to save rent house presets for ${channelId}:`, updateError.message);
+    return false;
+  }
+
   return true;
 }
 

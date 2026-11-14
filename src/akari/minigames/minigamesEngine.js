@@ -10,6 +10,7 @@ const {
   MessageFlags,
   AttachmentBuilder,
   EmbedBuilder,
+  PermissionFlagsBits,
 } = require('discord.js');
 const googleTTS = require('google-tts-api');
 const {
@@ -1147,6 +1148,27 @@ function buildAkariWinnerPayload(gameId, questionData, winnerDisplayName, reward
 // ─── สปอว์นคำถาม (Spawn Question) ───────────────────────────────────
 
 async function spawnQuestion(client, channel, gameId, guildId, supabase) {
+  if (!channel || channel.deleted) return null;
+
+  // ตรวจสอบสิทธิ์ของบอทในช่องปลายทางก่อนดำเนินการใดๆ (Permission Pre-flight Check)
+  const botMember = channel.guild?.members?.me || (channel.client?.user ? channel.guild?.members?.cache?.get(channel.client.user.id) : null);
+  const permissions = channel.permissionsFor?.(botMember || client?.user);
+  if (permissions) {
+    const hasView = permissions.has(PermissionFlagsBits.ViewChannel);
+    const hasSend = permissions.has(PermissionFlagsBits.SendMessages);
+    const hasEmbed = permissions.has(PermissionFlagsBits.EmbedLinks);
+    if (!hasView || !hasSend || !hasEmbed) {
+      const missing = [];
+      if (!hasView) missing.push("ViewChannel");
+      if (!hasSend) missing.push("SendMessages");
+      if (!hasEmbed) missing.push("EmbedLinks");
+      console.warn(
+        `[akari-minigames] ⚠️ ข้ามการสปอว์นโจทย์เกม #${gameId} บนห้อง #${channel.name || channel.id} (Guild ${guildId}): บอทขาดสิทธิ์ ${missing.join(", ")}`
+      );
+      return null;
+    }
+  }
+
   // ตรวจสอบสิทธิ์การใช้งานตามระดับสมาชิก (Freemium & Quota Guard)
   const access = await validateGameAccess(guildId, gameId, supabase);
   if (!access.allowed) {
@@ -1319,6 +1341,8 @@ async function spawnQuestion(client, channel, gameId, guildId, supabase) {
           await supabase.from("tenant_minigame_channels").delete().eq("channel_id", channel.id);
         } catch (_) {}
       }
+    } else if (sendErr.code === 50013 || sendErr.message?.includes("Missing Permissions")) {
+      console.warn(`[akari-minigames] ⚠️ บอทไม่มีสิทธิ์ส่งข้อความในห้อง #${channel?.name || channel?.id} (Game #${gameId}) — ขาดสิทธิ์ SendMessages หรือ EmbedLinks`);
     } else {
       console.error(`[akari-minigames] Send game payload error for Game ${gameId}:`, sendErr.message);
     }

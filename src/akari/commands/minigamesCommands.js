@@ -1634,8 +1634,10 @@ async function buildSettingGamesPayload(guild, supabase, page = 1) {
   let activeCount = 0;
   let missingCount = 0;
 
-  // คำนวณสถานะ 3 แบบ: 🟢 พร้อมเล่น | 🔴 ปิดอยู่ | ⚠️ ห้องหาย
+  // คำนวณสถานะ: 🟢 พร้อมเล่น | 🔴 ปิดอยู่ | ⚠️ ห้องหาย | ⚠️ ขาดสิทธิ์
   const gameStatuses = {};
+  const botMember = guild.members.me || (await guild.members.fetch(guild.client?.user?.id).catch(() => null));
+
   for (const gId of ALL_DISPLAYABLE_IDS) {
     const boundChannelId = channelsMap[gId];
     const isEnabled = settingsMap[gId] !== false;
@@ -1644,9 +1646,18 @@ async function buildSettingGamesPayload(guild, supabase, page = 1) {
       channelObj = await guild.channels.fetch(boundChannelId).catch(() => null);
     }
 
+    const channelPerms = channelObj && botMember ? channelObj.permissionsFor(botMember) : null;
+    const hasPerms = channelPerms ? channelPerms.has([
+      PermissionFlagsBits.ViewChannel,
+      PermissionFlagsBits.SendMessages,
+      PermissionFlagsBits.EmbedLinks,
+    ]) : true;
+
     if (boundChannelId && !channelObj) {
       gameStatuses[gId] = { status: "missing", channelId: boundChannelId };
       missingCount++;
+    } else if (boundChannelId && channelObj && !hasPerms) {
+      gameStatuses[gId] = { status: "no_perms", channelObj };
     } else if (boundChannelId && channelObj && isEnabled) {
       gameStatuses[gId] = { status: "active", channelObj };
       activeCount++;
@@ -1858,6 +1869,7 @@ async function buildSettingGamesPayload(guild, supabase, page = 1) {
     const clean = getCleanGameName(gId);
     if (status === "active") return `✅ | ${clean}`;
     if (status === "missing") return `⚠️ | ${clean} (ห้องหาย)`;
+    if (status === "no_perms") return `⚠️ | ${clean} (บอทขาดสิทธิ์ส่งข้อความ)`;
     return `❌ | ${clean}`;
   }).join("\n");
 
@@ -1869,6 +1881,8 @@ async function buildSettingGamesPayload(guild, supabase, page = 1) {
 
     if (gameInfo.status === "missing") {
       desc = "คลิกเพื่อเลือกห้องใหม่";
+    } else if (gameInfo.status === "no_perms") {
+      desc = `⚠️ บอทขาดสิทธิ์ใน #${gameInfo.channelObj?.name || "ห้องนี้"} (ตรวจสิทธิ์บอท)`;
     } else if (gameInfo.status === "active") {
       desc = `พร้อมเล่นที่ #${gameInfo.channelObj?.name || "ห้องเกม"} (กดเพื่อปิด)`;
     }
@@ -1890,6 +1904,7 @@ async function buildSettingGamesPayload(guild, supabase, page = 1) {
       const clean = getCleanGameName(gId);
       if (status === "active") return `✅ | ${clean}`;
       if (status === "missing") return `⚠️ | ${clean} (ห้องหาย)`;
+      if (status === "no_perms") return `⚠️ | ${clean} (บอทขาดสิทธิ์ส่งข้อความ)`;
       return `❌ | ${clean}`;
     }).join("\n");
   }

@@ -22,11 +22,11 @@ async function sendComponentV2Webhook(webhookUrl, payload) {
   const res = await axios.post(targetUrl, payload, { timeout: 10000 });
   return res.status === 200 || res.status === 204;
 }
-const CHAT_COOLDOWN_MS = 60 * 1000; // 60 วินาที คูลดาวน์รายบุคคลใน RAM (0% DB load)
-const CHAT_DROP_CHANCE = 0.04;      // โอกาสดรอป 4% ต่อข้อความที่ผ่านเกณฑ์
-const VOICE_DROP_CHANCE = 0.15;     // โอกาสดรอป 15% ต่อรอบแต้มเสียง
-const MIN_CHAT_LENGTH = 5;          // ความยาวข้อความขั้นต่ำ ป้องกันพิมพ์สแปม
-const DAILY_CAP = 5;                // เพดานสูงสุด 5 เหรียญต่อวัน
+const CHAT_COOLDOWN_MS = 120 * 1000; // 120 วินาที (2 นาที) คูลดาวน์รายบุคคลใน RAM ป้องกันการสแปมข้อความ
+const CHAT_DROP_CHANCE = 0.005;     // โอกาสดรอป 0.5% (เฉลี่ย 1 ใน 200 ข้อความที่ผ่านเกณฑ์) หายากแบบ Lucky Drop จริง
+const VOICE_DROP_CHANCE = 0.03;     // โอกาสดรอป 3% ต่อรอบแต้มเสียง (จากเดิม 15%)
+const MIN_CHAT_LENGTH = 10;         // ความยาวข้อความขั้นต่ำ 10 ตัวอักษร
+const DAILY_CAP = 3;                // เพดานสูงสุด 3 เหรียญต่อวัน (เหรียญมีมูลค่าสูง ไม่เฟ้อ)
 
 // In-Memory Cooldown Tracking (เก็บใน RAM ป้องกันการต่อ Database ซ้ำซ้อน)
 const lastChatCheckByUser = new Map();
@@ -42,20 +42,16 @@ setInterval(() => {
 }, 10 * 60 * 1000).unref();
 
 /**
- * สุ่มจำนวนเหรียญ 1 - 5 เหรียญตามตารางน้ำหนัก
- * 1 เหรียญ: 80% (800)
- * 2 เหรียญ: 13% (130)
- * 3 เหรียญ: 5% (50)
- * 4 เหรียญ: 1.5% (15)
- * 5 เหรียญ: 0.5% (5)
+ * สุ่มจำนวนเหรียญตามตารางน้ำหนักใหม่ (หายากขึ้น ได้ครั้งละ 1 เหรียญเป็นหลัก)
+ * 1 เหรียญ: 95% (950)
+ * 2 เหรียญ: 4.5% (45)
+ * 3 เหรียญ: 0.5% (5)
  */
 function rollCoinAmount() {
   const roll = Math.random() * 1000;
-  if (roll < 800) return 1;
-  if (roll < 930) return 2;
-  if (roll < 980) return 3;
-  if (roll < 995) return 4;
-  return 5;
+  if (roll < 950) return 1;
+  if (roll < 995) return 2;
+  return 3;
 }
 
 /**

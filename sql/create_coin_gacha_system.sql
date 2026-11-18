@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS public.gacha_coin_rewards (
     reward_type VARCHAR(16) NOT NULL DEFAULT 'manual' CHECK (reward_type IN ('auto', 'manual')), -- auto (บอทแจก), manual (รับกับทีมงาน)
     role_id VARCHAR(32) DEFAULT NULL,                   -- Discord Role ID (กรณี auto + ยศ)
     points_reward INT DEFAULT 0,                        -- จำนวนแต้ม (กรณี auto + แต้ม)
+    duplicate_compensation_points INT DEFAULT 300,      -- แต้มชดเชยกรณียศซ้ำ (กรณี auto + ยศ)
     is_unlimited BOOLEAN NOT NULL DEFAULT true,         -- true = ไม่จำกัด, false = มีสต็อกจำกัด
     stock INT NOT NULL DEFAULT -1,                      -- สต็อกคงเหลือ (-1 คือไม่จำกัด)
     is_active BOOLEAN NOT NULL DEFAULT true,            -- เปิดใช้งานหรือไม่
@@ -224,6 +225,7 @@ BEGIN
         'reward_type', v_reward.reward_type,
         'role_id', v_reward.role_id,
         'points_reward', v_reward.points_reward,
+        'duplicate_compensation_points', COALESCE(v_reward.duplicate_compensation_points, 300),
         'is_claimed', v_is_claimed,
         'expires_at', v_expires_at,
         'remaining_coins', v_user_coins

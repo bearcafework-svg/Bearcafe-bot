@@ -97,7 +97,7 @@ function setupCoinGacha(client) {
       console.error("[coinGacha] Interaction handler error:", err);
       if (interaction.deferred || interaction.replied) {
         await interaction.editReply({
-          content: `❌ เกิดข้อผิดพลาดในระบบตู้สุ่มกาชาปอง: \`${err.message}\``
+          content: `❌ เกิดข้อผิดพลาดในระบบตู้สุ่มโยนเหรียญ: \`${err.message}\``
         }).catch(() => {});
       }
     }

@@ -183,7 +183,7 @@ function setupSendComponent(client) {
         case "gachapon": {
           const { buildMainMachinePayload } = require("../../features/coinGacha");
           payload = buildMainMachinePayload();
-          componentName = "ตู้สุ่มกาชาปอง (Gachapon Machine)";
+          componentName = "ตู้สุ่มโยนเหรียญ (Coin Machine)";
           break;
         }
         case "violation_history": {

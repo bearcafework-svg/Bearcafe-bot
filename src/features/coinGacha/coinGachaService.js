@@ -133,12 +133,13 @@ async function executeCoinRoll(user, member) {
       const alreadyHasRole = member?.roles?.cache?.has(targetRoleId);
 
       if (alreadyHasRole) {
-        // ผู้เล่นมียศนี้อยู่แล้ว -> แปลงเป็นแต้มสำรองอัตโนมัติ
-        fallbackNotice = `คุณมียศนี้อยู่แล้ว ระบบจึงแปลงเป็นแต้มโบนัส +${ROLE_DUPLICATE_POINTS} แต้มให้แทนค่ะ`;
+        // ผู้เล่นมียศนี้อยู่แล้ว -> แปลงเป็นแต้มสำรองตามที่ตั้งค่าไว้ในของรางวัลชิ้นนี้
+        const compPoints = Number(rollResult.duplicate_compensation_points) || ROLE_DUPLICATE_POINTS;
+        fallbackNotice = `คุณมียศนี้อยู่แล้ว ระบบจึงแปลงเป็นแต้มโบนัส +${compPoints} แต้มให้แทนค่ะ`;
         await sb
           .from("user_points")
           .update({
-            points: sb.raw(`COALESCE(points, 0) + ${ROLE_DUPLICATE_POINTS}`),
+            points: sb.raw(`COALESCE(points, 0) + ${compPoints}`),
             updated_at: new Date().toISOString()
           })
           .eq("discord_id", userId)
@@ -146,7 +147,7 @@ async function executeCoinRoll(user, member) {
             // fallback หาก raw SQL ไม่ทำงาน
             const { data: cur } = await sb.from("user_points").select("points").eq("discord_id", userId).maybeSingle();
             const curPoints = (cur && cur.points) ? Number(cur.points) : 0;
-            await sb.from("user_points").update({ points: curPoints + ROLE_DUPLICATE_POINTS }).eq("discord_id", userId);
+            await sb.from("user_points").update({ points: curPoints + compPoints }).eq("discord_id", userId);
           });
       } else if (member && member.roles) {
         // มอบยศให้ทันที

@@ -407,7 +407,7 @@ const BEARCAFE_SLASH_COMMANDS = [
           { name: "แผงเปิดรับสมัครทีมงาน (Recruitment Form)", value: "recruitment_form" },
           { name: "แผงเลือกและเปลี่ยนยศสี (Color Roles Panel)", value: "color_roles" },
           { name: "กระดานจัดอันดับหมีติดเกม (Minigame Leaderboard)", value: "minigame_top" },
-          { name: "ตู้สุ่มกาชาปอง (Gachapon Machine)", value: "gachapon" },
+          { name: "ตู้สุ่มโยนเหรียญ (Coin Machine)", value: "gachapon" },
           { name: "ประวัติการทำผิดกฎ (Violation History)", value: "violation_history" },
           { name: "เควสใหญ่ (Main Community Quest)", value: "main_quest" },
         ],
@@ -536,7 +536,7 @@ const BEARCAFE_SLASH_COMMANDS = [
   // 25. /รับแต้มครั้งแรก (Coin Gacha First Time Bonus)
   {
     name: "รับแต้มครั้งแรก",
-    description: "มอบแต้มโบนัสครั้งแรก +500 แต้มให้แก่สมาชิกจากการสุ่มกาชาปอง (เฉพาะทีมงาน)",
+    description: "มอบแต้มโบนัสครั้งแรก +500 แต้มให้แก่สมาชิกจากการสุ่มโยนเหรียญ (เฉพาะทีมงาน)",
     options: [
       {
         name: "user",

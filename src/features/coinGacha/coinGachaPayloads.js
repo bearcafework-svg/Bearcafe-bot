@@ -4,7 +4,7 @@
 const { MEDIA, CHANNELS, CUSTOM_IDS, FLAG_V2_PUBLIC, FLAG_V2_EPHEMERAL } = require("./coinGachaConfig");
 
 /**
- * 1. แผงหน้าตู้สุ่มหลักสำหรับคำสั่ง /send-component options: ตู้สุ่มกาชาปอง (Gachapon Machine)
+ * 1. แผงหน้าตู้สุ่มหลักสำหรับคำสั่ง /send-component options: ตู้สุ่มโยนเหรียญ (Coin Machine)
  */
 function buildMainMachinePayload() {
   return {
@@ -265,7 +265,7 @@ function buildHistoryPayload(historyItems = [], currentPage = 1, totalPages = 1)
   let contentText = "";
 
   if (!historyItems || historyItems.length === 0) {
-    contentText = "ยังไม่มีประวัติการสุ่มกาชาปองของคุณในระบบค่ะ 🍃";
+    contentText = "ยังไม่มีประวัติการสุ่มโยนเหรียญของคุณในระบบค่ะ 🍃";
   } else {
     const lines = historyItems.map((item, index) => {
       const num = (currentPage - 1) * 50 + index + 1;

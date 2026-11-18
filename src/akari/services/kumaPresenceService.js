@@ -45,24 +45,56 @@ let statsTimer = null;
 async function refreshStatsFromDb(supabase) {
   if (!supabase) return;
   try {
-    // 1. ดึงข้อมูลคะแนนและยอดชนะ
-    const { data: scores, error: scoreErr } = await supabase
-      .from("tenant_minigame_scores")
-      .select("wins");
+    // 1. ดึงข้อมูลคะแนนและยอดชนะ (แบบ Pagination ป้องกันติด Limit 1,000 แถว)
+    const allScores = [];
+    let fromScores = 0;
+    const SCORES_PAGE_SIZE = 1000;
+    let hasMoreScores = true;
 
-    if (!scoreErr && Array.isArray(scores)) {
-      cachedStats.playerCount = scores.length;
-      cachedStats.totalWins = scores.reduce((sum, s) => sum + (s.wins || 0), 0);
+    while (hasMoreScores) {
+      const { data, error } = await supabase
+        .from("tenant_minigame_scores")
+        .select("wins")
+        .range(fromScores, fromScores + SCORES_PAGE_SIZE - 1);
+
+      if (error || !data || data.length === 0) break;
+      allScores.push(...data);
+      if (data.length < SCORES_PAGE_SIZE) {
+        hasMoreScores = false;
+      } else {
+        fromScores += SCORES_PAGE_SIZE;
+      }
     }
 
-    // 2. ดึงสถิติช่องมินิเกม เพื่อหาเกมที่ติดตั้งมากที่สุด (เกมยอดนิยม)
-    const { data: channels, error: channelErr } = await supabase
-      .from("tenant_minigame_channels")
-      .select("game_id");
+    if (allScores.length > 0) {
+      cachedStats.playerCount = allScores.length;
+      cachedStats.totalWins = allScores.reduce((sum, s) => sum + (s.wins || 0), 0);
+    }
 
-    if (!channelErr && Array.isArray(channels) && channels.length > 0) {
+    // 2. ดึงสถิติช่องมินิเกม เพื่อหาเกมที่ติดตั้งมากที่สุด (แบบ Pagination ป้องกันติด Limit 1,000 แถว)
+    const allChannels = [];
+    let fromChannels = 0;
+    const CHANNELS_PAGE_SIZE = 1000;
+    let hasMoreChannels = true;
+
+    while (hasMoreChannels) {
+      const { data, error } = await supabase
+        .from("tenant_minigame_channels")
+        .select("game_id")
+        .range(fromChannels, fromChannels + CHANNELS_PAGE_SIZE - 1);
+
+      if (error || !data || data.length === 0) break;
+      allChannels.push(...data);
+      if (data.length < CHANNELS_PAGE_SIZE) {
+        hasMoreChannels = false;
+      } else {
+        fromChannels += CHANNELS_PAGE_SIZE;
+      }
+    }
+
+    if (allChannels.length > 0) {
       const counts = {};
-      channels.forEach((c) => {
+      allChannels.forEach((c) => {
         const gid = Number(c.game_id);
         counts[gid] = (counts[gid] || 0) + 1;
       });

@@ -92,7 +92,12 @@ function buildMainMachinePayload() {
                 media: {
                   url: MEDIA.SPONSOR_BANNER_1
                 }
-              },
+              }
+            ]
+          },
+          {
+            type: 12,
+            items: [
               {
                 media: {
                   url: MEDIA.SPONSOR_BANNER_2

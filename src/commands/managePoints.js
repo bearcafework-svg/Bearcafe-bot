@@ -129,11 +129,38 @@ function setupManagePoints(client) {
         typeLabel = "🍵 แต้ม (point)";
         unit = "แต้ม";
         if (action === "add") {
-          newPoints = currentPoints + amount;
+          const targetMember = interaction.guild?.members.cache.get(targetUser.id) || await interaction.guild?.members.fetch(targetUser.id).catch(() => null);
+          const { addPointsWithCap } = require("../utils/pointManager");
+          const pointRes = await addPointsWithCap(supabase, targetMember, targetUser.id, amount, {
+            ignoreDailyCap: true,
+            allowOverflowExceedCap: true
+          });
+          newPoints = pointRes.points;
           changeText = `+${amount.toLocaleString()}`;
+          if (pointRes.toOverflow > 0) {
+            changeText += ` (เข้ากระเป๋า ${pointRes.toWallet.toLocaleString()}, เข้าแต้มส่วนเกิน ${pointRes.toOverflow.toLocaleString()})`;
+          }
         } else {
           newPoints = Math.max(0, currentPoints - amount);
           changeText = `-${amount.toLocaleString()}`;
+          const { error: upsertErr } = await supabase
+            .from("user_points")
+            .upsert(
+              {
+                discord_id: targetUser.id,
+                points: newPoints,
+                cakes: newCakes,
+                updated_at: new Date().toISOString(),
+              },
+              { onConflict: "discord_id" }
+            );
+
+          if (upsertErr) {
+            console.error("[managePoints] Upsert error:", upsertErr.message);
+            return interaction.editReply({
+              content: `❌ เกิดข้อผิดพลาดในการบันทึกข้อมูลลง Supabase 2: ${upsertErr.message}`,
+            });
+          }
         }
       } else {
         typeLabel = "🍰 เค้ก (cake)";
@@ -145,26 +172,25 @@ function setupManagePoints(client) {
           newCakes = Math.max(0, currentCakes - amount);
           changeText = `-${amount.toLocaleString()}`;
         }
-      }
 
-      // 4. บันทึก/อัปเดตข้อมูลลง Supabase 2
-      const { error: upsertErr } = await supabase
-        .from("user_points")
-        .upsert(
-          {
-            discord_id: targetUser.id,
-            points: newPoints,
-            cakes: newCakes,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "discord_id" }
-        );
+        const { error: upsertErr } = await supabase
+          .from("user_points")
+          .upsert(
+            {
+              discord_id: targetUser.id,
+              points: newPoints,
+              cakes: newCakes,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "discord_id" }
+          );
 
-      if (upsertErr) {
-        console.error("[managePoints] Upsert error:", upsertErr.message);
-        return interaction.editReply({
-          content: `❌ เกิดข้อผิดพลาดในการบันทึกข้อมูลลง Supabase 2: ${upsertErr.message}`,
-        });
+        if (upsertErr) {
+          console.error("[managePoints] Upsert error:", upsertErr.message);
+          return interaction.editReply({
+            content: `❌ เกิดข้อผิดพลาดในการบันทึกข้อมูลลง Supabase 2: ${upsertErr.message}`,
+          });
+        }
       }
 
       // 5. สร้างการ์ดผลลัพธ์แบบ Ephemeral

@@ -3,6 +3,7 @@
 
 const { createClient } = require("@supabase/supabase-js");
 const sharedConfig = require("../sharedSettings.json");
+const { addPointsWithCap } = require("../utils/pointManager");
 
 const TARGET_CHANNEL_ID = "1524124428454203553";
 const BOOST_POINTS_REWARD = 500;
@@ -43,30 +44,17 @@ function extractBoostCount(content) {
   return 1;
 }
 
-async function addPoints(supabase, userId, pointsDelta) {
-  const { data, error } = await supabase.rpc("add_tarot_points", {
-    p_discord_id: userId,
-    p_points_delta: pointsDelta,
-    p_tarot_delta: 0,
-  });
-
-  if (error) {
-    console.error("[boostNotification] addPoints RPC error:", error.message);
-    // Fallback if RPC fails
-    const { data: row } = await supabase
-      .from("user_points")
-      .select("points")
-      .eq("discord_id", userId)
-      .single();
-
-    const newPoints = (row?.points ?? 0) + pointsDelta;
-    await supabase.from("user_points").upsert(
-      { discord_id: userId, points: newPoints },
-      { onConflict: "discord_id" }
-    );
-    return newPoints;
+async function addPoints(supabase, member, userId, pointsDelta) {
+  try {
+    const res = await addPointsWithCap(supabase, member, userId, pointsDelta, {
+      ignoreDailyCap: true,
+      allowOverflowExceedCap: true
+    });
+    return res.points;
+  } catch (err) {
+    console.error("[boostNotification] addPoints error:", err.message);
+    return null;
   }
-  return data?.[0]?.new_points ?? 0;
 }
 
 function setupBoostNotification(client) {
@@ -100,7 +88,8 @@ function setupBoostNotification(client) {
 
     // 1. Add points to user_points database (500 points per boost)
     try {
-      const newPoints = await addPoints(supabase, userId, boostPointsReward);
+      const member = message.member || (message.guild?.members.cache.get(userId)) || (await message.guild?.members.fetch(userId).catch(() => null));
+      const newPoints = await addPoints(supabase, member, userId, boostPointsReward);
       console.log(`[boostNotification] Successfully added +${boostPointsReward} points (${boostCount} boosts) to ${booster.tag}. New points: ${newPoints}`);
     } catch (dbError) {
       console.error(`[boostNotification] Failed to add points to database for ${booster.tag}:`, dbError.message);

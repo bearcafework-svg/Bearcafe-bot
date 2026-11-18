@@ -181,8 +181,8 @@ function setupSendComponent(client) {
           });
         }
         case "gachapon": {
-          const { buildGachaponDeployPayload } = require("../features/gachapon");
-          payload = await buildGachaponDeployPayload(targetChannel.guild);
+          const { buildMainMachinePayload } = require("../features/coinGacha");
+          payload = buildMainMachinePayload();
           componentName = "ตู้สุ่มกาชาปอง (Gachapon Machine)";
           break;
         }

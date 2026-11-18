@@ -70,8 +70,6 @@ function checkAndCleanExpiredOverflow(row) {
 
 async function autoDrainOverflow(supabase, member, userId) {
   return withUserPointLock(userId, async () => {
-    const maxCap = member ? getMaxPoints(member) : 750;
-
     const { data: row, error } = await supabase
       .from('user_points')
       .select('points, max_cap, daily_points, last_reset_date, overflow_points, overflow_expires_at')
@@ -82,25 +80,44 @@ async function autoDrainOverflow(supabase, member, userId) {
       return { drained: 0, points: row?.points ?? 0, overflow: 0, overflowExpiresAt: null };
     }
 
-    const currentPoints = row.points ?? 0;
+    const calculatedCap = member ? getMaxPoints(member) : 750;
+    const maxCap = member ? Math.max(calculatedCap, row.max_cap ?? 750) : (row.max_cap ?? calculatedCap);
+
+    let currentPoints = row.points ?? 0;
     const cleaned = checkAndCleanExpiredOverflow(row);
     let overflowPoints = cleaned.overflowPoints;
     let overflowExpiresAt = cleaned.overflowExpiresAt;
 
-    const availableSpace = Math.max(0, maxCap - currentPoints);
     let drained = 0;
+    let needsUpdate = false;
 
+    // 1. ตรวจสอบหากแต้มกระเป๋าหลักล้นเพดาน (Over-cap Rebalance) ให้โอนเข้าแต้มส่วนเกินอัตโนมัติ
+    if (currentPoints > maxCap) {
+      const excess = currentPoints - maxCap;
+      currentPoints = maxCap;
+      overflowPoints += excess;
+      if (!overflowExpiresAt) {
+        overflowExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      }
+      needsUpdate = true;
+    }
+
+    // 2. ดึงแต้มจากแต้มส่วนเกินเข้ากระเป๋าหลักถ้ามีที่ว่าง (Drain)
+    const availableSpace = Math.max(0, maxCap - currentPoints);
     if (availableSpace > 0 && overflowPoints > 0) {
       drained = Math.min(availableSpace, overflowPoints);
-      const newPoints = currentPoints + drained;
+      currentPoints += drained;
       overflowPoints -= drained;
       if (overflowPoints <= 0) {
         overflowExpiresAt = null;
         overflowPoints = 0;
       }
+      needsUpdate = true;
+    }
 
+    if (needsUpdate || cleaned.wasExpired) {
       await supabase.from('user_points').update({
-        points: newPoints,
+        points: currentPoints,
         max_cap: maxCap,
         overflow_points: overflowPoints,
         overflow_expires_at: overflowExpiresAt,
@@ -109,16 +126,10 @@ async function autoDrainOverflow(supabase, member, userId) {
 
       return {
         drained,
-        points: newPoints,
+        points: currentPoints,
         overflow: overflowPoints,
         overflowExpiresAt
       };
-    } else if (cleaned.wasExpired) {
-      await supabase.from('user_points').update({
-        overflow_points: 0,
-        overflow_expires_at: null,
-        updated_at: new Date().toISOString()
-      }).eq('discord_id', userId);
     }
 
     return {
@@ -191,9 +202,10 @@ function withUserPointLock(userId, fn) {
   })();
 }
 
-async function addPointsWithCap(supabase, member, userId, pointsDelta) {
+async function addPointsWithCap(supabase, member, userId, pointsDelta, options = {}) {
   return withUserPointLock(userId, async () => {
     const today = getTodayBangkok();
+    const ignoreDailyCap = options.ignoreDailyCap === true;
 
     const { data: row, error } = await supabase
       .from('user_points')
@@ -210,7 +222,7 @@ async function addPointsWithCap(supabase, member, userId, pointsDelta) {
     const dailyCap = getDailyCap(maxCap, member);
     const overflowCap = getOverflowCap(maxCap, member);
 
-    const currentPoints = row?.points ?? 0;
+    let currentPoints = row?.points ?? 0;
     const lastReset = row?.last_reset_date ?? '';
     const needsReset = lastReset !== today;
     const dailyPoints = needsReset ? 0 : (row?.daily_points ?? 0);
@@ -219,11 +231,23 @@ async function addPointsWithCap(supabase, member, userId, pointsDelta) {
     let overflowPoints = cleaned.overflowPoints;
     let overflowExpiresAt = cleaned.overflowExpiresAt;
 
-    if (dailyPoints >= dailyCap) {
-      if (cleaned.wasExpired) {
+    // หากแต้มกระเป๋าเดิมล้นเพดานอยู่แล้ว ให้ผลักส่วนเกินเข้า overflow ทันที
+    if (currentPoints > maxCap) {
+      const excess = currentPoints - maxCap;
+      currentPoints = maxCap;
+      overflowPoints += excess;
+      if (!overflowExpiresAt) {
+        overflowExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      }
+    }
+
+    if (!ignoreDailyCap && dailyPoints >= dailyCap) {
+      if (cleaned.wasExpired || currentPoints !== (row?.points ?? 0)) {
         await supabase.from('user_points').update({
-          overflow_points: 0,
-          overflow_expires_at: null,
+          points: currentPoints,
+          max_cap: maxCap,
+          overflow_points: overflowPoints,
+          overflow_expires_at: overflowExpiresAt,
           updated_at: new Date().toISOString()
         }).eq('discord_id', userId);
       }
@@ -243,25 +267,18 @@ async function addPointsWithCap(supabase, member, userId, pointsDelta) {
     }
 
     const dailyRemaining = Math.max(0, dailyCap - dailyPoints);
-    const allowedByDaily = Math.min(pointsDelta, dailyRemaining);
+    const allowedToAdd = ignoreDailyCap ? pointsDelta : Math.min(pointsDelta, dailyRemaining);
 
     const spaceInWallet = Math.max(0, maxCap - currentPoints);
-    const toWallet = Math.min(allowedByDaily, spaceInWallet);
-    const remainder = allowedByDaily - toWallet;
+    const toWallet = Math.min(allowedToAdd, spaceInWallet);
+    const remainder = allowedToAdd - toWallet;
 
-    const spaceInOverflow = Math.max(0, overflowCap - overflowPoints);
+    const spaceInOverflow = options.allowOverflowExceedCap ? remainder : Math.max(0, overflowCap - overflowPoints);
     const toOverflow = Math.min(remainder, spaceInOverflow);
 
     const actualEarned = toWallet + toOverflow;
 
-    if (actualEarned <= 0) {
-      if (cleaned.wasExpired) {
-        await supabase.from('user_points').update({
-          overflow_points: 0,
-          overflow_expires_at: null,
-          updated_at: new Date().toISOString()
-        }).eq('discord_id', userId);
-      }
+    if (actualEarned <= 0 && currentPoints === (row?.points ?? 0) && !cleaned.wasExpired) {
       return {
         awarded: 0,
         toWallet: 0,
@@ -278,12 +295,12 @@ async function addPointsWithCap(supabase, member, userId, pointsDelta) {
     }
 
     const newPoints = currentPoints + toWallet;
-    const newDailyPoints = dailyPoints + actualEarned;
+    const newDailyPoints = ignoreDailyCap ? dailyPoints : (dailyPoints + actualEarned);
     let newOverflowPoints = overflowPoints + toOverflow;
     let newOverflowExpiresAt = overflowExpiresAt;
 
-    if (toOverflow > 0) {
-      if (overflowPoints === 0 || !overflowExpiresAt) {
+    if (toOverflow > 0 || (currentPoints !== (row?.points ?? 0) && newOverflowPoints > 0)) {
+      if (!newOverflowExpiresAt) {
         newOverflowExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
       }
     }

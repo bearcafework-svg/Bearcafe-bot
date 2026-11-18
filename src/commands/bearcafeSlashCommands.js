@@ -532,6 +532,20 @@ const BEARCAFE_SLASH_COMMANDS = [
     name: "ขอกำลังใจ",
     description: "สุ่มรับข้อความและพลังบวกจากสมาชิกในคอมมูนิตี้ 🧸💛",
   },
+
+  // 25. /รับแต้มครั้งแรก (Coin Gacha First Time Bonus)
+  {
+    name: "รับแต้มครั้งแรก",
+    description: "มอบแต้มโบนัสครั้งแรก +500 แต้มให้แก่สมาชิกจากการสุ่มกาชาปอง (เฉพาะทีมงาน)",
+    options: [
+      {
+        name: "user",
+        description: "เลือกสมาชิกที่ต้องการมอบแต้มโบนัสครั้งแรก",
+        type: ApplicationCommandOptionType.User,
+        required: true,
+      },
+    ],
+  },
 ];
 
 module.exports = {

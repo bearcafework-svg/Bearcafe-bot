@@ -26,7 +26,7 @@ const CHAT_COOLDOWN_MS = 120 * 1000; // 120 วินาที (2 นาที) 
 const CHAT_DROP_CHANCE = 0.005;     // โอกาสดรอป 0.5% (เฉลี่ย 1 ใน 200 ข้อความที่ผ่านเกณฑ์) หายากแบบ Lucky Drop จริง
 const VOICE_DROP_CHANCE = 0.03;     // โอกาสดรอป 3% ต่อรอบแต้มเสียง (จากเดิม 15%)
 const MIN_CHAT_LENGTH = 10;         // ความยาวข้อความขั้นต่ำ 10 ตัวอักษร
-const DAILY_CAP = 3;                // เพดานสูงสุด 3 เหรียญต่อวัน (เหรียญมีมูลค่าสูง ไม่เฟ้อ)
+const DAILY_CAP = 5;                // เพดานสูงสุด 5 เหรียญต่อวัน (สอดคล้องกับระบบตู้กาชาปอง)
 
 // In-Memory Cooldown Tracking (เก็บใน RAM ป้องกันการต่อ Database ซ้ำซ้อน)
 const lastChatCheckByUser = new Map();

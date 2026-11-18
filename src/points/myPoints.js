@@ -245,22 +245,39 @@ function setupMyPoints(client) {
   // ── จัดการ Slash Command ──────────────────────────────────────────
   registerCommand('แต้มของฉัน', async (interaction) => {
     if (interaction.channelId !== '1524123727724417276') {
-      return interaction.reply({ content: 'คำสั่งนี้ใช้ได้เฉพาะห้อง <#1524123727724417276> เท่านั้นนะคะ', flags: FLAG_EPHEMERAL });
+      return interaction.reply({ content: 'คำสั่งนี้ใช้ได้เฉพาะห้อง <#1524123727724417276> เท่านั้นนะคะ', flags: FLAG_EPHEMERAL }).catch(() => {});
     }
 
     const isBlacklisted = cfg.role_blacklist.some(id => interaction.member.roles.cache.has(id));
     if (isBlacklisted) {
-      return interaction.reply(blacklistPayload(interaction.user.id));
+      return interaction.reply(blacklistPayload(interaction.user.id)).catch(() => {});
     }
 
-    const userId = interaction.user.id;
-    const { points, cakes, dailyPoints, overflowPoints, overflowExpiresAt, drained } = await getUserData(supabase, userId, interaction.member);
-    const maxPoints = getMaxPoints(interaction.member);
-    const overflowCap = getOverflowCap(maxPoints, interaction.member);
+    // ⚡ Defer reply ทันทีเพื่อป้องกัน 10062 Unknown Interaction (timeout 3 วินาทีของ Discord)
+    await interaction.deferReply().catch(() => {});
 
-    const drainNotice = drained > 0 ? `✅ ดึงแต้มส่วนเกินมาเติมในกระเป๋า ${drained.toLocaleString()} แต้ม` : null;
-    const payload = buildMainPayload(interaction, points, cakes, maxPoints, 1, dailyPoints, overflowPoints, overflowCap, overflowExpiresAt, drainNotice);
-    await interaction.reply(payload);
+    try {
+      const userId = interaction.user.id;
+      const { points, cakes, dailyPoints, overflowPoints, overflowExpiresAt, drained } = await getUserData(supabase, userId, interaction.member);
+      const maxPoints = getMaxPoints(interaction.member);
+      const overflowCap = getOverflowCap(maxPoints, interaction.member);
+
+      const drainNotice = drained > 0 ? `✅ ดึงแต้มส่วนเกินมาเติมในกระเป๋า ${drained.toLocaleString()} แต้ม` : null;
+      const payload = buildMainPayload(interaction, points, cakes, maxPoints, 1, dailyPoints, overflowPoints, overflowCap, overflowExpiresAt, drainNotice);
+
+      if (interaction.deferred || interaction.replied) {
+        await interaction.editReply(payload).catch((e) => console.error("[myPoints] editReply failed:", e.message));
+      } else {
+        await interaction.reply(payload).catch((e) => console.error("[myPoints] reply failed:", e.message));
+      }
+    } catch (err) {
+      console.error("[myPoints] Error handling /แต้มของฉัน:", err.message);
+      if (interaction.deferred || interaction.replied) {
+        await interaction.editReply({ content: `❌ เกิดข้อผิดพลาดในการโหลดแต้ม: ${err.message}` }).catch(() => {});
+      } else {
+        await interaction.reply({ content: `❌ เกิดข้อผิดพลาดในการโหลดแต้ม: ${err.message}`, flags: FLAG_EPHEMERAL }).catch(() => {});
+      }
+    }
   });
 
   // ── จัดการกดปุ่มแลกเค้ก ───────────────────────────────────────────

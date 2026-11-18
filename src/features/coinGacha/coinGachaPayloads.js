@@ -146,14 +146,16 @@ function buildRollingAnimationPayload(tier = "common") {
 /**
  * 3. การ์ดแสดงผลลัพธ์ของรางวัล (Result Card)
  * @param {Object} params
+ * @param {string} [params.userId] - Discord User ID
  * @param {string} params.rewardName - ชื่อของรางวัล
  * @param {string} params.rewardType - 'auto' หรือ 'manual'
  * @param {boolean} params.hasClaimedFirstTime - สมาชิกเคยรับแต้มครั้งแรกหรือไม่
  * @param {number|null} params.expiryTimestamp - Unix Timestamp วันหมดเขต (กรณี manual)
  * @param {string|null} params.fallbackNotice - ข้อความแจ้งเตือนกรณีแปลงยศเป็นแต้มสำรอง
  */
-function buildResultPayload({ rewardName, rewardType, hasClaimedFirstTime, expiryTimestamp, fallbackNotice }) {
-  let contentText = `### คุณได้รับ ${rewardName}\n`;
+function buildResultPayload({ userId, rewardName, rewardType, hasClaimedFirstTime, expiryTimestamp, fallbackNotice }) {
+  const userMention = userId ? `<@${userId}>` : "คุณ";
+  let contentText = `### ${userMention} ได้รับ ${rewardName}\n`;
 
   if (rewardType === "auto") {
     if (fallbackNotice) {

@@ -58,6 +58,7 @@ function setupCoinGacha(client) {
 
         // สร้างการ์ดผลลัพธ์ของรางวัล
         const payload = buildResultPayload({
+          userId: interaction.user.id,
           rewardName: result.rollData.reward_name,
           rewardType: result.rollData.reward_type,
           hasClaimedFirstTime: result.hasClaimedFirstTime,

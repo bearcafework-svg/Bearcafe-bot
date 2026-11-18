@@ -168,7 +168,11 @@ function initInteractionRouter(client) {
         return;
       }
     } catch (err) {
-      console.error(`[interactionRouter] ❌ Error handling interaction (${interaction.commandName || interaction.customId}):`, err);
+      if (err.code === 10062) {
+        console.warn(`[interactionRouter] ⚠️ Interaction expired (10062 Unknown Interaction) for ${interaction.commandName || interaction.customId}`);
+      } else {
+        console.error(`[interactionRouter] ❌ Error handling interaction (${interaction.commandName || interaction.customId}):`, err);
+      }
     }
   });
 

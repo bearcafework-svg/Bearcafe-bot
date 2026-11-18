@@ -19,13 +19,13 @@ module.exports = {
     "1205512963058962482"
   ],
 
-  // สื่อและรูปภาพประจำระดับ (Media URLs)
+  // สื่อและรูปภาพประจำระดับ (Media URLs ตรงตามเอกสาร 100%)
   MEDIA: {
     // แบนเนอร์หน้าตู้หลัก
-    MAIN_PANEL_IMAGE: "https://media.discordapp.net/attachments/1565840974737973428/1572112401673887774/ba35cc6bef33f597.png?format=webp&quality=lossless&width=525&height=350",
-    MAIN_PANEL_GIF: "https://media.discordapp.net/attachments/1565856976552988804/1572471219553435659/NewsBoard_-_bearcafe.gif?format=webp&quality=lossless",
-    SPONSOR_BANNER_1: "https://media.discordapp.net/attachments/1567164733201580042/1567882202908336158/Dis_QZADD.gif?format=webp&quality=lossless",
-    SPONSOR_BANNER_2: "https://media.discordapp.net/attachments/1525805890060685474/1537845157032886402/kubo.png?format=webp&quality=lossless",
+    MAIN_PANEL_IMAGE: "https://media.discordapp.net/attachments/1565840974737973428/1572112401673887774/ba35cc6bef33f597.png?ex=6afd2f44&is=6afbddc4&hm=9333e394efcf4b5ba6c1857262927b7f122a7169ab11669837e200d1081d940b&format=webp&quality=lossless&width=525&height=350",
+    MAIN_PANEL_GIF: "https://media.discordapp.net/attachments/1565856976552988804/1572471219553435659/NewsBoard_-_bearcafe.gif?ex=6afe7d71&is=6afd2bf1&hm=0336e86c631bcd40b89966d855083cc27cfa89f2f9831daa317b696e7cda7f03",
+    SPONSOR_BANNER_1: "https://media.discordapp.net/attachments/1567164733201580042/1567882202908336158/Dis_QZADD.gif?ex=6afe4657&is=6afcf4d7&hm=e5ba431ec7c5446dad258eced6aad2f6462925c1c3257fa4fb0e1daaa6eef1fd",
+    SPONSOR_BANNER_2: "https://media.discordapp.net/attachments/1525805890060685474/1537845157032886402/kubo.png?ex=6afe6ca9&is=6afd1b29&hm=bf62bea08ebfcd62ae531f061891cdab0c313cc8d772fd256785d15db7666aea&format=webp&quality=lossless",
 
     // แอนิเมชันตอนโยนเหรียญ
     ROLLING_GIF: "https://cdn.discordapp.com/attachments/1565856976552988804/1572480703755714672/e6d42f9e6f60a678.gif",
@@ -39,7 +39,7 @@ module.exports = {
     },
 
     // รูปแบนเนอร์ด้านล่างสำหรับผู้ใช้ที่ยังไม่เคยรับแต้มครั้งแรก
-    FIRST_TIME_BANNER: "https://media.discordapp.net/attachments/1565840974737973428/1572484043075887114/1552e4e858635584.png?format=webp&quality=lossless&width=550&height=220"
+    FIRST_TIME_BANNER: "https://media.discordapp.net/attachments/1565840974737973428/1572484043075887114/1552e4e858635584.png?ex=6afe8963&is=6afd37e3&hm=db429e40488b2d1d0796cacbebd5c8de3de53563bf4205cb7717c1ab1fd8c862&format=webp&quality=lossless&width=550&height=220"
   },
 
   // Custom IDs สำหรับปุ่มกด

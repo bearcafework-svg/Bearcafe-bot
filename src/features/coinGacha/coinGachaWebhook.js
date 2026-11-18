@@ -42,8 +42,7 @@ async function sendRollLogWebhook({ discordId, userAvatar, tier, rewardName, tim
           },
           {
             name: "ระดับของรางวัล",
-            value: tierDisplayMap[tier.toLowerCase()] || tier,
-            inline: true
+            value: tier.toLowerCase()
           },
           {
             name: "รางวัล",

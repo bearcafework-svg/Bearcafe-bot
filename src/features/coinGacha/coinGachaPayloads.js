@@ -1,14 +1,14 @@
 // src/features/coinGacha/coinGachaPayloads.js
 // ตัวสร้าง Component V2 JSON สำหรับระบบหมีโยนเหรียญ (คงโครงสร้างเดิม 100%)
 
-const { MEDIA, CHANNELS, CUSTOM_IDS } = require("./coinGachaConfig");
+const { MEDIA, CHANNELS, CUSTOM_IDS, FLAG_V2_PUBLIC, FLAG_V2_EPHEMERAL } = require("./coinGachaConfig");
 
 /**
  * 1. แผงหน้าตู้สุ่มหลักสำหรับคำสั่ง /send-component options: ตู้สุ่มกาชาปอง (Gachapon Machine)
  */
 function buildMainMachinePayload() {
   return {
-    flags: 32768,
+    flags: FLAG_V2_PUBLIC,
     components: [
       {
         type: 17,
@@ -113,7 +113,7 @@ function buildMainMachinePayload() {
 function buildRollingAnimationPayload(tier = "common") {
   const tierUrl = MEDIA.TIERS[tier.toLowerCase()] || MEDIA.TIERS.common;
   return {
-    flags: 32768,
+    flags: FLAG_V2_EPHEMERAL,
     components: [
       {
         type: 17,
@@ -167,7 +167,7 @@ function buildResultPayload({ rewardName, rewardType, hasClaimedFirstTime, expir
     contentText += `- หลังจากแคปแล้ว รับรางวัลได้ที่ <#${CHANNELS.FIRST_TIME_CLAIM}> (ครั้งแรก)`;
 
     return {
-      flags: 32768,
+      flags: FLAG_V2_EPHEMERAL,
       components: [
         {
           type: 17,
@@ -198,7 +198,7 @@ function buildResultPayload({ rewardName, rewardType, hasClaimedFirstTime, expir
 
   // หากเคยรับแต้มครั้งแรกแล้ว แสดงเฉพาะข้อความ ไม่แสดงแบนเนอร์
   return {
-    flags: 32768,
+    flags: FLAG_V2_EPHEMERAL,
     components: [
       {
         type: 17,
@@ -221,7 +221,7 @@ function buildResultPayload({ rewardName, rewardType, hasClaimedFirstTime, expir
 function buildCheckCoinPayload(coins = 0, avatarUrl) {
   const avatar = avatarUrl || "https://cdn.discordapp.com/embed/avatars/0.png";
   return {
-    flags: 32768,
+    flags: FLAG_V2_EPHEMERAL,
     components: [
       {
         type: 17,
@@ -341,7 +341,7 @@ function buildHistoryPayload(historyItems = [], currentPage = 1, totalPages = 1)
   }
 
   return {
-    flags: 32768,
+    flags: FLAG_V2_EPHEMERAL,
     components: [
       {
         type: 17,

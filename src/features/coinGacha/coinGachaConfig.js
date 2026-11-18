@@ -53,5 +53,9 @@ module.exports = {
   ROLL_COOLDOWN_MS: 4000,
 
   // อัตราการแปลงแต้มชดเชยกรณีได้รางวัลยศซ้ำ (Points Fallback)
-  ROLE_DUPLICATE_POINTS: 300
+  ROLE_DUPLICATE_POINTS: 300,
+
+  // Message Flags สำหรับ Component V2
+  FLAG_V2_PUBLIC: 32768,     // ส่งบอร์ดสาธารณะในห้อง (MessageFlags.IsComponentsV2)
+  FLAG_V2_EPHEMERAL: 32832   // ตอบกลับแบบซ่อนเฉพาะเจ้าของ ehp (32768 | 64)
 };

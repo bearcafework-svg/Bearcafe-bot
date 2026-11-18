@@ -13,9 +13,7 @@ const {
   getUserCoins,
   getUserRollHistory
 } = require("./coinGachaService");
-const { CUSTOM_IDS } = require("./coinGachaConfig");
-
-const FLAG_V2_EPHEMERAL = 32768;
+const { CUSTOM_IDS, FLAG_V2_EPHEMERAL } = require("./coinGachaConfig");
 
 /**
  * ติดตั้ง Event Listener ดักจับการกดปุ่มของตู้สุ่มเหรียญ
@@ -31,12 +29,6 @@ function setupCoinGacha(client) {
       // ── 1. ปุ่มโยนเหรียญสุ่มรางวัล ───────────────────────────────────────
       if (customId === CUSTOM_IDS.ROLL) {
         await interaction.deferReply({ flags: FLAG_V2_EPHEMERAL }).catch(() => {});
-
-        // แสดงแอนิเมชันกำลังสุ่มรางวัลทันที
-        await interaction.editReply(buildRollingAnimationPayload("common")).catch(() => {});
-
-        // หน่วงเวลาแอนิเมชัน 2.5 วินาที เพื่อความสมจริงและตื่นเต้น
-        await new Promise((resolve) => setTimeout(resolve, 2500));
 
         // ดำเนินการสุ่มและหักเหรียญในฐานข้อมูลแบบ Atomic
         const result = await executeCoinRoll(interaction.user, interaction.member);
@@ -57,6 +49,12 @@ function setupCoinGacha(client) {
             ]
           });
         }
+
+        // แสดงแอนิเมชันกำลังสุ่มรางวัลตามระดับ Tier ที่สุ่มได้จริง (common, rare, epic, god)
+        await interaction.editReply(buildRollingAnimationPayload(result.rollData.tier)).catch(() => {});
+
+        // หน่วงเวลาแอนิเมชัน 2.5 วินาที เพื่อความสมจริงและตื่นเต้น
+        await new Promise((resolve) => setTimeout(resolve, 2500));
 
         // สร้างการ์ดผลลัพธ์ของรางวัล
         const payload = buildResultPayload({

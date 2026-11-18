@@ -80,9 +80,33 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'gacha_coin_rolls' AND policyname = 'Allow service_role manage gacha coin rolls') THEN
     CREATE POLICY "Allow service_role manage gacha coin rolls" ON public.gacha_coin_rolls FOR ALL TO service_role USING (true) WITH CHECK (true);
   END IF;
+  -- gacha_coin_tier_rates
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'gacha_coin_tier_rates' AND policyname = 'Allow read gacha coin tier rates') THEN
+    CREATE POLICY "Allow read gacha coin tier rates" ON public.gacha_coin_tier_rates FOR SELECT USING (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'gacha_coin_tier_rates' AND policyname = 'Allow manage gacha coin tier rates to authenticated') THEN
+    CREATE POLICY "Allow manage gacha coin tier rates to authenticated" ON public.gacha_coin_tier_rates FOR ALL TO authenticated USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'gacha_coin_tier_rates' AND policyname = 'Allow service_role manage gacha coin tier rates') THEN
+    CREATE POLICY "Allow service_role manage gacha coin tier rates" ON public.gacha_coin_tier_rates FOR ALL TO service_role USING (true) WITH CHECK (true);
+  END IF;
 END $$;
 
--- 6. Atomic RPC Function สำหรับการโยนเหรียญสุ่มรางวัล (fn_roll_coin_gacha)
+-- 6. ตารางตั้งค่าอัตราสุ่มของแต่ละระดับ (gacha_coin_tier_rates)
+CREATE TABLE IF NOT EXISTS public.gacha_coin_tier_rates (
+    tier VARCHAR(16) PRIMARY KEY CHECK (tier IN ('god', 'epic', 'rare', 'common')),
+    rate_percent NUMERIC(7, 4) NOT NULL DEFAULT 0.0000,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+INSERT INTO public.gacha_coin_tier_rates (tier, rate_percent) VALUES
+    ('god', 0.0700),
+    ('epic', 1.0000),
+    ('rare', 45.0000),
+    ('common', 53.9300)
+ON CONFLICT (tier) DO NOTHING;
+
+-- 7. Atomic RPC Function สำหรับการโยนเหรียญสุ่มรางวัล (fn_roll_coin_gacha)
 CREATE OR REPLACE FUNCTION public.fn_roll_coin_gacha(p_discord_id TEXT)
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -99,6 +123,12 @@ DECLARE
     v_roll_id BIGINT;
     v_tier_list TEXT[] := ARRAY['god', 'epic', 'rare', 'common'];
     v_tier_idx INT;
+    v_god_rate NUMERIC;
+    v_epic_rate NUMERIC;
+    v_rare_rate NUMERIC;
+    v_god_threshold NUMERIC;
+    v_epic_threshold NUMERIC;
+    v_rare_threshold NUMERIC;
 BEGIN
     -- 1. ตรวจสอบเหรียญของผู้ใช้
     SELECT COALESCE(gacha_coins, 0) INTO v_user_coins
@@ -115,17 +145,33 @@ BEGIN
         );
     END IF;
 
-    -- 2. สุ่มหา Tier ตาม Waterfall Cascade
-    -- God: 0.07% (0.0007), Epic: 1.00% (0.01), Rare: 45.00% (0.45), Common: remainder
+    -- 2. ดึงอัตราสุ่มจากตาราง gacha_coin_tier_rates (ถ้าไม่มีหรือเป็น NULL ให้ fallback เป็นค่าเริ่มต้น)
+    SELECT COALESCE(rate_percent, 0.07) INTO v_god_rate
+    FROM public.gacha_coin_tier_rates WHERE tier = 'god';
+    IF v_god_rate IS NULL THEN v_god_rate := 0.07; END IF;
+
+    SELECT COALESCE(rate_percent, 1.00) INTO v_epic_rate
+    FROM public.gacha_coin_tier_rates WHERE tier = 'epic';
+    IF v_epic_rate IS NULL THEN v_epic_rate := 1.00; END IF;
+
+    SELECT COALESCE(rate_percent, 45.00) INTO v_rare_rate
+    FROM public.gacha_coin_tier_rates WHERE tier = 'rare';
+    IF v_rare_rate IS NULL THEN v_rare_rate := 45.00; END IF;
+
+    -- คำนวณขอบเขตโอกาสสุ่ม (Thresholds: 0.0 - 1.0)
+    v_god_threshold := (v_god_rate / 100.0);
+    v_epic_threshold := v_god_threshold + (v_epic_rate / 100.0);
+    v_rare_threshold := v_epic_threshold + (v_rare_rate / 100.0);
+
     v_roll_chance := random();
 
-    IF v_roll_chance < 0.0007 THEN
+    IF v_roll_chance < v_god_threshold THEN
         v_target_tier := 'god';
         v_tier_idx := 1;
-    ELSIF v_roll_chance < 0.0107 THEN
+    ELSIF v_roll_chance < v_epic_threshold THEN
         v_target_tier := 'epic';
         v_tier_idx := 2;
-    ELSIF v_roll_chance < 0.4607 THEN
+    ELSIF v_roll_chance < v_rare_threshold THEN
         v_target_tier := 'rare';
         v_tier_idx := 3;
     ELSE

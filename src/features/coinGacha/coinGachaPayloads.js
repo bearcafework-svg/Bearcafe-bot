@@ -267,27 +267,6 @@ function buildCheckCoinPayload(coins = 0, avatarUrl) {
  * @param {number} totalPages - จำนวนหน้าทั้งหมด
  */
 function buildHistoryPayload(historyItems = [], currentPage = 1, totalPages = 1) {
-  let contentText = "";
-
-  if (!historyItems || historyItems.length === 0) {
-    contentText = "ยังไม่มีประวัติการสุ่มโยนเหรียญของคุณในระบบค่ะ 🍃";
-  } else {
-    const lines = historyItems.map((item, index) => {
-      const num = (currentPage - 1) * 50 + index + 1;
-      const createdTs = Math.floor(new Date(item.created_at).getTime() / 1000);
-      const name = item.history_name || item.reward_name;
-
-      if (item.reward_type === "auto" || item.is_claimed) {
-        return `${num}. ได้รับ \`${name}\` เมื่อ <t:${createdTs}:s> ✅ **รับแล้ว!**`;
-      } else {
-        const expiryTs = item.expires_at ? Math.floor(new Date(item.expires_at).getTime() / 1000) : createdTs + 2592000;
-        return `${num}. ได้รับ \`${name}\` เมื่อ <t:${createdTs}:s> หมดเขตรับ <t:${expiryTs}:R>`;
-      }
-    });
-
-    contentText = lines.join("\n");
-  }
-
   const containerComponents = [
     {
       type: 10,
@@ -296,12 +275,49 @@ function buildHistoryPayload(historyItems = [], currentPage = 1, totalPages = 1)
     {
       type: 14,
       spacing: 2
-    },
-    {
-      type: 10,
-      content: contentText
     }
   ];
+
+  if (!historyItems || historyItems.length === 0) {
+    containerComponents.push({
+      type: 10,
+      content: "ยังไม่มีประวัติการสุ่มโยนเหรียญของคุณในระบบค่ะ 🍃"
+    });
+  } else {
+    // แบ่งบล็อกข้อความหากยาวเกิน 3500 ตัวอักษร เพื่อไม่ให้ชนขีดจำกัด Discord (4,000 ตัวอักษรต่อบล็อก)
+    let currentChunk = "";
+    for (let index = 0; index < historyItems.length; index++) {
+      const item = historyItems[index];
+      const num = (currentPage - 1) * 50 + index + 1;
+      const createdTs = Math.floor(new Date(item.created_at || Date.now()).getTime() / 1000);
+      const name = (item.history_name || item.reward_name || "ของรางวัล").slice(0, 80);
+
+      let line = "";
+      if (item.reward_type === "auto" || item.is_claimed) {
+        line = `${num}. ได้รับ \`${name}\` เมื่อ <t:${createdTs}:s> ✅ **รับแล้ว!**\n`;
+      } else {
+        const expiryTs = item.expires_at ? Math.floor(new Date(item.expires_at).getTime() / 1000) : createdTs + 2592000;
+        line = `${num}. ได้รับ \`${name}\` เมื่อ <t:${createdTs}:s> หมดเขตรับ <t:${expiryTs}:R>\n`;
+      }
+
+      if ((currentChunk + line).length > 3500) {
+        containerComponents.push({
+          type: 10,
+          content: currentChunk.trim()
+        });
+        currentChunk = line;
+      } else {
+        currentChunk += line;
+      }
+    }
+
+    if (currentChunk.trim().length > 0) {
+      containerComponents.push({
+        type: 10,
+        content: currentChunk.trim()
+      });
+    }
+  }
 
   // ถ้ามีมากกว่า 1 หน้า ให้เพิ่ม Action Row ปุ่มเลื่อนหน้า
   if (totalPages > 1) {

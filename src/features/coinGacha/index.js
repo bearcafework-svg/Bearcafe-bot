@@ -47,7 +47,7 @@ function setupCoinGacha(client) {
                 ]
               }
             ]
-          });
+          }).catch(() => {});
         }
 
         // แสดงแอนิเมชันกำลังสุ่มรางวัลตามระดับ Tier ที่สุ่มได้จริง (common, rare, epic, god)
@@ -65,7 +65,7 @@ function setupCoinGacha(client) {
           fallbackNotice: result.fallbackNotice
         });
 
-        return interaction.editReply(payload);
+        return interaction.editReply(payload).catch(() => {});
       }
 
       // ── 2. ปุ่มเช็กเหรียญ ──────────────────────────────────────────────
@@ -78,7 +78,7 @@ function setupCoinGacha(client) {
           : null;
 
         const payload = buildCheckCoinPayload(coins, avatarUrl);
-        return interaction.editReply(payload);
+        return interaction.editReply(payload).catch(() => {});
       }
 
       // ── 3. ปุ่มดูประวัติการสุ่ม (และปุ่มเลื่อนหน้า) ──────────────────────
@@ -91,15 +91,22 @@ function setupCoinGacha(client) {
         const { items, totalPages, currentPage } = await getUserRollHistory(interaction.user.id, page);
         const payload = buildHistoryPayload(items, currentPage, totalPages);
 
-        return interaction.editReply(payload);
+        return interaction.editReply(payload).catch(() => {});
       }
     } catch (err) {
-      console.error("[coinGacha] Interaction handler error:", err);
-      if (interaction.deferred || interaction.replied) {
-        await interaction.editReply({
-          content: `❌ เกิดข้อผิดพลาดในระบบตู้สุ่มโยนเหรียญ: \`${err.message}\``
-        }).catch(() => {});
-      }
+      console.error("[coinGacha] Interaction handler error:", err.message || err);
+      try {
+        if (interaction.deferred || interaction.replied) {
+          await interaction.editReply({
+            content: `❌ เกิดข้อผิดพลาดในระบบตู้สุ่มโยนเหรียญ: \`${err.message}\``
+          }).catch(() => {});
+        } else {
+          await interaction.reply({
+            content: `❌ เกิดข้อผิดพลาดในระบบตู้สุ่มโยนเหรียญ: \`${err.message}\``,
+            flags: FLAG_V2_EPHEMERAL
+          }).catch(() => {});
+        }
+      } catch {}
     }
   });
 

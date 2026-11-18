@@ -49,8 +49,8 @@ module.exports = {
     CHECK: "coin_gacha_check",
   },
 
-  // คูลดาวน์การกดปุ่มโยนเหรียญ (มิลลิวินาที)
-  ROLL_COOLDOWN_MS: 4000,
+  // คูลดาวน์การกดปุ่มโยนเหรียญ (มิลลิวินาที สอดคล้องกับแอนิเมชัน 5 วินาที)
+  ROLL_COOLDOWN_MS: 5000,
 
   // อัตราการแปลงแต้มชดเชยกรณีได้รางวัลยศซ้ำ (Points Fallback)
   ROLE_DUPLICATE_POINTS: 300,

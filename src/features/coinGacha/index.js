@@ -53,8 +53,8 @@ function setupCoinGacha(client) {
         // แสดงแอนิเมชันกำลังสุ่มรางวัลตามระดับ Tier ที่สุ่มได้จริง (common, rare, epic, god)
         await interaction.editReply(buildRollingAnimationPayload(result.rollData.tier)).catch(() => {});
 
-        // หน่วงเวลาแอนิเมชัน 2.5 วินาที เพื่อความสมจริงและตื่นเต้น
-        await new Promise((resolve) => setTimeout(resolve, 2500));
+        // หน่วงเวลาแอนิเมชัน GIF 5 วินาที เพื่อความสมจริงและตื่นเต้น
+        await new Promise((resolve) => setTimeout(resolve, 5000));
 
         // สร้างการ์ดผลลัพธ์ของรางวัล
         const payload = buildResultPayload({

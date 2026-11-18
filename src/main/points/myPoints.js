@@ -286,57 +286,64 @@ function setupMyPoints(client) {
     const userId = interaction.user.id;
 
     if (userId !== ownerId) {
-      return interaction.reply({ content: '## <:bear7:1148271118709436416>︲ปุ่มนี้กดได้เฉพาะเจ้าของคำสั่งเท่านั้นนะคะ ꒰⑅ᵕ༚ᵕ꒱˖\u2661', flags: FLAG_EPHEMERAL });
+      return interaction.reply({ content: '## <:bear7:1148271118709436416>︲ปุ่มนี้กดได้เฉพาะเจ้าของคำสั่งเท่านั้นนะคะ ꒰⑅ᵕ༚ᵕ꒱˖♡', flags: FLAG_EPHEMERAL }).catch(() => {});
     }
 
-    let { points, cakes, dailyPoints } = await getUserData(supabase, userId, interaction.member);
-    const maxPoints = getMaxPoints(interaction.member);
-    const overflowCap = getOverflowCap(maxPoints, interaction.member);
+    // ⚡ Defer update ทันทีเพื่อป้องกัน 10062 Unknown Interaction (timeout 3 วินาทีของ Discord)
+    await interaction.deferUpdate().catch(() => {});
 
-    if (cakes >= 4 || points < 750) {
-      return interaction.reply({ content: "## <:cat5:1297905123498000394> แหนะ เห็นนะ จะขี้โกงหรอ แต้มเธอไม่พอให้แลกนะคะ", flags: FLAG_EPHEMERAL });
-    }
+    try {
+      let { points, cakes, dailyPoints } = await getUserData(supabase, userId, interaction.member);
+      const maxPoints = getMaxPoints(interaction.member);
+      const overflowCap = getOverflowCap(maxPoints, interaction.member);
 
-    const isSuccess = Math.random() < 0.85;
+      if (cakes >= 4 || points < 750) {
+        return interaction.followUp({ content: "## <:cat5:1297905123498000394> แหนะ เห็นนะ จะขี้โกงหรอ แต้มเธอไม่พอให้แลกนะคะ", flags: FLAG_EPHEMERAL }).catch(() => {});
+      }
 
-    if (isSuccess) {
-      points -= 750;
-      cakes += 1;
-      await supabase.from('user_points').upsert({ discord_id: userId, points, cakes }, { onConflict: 'discord_id' });
+      const isSuccess = Math.random() < 0.85;
 
-      // Auto drain overflow into newly freed space
-      const drainRes = await autoDrainOverflow(supabase, interaction.member, userId);
-      const drained = drainRes.drained;
-      const currentPoints = drainRes.points;
-      const overflowPoints = drainRes.overflow;
-      const overflowExpiresAt = drainRes.overflowExpiresAt;
+      if (isSuccess) {
+        points -= 750;
+        cakes += 1;
+        await supabase.from('user_points').upsert({ discord_id: userId, points, cakes }, { onConflict: 'discord_id' });
 
-      const drainNotice = drained > 0 ? `✅ ใช้แต้มสำเร็จ 750 แต้ม (ดึงแต้มส่วนเกินมาเติมในกระเป๋า ${drained.toLocaleString()} แต้ม)` : null;
-      const payload = buildMainPayload(interaction, currentPoints, cakes, maxPoints, 1, dailyPoints, overflowPoints, overflowCap, overflowExpiresAt, drainNotice);
-      await interaction.update(payload);
-    } else {
-      // 15% fail
-      const refund = Math.floor(Math.random() * (375 - 100 + 1)) + 100;
-      points = points - 750 + refund;
-      await supabase.from('user_points').upsert({ discord_id: userId, points }, { onConflict: 'discord_id' });
+        // Auto drain overflow into newly freed space
+        const drainRes = await autoDrainOverflow(supabase, interaction.member, userId);
+        const drained = drainRes.drained;
+        const currentPoints = drainRes.points;
+        const overflowPoints = drainRes.overflow;
+        const overflowExpiresAt = drainRes.overflowExpiresAt;
 
-      // Auto drain overflow into newly freed space (750 - refund)
-      const drainRes = await autoDrainOverflow(supabase, interaction.member, userId);
-      const drained = drainRes.drained;
-      const currentPoints = drainRes.points;
-      const overflowPoints = drainRes.overflow;
-      const overflowExpiresAt = drainRes.overflowExpiresAt;
+        const drainNotice = drained > 0 ? `✅ ใช้แต้มสำเร็จ 750 แต้ม (ดึงแต้มส่วนเกินมาเติมในกระเป๋า ${drained.toLocaleString()} แต้ม)` : null;
+        const payload = buildMainPayload(interaction, currentPoints, cakes, maxPoints, 1, dailyPoints, overflowPoints, overflowCap, overflowExpiresAt, drainNotice);
+        await interaction.editReply(payload).catch((e) => console.error("[myPoints] editReply claim cake error:", e.message));
+      } else {
+        // 15% fail
+        const refund = Math.floor(Math.random() * (375 - 100 + 1)) + 100;
+        points = points - 750 + refund;
+        await supabase.from('user_points').upsert({ discord_id: userId, points }, { onConflict: 'discord_id' });
 
-      const drainNotice = drained > 0
-        ? `❌ แลกเค้กไม่สำเร็จ ได้รับแต้มคืน ${refund.toLocaleString()} แต้ม (ดึงแต้มส่วนเกินมาเติมในกระเป๋า ${drained.toLocaleString()} แต้ม)`
-        : `❌ แลกเค้กไม่สำเร็จ แต่ได้รับแต้มคืน ${refund.toLocaleString()} แต้ม ลองใหม่อีกครั้งนะ!`;
+        // Auto drain overflow into newly freed space (750 - refund)
+        const drainRes = await autoDrainOverflow(supabase, interaction.member, userId);
+        const drained = drainRes.drained;
+        const currentPoints = drainRes.points;
+        const overflowPoints = drainRes.overflow;
+        const overflowExpiresAt = drainRes.overflowExpiresAt;
 
-      let payload = buildMainPayload(interaction, currentPoints, cakes, maxPoints, 1, dailyPoints, overflowPoints, overflowCap, overflowExpiresAt, drainNotice);
+        const drainNotice = drained > 0
+          ? `❌ แลกเค้กไม่สำเร็จ ได้รับแต้มคืน ${refund.toLocaleString()} แต้ม (ดึงแต้มส่วนเกินมาเติมในกระเป๋า ${drained.toLocaleString()} แต้ม)`
+          : `❌ แลกเค้กไม่สำเร็จ แต่ได้รับแต้มคืน ${refund.toLocaleString()} แต้ม ลองใหม่อีกครั้งนะ!`;
 
-      // Set fail image
-      payload.components[1].components[0].items[0].media.url = "https://cdn.discordapp.com/attachments/1524704267015819274/1524741224517472406/425f72edbda608d3.png";
+        let payload = buildMainPayload(interaction, currentPoints, cakes, maxPoints, 1, dailyPoints, overflowPoints, overflowCap, overflowExpiresAt, drainNotice);
 
-      await interaction.update(payload);
+        // Set fail image
+        payload.components[1].components[0].items[0].media.url = "https://cdn.discordapp.com/attachments/1524704267015819274/1524741224517472406/425f72edbda608d3.png";
+
+        await interaction.editReply(payload).catch((e) => console.error("[myPoints] editReply fail cake error:", e.message));
+      }
+    } catch (err) {
+      console.error("[myPoints] Error handling mypoints_claim_cake_:", err.message);
     }
   });
 
@@ -427,19 +434,22 @@ function setupMyPoints(client) {
 
   // ── จัดการยืนยันแลกยศ ──────────────────────────────────────────────
   registerButton('mypoints_confirm_', async (interaction) => {
+    // ⚡ Defer update ทันทีเพื่อป้องกัน 10062 Unknown Interaction (timeout 3 วินาทีของ Discord)
+    await interaction.deferUpdate().catch(() => {});
+
     const roleId = interaction.customId.replace('mypoints_confirm_', '');
     const userId = interaction.user.id;
 
-    const { cakes } = await getUserData(supabase, userId);
-    if (cakes < 4) {
-      return interaction.reply({ content: "## <:bear7:1148271118709436416>︲เค้กของคุณไม่พอ", flags: FLAG_EPHEMERAL });
-    }
-
-    if (interaction.member.roles.cache.has(roleId)) {
-      return interaction.reply({ content: `## <:bear7:1148271118709436416>︲คุณมียศ <@&${roleId}> แล้วน้า ลองแลกยศอื่นดูนะคะ ꒰⑅ᵕ༚ᵕ꒱˖♡`, flags: FLAG_EPHEMERAL });
-    }
-
     try {
+      const { cakes } = await getUserData(supabase, userId);
+      if (cakes < 4) {
+        return interaction.followUp({ content: "## <:bear7:1148271118709436416>︲เค้กของคุณไม่พอ", flags: FLAG_EPHEMERAL }).catch(() => {});
+      }
+
+      if (interaction.member.roles.cache.has(roleId)) {
+        return interaction.followUp({ content: `## <:bear7:1148271118709436416>︲คุณมียศ <@&${roleId}> แล้วน้า ลองแลกยศอื่นดูนะคะ ꒰⑅ᵕ༚ᵕ꒱˖♡`, flags: FLAG_EPHEMERAL }).catch(() => {});
+      }
+
       await interaction.member.roles.add(roleId);
       await supabase.from('user_points').update({ cakes: 0 }).eq('discord_id', userId);
 
@@ -457,10 +467,10 @@ function setupMyPoints(client) {
           ]
         }]
       };
-      await interaction.update(successPayload);
+      await interaction.editReply(successPayload).catch((e) => console.error("[myPoints] editReply confirm role error:", e.message));
     } catch (err) {
       console.error('[myPoints] Error giving role:', err.message);
-      await interaction.reply({ content: "เกิดข้อผิดพลาดในการมอบยศ โปรดลองอีกครั้ง", flags: FLAG_EPHEMERAL });
+      await interaction.followUp({ content: "เกิดข้อผิดพลาดในการมอบยศ โปรดลองอีกครั้ง", flags: FLAG_EPHEMERAL }).catch(() => {});
     }
   });
 

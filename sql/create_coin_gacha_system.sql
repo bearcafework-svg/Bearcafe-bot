@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS public.gacha_coin_rolls (
     reward_type VARCHAR(16) NOT NULL,                   -- 'auto' หรือ 'manual'
     is_claimed BOOLEAN NOT NULL DEFAULT false,          -- true = รับแล้ว
     claimed_at TIMESTAMPTZ DEFAULT NULL,                -- วันเวลาที่รับ
-    claimed_by_admin_id VARCHAR(32) DEFAULT NULL,       -- Admin ผู้ยืนยัน (กรณี manual)
+    claimed_by_admin_id TEXT DEFAULT NULL,              -- Admin ผู้ยืนยัน (กรณี manual)
     expires_at TIMESTAMPTZ DEFAULT NULL,                -- วันหมดเขตรับ (NOW() + 1 month สำหรับ manual)
     created_at TIMESTAMPTZ DEFAULT NOW()
 );

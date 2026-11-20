@@ -45,6 +45,7 @@ module.exports = {
   // Custom IDs สำหรับปุ่มกด
   CUSTOM_IDS: {
     ROLL: "coin_gacha_roll",
+    ROLL_AGAIN: "coin_gacha_roll_again",
     HISTORY_PREFIX: "coin_gacha_history_",
     CHECK: "coin_gacha_check",
   },

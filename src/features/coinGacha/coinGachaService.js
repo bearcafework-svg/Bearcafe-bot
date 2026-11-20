@@ -227,7 +227,8 @@ async function executeCoinRoll(user, member) {
       rollData: rollResult,
       hasClaimedFirstTime,
       fallbackNotice,
-      expiryTimestamp
+      expiryTimestamp,
+      remainingCoins: rollResult.remaining_coins ?? 0
     };
   } catch (fatalErr) {
     console.error("[coinGachaService] executeCoinRoll fatal exception:", fatalErr.message);
@@ -240,52 +241,71 @@ async function executeCoinRoll(user, member) {
 }
 
 /**
- * 6. ดึงประวัติการสุ่มของผู้ใช้ (แบ่งหน้า หน้าละ 50 รายการ)
+ * 6. ดึงประวัติการสุ่มของผู้ใช้ (แยกรางวัลรอรับ และแบ่งหน้ารางวัลที่รับแล้ว)
  */
 async function getUserRollHistory(userId, page = 1) {
   try {
     const sb = getSupabaseClient();
-    if (!sb) return { items: [], totalPages: 1, currentPage: 1 };
+    if (!sb) return { pendingItems: [], claimedItems: [], items: [], totalPages: 1, currentPage: 1 };
 
-    const PAGE_SIZE = 50;
+    const PAGE_SIZE = 15;
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const from = (pageNum - 1) * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
 
-    // นับจำนวนทั้งหมด โดยใช้ head: true ไม่ดาวน์โหลดข้อมูลแถว เพื่อประหยัด Supabase Egress
-    const { count, error: countErr } = await sb
-      .from("gacha_coin_rolls")
-      .select("*", { count: "exact", head: true })
-      .eq("discord_id", userId);
-
-    if (countErr) {
-      console.error("[coinGachaService] Error counting roll history:", countErr.message);
-    }
-
-    const totalCount = count || 0;
-    const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
-
-    // ดึงเฉพาะ column ที่จำเป็น เพื่อประหยัด Supabase Egress Bandwidth
-    const { data: items, error: selectErr } = await sb
+    // 1. ดึงรางวัลที่รอการรับทั้งหมด (Pending manual rewards)
+    const { data: pendingItems, error: pendingErr } = await sb
       .from("gacha_coin_rolls")
       .select("id, tier, reward_name, history_name, reward_type, is_claimed, expires_at, created_at")
       .eq("discord_id", userId)
+      .eq("reward_type", "manual")
+      .eq("is_claimed", false)
+      .order("created_at", { ascending: false });
+
+    if (pendingErr) {
+      console.error("[coinGachaService] Error fetching pending roll history:", pendingErr.message);
+    }
+
+    // 2. นับจำนวนรางวัลที่รับเรียบร้อยแล้วทั้งหมด เพื่อคำนวณจำนวนหน้า
+    const { count: claimedCount, error: countErr } = await sb
+      .from("gacha_coin_rolls")
+      .select("*", { count: "exact", head: true })
+      .eq("discord_id", userId)
+      .or("reward_type.eq.auto,is_claimed.eq.true");
+
+    if (countErr) {
+      console.error("[coinGachaService] Error counting claimed roll history:", countErr.message);
+    }
+
+    const totalCount = claimedCount || 0;
+    const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+
+    // 3. ดึงรายการที่รับเรียบร้อยแล้วตามหน้าที่เลือก (Claimed items)
+    const { data: claimedItems, error: claimedErr } = await sb
+      .from("gacha_coin_rolls")
+      .select("id, tier, reward_name, history_name, reward_type, is_claimed, expires_at, created_at")
+      .eq("discord_id", userId)
+      .or("reward_type.eq.auto,is_claimed.eq.true")
       .order("created_at", { ascending: false })
       .range(from, to);
 
-    if (selectErr) {
-      console.error("[coinGachaService] Error fetching roll history:", selectErr.message);
-      return { items: [], totalPages: 1, currentPage: 1 };
+    if (claimedErr) {
+      console.error("[coinGachaService] Error fetching claimed roll history:", claimedErr.message);
     }
 
+    const pItems = pendingItems || [];
+    const cItems = claimedItems || [];
+
     return {
-      items: items || [],
+      pendingItems: pItems,
+      claimedItems: cItems,
+      items: [...pItems, ...cItems],
       totalPages,
       currentPage: pageNum
     };
   } catch (err) {
     console.error("[coinGachaService] getUserRollHistory exception:", err.message);
-    return { items: [], totalPages: 1, currentPage: 1 };
+    return { pendingItems: [], claimedItems: [], items: [], totalPages: 1, currentPage: 1 };
   }
 }
 

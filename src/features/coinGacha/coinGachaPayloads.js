@@ -152,8 +152,9 @@ function buildRollingAnimationPayload(tier = "common") {
  * @param {boolean} params.hasClaimedFirstTime - สมาชิกเคยรับแต้มครั้งแรกหรือไม่
  * @param {number|null} params.expiryTimestamp - Unix Timestamp วันหมดเขต (กรณี manual)
  * @param {string|null} params.fallbackNotice - ข้อความแจ้งเตือนกรณีแปลงยศเป็นแต้มสำรอง
+ * @param {number} [params.remainingCoins=0] - จำนวนเหรียญคงเหลือ
  */
-function buildResultPayload({ userId, rewardName, rewardType, hasClaimedFirstTime, expiryTimestamp, fallbackNotice }) {
+function buildResultPayload({ userId, rewardName, rewardType, hasClaimedFirstTime, expiryTimestamp, fallbackNotice, remainingCoins = 0 }) {
   const userMention = userId ? `<@${userId}>` : "คุณ";
   let contentText = `### ${userMention} ได้รับ ${rewardName}\n`;
 
@@ -169,52 +170,73 @@ function buildResultPayload({ userId, rewardName, rewardType, hasClaimedFirstTim
     contentText += `- ติดต่อรับรางวัลผ่านห้อง <#${CHANNELS.STAFF_CLAIM}> ควรรับภายใน ${expiryStr}\n`;
   }
 
+  const containerComponents = [];
+
   // หากยังไม่เคยรับแต้มครั้งแรก ให้เพิ่มข้อความแจ้งและแบนเนอร์ด้านล่าง
   if (!hasClaimedFirstTime) {
-    contentText += `- หลังจากแคปแล้ว รับรางวัลได้ที่ <#${CHANNELS.FIRST_TIME_CLAIM}> (ครั้งแรก)`;
+    contentText += `- แคปหน้านี้แล้วอวดที่ห้อง <#1524124134387224828> หลังจากนั้นจากนั้นแคปส่งที่ <#${CHANNELS.FIRST_TIME_CLAIM}> เพื่อรับรางวัล (ได้ครั้งเดียว)`;
 
-    return {
-      flags: FLAG_V2_EPHEMERAL,
-      components: [
-        {
-          type: 17,
-          components: [
-            {
-              type: 10,
-              content: contentText
-            },
-            {
-              type: 14,
-              divider: false
-            },
-            {
-              type: 12,
-              items: [
-                {
-                  media: {
-                    url: MEDIA.FIRST_TIME_BANNER
-                  }
-                }
-              ]
+    containerComponents.push(
+      {
+        type: 10,
+        content: contentText
+      },
+      {
+        type: 14,
+        divider: false
+      },
+      {
+        type: 12,
+        items: [
+          {
+            media: {
+              url: MEDIA.FIRST_TIME_BANNER
             }
-          ]
-        }
-      ]
-    };
+          }
+        ]
+      }
+    );
+  } else {
+    // หากเคยรับแต้มครั้งแรกแล้ว แสดงเฉพาะข้อความ ไม่แสดงแบนเนอร์
+    containerComponents.push({
+      type: 10,
+      content: contentText.trim()
+    });
   }
 
-  // หากเคยรับแต้มครั้งแรกแล้ว แสดงเฉพาะข้อความ ไม่แสดงแบนเนอร์
+  // หากยังมีเหรียญเหลือ (remainingCoins > 0) ให้เพิ่มปุ่ม "︲โยนอีกครั้ง" ไว้ล่างสุด
+  if (remainingCoins > 0) {
+    containerComponents.push(
+      {
+        type: 14,
+        spacing: 1,
+        divider: false
+      },
+      {
+        type: 1,
+        components: [
+          {
+            type: 2,
+            style: 3,
+            custom_id: CUSTOM_IDS.ROLL_AGAIN,
+            label: "︲โยนอีกครั้ง",
+            emoji: {
+              id: "1572475322165633124",
+              name: "flowingstar",
+              animated: true
+            }
+          }
+        ]
+      }
+    );
+  }
+
   return {
     flags: FLAG_V2_EPHEMERAL,
     components: [
       {
         type: 17,
-        components: [
-          {
-            type: 10,
-            content: contentText.trim()
-          }
-        ]
+        components: containerComponents
       }
     ]
   };
@@ -264,11 +286,25 @@ function buildCheckCoinPayload(coins = 0, avatarUrl) {
 
 /**
  * 5. การ์ดประวัติการสุ่ม (History Card)
- * @param {Array} historyItems - รายการประวัติ
+ * @param {Array|Object} historyData - รายการประวัติ หรือ Object ที่มี pendingItems / claimedItems
  * @param {number} currentPage - หน้าปัจจุบัน
  * @param {number} totalPages - จำนวนหน้าทั้งหมด
  */
-function buildHistoryPayload(historyItems = [], currentPage = 1, totalPages = 1) {
+function buildHistoryPayload(historyData = [], currentPage = 1, totalPages = 1) {
+  let pendingItems = [];
+  let claimedItems = [];
+
+  if (Array.isArray(historyData)) {
+    pendingItems = historyData.filter((item) => item.reward_type === "manual" && !item.is_claimed);
+    claimedItems = historyData.filter((item) => item.reward_type === "auto" || item.is_claimed);
+  } else if (historyData && typeof historyData === "object") {
+    pendingItems = historyData.pendingItems || [];
+    claimedItems = historyData.claimedItems || [];
+    if (historyData.currentPage) currentPage = historyData.currentPage;
+    if (historyData.totalPages) totalPages = historyData.totalPages;
+  }
+
+  // 1. หัวข้อหลัก (Title Header)
   const containerComponents = [
     {
       type: 10,
@@ -280,48 +316,59 @@ function buildHistoryPayload(historyItems = [], currentPage = 1, totalPages = 1)
     }
   ];
 
-  if (!historyItems || historyItems.length === 0) {
+  // กรณีไม่มีประวัติเลยทั้งสองหมวด (ผู้ใช้ใหม่)
+  if (pendingItems.length === 0 && claimedItems.length === 0) {
     containerComponents.push({
       type: 10,
       content: "ยังไม่มีประวัติการสุ่มโยนเหรียญของคุณในระบบค่ะ 🍃"
     });
   } else {
-    // แบ่งบล็อกข้อความหากยาวเกิน 3500 ตัวอักษร เพื่อไม่ให้ชนขีดจำกัด Discord (4,000 ตัวอักษรต่อบล็อก)
-    let currentChunk = "";
-    for (let index = 0; index < historyItems.length; index++) {
-      const item = historyItems[index];
-      const num = (currentPage - 1) * 50 + index + 1;
-      const createdTs = Math.floor(new Date(item.created_at || Date.now()).getTime() / 1000);
-      const name = (item.history_name || item.reward_name || "ของรางวัล").slice(0, 80);
+    // 2. หมวดรางวัลที่รอการรับ (Pending Section) — แสดงเฉพาะเมื่อมีของรางวัลที่ยังไม่ได้กดรับจริง
+    if (pendingItems.length > 0) {
+      let pendingContent = "### <a:bearg11:1396016056035840140>︲รางวัลที่รอการรับ\n";
+      pendingItems.forEach((item, index) => {
+        const num = index + 1;
+        const name = (item.history_name || item.reward_name || "ของรางวัล").slice(0, 80);
+        const createdTs = Math.floor(new Date(item.created_at || Date.now()).getTime() / 1000);
+        const expiryTs = item.expires_at
+          ? Math.floor(new Date(item.expires_at).getTime() / 1000)
+          : createdTs + 2592000;
+        pendingContent += `${num}. __\`${name}\`__ — <t:${createdTs}:s> หมดเขตรับ <t:${expiryTs}:R>\n`;
+      });
 
-      let line = "";
-      if (item.reward_type === "auto" || item.is_claimed) {
-        line = `${num}. ได้รับ \`${name}\` เมื่อ <t:${createdTs}:s> ✅ **รับแล้ว!**\n`;
-      } else {
-        const expiryTs = item.expires_at ? Math.floor(new Date(item.expires_at).getTime() / 1000) : createdTs + 2592000;
-        line = `${num}. ได้รับ \`${name}\` เมื่อ <t:${createdTs}:s> หมดเขตรับ <t:${expiryTs}:R>\n`;
-      }
+      containerComponents.push({
+        type: 10,
+        content: pendingContent.trimEnd()
+      });
 
-      if ((currentChunk + line).length > 3500) {
+      // เส้นคั่นแบ่งหมวดหมู่ (Divider Separator) แทรกเฉพาะเมื่อมีหมวดรับเรียบร้อยตามมา
+      if (claimedItems.length > 0) {
         containerComponents.push({
-          type: 10,
-          content: currentChunk.trim()
+          type: 14,
+          spacing: 2,
+          divider: true
         });
-        currentChunk = line;
-      } else {
-        currentChunk += line;
       }
     }
 
-    if (currentChunk.trim().length > 0) {
+    // 3. หมวดรับเรียบร้อย (Claimed Section) — แสดงรายการที่ได้รับแล้ว
+    if (claimedItems.length > 0) {
+      let claimedContent = "### <:50121checkmark:1358584609087946867>︲รับเรียบร้อย\n";
+      claimedItems.forEach((item, index) => {
+        const num = (currentPage - 1) * 15 + index + 1;
+        const name = (item.history_name || item.reward_name || "ของรางวัล").slice(0, 80);
+        const createdTs = Math.floor(new Date(item.created_at || Date.now()).getTime() / 1000);
+        claimedContent += `${num}. __\`${name}\`__ — <t:${createdTs}:s>\n`;
+      });
+
       containerComponents.push({
         type: 10,
-        content: currentChunk.trim()
+        content: claimedContent.trimEnd()
       });
     }
   }
 
-  // ถ้ามีมากกว่า 1 หน้า ให้เพิ่ม Action Row ปุ่มเลื่อนหน้า
+  // 5. แถบปุ่มเลื่อนหน้า (Pagination Controls ถ้ามีมากกว่า 1 หน้า)
   if (totalPages > 1) {
     const actionRowButtons = [];
 

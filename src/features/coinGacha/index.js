@@ -26,9 +26,15 @@ function setupCoinGacha(client) {
 
       const { customId } = interaction;
 
-      // ── 1. ปุ่มโยนเหรียญสุ่มรางวัล ───────────────────────────────────────
-      if (customId === CUSTOM_IDS.ROLL) {
-        await interaction.deferReply({ flags: FLAG_V2_EPHEMERAL }).catch(() => {});
+      // ── 1. ปุ่มโยนเหรียญสุ่มรางวัล (และปุ่มโยนอีกครั้ง) ───────────────────
+      if (customId === CUSTOM_IDS.ROLL || customId === CUSTOM_IDS.ROLL_AGAIN) {
+        // หากกดจากปุ่มโยนอีกครั้ง (ROLL_AGAIN) ให้อัปเดตทับการ์ดเดิม (In-place update)
+        // หากกดจากตู้หลัก (ROLL) ให้ส่งการ์ด ephemeral ใหม่
+        if (customId === CUSTOM_IDS.ROLL_AGAIN) {
+          await interaction.deferUpdate().catch(() => {});
+        } else {
+          await interaction.deferReply({ flags: FLAG_V2_EPHEMERAL }).catch(() => {});
+        }
 
         // ดำเนินการสุ่มและหักเหรียญในฐานข้อมูลแบบ Atomic
         const result = await executeCoinRoll(interaction.user, interaction.member);
@@ -56,14 +62,15 @@ function setupCoinGacha(client) {
         // หน่วงเวลาแอนิเมชัน GIF 5 วินาที เพื่อความสมจริงและตื่นเต้น
         await new Promise((resolve) => setTimeout(resolve, 5000));
 
-        // สร้างการ์ดผลลัพธ์ของรางวัล
+        // สร้างการ์ดผลลัพธ์ของรางวัล พร้อมปุ่ม "︲โยนอีกครั้ง" หากมีเหรียญเหลือ
         const payload = buildResultPayload({
           userId: interaction.user.id,
           rewardName: result.rollData.reward_name,
           rewardType: result.rollData.reward_type,
           hasClaimedFirstTime: result.hasClaimedFirstTime,
           expiryTimestamp: result.expiryTimestamp,
-          fallbackNotice: result.fallbackNotice
+          fallbackNotice: result.fallbackNotice,
+          remainingCoins: result.remainingCoins ?? 0
         });
 
         return interaction.editReply(payload).catch(() => {});
@@ -89,8 +96,8 @@ function setupCoinGacha(client) {
         const pageStr = customId.replace(CUSTOM_IDS.HISTORY_PREFIX, "");
         const page = parseInt(pageStr, 10) || 1;
 
-        const { items, totalPages, currentPage } = await getUserRollHistory(interaction.user.id, page);
-        const payload = buildHistoryPayload(items, currentPage, totalPages);
+        const historyResult = await getUserRollHistory(interaction.user.id, page);
+        const payload = buildHistoryPayload(historyResult, page, historyResult.totalPages);
 
         return interaction.editReply(payload).catch(() => {});
       }

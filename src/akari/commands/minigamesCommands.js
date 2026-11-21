@@ -194,6 +194,26 @@ function buildBotMissingPermissionPayload(missingPermission = "จัดกา�
   };
 }
 
+function buildCategoryNotFoundPayload() {
+  return {
+    flags: FLAG_V2,
+    components: [
+      {
+        type: 17,
+        components: [
+          {
+            type: 10,
+            content:
+              `## <:warning_1:1562067612135981217>︲__\` 𝖶𝖺𝗋𝗇𝗂𝗇𝗀 ₊ ไม่พบหมวดหมู่ที่เลือก 𓂃 \`__\n` +
+              `> หมวดหมู่ที่คุณเลือกไว้ในขั้นตอนตั้งค่าถูกลบไปแล้วหรือไม่สามารถเข้าถึงได้ค่ะ 🐻\n` +
+              `> เพื่อป้องกันการสร้างห้องผิดที่ กรุณาใช้คำสั่ง \`/setup-games\` เพื่อเลือกหมวดหมู่อีกครั้ง หรือเลือกเป็น **"✨ สร้างหมวดหมู่ใหม่อัตโนมัติ"** นะคะ <:cuteplant:1152834055528783872>`,
+          },
+        ],
+      },
+    ],
+  };
+}
+
 const DEFAULT_GAMES_CATEGORY_NAME = "🎮・โซนมินิเกม (Kuma bot)";
 
 const SETUP_GAMES_CATALOG = [
@@ -387,6 +407,35 @@ const {
 /**
  * เปรียบเทียบชุดคำสั่งที่มีอยู่ใน Discord กับคำสั่งเป้าหมายว่าตรงกันหรือไม่
  */
+function areOptionsEqual(targetOpts = [], existingOpts = []) {
+  if (targetOpts.length !== existingOpts.length) return false;
+  for (let i = 0; i < targetOpts.length; i++) {
+    const tOpt = targetOpts[i];
+    const eOpt = existingOpts[i];
+    if (
+      !eOpt ||
+      tOpt.name !== eOpt.name ||
+      tOpt.type !== eOpt.type ||
+      Boolean(tOpt.required) !== Boolean(eOpt.required) ||
+      Boolean(tOpt.autocomplete) !== Boolean(eOpt.autocomplete)
+    ) {
+      return false;
+    }
+    const tChoices = tOpt.choices || [];
+    const eChoices = eOpt.choices || [];
+    if (tChoices.length !== eChoices.length) return false;
+    for (let c = 0; c < tChoices.length; c++) {
+      if (tChoices[c].name !== eChoices[c].name || tChoices[c].value !== eChoices[c].value) {
+        return false;
+      }
+    }
+    const tSubOpts = tOpt.options || [];
+    const eSubOpts = eOpt.options || [];
+    if (!areOptionsEqual(tSubOpts, eSubOpts)) return false;
+  }
+  return true;
+}
+
 function areCommandsEqual(existingCollection, targetCommands) {
   if (!existingCollection || existingCollection.size !== targetCommands.length) return false;
   for (const cmd of targetCommands) {
@@ -395,31 +444,10 @@ function areCommandsEqual(existingCollection, targetCommands) {
     if (existingCmd.description !== cmd.description) return false;
     const existingOpts = existingCmd.options || [];
     const targetOpts = cmd.options || [];
-    if (existingOpts.length !== targetOpts.length) return false;
     const existingPerm = existingCmd.defaultMemberPermissions?.bitfield?.toString() || null;
     const targetPerm = cmd.default_member_permissions ? BigInt(cmd.default_member_permissions).toString() : null;
     if (existingPerm !== targetPerm) return false;
-    for (let i = 0; i < targetOpts.length; i++) {
-      const tOpt = targetOpts[i];
-      const eOpt = existingOpts[i];
-      if (
-        !eOpt ||
-        tOpt.name !== eOpt.name ||
-        tOpt.type !== eOpt.type ||
-        Boolean(tOpt.required) !== Boolean(eOpt.required) ||
-        Boolean(tOpt.autocomplete) !== Boolean(eOpt.autocomplete)
-      ) {
-        return false;
-      }
-      const tChoices = tOpt.choices || [];
-      const eChoices = eOpt.choices || [];
-      if (tChoices.length !== eChoices.length) return false;
-      for (let c = 0; c < tChoices.length; c++) {
-        if (tChoices[c].name !== eChoices[c].name || tChoices[c].value !== eChoices[c].value) {
-          return false;
-        }
-      }
-    }
+    if (!areOptionsEqual(targetOpts, existingOpts)) return false;
   }
   return true;
 }
@@ -1199,24 +1227,39 @@ async function handleSetupGamesButton(interaction, supabase, client) {
 
     // 2. จัดการหมวดหมู่
     let targetCategory = null;
-    if (session.selectedCategoryId && session.selectedCategoryId !== "create_new") {
-      targetCategory =
-        guild.channels.cache.get(session.selectedCategoryId) ||
-        (await guild.channels.fetch(session.selectedCategoryId).catch(() => null));
-      
-      // ตรวจสอบว่าใน Category เป้าหมาย บอทมีสิทธิ์สร้างห้องหรือไม่
-      if (targetCategory) {
-        const catPerms = targetCategory.permissionsFor(botMember);
-        if (!catPerms?.has(PermissionFlagsBits.ManageChannels) && !catPerms?.has(PermissionFlagsBits.Administrator)) {
-          return interaction.editReply(buildBotMissingPermissionPayload(`จัดการช่อง (Manage Channels) ในหมวดหมู่ ${targetCategory.name}`));
-        }
-      }
-    }
+    const isExplicitCategory = Boolean(session.selectedCategoryId && session.selectedCategoryId !== "create_new");
 
-    if (!targetCategory) {
-      targetCategory = guild.channels.cache.find(
+    if (isExplicitCategory) {
+      // ดึงข้อมูล Category จาก Discord API โดยตรงเพื่อป้องกัน Stale Cache จากหมวดหมู่ที่ถูกลบไปแล้ว
+      try {
+        targetCategory = await guild.channels.fetch(session.selectedCategoryId, { force: true });
+      } catch {
+        targetCategory = null;
+      }
+
+      if (!targetCategory || targetCategory.type !== ChannelType.GuildCategory) {
+        // หมวดหมู่เดิมที่เคยเลือกไว้ถูกลบไปแล้ว แจ้งเตือนผู้ใช้ตรงไปตรงมา ไม่เดาใจแอบสร้างหมวดอื่น
+        return interaction.editReply(buildCategoryNotFoundPayload());
+      }
+
+      // ตรวจสอบว่าใน Category เป้าหมาย บอทมีสิทธิ์สร้างห้องหรือไม่
+      const catPerms = targetCategory.permissionsFor(botMember);
+      if (!catPerms?.has(PermissionFlagsBits.ManageChannels) && !catPerms?.has(PermissionFlagsBits.Administrator)) {
+        return interaction.editReply(buildBotMissingPermissionPayload(`จัดการช่อง (Manage Channels) ในหมวดหมู่ ${targetCategory.name}`));
+      }
+    } else {
+      // ผู้ใช้เลือก "✨ สร้างหมวดหมู่ใหม่อัตโนมัติ"
+      const existingCat = guild.channels.cache.find(
         (c) => c.type === ChannelType.GuildCategory && c.name === DEFAULT_GAMES_CATEGORY_NAME
       );
+      if (existingCat) {
+        try {
+          targetCategory = await guild.channels.fetch(existingCat.id, { force: true });
+        } catch {
+          targetCategory = null;
+        }
+      }
+
       if (!targetCategory) {
         try {
           targetCategory = await guild.channels.create({
@@ -1318,10 +1361,20 @@ async function handleSetupGamesButton(interaction, supabase, client) {
     await message.delete().catch(() => { });
     setupGameSessions.delete(message.id);
 
-    // 4. ส่งข้อความ Component v2 แจ้งเตือนติดตั้งสำเร็จแทน
+    // 4. ส่งข้อความ Component v2 แจ้งเตือนติดตั้งสำเร็จแทนอย่างปลอดภัย
     const finalCategoryName = targetCategory ? targetCategory.name : DEFAULT_GAMES_CATEGORY_NAME;
     const postPayload = buildPostSetupPayload(finalCategoryName, createdChannels, session.isPremium);
-    await interaction.channel.send(postPayload).catch(() => { });
+
+    const targetChannel =
+      interaction.channel ||
+      (await guild.channels.fetch(interaction.channelId).catch(() => null)) ||
+      (await client.channels.fetch(interaction.channelId).catch(() => null));
+
+    if (targetChannel && typeof targetChannel.send === "function") {
+      await targetChannel.send(postPayload).catch(() => { });
+    } else {
+      await interaction.followUp(postPayload).catch(() => { });
+    }
   }
 }
 

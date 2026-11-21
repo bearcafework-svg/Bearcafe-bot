@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS public.tenant_store_configs (
 
 -- Migration สำหรับเพิ่มคอลัมน์ currency_emoji ในกรณีตารางเดิมถูกสร้างไว้แล้ว
 ALTER TABLE public.tenant_store_configs ADD COLUMN IF NOT EXISTS currency_emoji TEXT DEFAULT '<:strawberryv2:1548976664090779650>';
+ALTER TABLE public.tenant_store_configs ADD COLUMN IF NOT EXISTS market_channel_id VARCHAR(32) DEFAULT NULL;
+ALTER TABLE public.tenant_store_configs ADD COLUMN IF NOT EXISTS market_message_ids JSONB DEFAULT '[]'::jsonb;
 
 -- 2. ตารางไอเทมร้านค้า 3 Slots ของแต่ละกิลด์ (Store Items)
 CREATE TABLE IF NOT EXISTS public.tenant_store_items (

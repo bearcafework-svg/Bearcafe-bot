@@ -102,6 +102,107 @@ const KUMA_SLASH_COMMANDS = [
 
   // 8. /set (Welcome & Goodbye System: /set welc, /set goodbye)
   SET_SLASH_COMMAND,
+
+  // 9. /item (Role Store System: create, edit, info, delete, show)
+  {
+    name: "item",
+    description: "จัดการระบบร้านค้าและของรางวัลแลกยศบอท Kuma",
+    default_member_permissions: PermissionFlagsBits.ManageGuild.toString(),
+    options: [
+      {
+        name: "create",
+        description: "สร้างไอเทมแลกยศใหม่ลงในร้านค้า",
+        type: 1, // SUB_COMMAND
+        options: [
+          {
+            name: "name",
+            description: "ชื่อไอเทมที่ต้องการสร้าง",
+            type: 3, // STRING
+            required: true,
+          },
+        ],
+      },
+      {
+        name: "edit",
+        description: "แก้ไขรายละเอียดของไอเทมเดิมในร้านค้า",
+        type: 1, // SUB_COMMAND
+        options: [
+          {
+            name: "item",
+            description: "เลือกไอเทมที่ต้องการแก้ไข",
+            type: 3, // STRING
+            required: true,
+            autocomplete: true,
+          },
+        ],
+      },
+      {
+        name: "info",
+        description: "ดูรายละเอียดและสถิติการแลกของไอเทม",
+        type: 1, // SUB_COMMAND
+        options: [
+          {
+            name: "item",
+            description: "เลือกไอเทมที่ต้องการตรวจสอบ",
+            type: 3, // STRING
+            required: true,
+            autocomplete: true,
+          },
+        ],
+      },
+      {
+        name: "delete",
+        description: "ลบไอเทมออกจากร้านค้า",
+        type: 1, // SUB_COMMAND
+        options: [
+          {
+            name: "item",
+            description: "เลือกไอเทมที่ต้องการลบ",
+            type: 3, // STRING
+            required: true,
+            autocomplete: true,
+          },
+        ],
+      },
+    ],
+  },
+
+  // 10. /open (Open Systems: /open market)
+  {
+    name: "open",
+    description: "เปิดระบบและส่งการ์ดหน้าร้านค้าในเซิร์ฟเวอร์",
+    default_member_permissions: PermissionFlagsBits.ManageGuild.toString(),
+    options: [
+      {
+        name: "market",
+        description: "เปิดหน้าร้านค้าไอเทมและส่งการ์ดลงในห้องที่กำหนด",
+        type: 1, // SUB_COMMAND
+        options: [
+          {
+            name: "channel",
+            description: "เลือกห้องข้อความที่ต้องการส่งหน้าร้านค้า (ไม่ระบุ = ห้องปัจจุบัน)",
+            type: 7, // CHANNEL
+            channel_types: [ChannelType.GuildText],
+            required: false,
+          },
+        ],
+      },
+    ],
+  },
+
+  // 11. /reload (Reload & Sync Systems: /reload market)
+  {
+    name: "reload",
+    description: "รีโหลดและอัปเดตข้อมูลระบบของ Kuma Bot",
+    default_member_permissions: PermissionFlagsBits.ManageGuild.toString(),
+    options: [
+      {
+        name: "market",
+        description: "อัปเดตข้อมูลและสต็อกไอเทมหน้าร้านค้าทั้งหมดให้เป็นข้อมูลล่าสุด",
+        type: 1, // SUB_COMMAND
+      },
+    ],
+  },
 ];
 
 // ==============================================================================
@@ -131,18 +232,7 @@ const KUMA_REVEAL_SLASH_COMMAND = {
 };
 
 const KUMA_STORE_ALLOWED_GUILD_ID = "1493110432347459627";
-const KUMA_STORE_SLASH_COMMANDS = [
-  {
-    name: "setting-store",
-    description: "ตั้งค่าร้านค้าแลกของรางวัลมินิเกม สูงสุด 3 รายการ (เฉพาะผู้ดูแลระบบ Premium)",
-    default_member_permissions: PermissionFlagsBits.ManageChannels.toString(),
-  },
-  {
-    name: "open-store",
-    description: "เปิดหน้าร้านค้าแลกของรางวัลมินิเกมในห้องนี้ (เฉพาะผู้ดูแลระบบ Premium)",
-    default_member_permissions: PermissionFlagsBits.ManageChannels.toString(),
-  },
-];
+const KUMA_STORE_SLASH_COMMANDS = [];
 
 module.exports = {
   KUMA_SLASH_COMMANDS,

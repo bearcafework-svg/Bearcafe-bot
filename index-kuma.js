@@ -74,6 +74,14 @@ const {
   handleKumaHealingButton,
   handleKumaHealingModalSubmit,
 } = require("./src/akari/commands/healingCommands");
+const {
+  handleItemCommand,
+  handleOpenMarketCommand,
+  handleReloadMarketCommand,
+  handleItemAutocomplete,
+  handleItemModalSubmit,
+  handleItemInteraction,
+} = require("./src/akari/commands/itemCommands");
 
 const botToken = process.env.KUMA_BOT_TOKEN || process.env.AKARI_BOT_TOKEN;
 
@@ -137,6 +145,9 @@ client.on("interactionCreate", async (interaction) => {
       if (interaction.commandName === "remove-game") {
         return await handleRemoveGameAutocomplete(interaction, kumaSupabase);
       }
+      if (interaction.commandName === "item") {
+        return await handleItemAutocomplete(interaction, kumaSupabase);
+      }
       return;
     }
 
@@ -165,11 +176,17 @@ client.on("interactionCreate", async (interaction) => {
       if (interaction.commandName === "reveal-answer") {
         return await handleRevealAnswer(interaction, kumaSupabase);
       }
-      if (interaction.commandName === "setting-store") {
-        return await handleSettingStore(interaction, kumaSupabase);
+      if (interaction.commandName === "open") {
+        const sub = interaction.options.getSubcommand(false);
+        if (sub === "market") {
+          return await handleOpenMarketCommand(interaction, kumaSupabase);
+        }
       }
-      if (interaction.commandName === "open-store") {
-        return await handleOpenStore(interaction, kumaSupabase, client);
+      if (interaction.commandName === "reload") {
+        const sub = interaction.options.getSubcommand(false);
+        if (sub === "market") {
+          return await handleReloadMarketCommand(interaction, kumaSupabase);
+        }
       }
       if (interaction.commandName === "help") {
         return await handleHelpCommand(interaction, client);
@@ -188,6 +205,9 @@ client.on("interactionCreate", async (interaction) => {
       }
       if (interaction.commandName === "ขอกำลังใจ") {
         return await handleKumaHealingCommand(interaction, kumaSupabase, client);
+      }
+      if (interaction.commandName === "item") {
+        return await handleItemCommand(interaction, kumaSupabase);
       }
     }
 
@@ -265,6 +285,9 @@ client.on("interactionCreate", async (interaction) => {
       ) {
         return await handleStoreButtonInteraction(interaction, kumaSupabase, client);
       }
+      if (interaction.customId.startsWith("item_")) {
+        return await handleItemInteraction(interaction, kumaSupabase, client);
+      }
       if (interaction.customId === "kuma_voice_category_clear") {
         return await handleVoiceCategoryClear(interaction, kumaSupabase);
       }
@@ -297,6 +320,9 @@ client.on("interactionCreate", async (interaction) => {
       ) {
         return await handleStoreModalSubmit(interaction, kumaSupabase);
       }
+      if (interaction.customId.startsWith("item_")) {
+        return await handleItemModalSubmit(interaction, kumaSupabase);
+      }
     }
 
     // Select Menus (String, Role, Channel)
@@ -324,6 +350,9 @@ client.on("interactionCreate", async (interaction) => {
         interaction.customId.startsWith("store_")
       ) {
         return await handleStoreSelectMenus(interaction, kumaSupabase);
+      }
+      if (interaction.customId.startsWith("item_")) {
+        return await handleItemInteraction(interaction, kumaSupabase, client);
       }
       if (
         interaction.customId === "kuma_setting_toggle_menu" ||
@@ -363,6 +392,9 @@ client.on("interactionCreate", async (interaction) => {
         interaction.customId.startsWith("store_")
       ) {
         return await handleStoreSelectMenus(interaction, kumaSupabase);
+      }
+      if (interaction.customId.startsWith("item_")) {
+        return await handleItemInteraction(interaction, kumaSupabase, client);
       }
       if (
         interaction.customId === "kuma_setting_toggle_menu" ||

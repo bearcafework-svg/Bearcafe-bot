@@ -136,6 +136,7 @@ setupFeature("sendComponent", "./src/commands/sendComponent", "setupSendComponen
 setupFeature("clearMessages", "./src/commands/clearMessages", "setupClearMessages");
 setupFeature("aiAssistant", "./src/features/ai", "setupAI", ["GEMINI_API_KEY"]);
 setupFeature("bearCafeActivitySync", "./src/features/bearCafeActivitySync", "setupBearCafeActivitySync", supabaseEnvKeys);
+setupFeature("loyKrathong", "./src/features/loyKrathong", "setupLoyKrathong", supabaseEnvKeys);
 
 function setupFeature(name, modulePath, setupName, requiredEnv = []) {
   // 🛡️ ป้องกันบอทหลักโหลดระบบฮีลใจและคำสั่ง Dev-only

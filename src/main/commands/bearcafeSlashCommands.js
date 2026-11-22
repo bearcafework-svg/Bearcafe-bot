@@ -410,6 +410,7 @@ const BEARCAFE_SLASH_COMMANDS = [
           { name: "ตู้สุ่มกาชาปอง (Gachapon Machine)", value: "gachapon" },
           { name: "ประวัติการทำผิดกฎ (Violation History)", value: "violation_history" },
           { name: "เควสใหญ่ (Main Community Quest)", value: "main_quest" },
+          { name: "บอร์ดกิจกรรมลอยกระทง (Loy Krathong Panel)", value: "loy_krathong" },
         ],
       },
       {

@@ -203,6 +203,12 @@ function setupSendComponent(client) {
             content: `✅ ส่ง **เควสใหญ่ (Main Community Quest)** ไปยังห้อง <#${targetChannel.id}> สำเร็จเรียบร้อยแล้วค่ะ! 🐻✨`,
           });
         }
+        case "loy_krathong": {
+          const { buildLoyKrathongPanelPayload } = require("../features/loyKrathong/loyKrathongPayloads");
+          payload = buildLoyKrathongPanelPayload();
+          componentName = "บอร์ดกิจกรรมลอยกระทง (Loy Krathong Panel)";
+          break;
+        }
         default:
           return interaction.editReply({
             content: "❌ ไม่พบบอร์ดที่เลือกค่ะ",

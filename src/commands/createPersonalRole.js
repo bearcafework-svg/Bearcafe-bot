@@ -243,7 +243,7 @@ function setupCreatePersonalRole(client) {
 
         // ส่งแบบฟอร์มในช่องแชทแบบปกติเพื่อให้คัดลอกได้ง่าย พร้อมแนบ SelectMenu User
         await interaction.channel.send({
-          content: `- <:bearcafe_star:1212856675053346897>︲__\` แบบฟอร์มการสร้างยศ \`__\n  - ชื่อยศ:\n  - โค๊ดสียศ:\n  - ต้องการเพิ่มให้:`,
+          content: `- <:bearcafe_star:1212856675053346897>︲__\` แบบฟอร์มการสร้างยศ \`__\n  - ชื่อยศ:\n  - โค๊ดสียศ:\n  - ไอคอนยศ:\n  - ต้องการเพิ่มให้:`,
           components: [
             {
               type: 1,

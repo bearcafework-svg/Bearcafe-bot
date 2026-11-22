@@ -30,6 +30,25 @@ function setupLoyKrathong(client) {
           }).catch(() => {});
         }
 
+        // 🛡️ ป้องกันการเลือกตัวเอง
+        if (targetUserId === interaction.user.id) {
+          return interaction.reply({
+            content: "❌ เธอไม่สามารถส่งกระทงฝากข้อความถึงตัวเองได้นะคะ 💕 ลองเลือกส่งให้เพื่อนดูน้า",
+            flags: MessageFlags.Ephemeral,
+          }).catch(() => {});
+        }
+
+        // 🛡️ ป้องกันการเลือกบอท
+        const targetUser =
+          interaction.users?.get(targetUserId) ||
+          (await client.users.fetch(targetUserId).catch(() => null));
+        if (targetUser && targetUser.bot) {
+          return interaction.reply({
+            content: "❌ เธอไม่สามารถส่งกระทงฝากข้อความถึงบอทได้นะคะ 🤖 ลองเลือกส่งให้เพื่อนที่เป็นสมาชิกดูน้า",
+            flags: MessageFlags.Ephemeral,
+          }).catch(() => {});
+        }
+
         // แสดงฟอร์ม Modal ให้กรอกข้อความ
         const modal = buildLoyKrathongModal(targetUserId);
         return await interaction.showModal(modal);

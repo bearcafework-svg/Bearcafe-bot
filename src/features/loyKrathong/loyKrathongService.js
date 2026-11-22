@@ -45,6 +45,16 @@ async function processKrathongSubmission({ client, senderId, receiverId, message
     throw new Error("ข้อความมีความยาวเกินกำหนด (สูงสุดไม่เกิน 2,000 ตัวอักษร) ค่ะ");
   }
 
+  // 🛡️ ป้องกันการเลือกตัวเองหรือบอท (Fail-safe guard)
+  if (receiverId === senderId) {
+    throw new Error("เธอไม่สามารถส่งกระทงฝากข้อความถึงตัวเองได้นะคะ 💕");
+  }
+
+  const receiverUser = await client.users.fetch(receiverId).catch(() => null);
+  if (receiverUser && receiverUser.bot) {
+    throw new Error("เธอไม่สามารถส่งกระทงฝากข้อความถึงบอทได้นะคะ 🤖");
+  }
+
   // 1. ดึงห้องปลายทางสำหรับแสดงกระทง
   const targetChannel = await client.channels.fetch(TARGET_CHANNEL_ID).catch(() => null);
   if (!targetChannel || !targetChannel.isTextBased()) {

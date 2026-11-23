@@ -6,7 +6,7 @@ const { POINTS_SLASH_COMMANDS } = require("../akari/commands/pointsCommands");
 const { HELP_SLASH_COMMANDS } = require("../akari/commands/helpCommands");
 const { SET_SLASH_COMMAND, WELCOME_ALLOWED_GUILD_ID } = require("../akari/services/memberWelcomeService");
 
-const AKARI_GAME_NAMES = {
+const KUMA_GAME_NAMES = {
   1: "🎮︲เติมคำศัพท์-ไทย",
   2: "🎮︲เติมคำศัพท์-อังกฤษ",
   3: "🎲︲สุ่มโจทย์คณิต",
@@ -23,6 +23,8 @@ const AKARI_GAME_NAMES = {
   15: "🚩︲ทายธงประเทศ",
   16: "🔢︲นับจำนวนอีโมจิ",
 };
+
+const AKARI_GAME_NAMES = KUMA_GAME_NAMES;
 
 const TEMPORARY_DISABLED_GAME_IDS = [1, 2];
 
@@ -155,6 +157,7 @@ module.exports = {
   KUMA_REVEAL_ALLOWED_GUILD_ID,
   KUMA_STORE_ALLOWED_GUILD_ID,
   WELCOME_ALLOWED_GUILD_ID,
+  KUMA_GAME_NAMES,
   AKARI_GAME_NAMES,
   TEMPORARY_DISABLED_GAME_IDS,
 };

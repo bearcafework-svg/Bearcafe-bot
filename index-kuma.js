@@ -15,14 +15,14 @@ if (!globalThis.WebSocket) {
   globalThis.WebSocket = ws;
 }
 
-const { setupAkariGuildFilter } = require("./src/akari/filters/guildIgnoreFilter");
-const { setupAkariMinigames, flushAllTenantPoints } = require("./src/akari/minigames/minigamesEngine");
+const { setupKumaGuildFilter } = require("./src/akari/filters/guildIgnoreFilter");
+const { setupKumaMinigames, flushAllTenantPoints } = require("./src/akari/minigames/minigamesEngine");
 const { setupServerActivitySync } = require("./src/akari/services/serverActivitySync");
 const { setupWelcomeService } = require("./src/akari/services/welcomeService");
 const { setupTenantSync } = require("./src/akari/services/tenantSyncService");
 const { setupKumaPresence } = require("./src/akari/services/kumaPresenceService");
 const {
-  registerAkariCommands,
+  registerKumaCommands,
   handleSetupGames,
   handleSettingGames,
   handleSettingPageSwitch,
@@ -95,12 +95,21 @@ const { createProtectedSupabaseClient } = require("./src/services/supabaseTraffi
 const supabaseUrl = process.env.KUMA_SUPABASE_URL || process.env.SUPABASE_URL || process.env.AKARI_SUPABASE_URL;
 const supabaseKey = process.env.KUMA_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.AKARI_SUPABASE_SERVICE_ROLE_KEY;
 
+const isDev =
+  process.env.NODE_ENV === "development" ||
+  Boolean(process.env.npm_lifecycle_event && process.env.npm_lifecycle_event.includes("dev")) ||
+  process.argv.includes("--dev");
+
+if (isDev) {
+  console.log("⚡ [KumaBot] โหมดพัฒนา (Dev Mode): ปิด Background Sync, Presence DB Query และสแกนช่องข้ามเซิร์ฟเวอร์ เพื่อความเร็วสูงสุด 🚀");
+}
+
 let kumaSupabase = null;
 if (supabaseUrl && supabaseKey) {
   kumaSupabase = createProtectedSupabaseClient(
     supabaseUrl,
     supabaseKey,
-    { realtime: { transport: ws } },
+    {},
     "kuma"
   );
   console.log("⚡ [KumaBot] เชื่อมต่อ Main Supabase Database สำเร็จแล้ว! (Log Ingestion Guard เปิดใช้งาน 🛡️)");
@@ -127,16 +136,16 @@ const client = new Client({
 client.setMaxListeners(50);
 
 // 3. ติดตั้ง Guild Ignore Filter (ปฏิเสธการตอบสนองทุกชนิดต่อ Bear Cafe Main Guild ID)
-setupAkariGuildFilter(client);
+setupKumaGuildFilter(client);
 
 // 4. ติดตั้งระบบมินิเกม Multi-Tenant
-setupAkariMinigames(client, kumaSupabase);
+setupKumaMinigames(client, kumaSupabase, { isDev });
 
 // 5. ติดตั้งระบบต้อนรับเมื่อบอทเข้าสู่เซิร์ฟเวอร์ใหม่ (guildCreate)
 setupWelcomeService(client);
 
 // 6. ติดตั้งและลงทะเบียน Slash Commands สำหรับ Kuma Bot
-registerAkariCommands(client);
+registerKumaCommands(client, { isDev });
 
 // 7. ดักฟัง Slash Commands และ Interactions
 client.on("interactionCreate", async (interaction) => {
@@ -252,12 +261,14 @@ client.on("interactionCreate", async (interaction) => {
         return await handleSettingCooldownButton(interaction, kumaSupabase);
       }
       if (
+        interaction.customId === "kuma_setting_page_1" ||
         interaction.customId === "akari_setting_page_1" ||
         interaction.customId === "p_363685698273808409"
       ) {
         return await handleSettingPageSwitch(interaction, kumaSupabase, 1);
       }
       if (
+        interaction.customId === "kuma_setting_page_2" ||
         interaction.customId === "akari_setting_page_2" ||
         interaction.customId === "p_363681020102316052"
       ) {
@@ -304,7 +315,10 @@ client.on("interactionCreate", async (interaction) => {
       ) {
         return await handleSettingCurrencyModalSubmit(interaction, kumaSupabase);
       }
-      if (interaction.customId.startsWith("akari_points_modal_submit:")) {
+      if (
+        interaction.customId.startsWith("kuma_points_modal_submit:") ||
+        interaction.customId.startsWith("akari_points_modal_submit:")
+      ) {
         return await handleSettingPointsModalSubmit(interaction, kumaSupabase);
       }
       if (
@@ -338,7 +352,10 @@ client.on("interactionCreate", async (interaction) => {
       ) {
         return await handleSetupGamesSelect(interaction, kumaSupabase, client);
       }
-      if (interaction.customId.startsWith("akari_setting_bind_channel:")) {
+      if (
+        interaction.customId.startsWith("kuma_setting_bind_channel:") ||
+        interaction.customId.startsWith("akari_setting_bind_channel:")
+      ) {
         return await handleSettingBindChannel(interaction, kumaSupabase, client);
       }
       if (interaction.customId === "kuma_voice_category_select") {
@@ -357,6 +374,7 @@ client.on("interactionCreate", async (interaction) => {
       if (
         interaction.customId === "kuma_setting_toggle_menu" ||
         interaction.customId === "akari_setting_toggle_menu" ||
+        interaction.customId === "kuma_setting_toggle_premium_menu" ||
         interaction.customId === "akari_setting_toggle_premium_menu" ||
         interaction.customId === "p_363685568665620504"
       ) {
@@ -369,6 +387,7 @@ client.on("interactionCreate", async (interaction) => {
         return await handleSettingReset(interaction, kumaSupabase, client);
       }
       if (
+        interaction.customId === "kuma_setting_points_menu" ||
         interaction.customId === "akari_setting_points_menu" ||
         interaction.customId === "p_363683368786726927"
       ) {
@@ -399,6 +418,7 @@ client.on("interactionCreate", async (interaction) => {
       if (
         interaction.customId === "kuma_setting_toggle_menu" ||
         interaction.customId === "akari_setting_toggle_menu" ||
+        interaction.customId === "kuma_setting_toggle_premium_menu" ||
         interaction.customId === "akari_setting_toggle_premium_menu" ||
         interaction.customId === "p_363685568665620504"
       ) {
@@ -411,6 +431,7 @@ client.on("interactionCreate", async (interaction) => {
         return await handleSettingReset(interaction, kumaSupabase, client);
       }
       if (
+        interaction.customId === "kuma_setting_points_menu" ||
         interaction.customId === "akari_setting_points_menu" ||
         interaction.customId === "p_363683368786726927"
       ) {
@@ -423,7 +444,10 @@ client.on("interactionCreate", async (interaction) => {
       ) {
         return await handleSetupGamesSelect(interaction, kumaSupabase, client);
       }
-      if (interaction.customId.startsWith("akari_setting_bind_channel:")) {
+      if (
+        interaction.customId.startsWith("kuma_setting_bind_channel:") ||
+        interaction.customId.startsWith("akari_setting_bind_channel:")
+      ) {
         return await handleSettingBindChannel(interaction, kumaSupabase, client);
       }
     }
@@ -464,12 +488,14 @@ client.once("clientReady", () => {
   console.log(`🐻 Kuma Public Bot "${client.user.tag}" พร้อมใช้งานแล้ว! (ID: ${client.user.id})`);
 
   // 7.0 เริ่มระบบหมุนเวียนสถานะ Presence อัตโนมัติ (5 รูปแบบ)
-  setupKumaPresence(client, kumaSupabase);
+  setupKumaPresence(client, kumaSupabase, { isDev });
 
   // 7.1 เริ่มการทำงานของ Server Activity Sync (ซิงค์ Live Voice & Joins ทุก 5 นาที)
-  if (kumaSupabase) {
+  if (kumaSupabase && !isDev) {
     setupServerActivitySync(client, kumaSupabase);
     setupTenantSync(client, kumaSupabase);
+  } else if (isDev) {
+    console.log("⚡ [KumaBot] Dev Mode: ข้าม Server Activity Sync และ Tenant Sync เพื่อความเร็วสูงสุด");
   }
 
   // 7.2 เริ่มระบบส่งข้อความต้อนรับสมาชิกใหม่ (guildMemberAdd)

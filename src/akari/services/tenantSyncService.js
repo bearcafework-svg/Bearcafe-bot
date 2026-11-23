@@ -140,7 +140,7 @@ async function syncAllTenants(client, supabase) {
     try {
       const { data: channels } = await supabase
         .from("tenant_minigame_channels")
-        .select("id, guild_id, channel_id, channel_name");
+        .select("id, guild_id, channel_id, channel_name, game_id");
 
       if (channels && channels.length > 0) {
         const channelUpdates = [];
@@ -152,6 +152,7 @@ async function syncAllTenants(client, supabase) {
             channelUpdates.push({
               id: ch.id,
               guild_id: ch.guild_id,
+              game_id: ch.game_id,
               channel_id: ch.channel_id,
               channel_name: discordChannel.name,
             });
@@ -159,13 +160,16 @@ async function syncAllTenants(client, supabase) {
         }
 
         if (channelUpdates.length > 0) {
-          await supabase
+          const { error: chUpsertErr } = await supabase
             .from("tenant_minigame_channels")
             .upsert(channelUpdates, { onConflict: "id" });
+          if (chUpsertErr) {
+            console.warn("⚠️ [KumaBot:TenantSync] อัปเดตชื่อห้อง tenant_minigame_channels ล้มเหลว:", chUpsertErr.message);
+          }
         }
       }
     } catch (chErr) {
-      // ข้ามถ้าเกิดข้อผิดพลาดในการอัปเดตชื่อห้อง
+      console.warn("⚠️ [KumaBot:TenantSync] เกิดข้อผิดพลาดในกระบวนการซิงค์ชื่อห้อง:", chErr?.message || chErr);
     }
 
     // 6. ตรวจหาเซิร์ฟเวอร์ที่บอทไม่ได้อยู่อีกต่อไปแล้ว แล้วอัปเดต status = 'left'

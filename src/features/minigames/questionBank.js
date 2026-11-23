@@ -763,7 +763,7 @@ async function getNextQuestion(supabase, gameId, gameSettings = null, queryOptio
             expiresAt: now + QUESTION_CACHE_TTL_MS
           });
         } else if (tableName !== 'minigame_questions') {
-          // Fallback: if custom table (e.g. akari_minigame_questions) not found or empty, try minigame_questions
+          // Fallback: if custom table (e.g. kuma_minigame_questions) not found or empty, try minigame_questions
           const fallbackCacheKey = `minigame_questions:${sortedIds}`;
           const fallbackCached = QUESTION_CACHE.get(fallbackCacheKey);
           if (fallbackCached && now < fallbackCached.expiresAt && Array.isArray(fallbackCached.data) && fallbackCached.data.length > 0) {

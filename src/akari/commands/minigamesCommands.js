@@ -354,7 +354,7 @@ for (const g of SETUP_GAMES_CATALOG) {
   SETUP_CATALOG_BY_VALUE[g.value] = g;
 }
 
-const AKARI_GAME_NAMES = {
+const KUMA_GAME_NAMES = {
   1: "🎮︲เติมคำศัพท์-ไทย",
   2: "🎮︲เติมคำศัพท์-อังกฤษ",
   3: "🎲︲สุ่มโจทย์คณิตศาสตร์",
@@ -371,6 +371,8 @@ const AKARI_GAME_NAMES = {
   15: "🚩︲ทายธงประเทศ (⭐ใหม่)",
   16: "🔢︲นับจำนวนอีโมจิ (⭐ใหม่)",
 };
+
+const AKARI_GAME_NAMES = KUMA_GAME_NAMES;
 
 // รายการมินิเกมที่ปิดปรับปรุงชั่วคราว (ซ่อนออกจาก /setting-games และตัวเลือกคำสั่ง)
 const TEMPORARY_DISABLED_GAME_IDS = [1, 2];
@@ -453,19 +455,28 @@ function areCommandsEqual(existingCollection, targetCommands) {
 }
 
 /**
- * ลงทะเบียน Global Slash Commands สำหรับ Akari Bot (ยิงครั้งเดียวครอบคลุมทุกเซิร์ฟเวอร์ทั่วโลก)
+ * ลงทะเบียน Global Slash Commands สำหรับ Kuma Bot (ยิงครั้งเดียวครอบคลุมทุกเซิร์ฟเวอร์ทั่วโลก)
  * @param {import('discord.js').Client} client 
+ * @param {object} [options]
+ * @param {boolean} [options.isDev]
  */
-async function registerAkariCommands(client) {
+async function registerKumaCommands(client, options = {}) {
+  const isDev = Boolean(options.isDev);
   const syncCommands = async () => {
     try {
       if (!client.application) return;
 
+      // ในโหมด Dev ข้ามการ fetch/set คำสั่งกับ Discord ทุกรอบที่รีสตาร์ต เพื่อความรวดเร็วและป้องกัน 429
+      if (isDev && !process.env.SYNC_COMMANDS) {
+        console.log("⚡ [KumaCommands] Dev Mode: ข้ามการ sync Slash Commands กับ Discord (ระบุ SYNC_COMMANDS=true หากต้องการ sync)");
+        return;
+      }
+
       // 1. ตรวจสอบและลงทะเบียน Global Slash Commands ของ Kuma
       const existingGlobal = await client.application.commands.fetch().catch(() => null);
-      if (!existingGlobal || !areCommandsEqual(existingGlobal, AKARI_SLASH_COMMANDS)) {
-        await client.application.commands.set(AKARI_SLASH_COMMANDS);
-        console.log(`🏮 [KumaCommands] ลงทะเบียน Global Slash Commands (${AKARI_SLASH_COMMANDS.length} คำสั่ง) สำเร็จแล้ว!`);
+      if (!existingGlobal || !areCommandsEqual(existingGlobal, KUMA_SLASH_COMMANDS)) {
+        await client.application.commands.set(KUMA_SLASH_COMMANDS);
+        console.log(`🏮 [KumaCommands] ลงทะเบียน Global Slash Commands (${KUMA_SLASH_COMMANDS.length} คำสั่ง) สำเร็จแล้ว!`);
       } else {
         console.log("⚡ [KumaCommands] Global Slash Commands เป็นปัจจุบันแล้ว (ข้ามการ sync ซ้ำ)");
       }
@@ -1294,7 +1305,19 @@ async function handleSetupGamesButton(interaction, supabase, client) {
           chOptions.parent = targetCategory.id;
         }
 
-        const channel = await guild.channels.create(chOptions);
+        let channel;
+        try {
+          channel = await guild.channels.create(chOptions);
+        } catch (createErr) {
+          // หากหมวดหมู่ที่เลือกถูกลบไปก่อนหน้า (CHANNEL_PARENT_INVALID) ให้ fallback สร้างแบบไม่ใส่หมวดหมู่
+          if (createErr.code === 50035 || String(createErr.message).includes("CHANNEL_PARENT_INVALID")) {
+            console.warn(`[SetupGames] ⚠️ Category ${targetCategory?.id} ไม่ถูกต้องหรือถูกลบ กำลังสร้างห้อง #${channelName} แบบไม่มีหมวดหมู่แทน`);
+            delete chOptions.parent;
+            channel = await guild.channels.create(chOptions);
+          } else {
+            throw createErr;
+          }
+        }
 
         if (supabase) {
           await supabase.from("tenant_minigame_channels").upsert(
@@ -1626,7 +1649,7 @@ function buildBindChannelPayload(gameId, gameName, cleanName, msgId = "", isMiss
             components: [
               {
                 type: 8, // Channel Select Menu
-                custom_id: `akari_setting_bind_channel:${gameId}:${msgId}`,
+                custom_id: `kuma_setting_bind_channel:${gameId}:${msgId}`,
                 placeholder: `📢︲เลือกห้องสำหรับเล่น ${cleanName.slice(0, 50)}`,
                 channel_types: [0], // GuildText
                 min_values: 1,
@@ -1788,7 +1811,7 @@ async function buildSettingGamesPayload(guild, supabase, page = 1) {
         components: [
           {
             type: 3,
-            custom_id: "akari_setting_reset_menu",
+            custom_id: "kuma_setting_reset_menu",
             placeholder: "✏️︲รีเซ็ตการส่งของมินิเกม",
             options:
               resetOptions.length > 0
@@ -1821,7 +1844,7 @@ async function buildSettingGamesPayload(guild, supabase, page = 1) {
             type: 2,
             style: 3,
             label: "︲ปลดล็อคการแก้ไขเพียง 59 บาท",
-            custom_id: "akari_setting_promo_59",
+            custom_id: "kuma_setting_promo_59",
             disabled: false,
             emoji: {
               id: "1372837492205555812",
@@ -1848,7 +1871,7 @@ async function buildSettingGamesPayload(guild, supabase, page = 1) {
         components: [
           {
             type: 3,
-            custom_id: "akari_setting_points_menu",
+            custom_id: "kuma_setting_points_menu",
             placeholder: "✏️︲จัดการแต้มมินิเกม",
             options: pointsOptions,
           },
@@ -1873,7 +1896,7 @@ async function buildSettingGamesPayload(guild, supabase, page = 1) {
           {
             style: 2,
             type: 2,
-            custom_id: "akari_setting_cooldown_btn",
+            custom_id: "kuma_setting_cooldown_btn",
             emoji: {
               name: "✏️",
             },
@@ -1893,7 +1916,7 @@ async function buildSettingGamesPayload(guild, supabase, page = 1) {
             type: 2,
             style: 2,
             label: "กลับหน้าแรก 2/2",
-            custom_id: "akari_setting_page_1",
+            custom_id: "kuma_setting_page_1",
             disabled: false,
             emoji: {
               name: "⬅️",
@@ -1986,7 +2009,7 @@ async function buildSettingGamesPayload(guild, supabase, page = 1) {
       accessory: {
         style: 1,
         type: 2,
-        custom_id: "akari_setting_currency_btn",
+        custom_id: "kuma_setting_currency_btn",
         label: "ตั้งค่าสกุลเงินแต้ม",
       },
     },
@@ -2004,7 +2027,7 @@ async function buildSettingGamesPayload(guild, supabase, page = 1) {
       components: [
         {
           type: 3,
-          custom_id: "akari_setting_toggle_menu",
+          custom_id: "kuma_setting_toggle_menu",
           placeholder: "✏️︲เลือกมินิเกมเพื่อสลับสถานะ",
           options: freeSelectOptions,
         },
@@ -2029,7 +2052,7 @@ async function buildSettingGamesPayload(guild, supabase, page = 1) {
           type: 2,
           style: 3,
           label: "︲ปลดล็อค 13 เกมเพียง 59 บาท",
-          custom_id: "akari_setting_promo_59",
+          custom_id: "kuma_setting_promo_59",
           disabled: false,
           emoji: {
             id: "1372837492205555812",
@@ -2044,7 +2067,7 @@ async function buildSettingGamesPayload(guild, supabase, page = 1) {
       const gameInfo = gameStatuses[gId];
       const item = SETUP_CATALOG_BY_ID[gId];
       let desc = gameInfo.boundChannelId ? "สถานะ: ปิดอยู่ (กดเพื่อเปิด)" : "ยังไม่ได้ผูกห้อง (กดเพื่อผูกห้อง)";
-      let label = item ? item.label : (AKARI_GAME_NAMES[gId] || `มินิเกม #${gId}`);
+      let label = item ? item.label : (KUMA_GAME_NAMES[gId] || `มินิเกม #${gId}`);
 
       if (gameInfo.status === "missing") {
         desc = "คลิกเพื่อเลือกห้องใหม่";
@@ -2065,7 +2088,7 @@ async function buildSettingGamesPayload(guild, supabase, page = 1) {
       components: [
         {
           type: 3,
-          custom_id: "akari_setting_toggle_premium_menu",
+          custom_id: "kuma_setting_toggle_premium_menu",
           placeholder: "✏️︲เลือกมินิเกมเพื่อสลับสถานะ",
           options: premiumSelectOptions,
         },
@@ -2086,7 +2109,7 @@ async function buildSettingGamesPayload(guild, supabase, page = 1) {
           type: 2,
           style: 2,
           label: "ไปหน้า 1/2",
-          custom_id: "akari_setting_page_2",
+          custom_id: "kuma_setting_page_2",
           disabled: false,
           emoji: {
             name: "➡️",
@@ -2162,7 +2185,7 @@ async function handleSettingCurrencyButton(interaction, supabase) {
   const msgId = interaction.message?.id || "";
 
   const modal = new ModalBuilder()
-    .setCustomId(`akari_currency_modal_submit:${msgId}`)
+    .setCustomId(`kuma_currency_modal_submit:${msgId}`)
     .setTitle("ตั้งค่าอิโมจิสกุลเงินแต้ม");
 
   const emojiInput = new TextInputBuilder()
@@ -2324,7 +2347,7 @@ async function handleSettingCooldownButton(interaction, supabase) {
   const msgId = interaction.message?.id || "";
 
   const modal = new ModalBuilder()
-    .setCustomId(`akari_cooldown_modal_submit:${msgId}`)
+    .setCustomId(`kuma_cooldown_modal_submit:${msgId}`)
     .setTitle("ตั้งค่าคูลดาวน์เมื่อตอบผิด");
 
   const cooldownInput = new TextInputBuilder()
@@ -2458,6 +2481,7 @@ async function handleSettingToggle(interaction, supabase) {
     interaction.customId !== "akari_setting_toggle_menu" &&
     interaction.customId !== "kuma_setting_toggle_menu" &&
     interaction.customId !== "akari_setting_toggle_premium_menu" &&
+    interaction.customId !== "kuma_setting_toggle_premium_menu" &&
     interaction.customId !== "p_363685568665620504"
   ) {
     return;
@@ -2683,7 +2707,7 @@ async function handleSettingBindChannel(interaction, supabase, client) {
   }
 
   const customId = interaction.customId;
-  if (!customId.startsWith("akari_setting_bind_channel:")) return;
+  if (!customId.startsWith("kuma_setting_bind_channel:") && !customId.startsWith("akari_setting_bind_channel:")) return;
 
   // ตอบรับ Interaction ทันทีด้วยหน้าจอ Loading เพื่อป้องกัน Timeout และให้ Feedback แก่ผู้ใช้ทันที
   await interaction.update({
@@ -3237,6 +3261,7 @@ async function handleSettingReset(interaction, supabase, client) {
 async function handleSettingPointsSelect(interaction, supabase) {
   if (!interaction.isStringSelectMenu()) return;
   if (
+    interaction.customId !== "kuma_setting_points_menu" &&
     interaction.customId !== "akari_setting_points_menu" &&
     interaction.customId !== "p_363683368786726927"
   ) {
@@ -3277,7 +3302,7 @@ async function handleSettingPointsSelect(interaction, supabase) {
 
   const msgId = interaction.message?.id || "";
   const modal = new ModalBuilder()
-    .setCustomId(`akari_points_modal_submit:${gameId}:${msgId}`)
+    .setCustomId(`kuma_points_modal_submit:${gameId}:${msgId}`)
     .setTitle(`ตั้งค่าแต้ม: ${cleanName.slice(0, 30)}`);
 
   const pointsInput = new TextInputBuilder()
@@ -3299,7 +3324,7 @@ async function handleSettingPointsSelect(interaction, supabase) {
  */
 async function handleSettingPointsModalSubmit(interaction, supabase) {
   const customId = interaction.customId;
-  if (!customId.startsWith("akari_points_modal_submit:")) return;
+  if (!customId.startsWith("kuma_points_modal_submit:") && !customId.startsWith("akari_points_modal_submit:")) return;
 
   const parts = customId.split(":");
   const gameId = parseInt(parts[1], 10);
@@ -3310,7 +3335,7 @@ async function handleSettingPointsModalSubmit(interaction, supabase) {
     return interaction.reply(buildPremiumUpsellPayload());
   }
 
-  const gameName = AKARI_GAME_NAMES[gameId] || `มินิเกม #${gameId}`;
+  const gameName = KUMA_GAME_NAMES[gameId] || `มินิเกม #${gameId}`;
   const inputStr = interaction.fields.getTextInputValue("points_input")?.trim() || "";
   const inputVal = parseInt(inputStr, 10);
 
@@ -3901,7 +3926,7 @@ async function handleKumaAdmin(interaction, supabase, client) {
         ],
       });
     } catch (err) {
-      console.error("[AkariAdmin] set-premium error:", err.message);
+      console.error("[KumaAdmin] set-premium error:", err.message);
       return interaction.editReply({
         content: `❌ เกิดข้อผิดพลาดในการตั้งค่า Premium: ${err.message}`,
       });
@@ -3962,7 +3987,7 @@ async function handleKumaAdmin(interaction, supabase, client) {
         ],
       });
     } catch (err) {
-      console.error("[AkariAdmin] remove-premium error:", err.message);
+      console.error("[KumaAdmin] remove-premium error:", err.message);
       return interaction.editReply({
         content: `❌ เกิดข้อผิดพลาดในการยกเลิก Premium: ${err.message}`,
       });
@@ -4045,7 +4070,7 @@ async function handleKumaAdmin(interaction, supabase, client) {
         `> 📅 **วันหมดอายุ:** ${expiryDisplay}\n` +
         `> 🎮 **ห้องมินิเกมที่เปิดอยู่:** **${boundChannels.length}** ห้อง\n\n` +
         `**รายการช่องมินิเกม:**\n${channelsReport}\n\n` +
-        `-# ข้อมูลอัปเดตล่าสุดจาก Akari Database 🏮`;
+        `-# ข้อมูลอัปเดตล่าสุดจาก Kuma Database 🏮`;
 
       return interaction.editReply({
         flags: FLAG_V2,
@@ -4063,7 +4088,7 @@ async function handleKumaAdmin(interaction, supabase, client) {
         ],
       });
     } catch (err) {
-      console.error("[AkariAdmin] check-tenant error:", err.message);
+      console.error("[KumaAdmin] check-tenant error:", err.message);
       return interaction.editReply({
         content: `❌ เกิดข้อผิดพลาดในการตรวจสอบข้อมูลเซิร์ฟเวอร์: ${err.message}`,
       });
@@ -4187,7 +4212,8 @@ async function handleRevealAnswer(interaction, supabase) {
 }
 
 module.exports = {
-  registerAkariCommands,
+  registerKumaCommands,
+  registerAkariCommands: registerKumaCommands,
   handleSetupGames,
   handleSetupGamesButton,
   handleSetupGamesSelect,

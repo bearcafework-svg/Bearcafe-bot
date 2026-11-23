@@ -179,8 +179,23 @@ function updatePresence(client) {
  * ติดตั้งระบบหมุนเวียนสถานะสำหรับ Kuma Bot
  * @param {import('discord.js').Client} client
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @param {object} [options]
+ * @param {boolean} [options.isDev]
  */
-function setupKumaPresence(client, supabase) {
+function setupKumaPresence(client, supabase, options = {}) {
+  const isDev = Boolean(options.isDev);
+
+  if (isDev) {
+    // โหมด Dev: ใช้สถิติต้นแบบจำลองทันที ข้ามการดึง DB ทั้งตาราง (ประหยัดเวลาและ Egress)
+    updatePresence(client);
+    if (rotationTimer) clearInterval(rotationTimer);
+    rotationTimer = setInterval(() => {
+      updatePresence(client);
+    }, ROTATION_INTERVAL_MS);
+    console.log("🎮 [KumaBot:Presence] Dev Mode: เริ่มระบบหมุนเวียนสถานะ (ใช้ Mock Stats ข้ามการดึง DB)");
+    return;
+  }
+
   // ดึงสถิติครั้งแรก
   refreshStatsFromDb(supabase).then(() => {
     updatePresence(client);

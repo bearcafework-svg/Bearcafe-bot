@@ -6,7 +6,7 @@ const { POINTS_SLASH_COMMANDS } = require("../akari/commands/pointsCommands");
 const { HELP_SLASH_COMMANDS } = require("../akari/commands/helpCommands");
 const { SET_SLASH_COMMAND, WELCOME_ALLOWED_GUILD_ID } = require("../akari/services/memberWelcomeService");
 
-const AKARI_GAME_NAMES = {
+const KUMA_GAME_NAMES = {
   1: "🎮︲เติมคำศัพท์-ไทย",
   2: "🎮︲เติมคำศัพท์-อังกฤษ",
   3: "🎲︲สุ่มโจทย์คณิต",
@@ -23,6 +23,8 @@ const AKARI_GAME_NAMES = {
   15: "🚩︲ทายธงประเทศ",
   16: "🔢︲นับจำนวนอีโมจิ",
 };
+
+const AKARI_GAME_NAMES = KUMA_GAME_NAMES;
 
 const TEMPORARY_DISABLED_GAME_IDS = [1, 2];
 
@@ -164,6 +166,11 @@ const KUMA_SLASH_COMMANDS = [
           },
         ],
       },
+      {
+        name: "discount",
+        description: "จัดการส่วนลดราคาร้านค้าตามยศ (เฉพาะ Premium)",
+        type: 1, // SUB_COMMAND
+      },
     ],
   },
 
@@ -183,6 +190,12 @@ const KUMA_SLASH_COMMANDS = [
             description: "เลือกห้องข้อความที่ต้องการส่งหน้าร้านค้า (ไม่ระบุ = ห้องปัจจุบัน)",
             type: 7, // CHANNEL
             channel_types: [ChannelType.GuildText],
+            required: false,
+          },
+          {
+            name: "banner",
+            description: "แนบไฟล์รูปภาพแบนเนอร์หน้าร้านค้า (เฉพาะเซิร์ฟเวอร์ Premium)",
+            type: 11, // ATTACHMENT
             required: false,
           },
         ],
@@ -245,6 +258,7 @@ module.exports = {
   KUMA_REVEAL_ALLOWED_GUILD_ID,
   KUMA_STORE_ALLOWED_GUILD_ID,
   WELCOME_ALLOWED_GUILD_ID,
+  KUMA_GAME_NAMES,
   AKARI_GAME_NAMES,
   TEMPORARY_DISABLED_GAME_IDS,
 };

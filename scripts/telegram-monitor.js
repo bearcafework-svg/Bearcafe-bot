@@ -101,13 +101,23 @@ function isTargetApp(appName) {
   return TARGET_APPS.includes(name);
 }
 
-// ฟิลเตอร์คัดกรอง Warning ที่ไม่จำเป็นออกจาก Alert
+// ฟิลเตอร์คัดกรอง Warning หรือ Discord User/Guild Permission Errors ที่ไม่จำเป็นออกจาก Alert
 function shouldIgnoreError(logText) {
   if (!logText) return true;
   const ignoredPatterns = [
     'Warning: Accessing non-existent property',
     'DeprecationWarning:',
-    'ExperimentalWarning:'
+    'ExperimentalWarning:',
+    // ปัญหาเรื่องสิทธิ์หรือการตั้งค่าระดับเซิร์ฟเวอร์ Discord ของผู้ใช้ (ไม่กระทบระบบส่วนกลาง)
+    'CHANNEL_PARENT_INVALID',
+    'Missing Permissions',
+    'Missing Access',
+    'DiscordAPIError[50013]', // Missing Permissions
+    'DiscordAPIError[50001]', // Missing Access
+    'DiscordAPIError[10003]', // Unknown Channel
+    'DiscordAPIError[50035]', // Invalid Form Body
+    'ขาดสิทธิ์ SendMessages',
+    'ขาดสิทธิ์ EmbedLinks'
   ];
   return ignoredPatterns.some(pattern => logText.includes(pattern));
 }

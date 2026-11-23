@@ -77,7 +77,7 @@ function isExcludedGuild(guildId) {
  * ติดตั้ง Event Interceptor เพื่อดักและดรอป Event ของ Bear Cafe ทันที
  * @param {import('discord.js').Client} client 
  */
-function setupAkariGuildFilter(client) {
+function setupKumaGuildFilter(client) {
   initExcludedGuilds();
   const originalEmit = client.emit;
 
@@ -94,8 +94,11 @@ function setupAkariGuildFilter(client) {
   console.log(`🛡️ [KumaGuildFilter] ระบบกรองยิงผ่านเฉพาะ Public Guilds — เมินเฉย Guilds: [${listStr}]`);
 }
 
+const setupAkariGuildFilter = setupKumaGuildFilter;
+
 module.exports = {
   isExcludedGuild,
   extractGuildId,
+  setupKumaGuildFilter,
   setupAkariGuildFilter,
 };

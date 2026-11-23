@@ -103,7 +103,7 @@ function buildUserPointsPayload(targetUser, scoreData, currencyEmoji) {
               {
                 type: 2,
                 style: 2,
-                custom_id: "akari_view_leaderboard",
+                custom_id: "kuma_view_leaderboard",
                 label: "︲กระดานจัดอันดับ",
                 emoji: {
                   name: "🏆",
@@ -187,7 +187,7 @@ function buildLeaderboardPayload(guild, leaderboardList, sortBy = "points", curr
               {
                 type: 2,
                 style: isWinsMode ? 2 : 1, // Primary if points active
-                custom_id: "akari_lb_by_points",
+                custom_id: "kuma_lb_by_points",
                 label: "︲เรียงตามแต้ม",
                 emoji: {
                   name: "💰",
@@ -196,7 +196,7 @@ function buildLeaderboardPayload(guild, leaderboardList, sortBy = "points", curr
               {
                 type: 2,
                 style: isWinsMode ? 1 : 2, // Primary if wins active
-                custom_id: "akari_lb_by_wins",
+                custom_id: "kuma_lb_by_wins",
                 label: "︲เรียงตามจำนวนชนะ",
                 emoji: {
                   name: "🎮",
@@ -205,7 +205,7 @@ function buildLeaderboardPayload(guild, leaderboardList, sortBy = "points", curr
               {
                 type: 2,
                 style: 2,
-                custom_id: "akari_lb_refresh",
+                custom_id: "kuma_lb_refresh",
                 label: "︲รีเฟรช",
                 emoji: {
                   name: "🔄",
@@ -247,7 +247,7 @@ async function handlePointsCommand(interaction, supabase) {
 
     await safeEditReply(interaction, payload);
   } catch (err) {
-    console.error(`[akari-points] handlePointsCommand error ${formatInteractionContext(interaction)}:`, err.message);
+    console.error(`[kuma-points] handlePointsCommand error ${formatInteractionContext(interaction)}:`, err.message);
     await safeRespond(interaction, {
       flags: FLAG_V2,
       components: [
@@ -285,7 +285,7 @@ async function handleLeaderboardCommand(interaction, supabase, sortBy = "points"
 
     await safeEditReply(interaction, payload);
   } catch (err) {
-    console.error(`[akari-points] handleLeaderboardCommand error ${formatInteractionContext(interaction)}:`, err.message);
+    console.error(`[kuma-points] handleLeaderboardCommand error ${formatInteractionContext(interaction)}:`, err.message);
     await safeRespond(interaction, {
       flags: FLAG_V2,
       components: [
@@ -322,7 +322,7 @@ async function updateLeaderboardFromButton(interaction, supabase, sortBy, force 
 
     await safeEditReply(interaction, payload);
   } catch (err) {
-    console.error(`[akari-points] ${label} error ${formatInteractionContext(interaction)}:`, err.message);
+    console.error(`[kuma-points] ${label} error ${formatInteractionContext(interaction)}:`, err.message);
   }
 }
 
@@ -331,28 +331,31 @@ async function updateLeaderboardFromButton(interaction, supabase, sortBy, force 
  */
 async function handlePointsButtonInteraction(interaction, supabase) {
   const customId = interaction.customId;
+  const normalizedId = customId.startsWith("akari_")
+    ? customId.replace("akari_", "kuma_")
+    : customId;
 
   // 1. ปุ่มดูกระดานจัดอันดับจากการ์ดเช็กแต้ม
-  if (customId === "akari_view_leaderboard") {
-    return updateLeaderboardFromButton(interaction, supabase, "points", false, "akari_view_leaderboard");
+  if (normalizedId === "kuma_view_leaderboard") {
+    return updateLeaderboardFromButton(interaction, supabase, "points", false, "kuma_view_leaderboard");
   }
 
   // 2. ปุ่มสลับเรียงตามแต้ม
-  if (customId === "akari_lb_by_points") {
-    return updateLeaderboardFromButton(interaction, supabase, "points", false, "akari_lb_by_points");
+  if (normalizedId === "kuma_lb_by_points") {
+    return updateLeaderboardFromButton(interaction, supabase, "points", false, "kuma_lb_by_points");
   }
 
   // 3. ปุ่มสลับเรียงตามจำนวนชนะ
-  if (customId === "akari_lb_by_wins") {
-    return updateLeaderboardFromButton(interaction, supabase, "wins", false, "akari_lb_by_wins");
+  if (normalizedId === "kuma_lb_by_wins") {
+    return updateLeaderboardFromButton(interaction, supabase, "wins", false, "kuma_lb_by_wins");
   }
 
   // 4. ปุ่มรีเฟรชกระดานจัดอันดับ
-  if (customId === "akari_lb_refresh") {
+  if (normalizedId === "kuma_lb_refresh") {
     const currentContent = interaction.message?.components?.[0]?.components?.[0]?.content || "";
     const isWins = currentContent.includes("จำนวนชนะสูงสุด");
     const sortBy = isWins ? "wins" : "points";
-    return updateLeaderboardFromButton(interaction, supabase, sortBy, true, "akari_lb_refresh");
+    return updateLeaderboardFromButton(interaction, supabase, sortBy, true, "kuma_lb_refresh");
   }
 }
 

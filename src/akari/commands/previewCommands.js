@@ -6,6 +6,7 @@
 
 const { MessageFlags, AttachmentBuilder } = require("discord.js");
 const {
+  buildKumaGamePayload,
   buildAkariGamePayload,
   getTTSAudioBuffer,
 } = require("../minigames/minigamesEngine");
@@ -17,7 +18,7 @@ const { getNextQuestion } = require("../../features/minigames/questionBank");
 
 const FLAG_V2 = MessageFlags.IsComponentsV2 || 32768;
 
-const AKARI_GAME_NAMES = {
+const KUMA_GAME_NAMES = {
   1: "🎮︲เติมคำศัพท์-ไทย",
   2: "🎮︲เติมคำศัพท์-อังกฤษ",
   3: "🎲︲สุ่มโจทย์คณิต",
@@ -34,6 +35,8 @@ const AKARI_GAME_NAMES = {
   15: "🚩︲ทายธงประเทศ",
   16: "🔢︲นับจำนวนอีโมจิ",
 };
+
+const AKARI_GAME_NAMES = KUMA_GAME_NAMES;
 
 // ตัวอย่างโจทย์พรีวิวคุณภาพสูงสำหรับกรณีไม่มีข้อมูลใน DB
 const SAMPLE_PREVIEW_QUESTIONS = {
@@ -260,15 +263,15 @@ async function handlePreviewCommand(interaction, supabase) {
   }
 
   // สร้างการ์ดเกมสไตล์ Component V2 แท้
-  const payload = buildAkariGamePayload(gameId, questionData, 3, true);
+  const payload = (buildKumaGamePayload || buildAkariGamePayload)(gameId, questionData, 3, true);
 
   // ปรับเปลี่ยน custom_id ของปุ่มตัวเลือกเพื่อไม่ให้ชนกับระบบ Session จริง
   if (payload.components?.[0]?.components) {
     for (const comp of payload.components[0].components) {
       if (comp.type === 1 && Array.isArray(comp.components)) {
         for (const btn of comp.components) {
-          if (btn.custom_id && !btn.custom_id.startsWith("akari_mg_top")) {
-            btn.custom_id = `akari_preview_btn_${gameId}_${Date.now()}`;
+          if (btn.custom_id && !btn.custom_id.startsWith("kuma_mg_top") && !btn.custom_id.startsWith("akari_mg_top")) {
+            btn.custom_id = `kuma_preview_btn_${gameId}_${Date.now()}`;
           }
         }
       }
@@ -286,7 +289,7 @@ async function handlePreviewCommand(interaction, supabase) {
  */
 async function handlePreviewButtonInteraction(interaction) {
   if (!interaction.isButton()) return false;
-  if (!interaction.customId.startsWith("akari_preview_btn")) return false;
+  if (!interaction.customId.startsWith("kuma_preview_btn") && !interaction.customId.startsWith("akari_preview_btn")) return false;
 
   await interaction.reply({
     content:
@@ -303,4 +306,7 @@ module.exports = {
   handlePreviewCommand,
   handlePreviewButtonInteraction,
   SAMPLE_PREVIEW_QUESTIONS,
+  KUMA_GAME_NAMES,
+  AKARI_GAME_NAMES,
+};
 };

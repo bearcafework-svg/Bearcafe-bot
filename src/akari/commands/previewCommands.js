@@ -309,4 +309,3 @@ module.exports = {
   KUMA_GAME_NAMES,
   AKARI_GAME_NAMES,
 };
-};

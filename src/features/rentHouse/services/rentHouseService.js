@@ -172,6 +172,27 @@ async function syncRentHousePermissions(channel, setting = null) {
       ReadMessageHistory: true,
     }).catch(() => {});
   }
+
+  // 3. ซิงค์สิทธิ์รายบุคคลสำหรับ Blocked Users (blocked_user_ids)
+  const blockedIds = new Set(currentSetting?.blocked_user_ids || []);
+  for (const bId of blockedIds) {
+    await channel.permissionOverwrites.edit(bId, {
+      ViewChannel: false,
+      Connect: false,
+      Speak: false,
+    }).catch(() => {});
+  }
+
+  // 4. ลบ overwrite ของสมาชิกที่ไม่ใช่ bot, owner, trusted หรือ blocked
+  const botId = channel.client?.user?.id;
+  const ownerId = currentSetting?.owner_id;
+  for (const [id, overwrite] of channel.permissionOverwrites.cache) {
+    if (overwrite.type === 1 /* Member */) {
+      if (id !== botId && id !== ownerId && !trustedIds.has(id) && !blockedIds.has(id)) {
+        await channel.permissionOverwrites.delete(id).catch(() => {});
+      }
+    }
+  }
 }
 
 /**
@@ -199,7 +220,9 @@ async function toggleRentHouseLock(channel, ownerId) {
     locked: willLock,
     hidden: currentSetting?.hidden || false,
     trusted_user_ids: currentSetting?.trusted_user_ids || [],
+    blocked_user_ids: currentSetting?.blocked_user_ids || [],
     image_url: currentSetting?.image_url || null,
+    permission_presets: currentSetting?.permission_presets || [],
     updated_at: new Date().toISOString(),
   };
 
@@ -236,7 +259,9 @@ async function toggleRentHouseHide(channel, ownerId) {
     locked: currentSetting?.locked || false,
     hidden: willHide,
     trusted_user_ids: currentSetting?.trusted_user_ids || [],
+    blocked_user_ids: currentSetting?.blocked_user_ids || [],
     image_url: currentSetting?.image_url || null,
+    permission_presets: currentSetting?.permission_presets || [],
     updated_at: new Date().toISOString(),
   };
 
@@ -266,7 +291,7 @@ async function getRentHousePermissionsInfo(channel) {
 }
 
 /**
- * จัดการ User Select (Trust, Untrust, Kick)
+ * จัดการ User Select (Trust, Untrust, Block, Unblock, Kick)
  */
 async function processRentUserSelect(channel, ownerId, customId, targetUserIds, guild) {
   const supabase = getSupabase();
@@ -281,6 +306,7 @@ async function processRentUserSelect(channel, ownerId, customId, targetUserIds, 
   }
 
   let trustedSet = new Set(currentSetting?.trusted_user_ids || []);
+  let blockedSet = new Set(currentSetting?.blocked_user_ids || []);
   const kickedNames = [];
   const processedNames = [];
 
@@ -289,15 +315,30 @@ async function processRentUserSelect(channel, ownerId, customId, targetUserIds, 
     processedNames.push(userMention);
 
     if (customId.includes("trust") && !customId.includes("untrust")) {
+      blockedSet.delete(userId);
       if (trustedSet.size < 15) {
         trustedSet.add(userId);
       }
     } else if (customId.includes("untrust")) {
       trustedSet.delete(userId);
+      await channel.permissionOverwrites.delete(userId).catch(() => {});
+    } else if (customId.includes("block") && !customId.includes("unblock")) {
+      trustedSet.delete(userId);
+      if (blockedSet.size < 15) {
+        blockedSet.add(userId);
+      }
+      const member = guild?.members?.cache?.get(userId);
+      if (member && member.voice?.channelId === channel.id) {
+        await member.voice.disconnect("Blocked by rent house owner").catch(() => {});
+        kickedNames.push(userMention);
+      }
+    } else if (customId.includes("unblock")) {
+      blockedSet.delete(userId);
+      await channel.permissionOverwrites.delete(userId).catch(() => {});
     } else if (customId.includes("kick")) {
       trustedSet.delete(userId);
-      const member = guild.members.cache.get(userId);
-      if (member && member.voice.channelId === channel.id) {
+      const member = guild?.members?.cache?.get(userId);
+      if (member && member.voice?.channelId === channel.id) {
         await member.voice.disconnect("Kicked by rent house owner").catch(() => {});
         kickedNames.push(userMention);
       }
@@ -310,6 +351,7 @@ async function processRentUserSelect(channel, ownerId, customId, targetUserIds, 
     locked: currentSetting?.locked || false,
     hidden: currentSetting?.hidden || false,
     trusted_user_ids: Array.from(trustedSet),
+    blocked_user_ids: Array.from(blockedSet),
     image_url: currentSetting?.image_url || null,
     permission_presets: currentSetting?.permission_presets || [],
     updated_at: new Date().toISOString(),
@@ -323,7 +365,8 @@ async function processRentUserSelect(channel, ownerId, customId, targetUserIds, 
 
   return {
     processedNames: processedNames.join(", "),
-    kickedNames
+    kickedNames,
+    updatedSetting,
   };
 }
 

@@ -16,6 +16,8 @@ const RENT_CUSTOM_IDS = {
   panelSelect: "rh_panel_select_action",
   selectTrust: "rh_select_trust",
   selectUntrust: "rh_select_untrust",
+  selectBlock: "rh_select_block",
+  selectUnblock: "rh_select_unblock",
   selectKick: "rh_select_kick",
   modalName: "rh_modal_name",
   modalLimit: "rh_modal_limit",
@@ -45,7 +47,7 @@ function createV2CardResponse(title, textContent, icon = "ℹ️") {
 /**
  * สร้าง Payload แผงควบคุมบ้านเช่า รูปแบบ Component v2 + Select Menu
  */
-function createRentHousePanelPayload(ownerMember, customImageUrl = null, ad = null, ctaBtn = null) {
+function createRentHousePanelPayload(ownerMember, customImageUrl = null, ad = null, ctaBtn = null, roomInfo = null) {
   const options = [
     {
       label: "ดูข้อมูลสัญญาเช่า",
@@ -61,7 +63,7 @@ function createRentHousePanelPayload(ownerMember, customImageUrl = null, ad = nu
     },
     {
       label: "เปลี่ยนจำนวนคน",
-      description: "ปรับเปลี่ยนจำนวนสมาชิกสูงสุดที่เข้าห้องได้",
+      description: "ปรับเปลี่ยนจำนวนสมาชิกสูงสุดที่เข้าห้องได้ (0-99)",
       value: "rh_opt_limit",
       emoji: { name: "👥" },
     },
@@ -90,6 +92,18 @@ function createRentHousePanelPayload(ownerMember, customImageUrl = null, ad = nu
       emoji: { name: "➖" },
     },
     {
+      label: "ซ่อนห้องจากสมาชิก (Block)",
+      description: "ซ่อนห้องไม่ให้สมาชิกที่เลือกมองเห็น",
+      value: "rh_opt_block",
+      emoji: { name: "🙈" },
+    },
+    {
+      label: "เลิกซ่อนห้องจากสมาชิก",
+      description: "ยกเลิกการซ่อนห้อง ให้สมาชิกกลับมาเห็นห้องได้",
+      value: "rh_opt_unblock",
+      emoji: { name: "👁️" },
+    },
+    {
       label: "เตะสมาชิกออกจากห้อง",
       description: "เตะสมาชิกที่ไม่ต้องการออกจากห้องเสียงทันที",
       value: "rh_opt_kick",
@@ -97,7 +111,7 @@ function createRentHousePanelPayload(ownerMember, customImageUrl = null, ad = nu
     },
     {
       label: "ตรวจสอบสิทธิ์สมาชิก",
-      description: "ดูรายชื่อสมาชิกที่ได้รับสิทธิ์พิเศษในห้อง",
+      description: "ดูรายชื่อสมาชิกที่ได้รับสิทธิ์หรือถูกบล็อคในห้อง",
       value: "rh_opt_permissions",
       emoji: { name: "📋" },
     },
@@ -124,6 +138,11 @@ function createRentHousePanelPayload(ownerMember, customImageUrl = null, ad = nu
   const isCustomImageActive = Boolean(customImageUrl);
   const imageUrl = isCustomImageActive ? customImageUrl : (ad?.image_url || RENT_HOUSE_IMAGE_URL);
 
+  const statusText = `${roomInfo?.locked ? "ล็อค" : "ไม่ล็อค"} / ${roomInfo?.hidden ? "ซ่อน" : "มองเห็นได้"}`;
+  const limitText = Number.isInteger(roomInfo?.limit) && roomInfo.limit > 0 ? roomInfo.limit : "ไม่จำกัด";
+  const trustedCount = roomInfo?.trustedUserIds?.length || 0;
+  const blockedCount = roomInfo?.blockedUserIds?.length || 0;
+
   const containerComponents = [
     {
       type: 12, // Media
@@ -142,8 +161,11 @@ function createRentHousePanelPayload(ownerMember, customImageUrl = null, ad = nu
       type: 10, // Text Section
       content:
         `## 🏠︲__\` 𝖱𝖾𝗇𝗍 𝖧𝗈𝗎𝗌𝖾 𝖢𝗈𝗇𝗍𝗋𝗈𝗅 𝖯𝖺𝗇𝖾𝗅 ₊ บ้านเช่าหมี 𓂃 \`__\n` +
-        `> ยินดีต้อนรับสู่บ้านเช่าหมีค่ะ ${ownerMember}\n` +
-        `> คุณสามารถตั้งค่าห้อง จัดการสิทธิ์ และดูข้อมูลสัญญาผ่านเมนูด้านล่างนี้ได้เลยนะคะ`,
+        `-# ยินดีต้อนรับสู่บ้านเช่าหมีค่ะ ${ownerMember} คุณสามารถตั้งค่าห้องและจัดการสิทธิ์ผ่านเมนูด้านล่างนี้ได้เลยนะคะ ☕\n\n` +
+        `> (🔊)⠀สถานะห้อง: **${statusText}**\n` +
+        `> (👥)⠀จำนวนคน: **${limitText}**\n` +
+        `> (📥)⠀อนุญาตให้เข้า: **${trustedCount} คน**\n` +
+        `> (🙈)⠀ซ่อนจาก: **${blockedCount} คน**`,
     },
     { type: 14, spacing: 2 },
     {
@@ -152,7 +174,7 @@ function createRentHousePanelPayload(ownerMember, customImageUrl = null, ad = nu
         {
           type: 3, // StringSelectMenu
           custom_id: RENT_CUSTOM_IDS.panelSelect,
-          placeholder: "⚙️ เลือกรายการที่ต้องการจัดการห้อง...",
+          placeholder: "⚙️︲เลือกรายการที่ต้องการจัดการห้อง...",
           options: options,
         },
       ],
@@ -255,7 +277,7 @@ function buildUserSelectMenuPayload(customId, placeholder, maxValues = 25) {
             content: `## 👤︲__\` การจัดการสิทธิ์สมาชิก \`__\n> เลือกสมาชิกที่ต้องการจัดการสิทธิ์ในเมนูด้านล่างนี้ได้เลยค่ะ:`,
           },
           { type: 14, spacing: 2 },
-          row,
+          row.toJSON(),
         ],
       },
     ],

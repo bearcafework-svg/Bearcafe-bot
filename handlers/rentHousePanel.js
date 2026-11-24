@@ -44,7 +44,7 @@ const { getSupabaseClient } = require("../src/services/supabaseClient");
 
 const SPECIAL_IMAGE_ROLE_ID = "1383998275711012956";
 
-async function buildRentPanelPayloadWithAds(member, channel, forcedImageUrl = null) {
+async function buildRentPanelPayloadWithAds(member, channel, forcedImageUrl = null, customRoomInfo = null) {
   let ownerMember = member;
   if (channel) {
     const ownerId = await getRentHouseOwnerId(channel);
@@ -60,11 +60,12 @@ async function buildRentPanelPayloadWithAds(member, channel, forcedImageUrl = nu
   }
 
   let customImageUrl = forcedImageUrl;
-  if (!customImageUrl && channel) {
-    const isSpecialRole = ownerMember?.roles?.cache?.has(SPECIAL_IMAGE_ROLE_ID);
-    if (isSpecialRole) {
-      const setting = await getRentHousePermissionsInfo(channel);
-      if (setting?.image_url) {
+  let setting = null;
+  if (channel) {
+    setting = await getRentHousePermissionsInfo(channel);
+    if (!customImageUrl) {
+      const isSpecialRole = ownerMember?.roles?.cache?.has(SPECIAL_IMAGE_ROLE_ID);
+      if (isSpecialRole && setting?.image_url) {
         customImageUrl = setting.image_url;
       }
     }
@@ -77,7 +78,42 @@ async function buildRentPanelPayloadWithAds(member, channel, forcedImageUrl = nu
     ctaBtn = await getGlobalCtaButton();
   }
 
-  return createRentHousePanelPayload(ownerMember || "เจ้าของบ้านเช่า", customImageUrl, randomAd, ctaBtn);
+  const roomInfo = customRoomInfo || {
+    locked: Boolean(setting?.locked),
+    hidden: Boolean(setting?.hidden),
+    limit: channel?.userLimit ?? 0,
+    trustedUserIds: setting?.trusted_user_ids || [],
+    blockedUserIds: setting?.blocked_user_ids || [],
+  };
+
+  return createRentHousePanelPayload(ownerMember || "เจ้าของบ้านเช่า", customImageUrl, randomAd, ctaBtn, roomInfo);
+}
+
+/**
+ * ค้นหาและอัปเดตข้อความแผงควบคุมบ้านเช่าในช่องให้แสดงผลสถานะล่าสุดทันที
+ */
+async function refreshRentHousePanelMessage(channel, member = null, forcedImageUrl = null) {
+  if (!channel || !channel.messages?.fetch) return;
+  try {
+    const updatedPayload = await buildRentPanelPayloadWithAds(member, channel, forcedImageUrl);
+    if (!updatedPayload) return;
+    const { flags, ...editPayload } = updatedPayload;
+    const messages = await channel.messages.fetch({ limit: 10 }).catch(() => null);
+    if (!messages) return;
+    const botId = channel.client?.user?.id;
+    const panelMsg = messages.find(
+      (m) =>
+        m.author?.id === botId &&
+        (m.flags?.has(32768) ||
+          m.flags?.bitfield === 32768 ||
+          m.components?.some((row) => row.components?.some((c) => c.customId === RENT_CUSTOM_IDS.panelSelect)))
+    );
+    if (panelMsg) {
+      await panelMsg.edit(editPayload).catch(() => {});
+    }
+  } catch (err) {
+    console.warn("[rentHousePanel] Failed to refresh panel message:", err.message);
+  }
 }
 
 async function sendRentHousePanel(channel, ownerMember) {
@@ -207,6 +243,11 @@ async function handleRentHousePanelInteraction(interaction) {
 
       case "rh_opt_lock": {
         const willLock = await toggleRentHouseLock(channel, interaction.user.id);
+        const refreshedPayload = await buildRentPanelPayloadWithAds(interaction.member, channel, activeCustomImg);
+        if (refreshedPayload && interaction.message) {
+          const { flags, ...editPayload } = refreshedPayload;
+          await interaction.message.edit(editPayload).catch(() => {});
+        }
         return await sendInteractionResponse(
           interaction,
           createV2CardResponse(
@@ -221,6 +262,11 @@ async function handleRentHousePanelInteraction(interaction) {
 
       case "rh_opt_hide": {
         const willHide = await toggleRentHouseHide(channel, interaction.user.id);
+        const refreshedPayload = await buildRentPanelPayloadWithAds(interaction.member, channel, activeCustomImg);
+        if (refreshedPayload && interaction.message) {
+          const { flags, ...editPayload } = refreshedPayload;
+          await interaction.message.edit(editPayload).catch(() => {});
+        }
         return await sendInteractionResponse(
           interaction,
           createV2CardResponse(
@@ -253,14 +299,44 @@ async function handleRentHousePanelInteraction(interaction) {
       case "rh_opt_untrust":
         return await sendInteractionResponse(interaction, buildUserSelectMenuPayload(RENT_CUSTOM_IDS.selectUntrust, "เลือกสมาชิกที่ต้องการยกเลิกการอนุญาต (เลือกได้หลายคน)", 25));
 
+      case "rh_opt_block": {
+        const setting = await getRentHousePermissionsInfo(channel);
+        const currentCount = setting?.blocked_user_ids?.length || 0;
+        const remaining = 15 - currentCount;
+        if (remaining <= 0) {
+          return await sendInteractionResponse(interaction, createQuotaFullResponse("Block", 15, "บ้านเช่าส่วนตัว"));
+        }
+        return await sendInteractionResponse(
+          interaction,
+          buildUserSelectMenuPayload(
+            RENT_CUSTOM_IDS.selectBlock,
+            `เลือกสมาชิกที่ต้องการซ่อนห้อง/บล็อค (เพิ่มได้อีก ${remaining} คน)`,
+            Math.min(remaining, 25)
+          )
+        );
+      }
+
+      case "rh_opt_unblock":
+        return await sendInteractionResponse(
+          interaction,
+          buildUserSelectMenuPayload(
+            RENT_CUSTOM_IDS.selectUnblock,
+            "เลือกสมาชิกที่ต้องการเลิกซ่อนห้อง (เลือกได้หลายคน)",
+            25
+          )
+        );
+
       case "rh_opt_kick":
         return await sendInteractionResponse(interaction, buildUserSelectMenuPayload(RENT_CUSTOM_IDS.selectKick, "เลือกสมาชิกที่ต้องการเตะออกจากห้อง (เลือกได้หลายคน)", 25));
 
       case "rh_opt_permissions": {
         const setting = await getRentHousePermissionsInfo(channel);
         const trustedIds = setting?.trusted_user_ids || [];
+        const blockedIds = setting?.blocked_user_ids || [];
         const trustedCount = trustedIds.length;
+        const blockedCount = blockedIds.length;
         const trustedList = trustedCount > 0 ? trustedIds.map((id) => `<@${id}> (\`${id}\`)`).join("\n> ") : "*ไม่มี*";
+        const blockedList = blockedCount > 0 ? blockedIds.map((id) => `<@${id}> (\`${id}\`)`).join("\n> ") : "*ไม่มี*";
 
         const contentLines = [
           `> (🏠)︰**ชื่อห้อง:** <#${channel.id}>`,
@@ -269,6 +345,9 @@ async function handleRentHousePanelInteraction(interaction) {
           ``,
           `### ➕ สมาชิกที่ได้รับอนุญาตพิเศษ (Trust): \`${trustedCount} / 15 คน\` *(ว่างอีก ${Math.max(0, 15 - trustedCount)} ที่)*`,
           `> ${trustedList}`,
+          ``,
+          `### ⛔ สมาชิกที่ถูกซ่อน/บล็อค (Block): \`${blockedCount} / 15 คน\` *(ว่างอีก ${Math.max(0, 15 - blockedCount)} ที่)*`,
+          `> ${blockedList}`,
         ];
 
         return await sendInteractionResponse(
@@ -493,12 +572,22 @@ async function handleRentHousePanelInteraction(interaction) {
     if (!targetUserIds || targetUserIds.length === 0) return false;
 
     const res = await processRentUserSelect(channel, interaction.user.id, customId, targetUserIds, interaction.guild);
+    await refreshRentHousePanelMessage(channel, interaction.member);
 
     if (customId === RENT_CUSTOM_IDS.selectTrust) {
       return await sendInteractionResponse(interaction, createV2CardResponse("การจัดการสิทธิ์สำเร็จ", `> ➕ เพิ่มสิทธิ์อนุญาตให้ ${res.processedNames} เรียบร้อยแล้วค่ะ`, "➕"));
     }
     if (customId === RENT_CUSTOM_IDS.selectUntrust) {
       return await sendInteractionResponse(interaction, createV2CardResponse("การจัดการสิทธิ์สำเร็จ", `> ➖ ลบสิทธิ์พิเศษของ ${res.processedNames} เรียบร้อยแล้วค่ะ`, "➖"));
+    }
+    if (customId === RENT_CUSTOM_IDS.selectBlock) {
+      const msg = res.kickedNames.length > 0
+        ? `> 🙈 ซ่อนห้องและตัดสาย ${res.processedNames} ออกจากบ้านเช่าเรียบร้อยแล้วค่ะ`
+        : `> 🙈 ซ่อนห้องจาก ${res.processedNames} เรียบร้อยแล้วค่ะ`;
+      return await sendInteractionResponse(interaction, createV2CardResponse("บล็อคสมาชิกสำเร็จ", msg, "🙈"));
+    }
+    if (customId === RENT_CUSTOM_IDS.selectUnblock) {
+      return await sendInteractionResponse(interaction, createV2CardResponse("เลิกซ่อนห้องสำเร็จ", `> 👁️ ยกเลิกการซ่อนห้อง ให้ ${res.processedNames} กลับมามองเห็นห้องได้แล้วค่ะ`, "👁️"));
     }
     if (customId === RENT_CUSTOM_IDS.selectKick) {
       const msg = res.kickedNames.length > 0
@@ -537,6 +626,7 @@ async function handleRentHousePanelInteraction(interaction) {
       const newName = interaction.fields.getTextInputValue("room_name").trim();
       if (newName) {
         await safeSetChannelName(channel, newName);
+        await refreshRentHousePanelMessage(channel, interaction.member);
         return await sendInteractionResponse(interaction, createV2CardResponse("เปลี่ยนชื่อห้องสำเร็จ", `> ✏️ เปลี่ยนชื่อบ้านเช่าเป็น **${newName}** เรียบร้อยแล้วค่ะ`, "✏️"));
       }
     }
@@ -546,6 +636,7 @@ async function handleRentHousePanelInteraction(interaction) {
       const limit = parseInt(rawLimit, 10);
       if (!isNaN(limit) && limit >= 0 && limit <= 99) {
         await channel.setUserLimit(limit);
+        await refreshRentHousePanelMessage(channel, interaction.member);
         return await sendInteractionResponse(interaction, createV2CardResponse("เปลี่ยนจำนวนคนสำเร็จ", `> 👥 เปลี่ยนจำนวนคนที่เข้าบ้านเช่าเป็น **${limit || "ไม่จำกัด"}** เรียบร้อยแล้วค่ะ`, "👥"));
       }
       return await sendInteractionResponse(interaction, createV2CardResponse("ข้อมูลไม่ถูกต้อง", "> ❌ กรุณาระบุตัวเลขจำนวนคนระหว่าง 0 ถึง 99 ค่ะ", "⚠️"));

@@ -466,7 +466,10 @@ client.on("interactionCreate", async (interaction) => {
         error.message
       );
     } else {
-      console.error("❌ [KumaBot] Interaction Handling Error:", error.message);
+      console.error(
+        `❌ [KumaBot] Interaction Handling Error (${interaction.commandName || interaction.customId || "unknown"}) in guild "${interaction.guild?.name || "Unknown"}" (${interaction.guildId || "DM"}):`,
+        error.message
+      );
     }
 
     const replyPayload = {

@@ -27,6 +27,12 @@ async function moveVipRoomCategory(channel, targetCategoryId, label = "") {
     await channel.setParent(targetCategoryId, { lockPermissions: false });
     console.log(`📂 [VIP] ย้ายห้อง "${channel.name}" ไปยัง Category ${label} (${targetCategoryId}) สำเร็จ`);
   } catch (err) {
+    if (err.code === 10003 || err.message?.includes("Unknown Channel")) {
+      console.warn(`⚠️ [VIP] ห้อง "${channel?.name}" (${channel?.id}) ไม่อยู่ใน Discord แล้ว — ล้างข้อมูลออกจากระบบ`);
+      await deleteRoom(channel.id).catch(() => {});
+      removeVipRoomFromDatabase(channel.id).catch(() => {});
+      return;
+    }
     console.error(`❌ [VIP] ย้ายห้อง "${channel?.name}" ไปยัง Category ${label} (${targetCategoryId}) ล้มเหลว:`, err.message);
   }
 }

@@ -14,7 +14,8 @@ const { WEBHOOK_URL } = require("./coinGachaConfig");
  * @param {number} params.timestamp - Unix Timestamp (วินาที)
  */
 async function sendRollLogWebhook({ discordId, userAvatar, tier, rewardName, timestamp }) {
-  if (!WEBHOOK_URL) return;
+  const targetWebhookUrl = process.env.COIN_GACHA_WEBHOOK_URL || WEBHOOK_URL;
+  if (!targetWebhookUrl) return;
 
   const ts = timestamp || Math.floor(Date.now() / 1000);
   const avatar = userAvatar || "https://cdn.discordapp.com/embed/avatars/0.png";
@@ -58,7 +59,7 @@ async function sendRollLogWebhook({ discordId, userAvatar, tier, rewardName, tim
   };
 
   try {
-    await axios.post(WEBHOOK_URL, payload, { timeout: 8000 });
+    await axios.post(targetWebhookUrl, payload, { timeout: 8000 });
   } catch (err) {
     console.error("[coinGachaWebhook] Failed to send roll log:", err.message);
   }

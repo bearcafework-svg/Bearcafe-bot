@@ -2,8 +2,8 @@
 // การตั้งค่าและ Constants ทั้งหมดของระบบหมีโยนเหรียญ (Coin Gacha)
 
 module.exports = {
-  // Webhook ส่ง Log แบบ Real-time
-  WEBHOOK_URL: "https://discord.com/api/webhooks/1572539527942250578/8qd3mFHkue3yl9TeoZHTemgOuaRAKI3q7vXxVr5miFfqnWBTiLxCaHaYsjxFHiMmx_Gj",
+  // Webhook ส่ง Log แบบ Real-time (โหลดจาก .env เพื่อความปลอดภัย)
+  WEBHOOK_URL: process.env.COIN_GACHA_WEBHOOK_URL || "",
 
   // ช่องทางต่างๆ
   CHANNELS: {

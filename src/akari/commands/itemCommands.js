@@ -886,7 +886,7 @@ async function handleItemInteraction(interaction, supabase, client) {
 
     return await interaction.reply({
       ...confirmPayload,
-      flags: MessageFlags.Ephemeral,
+      flags: (confirmPayload.flags || 32768) | MessageFlags.Ephemeral,
     });
   }
 

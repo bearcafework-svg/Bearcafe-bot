@@ -93,7 +93,7 @@ function buildStoreSettingsDashboard(guild, storeConfig, items) {
           flow: {
             actions: [],
           },
-          custom_id: "akari_store_log_channel_select",
+          custom_id: "kuma_store_log_channel_select",
           placeholder: "เลือกห้องแจ้งเตือน...",
           min_values: 1,
           max_values: 1,
@@ -157,7 +157,7 @@ function buildStoreSettingsDashboard(guild, storeConfig, items) {
       accessory: {
         type: 2, // Button
         style: 2, // Secondary
-        custom_id: `akari_store_edit_modal_${s}`,
+        custom_id: `kuma_store_edit_modal_${s}`,
         emoji: {
           name: "📝",
         },
@@ -198,7 +198,7 @@ function buildStoreSettingsDashboard(guild, storeConfig, items) {
     components: [
       {
         type: 3, // StringSelectMenu
-        custom_id: "akari_store_toggle_select",
+        custom_id: "kuma_store_toggle_select",
         placeholder: "⚡︲สลับสถานะเปิด / ปิด การใช้งานของรางวัล...",
         options: toggleOptions,
       },
@@ -221,7 +221,7 @@ function buildStoreSettingsDashboard(guild, storeConfig, items) {
         type: 2,
         style: 1, // Primary (Blurple)
         label: "︲ผูกยศ Discord",
-        custom_id: "akari_store_role_select_btn",
+        custom_id: "kuma_store_role_select_btn",
         emoji: {
           name: "🎖️",
         },
@@ -230,7 +230,7 @@ function buildStoreSettingsDashboard(guild, storeConfig, items) {
         type: 2,
         style: 2, // Secondary (Grey)
         label: "︲จำกัด 1 ครั้ง/คน",
-        custom_id: "akari_store_limit_select_btn",
+        custom_id: "kuma_store_limit_select_btn",
         emoji: {
           name: "🔒",
         },
@@ -239,7 +239,7 @@ function buildStoreSettingsDashboard(guild, storeConfig, items) {
         type: 2,
         style: isCustomThemeActive ? 3 : 2, // Green (Success) if active, Grey (Secondary) if default
         label: isCustomThemeActive ? "︲ธีม: กำหนดเอง (Custom)" : "︲ธีมหน้าร้าน (Discohook)",
-        custom_id: "akari_store_theme_btn",
+        custom_id: "kuma_store_theme_btn",
         emoji: {
           name: "🎨",
         },
@@ -273,7 +273,7 @@ function buildPublicStoreCard(guild, storeConfig, items) {
         label: isOutOfStock
           ? `สินค้าหมด (${item.name})`
           : `แลก ${item.name} (${item.points_cost.toLocaleString()} แต้ม)`,
-        custom_id: `akari_store_redeem_btn_${item.slot}`,
+        custom_id: `kuma_store_redeem_btn_${item.slot}`,
         disabled: isOutOfStock,
         emoji: {
           name: item.emoji || "🎁",
@@ -328,7 +328,7 @@ function buildPublicStoreCard(guild, storeConfig, items) {
         }
       }
     } catch (customErr) {
-      console.warn("[akari-store] Failed to parse custom_layout_json, fallback to default card:", customErr.message);
+      console.warn("[kuma-store] Failed to parse custom_layout_json, fallback to default card:", customErr.message);
     }
   }
 
@@ -433,13 +433,13 @@ function buildRedeemConfirmCard(guild, user, item, userScore) {
                 type: 2,
                 style: 3, // Success (Green)
                 label: "✅ ยืนยันการแลก",
-                custom_id: `akari_store_confirm_${item.slot}`,
+                custom_id: `kuma_store_confirm_${item.slot}`,
               },
               {
                 type: 2,
                 style: 2, // Secondary
                 label: "❌ ยกเลิก",
-                custom_id: "akari_store_cancel",
+                custom_id: "kuma_store_cancel",
               },
             ],
           },

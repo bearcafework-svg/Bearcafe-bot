@@ -191,7 +191,7 @@ async function handleOpenStore(interaction, supabase, client) {
   // ส่งการ์ด Component V2 แท้ลงในห้องข้อความโดยตรง (ไม่มีแถบ /open-store)
   const storePayload = buildPublicStoreCard(interaction.guild, storeConfig, items);
   await interaction.channel.send(storePayload).catch((err) => {
-    console.error("[akari-store] Failed to send store card to channel:", err.message);
+    console.error("[kuma-store] Failed to send store card to channel:", err.message);
   });
 
   // ลบ interaction reply ทิ้งเพื่อความสะอาด ไม่ให้เหลือข้อความ /slash หรือแถบไม่ตอบสนอง
@@ -203,16 +203,19 @@ async function handleOpenStore(interaction, supabase, client) {
  */
 async function handleStoreButtonInteraction(interaction, supabase, client) {
   const customId = interaction.customId;
+  const normalizedId = customId.startsWith("akari_store_")
+    ? customId.replace("akari_store_", "kuma_store_")
+    : customId;
 
-  // 1. ปุ่มแก้ไขข้อมูลไอเทม Modal: akari_store_edit_modal_1/2/3
-  if (customId.startsWith("akari_store_edit_modal_")) {
-    const slot = parseInt(customId.replace("akari_store_edit_modal_", ""), 10);
+  // 1. ปุ่มแก้ไขข้อมูลไอเทม Modal: kuma_store_edit_modal_1/2/3
+  if (normalizedId.startsWith("kuma_store_edit_modal_")) {
+    const slot = parseInt(normalizedId.replace("kuma_store_edit_modal_", ""), 10);
     const items = await getTenantStoreItems(supabase, interaction.guildId);
     const item = items.find((i) => i.slot === slot);
     const msgId = interaction.message?.id || "";
 
     const modal = new ModalBuilder()
-      .setCustomId(`akari_store_modal_submit_${slot}:${msgId}`)
+      .setCustomId(`kuma_store_modal_submit_${slot}:${msgId}`)
       .setTitle(`ตั้งค่าของรางวัลช่องที่ ${slot}`);
 
     const nameInput = new TextInputBuilder()
@@ -266,9 +269,9 @@ async function handleStoreButtonInteraction(interaction, supabase, client) {
     return interaction.showModal(modal);
   }
 
-  // 2. ปุ่มเปิด/ปิด ไอเทม: akari_store_toggle_1/2/3
-  if (customId.startsWith("akari_store_toggle_")) {
-    const slot = parseInt(customId.replace("akari_store_toggle_", ""), 10);
+  // 2. ปุ่มเปิด/ปิด ไอเทม: kuma_store_toggle_1/2/3
+  if (normalizedId.startsWith("kuma_store_toggle_")) {
+    const slot = parseInt(normalizedId.replace("kuma_store_toggle_", ""), 10);
     const items = await getTenantStoreItems(supabase, interaction.guildId);
     const item = items.find((i) => i.slot === slot);
     if (!item) return;
@@ -283,8 +286,8 @@ async function handleStoreButtonInteraction(interaction, supabase, client) {
     return interaction.update(updatedPayload);
   }
 
-  // 3. ปุ่มเลือกผูกยศ Discord: akari_store_role_select_btn
-  if (customId === "akari_store_role_select_btn") {
+  // 3. ปุ่มเลือกผูกยศ Discord: kuma_store_role_select_btn
+  if (normalizedId === "kuma_store_role_select_btn") {
     const items = await getTenantStoreItems(supabase, interaction.guildId);
 
     // ตรวจสอบว่ามีรางวัลที่ตั้งค่าแล้วอย่างน้อย 1 ช่องหรือไม่
@@ -308,7 +311,7 @@ async function handleStoreButtonInteraction(interaction, supabase, client) {
 
     const msgId = interaction.message?.id || "";
     const slotSelect = new StringSelectMenuBuilder()
-      .setCustomId(`akari_store_role_slot_target:${msgId}`)
+      .setCustomId(`kuma_store_role_slot_target:${msgId}`)
       .setPlaceholder("📦︲เลือกช่องไอเทมที่ต้องการผูกยศ...")
       .addOptions([
         {
@@ -362,11 +365,11 @@ async function handleStoreButtonInteraction(interaction, supabase, client) {
     });
   }
 
-  // 4. ปุ่มเลือกห้องแจ้งเตือน Log: akari_store_channel_select_btn
-  if (customId === "akari_store_channel_select_btn") {
+  // 4. ปุ่มเลือกห้องแจ้งเตือน Log: kuma_store_channel_select_btn
+  if (normalizedId === "kuma_store_channel_select_btn") {
     const msgId = interaction.message?.id || "";
     const channelSelect = new ChannelSelectMenuBuilder()
-      .setCustomId(`akari_store_log_channel_selected:${msgId}`)
+      .setCustomId(`kuma_store_log_channel_selected:${msgId}`)
       .setPlaceholder("💭︲เลือกห้องแชทสำหรับส่งแจ้งเตือน...")
       .setChannelTypes([ChannelType.GuildText]);
 
@@ -395,8 +398,8 @@ async function handleStoreButtonInteraction(interaction, supabase, client) {
     });
   }
 
-  // 4.5 ปุ่มเลือกสลับการจำกัด 1 ครั้ง/คน: akari_store_limit_select_btn
-  if (customId === "akari_store_limit_select_btn") {
+  // 4.5 ปุ่มเลือกสลับการจำกัด 1 ครั้ง/คน: kuma_store_limit_select_btn
+  if (normalizedId === "kuma_store_limit_select_btn") {
     const items = await getTenantStoreItems(supabase, interaction.guildId);
 
     if (!items.some((i) => i.is_configured)) {
@@ -419,7 +422,7 @@ async function handleStoreButtonInteraction(interaction, supabase, client) {
 
     const msgId = interaction.message?.id || "";
     const slotSelect = new StringSelectMenuBuilder()
-      .setCustomId(`akari_store_limit_slot_target:${msgId}`)
+      .setCustomId(`kuma_store_limit_slot_target:${msgId}`)
       .setPlaceholder("🔒︲เลือกช่องของรางวัลที่ต้องการสลับการจำกัดสิทธิ์...")
       .addOptions(
         items.map((it, idx) => {
@@ -470,9 +473,9 @@ async function handleStoreButtonInteraction(interaction, supabase, client) {
     });
   }
 
-  // 5. ปุ่มกดแลกของรางวัลจากหน้าร้าน: akari_store_redeem_btn_1/2/3
-  if (customId.startsWith("akari_store_redeem_btn_")) {
-    const slot = parseInt(customId.replace("akari_store_redeem_btn_", ""), 10);
+  // 5. ปุ่มกดแลกของรางวัลจากหน้าร้าน: kuma_store_redeem_btn_1/2/3
+  if (normalizedId.startsWith("kuma_store_redeem_btn_")) {
+    const slot = parseInt(normalizedId.replace("kuma_store_redeem_btn_", ""), 10);
     const items = await getTenantStoreItems(supabase, interaction.guildId);
     const item = items.find((i) => i.slot === slot);
 
@@ -518,9 +521,9 @@ async function handleStoreButtonInteraction(interaction, supabase, client) {
     return interaction.reply({ ...confirmPayload, flags: MessageFlags.Ephemeral | FLAG_V2 });
   }
 
-  // 6. ปุ่มยืนยันการแลก: akari_store_confirm_1/2/3
-  if (customId.startsWith("akari_store_confirm_")) {
-    const slot = parseInt(customId.replace("akari_store_confirm_", ""), 10);
+  // 6. ปุ่มยืนยันการแลก: kuma_store_confirm_1/2/3
+  if (normalizedId.startsWith("kuma_store_confirm_")) {
+    const slot = parseInt(normalizedId.replace("kuma_store_confirm_", ""), 10);
     const items = await getTenantStoreItems(supabase, interaction.guildId);
     const item = items.find((i) => i.slot === slot);
 
@@ -564,8 +567,8 @@ async function handleStoreButtonInteraction(interaction, supabase, client) {
     return interaction.update(successPayload);
   }
 
-  // 7. ปุ่มยกเลิกการแลก: akari_store_cancel
-  if (customId === "akari_store_cancel") {
+  // 7. ปุ่มยกเลิกการแลก: kuma_store_cancel
+  if (normalizedId === "kuma_store_cancel") {
     return interaction.update({
       flags: MessageFlags.Ephemeral | FLAG_V2,
       components: [
@@ -582,8 +585,8 @@ async function handleStoreButtonInteraction(interaction, supabase, client) {
     });
   }
 
-  // 8. ปุ่มเปิด Modal ตั้งค่าธีมหน้าร้าน (Custom JSON): akari_store_theme_btn
-  if (customId === "akari_store_theme_btn") {
+  // 8. ปุ่มเปิด Modal ตั้งค่าธีมหน้าร้าน (Custom JSON): kuma_store_theme_btn
+  if (normalizedId === "kuma_store_theme_btn") {
     if (KUMA_STORE_ALLOWED_GUILD_ID && interaction.guildId !== KUMA_STORE_ALLOWED_GUILD_ID) {
       return interaction.reply({
         content: "❌ ฟีเจอร์นี้เปิดให้ใช้งานเฉพาะในเซิร์ฟเวอร์ที่กำหนดเท่านั้นครับ",
@@ -602,7 +605,7 @@ async function handleStoreButtonInteraction(interaction, supabase, client) {
     }
 
     const modal = new ModalBuilder()
-      .setCustomId("akari_store_theme_modal_submit")
+      .setCustomId("kuma_store_theme_modal_submit")
       .setTitle("🎨 ปรับแต่งธีมหน้าร้าน (Discohook)");
 
     const jsonInput = new TextInputBuilder()
@@ -627,9 +630,12 @@ async function handleStoreButtonInteraction(interaction, supabase, client) {
  */
 async function handleStoreModalSubmit(interaction, supabase) {
   const customId = interaction.customId;
+  const normalizedId = customId.startsWith("akari_store_")
+    ? customId.replace("akari_store_", "kuma_store_")
+    : customId;
 
-  // 1. จัดการบันทึกธีมหน้าร้าน (Custom JSON): akari_store_theme_modal_submit
-  if (customId === "akari_store_theme_modal_submit") {
+  // 1. จัดการบันทึกธีมหน้าร้าน (Custom JSON): kuma_store_theme_modal_submit
+  if (normalizedId === "kuma_store_theme_modal_submit") {
     if (KUMA_STORE_ALLOWED_GUILD_ID && interaction.guildId !== KUMA_STORE_ALLOWED_GUILD_ID) {
       return interaction.reply({
         content: "❌ ฟีเจอร์นี้เปิดให้ใช้งานเฉพาะในเซิร์ฟเวอร์ที่กำหนดเท่านั้นครับ",
@@ -739,9 +745,9 @@ async function handleStoreModalSubmit(interaction, supabase) {
   }
 
   // 2. จัดการบันทึกข้อมูลไอเทมปกติ
-  if (!customId.startsWith("akari_store_modal_submit_")) return;
+  if (!normalizedId.startsWith("kuma_store_modal_submit_")) return;
 
-  const raw = customId.replace("akari_store_modal_submit_", "");
+  const raw = normalizedId.replace("kuma_store_modal_submit_", "");
   const [slotStr, msgId] = raw.split(":");
   const slot = parseInt(slotStr, 10);
   const name = interaction.fields.getTextInputValue("item_name")?.trim() || "";
@@ -1004,16 +1010,19 @@ async function handleStoreModalSubmit(interaction, supabase) {
  */
 async function handleStoreSelectMenus(interaction, supabase) {
   const customId = interaction.customId;
+  const normalizedId = customId.startsWith("akari_store_")
+    ? customId.replace("akari_store_", "kuma_store_")
+    : customId;
 
-  // 1. เมนูเลือกช่องเพื่อตั้งค่าไอเทม: akari_store_edit_select
-  if (customId === "akari_store_edit_select") {
+  // 1. เมนูเลือกช่องเพื่อตั้งค่าไอเทม: kuma_store_edit_select
+  if (normalizedId === "kuma_store_edit_select") {
     const slot = parseInt(interaction.values[0], 10);
     const items = await getTenantStoreItems(supabase, interaction.guildId);
     const item = items.find((i) => i.slot === slot);
     const msgId = interaction.message?.id || "";
 
     const modal = new ModalBuilder()
-      .setCustomId(`akari_store_modal_submit_${slot}:${msgId}`)
+      .setCustomId(`kuma_store_modal_submit_${slot}:${msgId}`)
       .setTitle(`ตั้งค่าของรางวัลช่องที่ ${slot}`);
 
     const nameInput = new TextInputBuilder()
@@ -1058,8 +1067,8 @@ async function handleStoreSelectMenus(interaction, supabase) {
     return interaction.showModal(modal);
   }
 
-  // 2. เมนูสลับสถานะเปิด / ปิด การใช้งาน: akari_store_toggle_select
-  if (customId === "akari_store_toggle_select") {
+  // 2. เมนูสลับสถานะเปิด / ปิด การใช้งาน: kuma_store_toggle_select
+  if (normalizedId === "kuma_store_toggle_select") {
     const slot = parseInt(interaction.values[0], 10);
     const items = await getTenantStoreItems(supabase, interaction.guildId);
     const item = items.find((i) => i.slot === slot);
@@ -1092,9 +1101,9 @@ async function handleStoreSelectMenus(interaction, supabase) {
     return interaction.update(updatedPayload);
   }
 
-  // เมนูเลือกช่องเป้าหมายที่จะผูกยศ: akari_store_role_slot_target
-  if (customId.startsWith("akari_store_role_slot_target")) {
-    const parts = customId.split(":");
+  // เมนูเลือกช่องเป้าหมายที่จะผูกยศ: kuma_store_role_slot_target
+  if (normalizedId.startsWith("kuma_store_role_slot_target")) {
+    const parts = normalizedId.split(":");
     const msgId = parts[1] || "";
     const targetSlot = interaction.values[0];
     const targetSlotNum = parseInt(targetSlot, 10);
@@ -1122,7 +1131,7 @@ async function handleStoreSelectMenus(interaction, supabase) {
     }
 
     const roleSelect = new RoleSelectMenuBuilder()
-      .setCustomId(`akari_store_role_selected_slot_${targetSlot}:${msgId}`)
+      .setCustomId(`kuma_store_role_selected_slot_${targetSlot}:${msgId}`)
       .setPlaceholder("📦︲เลือกยศ Discord ที่ต้องการมอบให้...");
 
     return interaction.update({
@@ -1150,9 +1159,9 @@ async function handleStoreSelectMenus(interaction, supabase) {
     });
   }
 
-  // เมนูเลือกช่องของรางวัลเพื่อสลับการจำกัดสิทธิ์ (1 ครั้ง/คน vs ไม่จำกัด): akari_store_limit_slot_target
-  if (customId.startsWith("akari_store_limit_slot_target")) {
-    const raw = customId.replace("akari_store_limit_slot_target:", "");
+  // เมนูเลือกช่องของรางวัลเพื่อสลับการจำกัดสิทธิ์ (1 ครั้ง/คน vs ไม่จำกัด): kuma_store_limit_slot_target
+  if (normalizedId.startsWith("kuma_store_limit_slot_target")) {
+    const raw = normalizedId.replace("kuma_store_limit_slot_target:", "");
     const msgId = raw;
     const slot = parseInt(interaction.values[0], 10);
 
@@ -1237,12 +1246,12 @@ async function handleStoreSelectMenus(interaction, supabase) {
     return await editReplyPromise;
   }
 
-  // เมนูเลือกยศ Discord สำหรับช่องที่ระบุ: akari_store_role_selected_slot_1/2/3
-  if (customId.startsWith("akari_store_role_selected_slot_")) {
+  // เมนูเลือกยศ Discord สำหรับช่องที่ระบุ: kuma_store_role_selected_slot_1/2/3
+  if (normalizedId.startsWith("kuma_store_role_selected_slot_")) {
     // 1. รับทราบ interaction ทันทีเพื่อป้องกัน Timeout 3 วินาทีของ Discord
     if (!(await safeDeferUpdate(interaction))) return;
 
-    const raw = customId.replace("akari_store_role_selected_slot_", "");
+    const raw = normalizedId.replace("kuma_store_role_selected_slot_", "");
     const [slotStr, msgId] = raw.split(":");
     const slot = parseInt(slotStr, 10);
     const selectedRoleId = interaction.values[0];
@@ -1331,9 +1340,9 @@ async function handleStoreSelectMenus(interaction, supabase) {
 
   // เมนูเลือกห้อง Log Channel โดยตรงบนแดชบอร์ดหลัก (Inline Channel Select Menu)
   if (
-    customId === "akari_store_log_channel_select" ||
-    customId === "p_361750733613174785" ||
-    customId.startsWith("akari_store_log_channel_select")
+    normalizedId === "kuma_store_log_channel_select" ||
+    normalizedId === "p_361750733613174785" ||
+    normalizedId.startsWith("kuma_store_log_channel_select")
   ) {
     const selectedChannelId = interaction.values[0];
     await saveTenantStoreConfig(supabase, interaction.guildId, {
@@ -1345,12 +1354,12 @@ async function handleStoreSelectMenus(interaction, supabase) {
     return safeUpdate(interaction, updatedPayload);
   }
 
-  // เมนูเลือกห้อง Log Channel: akari_store_log_channel_selected (Ephemeral Fallback)
-  if (customId.startsWith("akari_store_log_channel_selected")) {
+  // เมนูเลือกห้อง Log Channel: kuma_store_log_channel_selected (Ephemeral Fallback)
+  if (normalizedId.startsWith("kuma_store_log_channel_selected")) {
     // 1. รับทราบ interaction ทันทีเพื่อป้องกัน Timeout 3 วินาทีของ Discord
     if (!(await safeDeferUpdate(interaction))) return;
 
-    const [_, msgId] = customId.split(":");
+    const [_, msgId] = normalizedId.split(":");
     const selectedChannelId = interaction.values[0];
 
     const currentConfig = await getTenantStoreConfig(supabase, interaction.guildId);

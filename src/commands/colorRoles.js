@@ -45,6 +45,16 @@ function parseEmojiForSelect(emojiStr) {
   return undefined;
 }
 
+// ฟังก์ชันดึงรายการ Role ID ที่มีสิทธิ์ใช้สียศ
+function getRequiredRoles(colorObj) {
+  if (!colorObj) return [];
+  if (Array.isArray(colorObj.requiredRoleIds)) return colorObj.requiredRoleIds;
+  if (Array.isArray(colorObj.requiredRoleId)) return colorObj.requiredRoleId;
+  if (colorObj.requiredRoleIds) return [colorObj.requiredRoleIds];
+  if (colorObj.requiredRoleId) return [colorObj.requiredRoleId];
+  return [];
+}
+
 // ฟังก์ชันหลักในการถอดสีเก่า และใส่สีใหม่ พร้อมเซฟลง Supabase
 async function changeColorRole(member, targetColorValue, supabase) {
   const guild = member.guild;
@@ -112,7 +122,7 @@ function buildMainPanel() {
             items: [
               {
                 media: {
-                  url: "https://media.discordapp.net/attachments/1565840974737973428/1567595341522407484/64f55885cca18dc8.jpg?ex=6af400ad&is=6af2af2d&hm=0a9218dbff05f04c3d3da85ca9e232ca365f1bc00230b4dea7df63f95f80a5ff&=&format=webp&width=1006&height=1006"
+                  url: "https://cdn.discordapp.com/attachments/1565840974737973428/1575124026198589492/20_49_.png?ex=6b082410&is=6b06d290&hm=8d10f679b703f92fc5d26b63448ba6cafa4a2edbd3adc1149706ccc2a42ed917&"
                 }
               }
             ]
@@ -325,13 +335,15 @@ function setupColorRoles(client) {
       }
     }
 
-    // ── ตรวจสอบสิทธิ์เฉพาะของแต่ละสียศ (เช่น c21 ต้องมี role 1383998275711012956) ────
+    // ── ตรวจสอบสิทธิ์เฉพาะของแต่ละสียศ (เช่น c21 ต้องมี role 1383998275711012956 หรือ 1382196763523420233) ────
     if (actionType === "change" && selectedColorValue) {
       const targetColor = cfg.colors.find(c => c.value === selectedColorValue);
-      if (targetColor?.requiredRoleId && !member.roles.cache.has(targetColor.requiredRoleId)) {
+      const reqRoles = getRequiredRoles(targetColor);
+      if (reqRoles.length > 0 && !reqRoles.some(rId => member.roles.cache.has(rId))) {
+        const roleMentions = reqRoles.map(id => `<@&${id}>`).join(" หรือ ");
         return safeRespond(interaction, {
           flags: FLAG_EPHEMERAL,
-          content: `❌ สียศ **${targetColor.name}** สงวนสิทธิ์เฉพาะสมาชิกที่มีบทบาท <@&${targetColor.requiredRoleId}> เท่านั้นค่ะ`
+          content: `❌ สียศ **${targetColor.name}** สงวนสิทธิ์เฉพาะสมาชิกที่มีบทบาท ${roleMentions} เท่านั้นค่ะ`
         });
       }
     }
@@ -366,7 +378,10 @@ function setupColorRoles(client) {
       await handleColorChange(interaction, selectedColorValue, supabase);
     } else if (actionType === "random") {
       // สุ่มสีเฉพาะรายการที่สมาชิกมีสิทธิ์ใช้งาน
-      const availableColors = cfg.colors.filter(c => !c.requiredRoleId || member.roles.cache.has(c.requiredRoleId));
+      const availableColors = cfg.colors.filter(c => {
+        const reqRoles = getRequiredRoles(c);
+        return reqRoles.length === 0 || reqRoles.some(rId => member.roles.cache.has(rId));
+      });
       if (availableColors.length === 0) {
         return safeRespond(interaction, {
           flags: FLAG_EPHEMERAL,

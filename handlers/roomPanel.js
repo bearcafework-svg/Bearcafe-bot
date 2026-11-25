@@ -928,6 +928,7 @@ async function applyVipPresetToRoom(context, targetPreset, member, channel) {
 }
 
 async function handleVipApplyPresetSelect(interaction) {
+  await deferEphemeral(interaction);
   const context = await getOwnedRoomContextFromInteraction(interaction);
   if (!context) return await replyOwnerOnly(interaction);
 
@@ -973,6 +974,7 @@ async function handleVipApplyPresetSelect(interaction) {
 }
 
 async function handleVipConfirmEvictionButton(interaction) {
+  await deferEphemeral(interaction);
   const context = await getOwnedRoomContextFromInteraction(interaction);
   if (!context) return await replyOwnerOnly(interaction);
 
@@ -1030,11 +1032,15 @@ async function handleVipConfirmEvictionButton(interaction) {
 }
 
 async function handleVipPresetButton(interaction) {
+  const parts = interaction.customId.split("_"); // ["vip", "p", "action", "num"]
+  const action = parts[2];
+  if (action !== "rename") {
+    await deferEphemeral(interaction);
+  }
+
   const context = await getOwnedRoomContextFromInteraction(interaction);
   if (!context) return await replyOwnerOnly(interaction);
 
-  const parts = interaction.customId.split("_"); // ["vip", "p", "action", "num"]
-  const action = parts[2];
   const num = parseInt(parts[3], 10);
   const presets = await getVipPresets(context.room.ownerId);
   const targetPreset = presets[num - 1];
@@ -1163,7 +1169,7 @@ async function getOwnedRoomContextFromInteraction(interaction) {
             zoneId: "vip",
             settings: data.settings || {},
           };
-          await saveRoom(channel.id, room).catch(() => {});
+          await saveRoom(channel.id, "vip", data.owner_id, data.settings || {}).catch(() => {});
         }
       } catch (err) {
         console.warn("[roomPanel] fallback getRoom from supabase error:", err.message);

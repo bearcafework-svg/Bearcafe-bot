@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS public.tenant_store_items_v2 (
     stock INT NOT NULL DEFAULT -1, -- -1 = ไม่จำกัด, 0 = สินค้าหมด, >0 = จำนวนชิ้นคงเหลือ
     emoji TEXT DEFAULT '🎁',
     is_active BOOLEAN DEFAULT true,
+    wins_required INT NOT NULL DEFAULT 0,
+    required_role_id VARCHAR(32) DEFAULT NULL,
     sort_order INT DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()

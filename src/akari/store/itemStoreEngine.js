@@ -109,16 +109,44 @@ async function createGuildItem(supabase, guildId, itemData) {
       stock: typeof itemData.stock === "number" ? itemData.stock : -1,
       emoji: (itemData.emoji || "🎁").trim(),
       is_active: itemData.is_active !== false,
+      wins_required: Math.max(0, Number(itemData.wins_required) || 0),
+      required_role_id: itemData.required_role_id || null,
       sort_order: existingItems.length,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
 
-    const { data, error } = await supabase
-      .from("tenant_store_items_v2")
-      .insert(newItem)
-      .select()
-      .single();
+    let data = null;
+    let error = null;
+
+    try {
+      const res = await supabase
+        .from("tenant_store_items_v2")
+        .insert(newItem)
+        .select()
+        .single();
+      data = res.data;
+      error = res.error;
+    } catch (e) {
+      error = e;
+    }
+
+    if (error) {
+      // หากคอลัมน์ wins_required หรือ required_role_id ยังไม่ได้รัน migration บน Supabase ให้ fallback บันทึกโดยละเว้นคอลัมน์ใหม่
+      if (error.message && (error.message.includes("wins_required") || error.message.includes("required_role_id"))) {
+        console.warn(`[itemStoreEngine] ⚠️ wins_required/required_role_id not migrated on Supabase, falling back:`, error.message);
+        const fallbackItem = { ...newItem };
+        delete fallbackItem.wins_required;
+        delete fallbackItem.required_role_id;
+        const resFallback = await supabase
+          .from("tenant_store_items_v2")
+          .insert(fallbackItem)
+          .select()
+          .single();
+        data = resFallback.data;
+        error = resFallback.error;
+      }
+    }
 
     if (error) {
       console.error(`[itemStoreEngine] createGuildItem error:`, error.message);
@@ -126,7 +154,7 @@ async function createGuildItem(supabase, guildId, itemData) {
     }
 
     invalidateItemsCache(guildId);
-    return { success: true, item: data };
+    return { success: true, item: data || newItem };
   } catch (err) {
     console.error(`[itemStoreEngine] createGuildItem unexpected error:`, err.message);
     return { success: false, error: err.message };
@@ -149,13 +177,39 @@ async function updateGuildItem(supabase, guildId, itemId, updates) {
     delete cleanUpdates.id;
     delete cleanUpdates.guild_id;
 
-    const { data, error } = await supabase
-      .from("tenant_store_items_v2")
-      .update(cleanUpdates)
-      .eq("id", itemId)
-      .eq("guild_id", guildId)
-      .select()
-      .single();
+    let data = null;
+    let error = null;
+
+    try {
+      const res = await supabase
+        .from("tenant_store_items_v2")
+        .update(cleanUpdates)
+        .eq("id", itemId)
+        .eq("guild_id", guildId)
+        .select()
+        .single();
+      data = res.data;
+      error = res.error;
+    } catch (e) {
+      error = e;
+    }
+
+    if (error) {
+      if (error.message && (error.message.includes("wins_required") || error.message.includes("required_role_id"))) {
+        console.warn(`[itemStoreEngine] ⚠️ wins_required/required_role_id not migrated on Supabase, falling back update:`, error.message);
+        delete cleanUpdates.wins_required;
+        delete cleanUpdates.required_role_id;
+        const resFallback = await supabase
+          .from("tenant_store_items_v2")
+          .update(cleanUpdates)
+          .eq("id", itemId)
+          .eq("guild_id", guildId)
+          .select()
+          .single();
+        data = resFallback.data;
+        error = resFallback.error;
+      }
+    }
 
     if (error) {
       console.error(`[itemStoreEngine] updateGuildItem error:`, error.message);
@@ -240,7 +294,44 @@ async function checkItemRedemptionEligibility(supabase, guild, member, item) {
     return { eligible: false, reason: `ท่านมียศ <@&${item.role_id}> อยู่แล้ว ไม่สามารถแลกซ้ำได้ครับ` };
   }
 
-  // 3. ตรวจสอบ Role Hierarchy ของบอท
+  // 3. ตรวจสอบเงื่อนไขขั้นสูง: ยศที่ต้องมีก่อนแลก (Required Role)
+  if (item.required_role_id && !member.roles.cache.has(item.required_role_id)) {
+    return {
+      eligible: false,
+      reason: `⚠️ **คุณสมบัติยังไม่ผ่านเกณฑ์สำหรับไอเทมนี้**\n> ไอเทมนี้สงวนสิทธิ์เฉพาะสมาชิกที่มียศ <@&${item.required_role_id}> เท่านั้นครับ 👑`,
+      reasonType: "missing_required_role",
+      requiredRoleId: item.required_role_id,
+    };
+  }
+
+  // 4. ตรวจสอบเงื่อนไขขั้นสูง: จำนวนครั้งที่ชนะมินิเกมขั้นต่ำ (Wins Required)
+  if (item.wins_required && item.wins_required > 0) {
+    let userWins = 0;
+    if (supabase) {
+      try {
+        const { data: scoreData } = await supabase
+          .from("tenant_minigame_scores")
+          .select("wins")
+          .eq("guild_id", guild.id)
+          .eq("user_id", member.id)
+          .maybeSingle();
+        userWins = Number(scoreData?.wins) || 0;
+      } catch (e) {}
+    }
+    if (userWins < item.wins_required) {
+      const diff = item.wins_required - userWins;
+      return {
+        eligible: false,
+        reason: `⚠️ **คุณสมบัติยังไม่ผ่านเกณฑ์สำหรับไอเทมนี้**\n> ไอเทมนี้ต้องชนะมินิเกมอย่างน้อย **${item.wins_required.toLocaleString()}** ครั้ง\n> (ปัจจุบันคุณชนะแล้ว **${userWins.toLocaleString()}** ครั้ง — ขาดอีก **${diff.toLocaleString()}** ครั้งครับ) 🐻🎮`,
+        reasonType: "wins_insufficient",
+        userWins,
+        requiredWins: item.wins_required,
+        diff,
+      };
+    }
+  }
+
+  // 5. ตรวจสอบ Role Hierarchy ของบอท
   const me = guild.members.me;
   const targetRole = guild.roles.cache.get(item.role_id);
   if (!targetRole) {
@@ -253,17 +344,47 @@ async function checkItemRedemptionEligibility(supabase, guild, member, item) {
     };
   }
 
-  // 4. ตรวจสอบแต้มสะสม
+  // 6. คำนวณส่วนลดตามยศ (Global Store Discount)
+  const { getTenantStoreConfig } = require("./storeEngine");
+  const storeConfig = await getTenantStoreConfig(supabase, guild.id);
+  let maxDiscount = 0;
+  let discountRoleId = null;
+  const discounts = Array.isArray(storeConfig?.role_discounts) ? storeConfig.role_discounts : [];
+  for (const d of discounts) {
+    const p = Number(d.percent) || 0;
+    if (d.role_id && p > maxDiscount && member.roles.cache.has(d.role_id)) {
+      maxDiscount = p;
+      discountRoleId = d.role_id;
+    }
+  }
+
+  const originalCost = item.points_cost;
+  const finalCost = maxDiscount > 0
+    ? Math.max(1, Math.round(originalCost * (1 - maxDiscount / 100)))
+    : originalCost;
+
+  // 7. ตรวจสอบแต้มสะสม
   const currentPoints = await getTenantUserPoints(supabase, guild.id, member.id);
-  if (currentPoints < item.points_cost) {
+  if (currentPoints < finalCost) {
     return {
       eligible: false,
-      reason: `แต้มสะสมของท่านไม่เพียงพอ (มี **${currentPoints.toLocaleString()}** แต้ม / ต้องการ **${item.points_cost.toLocaleString()}** แต้ม)`,
+      reason: `แต้มสะสมของท่านไม่เพียงพอ (มี **${currentPoints.toLocaleString()}** แต้ม / ต้องการ **${finalCost.toLocaleString()}** แต้ม${maxDiscount > 0 ? ` [ลด ${maxDiscount}%]` : ""})`,
       currentPoints,
+      finalCost,
+      maxDiscount,
+      discountRoleId,
+      originalCost,
     };
   }
 
-  return { eligible: true, currentPoints };
+  return {
+    eligible: true,
+    currentPoints,
+    finalCost,
+    maxDiscount,
+    discountRoleId,
+    originalCost,
+  };
 }
 
 /**
@@ -275,10 +396,10 @@ async function executeRoleRedemption(client, supabase, guild, member, item) {
 
   const eligibility = await checkItemRedemptionEligibility(supabase, guild, member, item);
   if (!eligibility.eligible) {
-    return { success: false, error: eligibility.reason };
+    return { success: false, error: eligibility.reason, eligibility };
   }
 
-  const cost = item.points_cost;
+  const cost = eligibility.finalCost ?? item.points_cost;
   const initialPoints = eligibility.currentPoints;
   const newPoints = initialPoints - cost;
 
@@ -370,7 +491,29 @@ async function executeRoleRedemption(client, supabase, guild, member, item) {
     success: true,
     newPoints,
     item,
+    finalCost: cost,
+    maxDiscount: eligibility.maxDiscount,
+    discountRoleId: eligibility.discountRoleId,
   };
+}
+
+/**
+ * ดึงรายการส่วนลดยศของร้านค้า
+ */
+async function getStoreDiscounts(supabase, guildId) {
+  const { getTenantStoreConfig } = require("./storeEngine");
+  const config = await getTenantStoreConfig(supabase, guildId);
+  return Array.isArray(config?.role_discounts) ? config.role_discounts : [];
+}
+
+/**
+ * บันทึกรายการส่วนลดยศของร้านค้า
+ */
+async function saveStoreDiscounts(supabase, guildId, discounts) {
+  const { saveTenantStoreConfig } = require("./storeEngine");
+  return await saveTenantStoreConfig(supabase, guildId, {
+    role_discounts: Array.isArray(discounts) ? discounts : [],
+  });
 }
 
 module.exports = {
@@ -382,5 +525,7 @@ module.exports = {
   getTenantUserPoints,
   checkItemRedemptionEligibility,
   executeRoleRedemption,
+  getStoreDiscounts,
+  saveStoreDiscounts,
   invalidateItemsCache,
 };

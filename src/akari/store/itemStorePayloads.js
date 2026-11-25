@@ -44,7 +44,7 @@ function parseEmojiForDiscord(emojiStr) {
  * @param {string} currencyEmoji สัญลักษณ์สกุลเงิน
  * @returns {Array<object>} Array ของ message payloads ที่ต้องส่ง
  */
-function buildMarketPayloads(guild, items = [], currencyEmoji = DEFAULT_CURRENCY_EMOJI) {
+function buildMarketPayloads(guild, items = [], currencyEmoji = DEFAULT_CURRENCY_EMOJI, bannerUrl = null) {
   const serverName = guild?.name || "Server";
   const totalItems = items.length;
   const strawberryEmoji = parseEmojiForDiscord(currencyEmoji) || {
@@ -54,25 +54,44 @@ function buildMarketPayloads(guild, items = [], currencyEmoji = DEFAULT_CURRENCY
   };
 
   if (totalItems === 0) {
+    const emptyComponents = [];
+    if (bannerUrl) {
+      emptyComponents.push({
+        type: 12,
+        items: [
+          {
+            media: {
+              url: bannerUrl,
+            },
+          },
+        ],
+      });
+      emptyComponents.push({
+        type: 14,
+        spacing: 2,
+      });
+    }
+    emptyComponents.push(
+      {
+        type: 10,
+        content: `## <a:shoppingcart:1567249451477901465>︲__\` 𝖬𝖺𝗋𝗄𝖾𝗍 𝖨𝗍𝖾𝗆 ₊ ร้านค้าไอเทม 𓂃 \`__\n-# ยินดีต้อนร้อนเข้าสู่ร้านค้าของ **${serverName}** ที่นี่เรามีไอเทมมากมายให้คุณได้เลิอกซื้อ มากถึง **__0 ชิ้น__** <:cuteplant:1152834055528783872>`,
+      },
+      {
+        type: 14,
+        spacing: 2,
+      },
+      {
+        type: 10,
+        content: "*ขณะนี้ร้านค้ายังไม่มีไอเทมเปิดให้แลก กรุณารอทีมงานเปิดจำหน่ายนะครับ 🍃*",
+      }
+    );
+
     const emptyPayload = {
       flags: FLAG_V2,
       components: [
         {
           type: 17,
-          components: [
-            {
-              type: 10,
-              content: `## <a:shoppingcart:1567249451477901465>︲__\` 𝖬𝖺𝗋𝗄𝖾𝗍 𝖨𝗍𝖾𝗆 ₊ ร้านค้าไอเทม 𓂃 \`__\n-# ยินดีต้อนร้อนเข้าสู่ร้านค้าของ **${serverName}** ที่นี่เรามีไอเทมมากมายให้คุณได้เลิอกซื้อ มากถึง **__0 ชิ้น__** <:cuteplant:1152834055528783872>`,
-            },
-            {
-              type: 14,
-              spacing: 2,
-            },
-            {
-              type: 10,
-              content: "*ขณะนี้ร้านค้ายังไม่มีไอเทมเปิดให้แลก กรุณารอทีมงานเปิดจำหน่ายนะครับ 🍃*",
-            },
-          ],
+          components: emptyComponents,
         },
       ],
     };
@@ -96,12 +115,21 @@ function buildMarketPayloads(guild, items = [], currencyEmoji = DEFAULT_CURRENCY
         ? `**${item.stock.toLocaleString()} ชิ้น**`
         : "♾️ **ไม่จำกัด**";
 
+    let reqLine = "";
+    if (item.wins_required && item.wins_required > 0) {
+      reqLine += `\n**\`[🏆]\`**  เงื่อนไข : ชนะมินิเกมอย่างน้อย **${item.wins_required.toLocaleString()}** ครั้ง`;
+    }
+    if (item.required_role_id) {
+      reqLine += `\n**\`[🔒]\`**  ยศที่ต้องมี : <@&${item.required_role_id}>`;
+    }
+
     const block =
       `### ไอเทม #${itemNumber}\n` +
       `**\`[🏷️]\`**  ชื่อไอเทม : **${item.name}**\n` +
       `**\`[💰]\`**  ราคาไอเทม : ${currencyEmoji} **${Number(item.points_cost).toLocaleString()}**\n` +
       `**\`[👑]\`**  ยศที่จะได้รับ : <@&${item.role_id}>\n` +
-      `**\`[📦]\`**  ไอเทมคงเหลือ : ${stockText}`;
+      `**\`[📦]\`**  ไอเทมคงเหลือ : ${stockText}` +
+      reqLine;
 
     const blockLen = block.length + 2;
 
@@ -128,6 +156,22 @@ function buildMarketPayloads(guild, items = [], currencyEmoji = DEFAULT_CURRENCY
 
     // Header เฉพาะ Chunk แรกสุดเท่านั้น!
     if (chunkIndex === 0) {
+      if (bannerUrl) {
+        containerComponents.push({
+          type: 12,
+          items: [
+            {
+              media: {
+                url: bannerUrl,
+              },
+            },
+          ],
+        });
+        containerComponents.push({
+          type: 14,
+          spacing: 2,
+        });
+      }
       containerComponents.push({
         type: 10,
         content: `## <a:shoppingcart:1567249451477901465>︲__\` 𝖬𝖺𝗋𝗄𝖾𝗍 𝖨𝗍𝖾𝗆 ₊ ร้านค้าไอเทม 𓂃 \`__\n-# ยินดีต้อนร้อนเข้าสู่ร้านค้าของ **${serverName}** ที่นี่เรามีไอเทมมากมายให้คุณได้เลิอกซื้อ มากถึง **__${totalItems} ชิ้น__** <:cuteplant:1152834055528783872>`,
@@ -190,16 +234,31 @@ function buildMarketPayloads(guild, items = [], currencyEmoji = DEFAULT_CURRENCY
 /**
  * สร้างการ์ดยืนยันการแลกยศ (Ephemeral Component V2)
  */
-function buildItemRedeemConfirmPayload(guild, member, item, currentPoints, currencyEmoji = DEFAULT_CURRENCY_EMOJI) {
-  const cost = Number(item.points_cost) || 0;
-  const remaining = Math.max(0, currentPoints - cost);
+function buildItemRedeemConfirmPayload(guild, member, item, currentPoints, currencyEmoji = DEFAULT_CURRENCY_EMOJI, discountInfo = null) {
+  const originalCost = Number(item.points_cost) || 0;
+  const finalCost = discountInfo?.finalCost ?? originalCost;
+  const remaining = Math.max(0, currentPoints - finalCost);
   const stockText =
     typeof item.stock === "number" && item.stock > 0
       ? `\n> 📦 **สต็อกคงเหลือ:** เหลืออีก **${item.stock.toLocaleString()}** ชิ้น`
       : "";
 
+  let costDisplay = `💰 **ค่าใช้จ่าย:** **${finalCost.toLocaleString()}** ${currencyEmoji}`;
+  if (discountInfo && discountInfo.maxDiscount > 0) {
+    const roleMention = discountInfo.discountRoleId ? `<@&${discountInfo.discountRoleId}>` : "ยศพิเศษ";
+    costDisplay = `💰 **ค่าใช้จ่าย:** ~~${originalCost.toLocaleString()}~~ ➔ **${finalCost.toLocaleString()}** ${currencyEmoji} *(ลด **${discountInfo.maxDiscount}%** จาก ${roleMention})*`;
+  }
+
+  let reqText = "";
+  if (item.wins_required && item.wins_required > 0) {
+    reqText += `\n> 🏆 **เงื่อนไขชนะมินิเกม:** ผ่านแล้ว (ต้องชนะอย่างน้อย ${item.wins_required} ครั้ง)`;
+  }
+  if (item.required_role_id) {
+    reqText += `\n> 🔒 **เงื่อนไขยศที่ต้องมี:** ผ่านแล้ว (<@&${item.required_role_id}>)`;
+  }
+
   return {
-    flags: FLAG_V2,
+    flags: FLAG_V2 | (MessageFlags.Ephemeral || 64),
     components: [
       {
         type: 17,
@@ -209,11 +268,12 @@ function buildItemRedeemConfirmPayload(guild, member, item, currentPoints, curre
             content:
               `## ${GIFT_EMOJI}︲__\` 𝖱𝖾𝖽𝖾𝖾𝗆 ₊ ยืนยันการแลกยศ 𓂃 \`__\n` +
               `> คุณกำลังจะแลกรับ: **${item.emoji || "🎁"} ${item.name}**\n\n` +
-              `👑 **บทบาทยศ:** <@&${item.role_id}>\n` +
-              `💰 **ค่าใช้จ่าย:** **${cost.toLocaleString()}** ${currencyEmoji}\n` +
+              `👑 **บทบาทยศที่จะได้รับ:** <@&${item.role_id}>\n` +
+              `${costDisplay}\n` +
               `📊 **แต้มสะสมปัจจุบัน:** **${currentPoints.toLocaleString()}** ${currencyEmoji}\n` +
               `✨ **แต้มคงเหลือหลังแลก:** **${remaining.toLocaleString()}** ${currencyEmoji}` +
               stockText +
+              reqText +
               `\n\n-# ⚠️ กรุณาตรวจสอบข้อมูลให้เรียบร้อยก่อนกดยืนยัน ระบบจะหักแต้มและมอบยศทันทีครับ`,
           },
           {
@@ -258,8 +318,16 @@ function buildItemInfoPayload(item, itemNumber = 1, redemptionCount = 0, currenc
   const statusText = item.is_active ? "🟢 เปิดให้แลกอยู่" : "🔴 ปิดการแลกชั่วคราว";
   const toggleLabel = item.is_active ? "🔴 ปิดการแลกชั่วคราว" : "🟢 เปิดให้แลก";
 
+  let extraConditionLines = "";
+  if (item.wins_required && item.wins_required > 0) {
+    extraConditionLines += `\n**\`[🏆]\`** ​ ชนะมินิเกมขั้นต่ำ : 🏆 **${item.wins_required.toLocaleString()}** ครั้ง`;
+  }
+  if (item.required_role_id) {
+    extraConditionLines += `\n**\`[🔒]\`** ​ ยศที่ต้องมีก่อนแลก : 👑 <@&${item.required_role_id}>`;
+  }
+
   return {
-    flags: FLAG_V2,
+    flags: FLAG_V2 | (MessageFlags.Ephemeral || 64),
     components: [
       {
         type: 17,
@@ -279,8 +347,9 @@ function buildItemInfoPayload(item, itemNumber = 1, redemptionCount = 0, currenc
               `**\`[🏷️]\`** ​ ชื่อไอเทม : **${item.name}**\n` +
               `**\`[💰]\`** ​ ราคาไอเทม : ${currencyEmoji} **${item.points_cost.toLocaleString()}**\n` +
               `**\`[👑]\`** ​ ยศที่จะได้รับ : <@&${item.role_id}>\n` +
-              `**\`[👥]\`** ​ จำกัดการแลก : ${stockText}\n` +
-              `**\`[📊]\`** ​ สถิติการแลก : มีคนแลกไปแล้ว **${redemptionCount.toLocaleString()}** ครั้ง\n` +
+              `**\`[👥]\`** ​ จำกัดการแลก : ${stockText}` +
+              extraConditionLines +
+              `\n**\`[📊]\`** ​ สถิติการแลก : มีคนแลกไปแล้ว **${redemptionCount.toLocaleString()}** ครั้ง\n` +
               `**\`[⚙️]\`** ​ สถานะในร้าน : ${statusText}`,
           },
           {
@@ -328,7 +397,7 @@ function buildItemDeleteConfirmPayload(item, itemNumber = 1, currencyEmoji = DEF
       : `👥 **${item.stock.toLocaleString()} คน**`;
 
   return {
-    flags: FLAG_V2,
+    flags: FLAG_V2 | (MessageFlags.Ephemeral || 64),
     components: [
       {
         type: 17,
@@ -385,7 +454,7 @@ function buildItemDeleteConfirmPayload(item, itemNumber = 1, currencyEmoji = DEF
  */
 function buildItemDeleteSuccessPayload(itemName) {
   return {
-    flags: FLAG_V2,
+    flags: FLAG_V2 | (MessageFlags.Ephemeral || 64),
     components: [
       {
         type: 17,
@@ -415,7 +484,7 @@ function buildItemEditDashboardPayload(session, itemNumber = 1, currencyEmoji = 
       : `👥 **${session.stock.toLocaleString()} คน**`;
 
   return {
-    flags: FLAG_V2,
+    flags: FLAG_V2 | (MessageFlags.Ephemeral || 64),
     components: [
       {
         type: 17,
@@ -507,7 +576,7 @@ function buildItemEditSuccessPayload(session, itemNumber = 1, currencyEmoji = DE
       : `👥 **${session.stock.toLocaleString()} คน**`;
 
   return {
-    flags: FLAG_V2,
+    flags: FLAG_V2 | (MessageFlags.Ephemeral || 64),
     components: [
       {
         type: 17,
@@ -569,7 +638,7 @@ function buildStoreReceiptPayload(member, item, remainingPoints, currencyEmoji =
  */
 function buildRedeemSuccessPayload(member, item, newPoints, currencyEmoji = DEFAULT_CURRENCY_EMOJI) {
   return {
-    flags: FLAG_V2,
+    flags: FLAG_V2 | (MessageFlags.Ephemeral || 64),
     components: [
       {
         type: 17,
@@ -635,10 +704,12 @@ function buildSuccessPayload(title, description) {
 }
 
 /**
- * สร้างการ์ด Wizard 4 ขั้นตอน สำหรับการสร้างไอเทม (/item create)
- * ตรงตามสเปก Component V2 ใน แผนการแก้ไขคำสั่งไอเทม.md
+ * สร้างการ์ด Wizard 4 ขั้นตอน (Standard) หรือ 6 ขั้นตอน (Premium) สำหรับการสร้างไอเทม (/item create)
+ * ตรงตามสเปก Component V2
  */
-function buildItemCreateWizardPayload(step, session, currencyEmoji = DEFAULT_CURRENCY_EMOJI) {
+function buildItemCreateWizardPayload(step, session, currencyEmoji = DEFAULT_CURRENCY_EMOJI, isPremium = false) {
+  const isPrem = Boolean(isPremium || session?.isPremium);
+  const totalSteps = isPrem ? 6 : 4;
   const name = session.name || "ไม่มีชื่อ";
   const pointsStr = session.points ? `${currencyEmoji} **${session.points.toLocaleString()}**` : "";
   const roleStr = session.roleId ? `<@&${session.roleId}>` : "";
@@ -648,6 +719,12 @@ function buildItemCreateWizardPayload(step, session, currencyEmoji = DEFAULT_CUR
       : session.stock === -1
       ? "👥 **ไม่จำกัดคน**"
       : `👥 **${session.stock} คน**`;
+
+  const winsStr =
+    session.winsRequired !== undefined && session.winsRequired !== null && session.winsRequired > 0
+      ? `🏆 **${session.winsRequired.toLocaleString()} ครั้ง**`
+      : "🏆 **ไม่จำกัด**";
+  const reqRoleStr = session.requiredRoleId ? `👑 <@&${session.requiredRoleId}>` : "👑 **ไม่จำกัด**";
 
   let itemInfoContent = "";
   let actionRowComponents = [];
@@ -659,7 +736,7 @@ function buildItemCreateWizardPayload(step, session, currencyEmoji = DEFAULT_CUR
         style: 2,
         type: 2,
         custom_id: "p_step_noop_1",
-        label: "1/4",
+        label: `1/${totalSteps}`,
         disabled: true,
       },
       {
@@ -676,7 +753,7 @@ function buildItemCreateWizardPayload(step, session, currencyEmoji = DEFAULT_CUR
         style: 2,
         type: 2,
         custom_id: "p_step_noop_2",
-        label: "2/4",
+        label: `2/${totalSteps}`,
         disabled: true,
       },
       {
@@ -693,7 +770,7 @@ function buildItemCreateWizardPayload(step, session, currencyEmoji = DEFAULT_CUR
         style: 2,
         type: 2,
         custom_id: "p_step_noop_3",
-        label: "3/4",
+        label: `3/${totalSteps}`,
         disabled: true,
       },
       {
@@ -705,12 +782,116 @@ function buildItemCreateWizardPayload(step, session, currencyEmoji = DEFAULT_CUR
     ];
   } else if (step === 4) {
     itemInfoContent = `### ข้อมูลไอเทม\n**\`[✅]\`** ​ ชื่อไอเทม : **${name}**\n**\`[✅]\`** ​ ราคาไอเทม : ${pointsStr}\n**\`[✅]\`** ​ ยศที่จะได้รับ : ${roleStr}\n**\`[✅]\`** ​ จำกัดการแลก : ${stockStr}`;
+    if (!isPrem) {
+      actionRowComponents = [
+        {
+          style: 2,
+          type: 2,
+          custom_id: "p_step_noop_4",
+          label: "4/4",
+          disabled: true,
+        },
+        {
+          style: 3, // Success / Green
+          type: 2,
+          custom_id: `item_wiz_confirm:${session.id}`,
+          label: "ยืนยัน",
+        },
+      ];
+    } else {
+      actionRowComponents = [
+        {
+          style: 2,
+          type: 2,
+          custom_id: "p_step_noop_4",
+          label: `4/${totalSteps}`,
+          disabled: true,
+        },
+        {
+          style: 1,
+          type: 2,
+          custom_id: `item_wiz_to_step5:${session.id}`,
+          label: "➡️ ถัดไป: เงื่อนไขชนะ (พรีเมียม)",
+        },
+      ];
+    }
+  } else if (step === 5) {
+    // Step 5 (Premium Only): กำหนดจำนวนชนะมินิเกมขั้นต่ำ
+    itemInfoContent =
+      `### ข้อมูลไอเทม\n` +
+      `**\`[✅]\`** ​ ชื่อไอเทม : **${name}**\n` +
+      `**\`[✅]\`** ​ ราคาไอเทม : ${pointsStr}\n` +
+      `**\`[✅]\`** ​ ยศที่จะได้รับ : ${roleStr}\n` +
+      `**\`[✅]\`** ​ จำกัดการแลก : ${stockStr}\n` +
+      `**\`[❌]\`** ​ ชนะมินิเกมขั้นต่ำ : `;
     actionRowComponents = [
       {
         style: 2,
         type: 2,
-        custom_id: "p_step_noop_4",
-        label: "4/4",
+        custom_id: "p_step_noop_5",
+        label: `5/${totalSteps}`,
+        disabled: true,
+      },
+      {
+        style: 1,
+        type: 2,
+        custom_id: `item_wiz_wins_btn:${session.id}`,
+        label: "🏆 กำหนดจำนวนชนะ",
+      },
+      {
+        style: 2,
+        type: 2,
+        custom_id: `item_wiz_skip_wins:${session.id}`,
+        label: "⏩ ข้าม (ไม่จำกัด)",
+      },
+    ];
+  } else if (step === 6) {
+    // Step 6 (Premium Only): กำหนดบทบาทยศที่จำเป็นต้องมี
+    itemInfoContent =
+      `### ข้อมูลไอเทม\n` +
+      `**\`[✅]\`** ​ ชื่อไอเทม : **${name}**\n` +
+      `**\`[✅]\`** ​ ราคาไอเทม : ${pointsStr}\n` +
+      `**\`[✅]\`** ​ ยศที่จะได้รับ : ${roleStr}\n` +
+      `**\`[✅]\`** ​ จำกัดการแลก : ${stockStr}\n` +
+      `**\`[✅]\`** ​ ชนะมินิเกมขั้นต่ำ : ${winsStr}\n` +
+      `**\`[❌]\`** ​ ยศที่ต้องมีก่อนแลก : `;
+    actionRowComponents = [
+      {
+        style: 2,
+        type: 2,
+        custom_id: "p_step_noop_6",
+        label: `6/${totalSteps}`,
+        disabled: true,
+      },
+      {
+        style: 1,
+        type: 2,
+        custom_id: `item_wiz_req_role_btn:${session.id}`,
+        label: "👑 เลือกยศที่ต้องมี",
+      },
+      {
+        style: 2,
+        type: 2,
+        custom_id: `item_wiz_skip_req_role:${session.id}`,
+        label: "⏩ ข้าม (ไม่จำกัด)",
+      },
+    ];
+  } else if (step === 7) {
+    // Step 7 (Premium Final Confirmation)
+    itemInfoContent =
+      `### ข้อมูลไอเทม\n` +
+      `**\`[✅]\`** ​ ชื่อไอเทม : **${name}**\n` +
+      `**\`[✅]\`** ​ ราคาไอเทม : ${pointsStr}\n` +
+      `**\`[✅]\`** ​ ยศที่จะได้รับ : ${roleStr}\n` +
+      `**\`[✅]\`** ​ จำกัดการแลก : ${stockStr}\n` +
+      `**\`[✅]\`** ​ ชนะมินิเกมขั้นต่ำ : ${winsStr}\n` +
+      `**\`[✅]\`** ​ ยศที่ต้องมีก่อนแลก : ${reqRoleStr}`;
+    actionRowComponents = [
+      {
+        style: 2,
+        type: 2,
+        custom_id: "p_step_noop_7",
+        label: `6/${totalSteps}`,
         disabled: true,
       },
       {
@@ -723,7 +904,7 @@ function buildItemCreateWizardPayload(step, session, currencyEmoji = DEFAULT_CUR
   }
 
   return {
-    flags: FLAG_V2,
+    flags: FLAG_V2 | (MessageFlags.Ephemeral || 64),
     components: [
       {
         type: 17,
@@ -766,8 +947,16 @@ function buildItemCreateSuccessPayload(session, itemNumber, currencyEmoji = DEFA
       ? "👥 **ไม่จำกัดคน**"
       : `👥 **${session.stock} คน**`;
 
+  let extraLines = "";
+  if (session.winsRequired && session.winsRequired > 0) {
+    extraLines += `\n**\`[✅]\`** ​ ชนะมินิเกมขั้นต่ำ : 🏆 **${session.winsRequired.toLocaleString()} ครั้ง**`;
+  }
+  if (session.requiredRoleId) {
+    extraLines += `\n**\`[✅]\`** ​ ยศที่ต้องมีก่อนแลก : 👑 <@&${session.requiredRoleId}>`;
+  }
+
   return {
-    flags: FLAG_V2,
+    flags: FLAG_V2 | (MessageFlags.Ephemeral || 64),
     components: [
       {
         type: 17,
@@ -789,7 +978,69 @@ function buildItemCreateSuccessPayload(session, itemNumber, currencyEmoji = DEFA
               `**\`[✅]\`** ​ ชื่อไอเทม : **${name}**\n` +
               `**\`[✅]\`** ​ ราคาไอเทม : ${pointsStr}\n` +
               `**\`[✅]\`** ​ ยศที่จะได้รับ : ${roleStr}\n` +
-              `**\`[✅]\`** ​ จำกัดการแลก : ${stockStr}`,
+              `**\`[✅]\`** ​ จำกัดการแลก : ${stockStr}` +
+              extraLines,
+          },
+        ],
+      },
+    ],
+  };
+}
+
+/**
+ * สร้างการ์ดแดชบอร์ดจัดการส่วนลดราคาร้านค้าตามยศ (/item discount)
+ */
+function buildStoreDiscountDashboardPayload(guild, discounts = []) {
+  const total = discounts.length;
+  let listText = "*ขณะนี้ยังไม่มีการตั้งค่าส่วนลดสำหรับยศใดๆ ในร้านค้า*";
+  if (total > 0) {
+    listText = discounts
+      .map((d, idx) => `**${idx + 1}.** ยศ <@&${d.role_id}> ➔ ได้รับส่วนลด **${d.percent}%**`)
+      .join("\n");
+  }
+
+  return {
+    flags: FLAG_V2 | (MessageFlags.Ephemeral || 64),
+    components: [
+      {
+        type: 17,
+        components: [
+          {
+            type: 10,
+            content:
+              `## 🏷️︲__\` 𝖱𝗈𝗅𝖾 𝖣𝗂𝗌𝖼𝗈𝗎𝗇𝗍 ₊ ส่วนลดร้านค้าตามยศ 𓂃 \`__\n` +
+              `-# สมาชิกที่มียศที่กำหนดจะได้รับส่วนลดแต้มอัตโนมัติเมื่อแลกไอเทมในร้านค้า (ระบบเลือกส่วนลดที่คุ้มค่าที่สุดเพียงยศเดียว ไม่ซ้อนทับกัน) <:cuteplant:1152834055528783872>\n\n` +
+              `### 📋 รายการส่วนลดยศปัจจุบัน (${total} รายการ)\n` +
+              listText,
+          },
+          {
+            type: 14,
+            spacing: 2,
+            divider: true,
+          },
+          {
+            type: 1,
+            components: [
+              {
+                type: 2,
+                style: 1, // Primary
+                label: "➕ เพิ่มส่วนลดยศ",
+                custom_id: "item_discount_add_btn",
+              },
+              {
+                type: 2,
+                style: 4, // Danger
+                label: "🗑️ ลบส่วนลดยศ",
+                custom_id: "item_discount_del_btn",
+                disabled: total === 0,
+              },
+              {
+                type: 2,
+                style: 2, // Secondary
+                label: "✖️ ปิดหน้าต่าง",
+                custom_id: "item_discount_close_btn",
+              },
+            ],
           },
         ],
       },
@@ -836,5 +1087,6 @@ module.exports = {
   buildItemCreateWizardPayload,
   buildItemCreateSuccessPayload,
   buildItemRoleSelectPayload,
+  buildStoreDiscountDashboardPayload,
   parseEmojiForDiscord,
 };

@@ -50,6 +50,10 @@ async function getTenantStoreConfig(supabase, guildId) {
     currency_emoji: DEFAULT_CURRENCY_EMOJI,
     is_enabled: true,
     custom_layout_json: null,
+    market_channel_id: null,
+    market_message_ids: [],
+    banner_url: null,
+    role_discounts: [],
   };
 
   if (!guildId) return fallback;
@@ -77,12 +81,12 @@ async function getTenantStoreConfig(supabase, guildId) {
   try {
     const { data, error } = await supabase
       .from("tenant_store_configs")
-      .select("guild_id, log_channel_id, currency_emoji, is_enabled, custom_layout_json")
+      .select("*")
       .eq("guild_id", guildId)
       .maybeSingle();
 
     if (error) {
-      console.warn(`[akari-store] ⚠️ getTenantStoreConfig DB error for ${guildId}:`, error.message || error);
+      console.warn(`[kuma-store] ⚠️ getTenantStoreConfig DB error for ${guildId}:`, error.message || error);
       // ไม่เซ็ต fallback ทับลงแคชอย่างถาวรหากเกิดข้อผิดพลาดชั่วคราว
       if (storeConfigCache.has(guildId)) {
         const stale = storeConfigCache.get(guildId);
@@ -102,11 +106,12 @@ async function getTenantStoreConfig(supabase, guildId) {
       ...fallback,
       ...data,
       currency_emoji: sanitizeCurrencyEmoji(data.currency_emoji),
+      role_discounts: Array.isArray(data.role_discounts) ? data.role_discounts : (fallback.role_discounts || []),
     };
     storeConfigCache.set(guildId, { data: config, expiresAt: now + STORE_CONFIG_TTL_MS });
     return config;
   } catch (err) {
-    console.warn(`[akari-store] ⚠️ getTenantStoreConfig unexpected error for ${guildId}:`, err.message);
+    console.warn(`[kuma-store] ⚠️ getTenantStoreConfig unexpected error for ${guildId}:`, err.message);
     if (storeConfigCache.has(guildId)) {
       const stale = storeConfigCache.get(guildId);
       if (stale?.data) return stale.data;
@@ -132,31 +137,49 @@ async function saveTenantStoreConfig(supabase, guildId, updates) {
 
   if (supabase) {
     try {
+      const payloadToUpsert = {
+        guild_id: guildId,
+        log_channel_id: updated.log_channel_id ?? null,
+        currency_emoji: updated.currency_emoji ?? DEFAULT_CURRENCY_EMOJI,
+        is_enabled: updated.is_enabled ?? true,
+        custom_layout_json: updated.custom_layout_json ?? null,
+        market_channel_id: updated.market_channel_id ?? null,
+        market_message_ids: Array.isArray(updated.market_message_ids) ? updated.market_message_ids : [],
+        updated_at: updated.updated_at,
+      };
+
+      if (updated.banner_url !== undefined && updated.banner_url !== null) {
+        payloadToUpsert.banner_url = updated.banner_url;
+      }
+      if (Array.isArray(updated.role_discounts) && updated.role_discounts.length > 0) {
+        payloadToUpsert.role_discounts = updated.role_discounts;
+      }
+
       const { error } = await supabase
         .from("tenant_store_configs")
-        .upsert(
-          {
-            guild_id: guildId,
-            log_channel_id: updated.log_channel_id ?? null,
-            currency_emoji: updated.currency_emoji ?? DEFAULT_CURRENCY_EMOJI,
-            is_enabled: updated.is_enabled ?? true,
-            custom_layout_json: updated.custom_layout_json ?? null,
-            updated_at: updated.updated_at,
-          },
-          { onConflict: "guild_id" }
-        );
+        .upsert(payloadToUpsert, { onConflict: "guild_id" });
 
       if (error) {
-        console.error(`[akari-store] ❌ saveTenantStoreConfig DB error for ${guildId}:`, error.message || error);
-        return null;
+        // หากคอลัมน์ banner_url หรือ role_discounts ยังไม่ได้รัน migration บน Supabase ให้ fallback บันทึกคอลัมน์หลักก่อน
+        if (error.message && (error.message.includes("banner_url") || error.message.includes("role_discounts"))) {
+          console.warn(`[kuma-store] ⚠️ New columns not migrated yet on Supabase, saving core columns:`, error.message);
+          delete payloadToUpsert.banner_url;
+          delete payloadToUpsert.role_discounts;
+          try {
+            await supabase.from("tenant_store_configs").upsert(payloadToUpsert, { onConflict: "guild_id" });
+          } catch (fbErr) {
+            console.error(`[kuma-store] ❌ Fallback upsert failed:`, fbErr.message);
+          }
+        } else {
+          console.error(`[kuma-store] ❌ saveTenantStoreConfig DB error for ${guildId}:`, error.message || error);
+        }
       }
     } catch (err) {
-      console.error(`[akari-store] ❌ saveTenantStoreConfig unexpected error for ${guildId}:`, err.message);
-      return null;
+      console.error(`[kuma-store] ❌ saveTenantStoreConfig unexpected error for ${guildId}:`, err.message);
     }
   }
 
-  // อัปเดตแคชเฉพาะเมื่อบันทึกลง DB สำเร็จ (หรือรันโหมดไม่มี supabase)
+  // อัปเดตแคชเสมอเพื่อให้ระบบทำงานต่อเนื่องได้ทันที
   storeConfigCache.set(guildId, {
     data: updated,
     expiresAt: Date.now() + STORE_CONFIG_TTL_MS,
@@ -209,7 +232,7 @@ async function getTenantStoreItems(supabase, guildId) {
         });
       }
     } catch (err) {
-      console.warn(`[akari-store] getTenantStoreItems DB error for ${guildId}:`, err.message);
+      console.warn(`[kuma-store] getTenantStoreItems DB error for ${guildId}:`, err.message);
     }
   }
 
@@ -259,7 +282,7 @@ async function saveTenantStoreItem(supabase, guildId, slot, itemData) {
         is_active: updatedItem.is_active,
       }, { onConflict: "guild_id,slot" });
     } catch (err) {
-      console.warn(`[akari-store] saveTenantStoreItem DB error for ${guildId}:`, err.message);
+      console.warn(`[kuma-store] saveTenantStoreItem DB error for ${guildId}:`, err.message);
     }
   }
 
@@ -292,7 +315,7 @@ async function getUserTenantScore(supabase, guildId, userId) {
         };
       }
     } catch (err) {
-      console.warn(`[akari-store] getUserTenantScore error:`, err.message);
+      console.warn(`[kuma-store] getUserTenantScore error:`, err.message);
     }
   }
 
@@ -428,7 +451,7 @@ async function executeRedemption(client, supabase, guild, member, slot, item) {
         throw error;
       }
     } catch (err) {
-      console.error(`[akari-store] Point deduction failed for ${userId}:`, err.message);
+      console.error(`[kuma-store] Point deduction failed for ${userId}:`, err.message);
       return { success: false, error: "เกิดข้อผิดพลาดในการตัดแต้ม กรุณาลองใหม่อีกครั้งครับ" };
     }
   }
@@ -451,7 +474,7 @@ async function executeRedemption(client, supabase, guild, member, slot, item) {
         roleError = "ไม่พบบทบาทในเซิร์ฟเวอร์ (อาจถูกลบไปแล้ว)";
       }
     } catch (err) {
-      console.error(`[akari-store] Failed to add role ${item.role_id} to ${userId}:`, err.message);
+      console.error(`[kuma-store] Failed to add role ${item.role_id} to ${userId}:`, err.message);
       roleError = "บอทไม่มีสิทธิ์มอบยศนี้ (กรุณาให้แอดมินลากตำแหน่งยศบอทไว้สูงกว่ายศของรางวัล)";
     }
 
@@ -497,7 +520,7 @@ async function executeRedemption(client, supabase, guild, member, slot, item) {
         role_id: item.role_id,
       });
     } catch (err) {
-      console.warn(`[akari-store] Log redemption to DB failed:`, err.message);
+      console.warn(`[kuma-store] Log redemption to DB failed:`, err.message);
     }
   }
 
@@ -512,7 +535,7 @@ async function executeRedemption(client, supabase, guild, member, slot, item) {
         await logChannel.send(logPayload).catch(() => {});
       }
     } catch (err) {
-      console.warn(`[akari-store] Failed to send log to channel:`, err.message);
+      console.warn(`[kuma-store] Failed to send log to channel:`, err.message);
     }
   }
 

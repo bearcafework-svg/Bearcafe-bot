@@ -25,7 +25,7 @@ const {
   syncRentHousePermissions,
 } = require("../src/features/rentHouse/services/rentHouseService");
 
-const { safeShowModal, safeDisconnectMember, safeRespond } = require("../utils/discordSafety");
+const { safeShowModal, safeDisconnectMember, safeRespond, safeDeferReply } = require("../utils/discordSafety");
 const { safeSetChannelName } = require("../utils/channelRenameGuard");
 const { getRandomSessionAd, getGlobalCtaButton } = require("../src/services/sessionAdsService");
 const {
@@ -420,6 +420,8 @@ async function handleRentHousePanelInteraction(interaction) {
 
   // 1.1 สลับ Preset ของบ้านเช่า
   if (interaction.isStringSelectMenu() && customId === "rh_select_apply_preset") {
+    await safeDeferReply(interaction, { flags: 64 });
+
     // ตรวจสอบคูลดาวน์ 15 วินาที
     const cooldown = checkPresetSwitchCooldown(channel.id);
     if (cooldown.onCooldown) {
@@ -466,6 +468,8 @@ async function handleRentHousePanelInteraction(interaction) {
         createV2CardResponse("ยกเลิกการสลับ Preset", "> ❌ ยกเลิกการสลับ Preset เรียบร้อยแล้วค่ะ บ้านเช่ายังคงใช้การตั้งค่าเดิม", "ℹ️")
       );
     }
+
+    await safeDeferReply(interaction, { flags: 64 });
 
     const cooldown = checkPresetSwitchCooldown(channel.id);
     if (cooldown.onCooldown) {
@@ -515,6 +519,10 @@ async function handleRentHousePanelInteraction(interaction) {
   if (interaction.isButton() && customId.startsWith("rh_p_")) {
     const parts = customId.split("_"); // ["rh", "p", "action", "num"]
     const action = parts[2];
+    if (action !== "rename") {
+      await safeDeferReply(interaction, { flags: 64 });
+    }
+
     const num = parseInt(parts[3], 10);
     const presets = await getRentHousePresets(channel.id);
     const targetPreset = presets[num - 1];
@@ -568,6 +576,8 @@ async function handleRentHousePanelInteraction(interaction) {
 
   // 2. User Select Menus
   if (interaction.isUserSelectMenu() && customId.startsWith("rh_select_")) {
+    await safeDeferReply(interaction, { flags: 64 });
+
     const targetUserIds = interaction.values;
     if (!targetUserIds || targetUserIds.length === 0) return false;
 
@@ -599,6 +609,7 @@ async function handleRentHousePanelInteraction(interaction) {
 
   // 3. Modal Submit
   if (interaction.isModalSubmit() && customId.startsWith("rh_modal_")) {
+    await safeDeferReply(interaction, { flags: 64 });
     if (customId.startsWith("rh_modal_rename_preset_")) {
       const num = parseInt(customId.replace("rh_modal_rename_preset_", ""), 10);
       const newName = interaction.fields.getTextInputValue("preset_name_input").trim().slice(0, 50);

@@ -35,13 +35,24 @@ const ROOMS_CACHE_TTL_MS = 5000;
 let separatorsCache = {};
 
 async function saveRoom(channelId, zoneId, ownerId, settings = {}) {
-  const roomObj = {
-    zoneId,
-    ownerId,
-    createdAt: Date.now(),
-    emptyAt: null,
-    settings: defaultRoomSettings(settings),
-  };
+  let roomObj;
+  if (typeof zoneId === "object" && zoneId !== null) {
+    roomObj = {
+      zoneId: zoneId.zoneId || "vip",
+      ownerId: zoneId.ownerId || ownerId,
+      createdAt: zoneId.createdAt || Date.now(),
+      emptyAt: zoneId.emptyAt || null,
+      settings: defaultRoomSettings(zoneId.settings || settings),
+    };
+  } else {
+    roomObj = {
+      zoneId,
+      ownerId,
+      createdAt: Date.now(),
+      emptyAt: null,
+      settings: defaultRoomSettings(settings),
+    };
+  }
   roomsCache[channelId] = roomObj;
   try {
     const r = getRedis();

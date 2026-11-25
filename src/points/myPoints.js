@@ -254,7 +254,13 @@ function setupMyPoints(client) {
     }
 
     // ⚡ Defer reply ทันทีเพื่อป้องกัน 10062 Unknown Interaction (timeout 3 วินาทีของ Discord)
-    await interaction.deferReply().catch(() => {});
+    try {
+      await interaction.deferReply();
+    } catch (e) {
+      if (e.code === 10062) return; // Interaction expired, stop early
+      console.warn("[myPoints] deferReply failed:", e.message);
+      return;
+    }
 
     try {
       const userId = interaction.user.id;
@@ -265,18 +271,12 @@ function setupMyPoints(client) {
       const drainNotice = drained > 0 ? `✅ ดึงแต้มส่วนเกินมาเติมในกระเป๋า ${drained.toLocaleString()} แต้ม` : null;
       const payload = buildMainPayload(interaction, points, cakes, maxPoints, 1, dailyPoints, overflowPoints, overflowCap, overflowExpiresAt, drainNotice);
 
-      if (interaction.deferred || interaction.replied) {
-        await interaction.editReply(payload).catch((e) => console.error("[myPoints] editReply failed:", e.message));
-      } else {
-        await interaction.reply(payload).catch((e) => console.error("[myPoints] reply failed:", e.message));
-      }
+      await interaction.editReply(payload).catch((e) => {
+        if (e.code !== 10062) console.error("[myPoints] editReply failed:", e.message);
+      });
     } catch (err) {
       console.error("[myPoints] Error handling /แต้มของฉัน:", err.message);
-      if (interaction.deferred || interaction.replied) {
-        await interaction.editReply({ content: `❌ เกิดข้อผิดพลาดในการโหลดแต้ม: ${err.message}` }).catch(() => {});
-      } else {
-        await interaction.reply({ content: `❌ เกิดข้อผิดพลาดในการโหลดแต้ม: ${err.message}`, flags: FLAG_EPHEMERAL }).catch(() => {});
-      }
+      await interaction.editReply({ content: `❌ เกิดข้อผิดพลาดในการโหลดแต้ม: ${err.message}` }).catch(() => {});
     }
   });
 

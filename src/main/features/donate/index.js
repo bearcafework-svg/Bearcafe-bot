@@ -60,42 +60,75 @@ async function getUsername(guild, userId) {
   }
 }
 
+// ── แปลงวันที่เป็น Date / Timestamp ─────────────────────────
+function parseTxDate(raw) {
+  if (!raw) return null;
+  const slashMatch = String(raw).trim().match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})$/);
+  if (slashMatch) {
+    const [, day, month, yearStr] = slashMatch;
+    let year = parseInt(yearStr, 10);
+    if (year > 2400) year -= 543;
+    const d = new Date(year, parseInt(month, 10) - 1, parseInt(day, 10));
+    if (!isNaN(d.getTime())) return d;
+  }
+  const d = new Date(raw);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function getRecordTimestampSec(rawDate, logTimestamp) {
+  const d = parseTxDate(rawDate) || (logTimestamp ? new Date(logTimestamp) : null);
+  if (!d || isNaN(d.getTime())) return null;
+  return Math.floor(d.getTime() / 1000);
+}
+
 // ── ดึงข้อมูลยอดโดเนทรวม Top N จาก Supabase ────────────────
 async function fetchTopDonors(supabase, limit = 10) {
   const { data: legacyData, error: legacyError } = await supabase
     .from("trading_history")
-    .select("member_id, amount")
+    .select("member_id, amount, transaction, log_timestamp")
     .neq("member_id", EXCLUDED_USER_ID);
 
   if (legacyError) throw new Error(legacyError.message);
 
   const { data: newOrdersData, error: newOrdersError } = await supabase
     .from("orders")
-    .select("member_id, total_amount")
+    .select("member_id, total_amount, transaction_date, log_timestamp")
     .neq("member_id", EXCLUDED_USER_ID);
 
   if (newOrdersError) throw new Error(newOrdersError.message);
 
-  // รวม amount ต่อ member_id
-  const totals = {};
-  for (const row of legacyData || []) {
-    const mid = row.member_id;
-    if (mid) {
-      totals[mid] = (totals[mid] || 0) + parseFloat(row.amount || 0);
+  // รวม amount พร้อมบันทึกวันที่แรกสุดและล่าสุดต่อ member_id
+  const stats = {};
+  const addRecord = (mid, amount, rawDate, logTs) => {
+    if (!mid) return;
+    if (!stats[mid]) {
+      stats[mid] = { total: 0, firstTs: null, latestTs: null };
     }
+    stats[mid].total += parseFloat(amount || 0);
+    const ts = getRecordTimestampSec(rawDate, logTs);
+    if (ts && ts > 0) {
+      if (stats[mid].firstTs === null || ts < stats[mid].firstTs) {
+        stats[mid].firstTs = ts;
+      }
+      if (stats[mid].latestTs === null || ts > stats[mid].latestTs) {
+        stats[mid].latestTs = ts;
+      }
+    }
+  };
+
+  for (const row of legacyData || []) {
+    addRecord(row.member_id, row.amount, row.transaction, row.log_timestamp);
   }
 
   for (const row of newOrdersData || []) {
-    const mid = row.member_id;
-    if (mid) {
-      totals[mid] = (totals[mid] || 0) + parseFloat(row.total_amount || 0);
-    }
+    addRecord(row.member_id, row.total_amount, row.transaction_date, row.log_timestamp);
   }
 
   // เรียงมากไปน้อย
-  return Object.entries(totals)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, limit);
+  return Object.entries(stats)
+    .sort((a, b) => b[1].total - a[1].total)
+    .slice(0, limit)
+    .map(([uid, s]) => [uid, s.total, { firstTs: s.firstTs, latestTs: s.latestTs }]);
 }
 
 // ── ดึงยอดรวม + รายการล่าสุด ของ user คนนึง ─────────────────
@@ -126,20 +159,6 @@ async function fetchUserDonation(supabase, userId) {
   // หาข้อมูลล่าสุด
   let latestAmount = 0;
   let latestDate = null;
-
-  const parseTxDate = (raw) => {
-    if (!raw) return null;
-    const slashMatch = raw.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})$/);
-    if (slashMatch) {
-      const [, day, month, yearStr] = slashMatch;
-      let year = parseInt(yearStr);
-      if (year > 2400) year -= 543;
-      const d = new Date(year, parseInt(month) - 1, parseInt(day));
-      if (!isNaN(d.getTime())) return d;
-    }
-    const d = new Date(raw);
-    return isNaN(d.getTime()) ? null : d;
-  };
 
   const allRecords = [];
 
@@ -193,41 +212,32 @@ async function buildTopDonateComponents(guild, supabase) {
       type: 12,
       items: [{
         media: {
-          url: "https://cdn.discordapp.com/attachments/1524742861223100416/1525087837467316284/NewsBoard_-_bearcafe.png?ex=6a521c3b&is=6a50cabb&hm=970815e328022459e7aec5d4b11e615adbc19cb3115fd010fbacecb5f81e2647&"
+          url: "https://cdn.discordapp.com/attachments/1565777850022232075/1575488742356164638/f740a27f2f5ad31d.png?ex=6b0977bb&is=6b08263b&hm=bce213e95abda3b03da0bfcb088bca0c111ad4a6d6a42f32ef2b37e76aadfb9f&"
         }
       }]
     },
-    { type: 14, spacing: 2 },
-    // Header + ปุ่มเช็คยอด
+    // Header
     {
-      type: 9,
-      components: [{
-        type: 10,
-        content: "## <a:bellbag:1185624186132103178>︲__` 𝖳𝗈𝗉 𝖣𝗈𝗇𝖺𝗍𝖾 ₊ ท็อปโดเนท 𓂃 `__ \n-# มาดูกันว่าใครสายเปย์ที่สุดในคาเฟ่หมี หากยอดโดเนทของคุณครบ **1,000 บาท** ขึ้นไปก็รับยศ <@&1185550863448682579> ผ่านห้อง <#1524124172580814979> ได้เลยค่ะ <:cuteplant:1152834055528783872>"
-      }],
-      accessory: {
-        style: 1,
-        type: 2,
-        label: "︲เช็กยอดของคุณ",
-        emoji: { id: "1432666951095816243", name: "35214money", animated: true },
-        flow: { actions: [] },
-        custom_id: "donate_check_self"
-      }
+      type: 10,
+      content: "## <:bee20000:1256669436350562355>︲__` 𝖳𝗈𝗉 𝖣𝗈𝗇𝖺𝗍𝖾 ₊ ท็อปโดเนท 𓂃 `__ \n-# มาดูกันว่าใครสายเปย์ที่สุดในคาเฟ่หมี หากยอดโดเนทของคุณครบ **1,000 บาท** ขึ้นไปก็รับยศ <@&1185550863448682579> ผ่านห้อง <#1524124172580814979> ได้เลยค่ะ <:cuteplant:1152834055528783872>"
     },
+    { type: 14, spacing: 2 },
     { type: 14, divider: false, spacing: 1 },
   ];
 
-  // อันดับ 1–3 (มี avatar)
+  // อันดับ 1–3 (มี avatar + วันที่โดเนทครั้งแรก/ล่าสุด)
   for (let i = 0; i < Math.min(3, top10.length); i++) {
-    const [uid, total] = top10[i];
-    const username = await getUsername(guild, uid);
+    const [uid, total, meta] = top10[i];
     const avatarUrl = await getAvatarUrl(guild, uid);
+    const formattedTotal = Math.round(total).toLocaleString("en-US");
+    const firstTsText = meta?.firstTs ? `<t:${meta.firstTs}:F>` : "ไม่ระบุ";
+    const latestTsText = meta?.latestTs ? `<t:${meta.latestTs}:R>` : "ไม่ระบุ";
 
     components.push({
       type: 9,
       components: [{
         type: 10,
-        content: `### ${topEmojis[i]}⠀:⠀<@${uid}>⠀—⠀\` ${username} \`⠀𝖽𝗈𝗇𝖺𝗍𝖾𝖽 __${toMathNum(total)}__ 𝖻𝖺𝗁𝗍 .\n-# 𝗑𝗑𝗑𝗑 𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑 𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑 𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑 𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑 𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑 𝗑𝗑𝗑𝗑𝗑𝗑𝗑𝗑`
+        content: `### ${topEmojis[i]}︰<@${uid}> โดเนท <:bankmoney:1567217849968234658> __${formattedTotal}__ บาท\n-# โดเนทครั้งแรก : ${firstTsText}\n-# โดเนทล่าสุด : ${latestTsText}`
       }],
       accessory: {
         type: 11,
@@ -242,9 +252,9 @@ async function buildTopDonateComponents(guild, supabase) {
     const lines = [];
     for (let i = 3; i < top10.length; i++) {
       const [uid, total] = top10[i];
-      const username = await getUsername(guild, uid);
+      const formattedTotal = Math.round(total).toLocaleString("en-US");
       lines.push(
-        `### ${rankEmojis[i]}⠀:⠀<@${uid}>⠀—⠀\` ${username} \`⠀𝖽𝗈𝗇𝖺𝗍𝖾𝖽 __${toMathNum(total)}__ 𝖻𝖺𝗁𝗍 .`
+        `### ${rankEmojis[i]}︰<@${uid}> โดเนท <:bankmoney:1567217849968234658> __${formattedTotal}__ บาท`
       );
     }
     components.push({ type: 10, content: lines.join("\n") });
@@ -266,9 +276,33 @@ async function buildTopDonateComponents(guild, supabase) {
       style: 2,
       type: 2,
       emoji: { name: "🔄" },
-      flow: { actions: [] },
       custom_id: "donate_refresh"
     }
+  });
+
+  // ActionRow ด้านล่าง: ปุ่มเช็กยอดโดเนทของคุณ
+  components.push({ type: 14, divider: false });
+  components.push({
+    type: 1,
+    components: [
+      {
+        style: 2,
+        type: 2,
+        custom_id: "p_373089100418256897",
+        label: "เช็กยอดโดเนทของคุณ:",
+        disabled: true
+      },
+      {
+        style: 3,
+        type: 2,
+        custom_id: "p_373089211718307842",
+        emoji: {
+          id: "1522154708200849449",
+          name: "bagpack_icon",
+          animated: false
+        }
+      }
+    ]
   });
 
   return components;
@@ -360,8 +394,8 @@ function setupDonate(client) {
       return;
     }
 
-    // ── ปุ่ม เช็คยอดของคุณ ──────────────────────────────────
-    if (interaction.customId === "donate_check_self") {
+    // ── ปุ่ม เช็คยอดของคุณ (รองรับทั้ง custom_id ใหม่และเดิม) ────────────────────
+    if (interaction.customId === "p_373089211718307842" || interaction.customId === "donate_check_self") {
       const guild = interaction.guild;
       const userId = interaction.user.id;
 
@@ -388,7 +422,7 @@ function setupDonate(client) {
         } else {
           const allTop = await fetchTopDonors(supabase, 9999);
           const idx = allTop.findIndex(([uid]) => uid === userId);
-          rankText = idx >= 0 ? toMathNum(idx + 1) : "x";
+          rankText = idx >= 0 ? (idx + 1).toLocaleString("en-US") : "x";
         }
 
         if (total >= 1000) {
@@ -401,28 +435,30 @@ function setupDonate(client) {
         // แปลง transaction (YYYY-MM-DD) → Unix timestamp
         let latestTs = Math.floor(Date.now() / 1000);
         if (latestDate) {
-          const d = new Date(latestDate);
-          if (!isNaN(d)) latestTs = Math.floor(d.getTime() / 1000);
+          const d = parseTxDate(latestDate) || new Date(latestDate);
+          if (d && !isNaN(d.getTime())) latestTs = Math.floor(d.getTime() / 1000);
         }
 
+        const formattedMemberCount = memberCount.toLocaleString("en-US");
+        const formattedTotal = Math.round(total).toLocaleString("en-US");
+        const formattedLatest = Math.round(latestAmount).toLocaleString("en-US");
+
         const content =
-          `## <:HoneyPot:1301533095203438683>︲__\` ${username}'𝗌 𝖽𝗈𝗇𝖺𝗍𝗂𝗈𝗇 𝗍𝗈𝗍𝖺𝗅 . 𓂃 \`__ \n` +
-          `-# <:line:1144701793989840997> ${titlePrefix} **${rankText}** จาก ${toMathNum(memberCount)} คน ` +
-          `โดเนทสะสม **${toMathNum(total)} บาท** ` +
-          `และล่าสุดแอบโยนปลาแซลมอนมาอีก **${toMathNum(latestAmount)} บาท** เมื่อ <t:${latestTs}:R> <:cuteplant:1152834055528783872>`;
+          `## <:bee20000:1256669436350562355>︲__\` โดเนทของคุณ ${username} \`__ \n` +
+          `- ${titlePrefix} **${rankText}** จาก ${formattedMemberCount} คน\n` +
+          `  - โดเนทสะสม <:bankmoney:1567217849968234658> **__${formattedTotal} บาท__**\n` +
+          `  - ล่าสุดแอบโยนปลาแซลมอนมาอีก <:bankmoney:1567217849968234658> **__${formattedLatest} บาท__** เมื่อ <t:${latestTs}:R> <:cuteplant:1152834055528783872>`;
 
         return safeRespond(interaction, {
           flags: 32768,
           components: [{
             type: 17,
             components: [
-              { type: 14, spacing: 2 },
               {
                 type: 9,
                 components: [{ type: 10, content }],
                 accessory: { type: 11, media: { url: avatarUrl } }
-              },
-              { type: 14, spacing: 2 }
+              }
             ]
           }]
         });

@@ -105,7 +105,7 @@ function setupManagePoints(client) {
       // 3. ดึงข้อมูลปัจจุบันจากตาราง user_points บน Supabase 2
       const { data: row, error: fetchErr } = await supabase
         .from("user_points")
-        .select("discord_id, points, cakes")
+        .select("discord_id, points, cakes, gacha_coins")
         .eq("discord_id", targetUser.id)
         .maybeSingle();
 
@@ -118,9 +118,11 @@ function setupManagePoints(client) {
 
       const currentPoints = Number(row?.points || 0);
       const currentCakes = Number(row?.cakes || 0);
+      const currentGachaCoins = Number(row?.gacha_coins || 0);
 
       let newPoints = currentPoints;
       let newCakes = currentCakes;
+      let newGachaCoins = currentGachaCoins;
       let changeText = "";
       let typeLabel = "";
       let unit = "";
@@ -129,13 +131,41 @@ function setupManagePoints(client) {
         typeLabel = "🍵 แต้ม (point)";
         unit = "แต้ม";
         if (action === "add") {
-          newPoints = currentPoints + amount;
+          const targetMember = interaction.guild?.members.cache.get(targetUser.id) || await interaction.guild?.members.fetch(targetUser.id).catch(() => null);
+          const { addPointsWithCap } = require("../utils/pointManager");
+          const pointRes = await addPointsWithCap(supabase, targetMember, targetUser.id, amount, {
+            ignoreDailyCap: true,
+            allowOverflowExceedCap: true
+          });
+          newPoints = pointRes.points;
           changeText = `+${amount.toLocaleString()}`;
+          if (pointRes.toOverflow > 0) {
+            changeText += ` (เข้ากระเป๋า ${pointRes.toWallet.toLocaleString()}, เข้าแต้มส่วนเกิน ${pointRes.toOverflow.toLocaleString()})`;
+          }
         } else {
           newPoints = Math.max(0, currentPoints - amount);
           changeText = `-${amount.toLocaleString()}`;
+          const { error: upsertErr } = await supabase
+            .from("user_points")
+            .upsert(
+              {
+                discord_id: targetUser.id,
+                points: newPoints,
+                cakes: newCakes,
+                gacha_coins: newGachaCoins,
+                updated_at: new Date().toISOString(),
+              },
+              { onConflict: "discord_id" }
+            );
+
+          if (upsertErr) {
+            console.error("[managePoints] Upsert error:", upsertErr.message);
+            return interaction.editReply({
+              content: `❌ เกิดข้อผิดพลาดในการบันทึกข้อมูลลง Supabase 2: ${upsertErr.message}`,
+            });
+          }
         }
-      } else {
+      } else if (type === "cake") {
         typeLabel = "🍰 เค้ก (cake)";
         unit = "ชิ้น";
         if (action === "add") {
@@ -145,32 +175,73 @@ function setupManagePoints(client) {
           newCakes = Math.max(0, currentCakes - amount);
           changeText = `-${amount.toLocaleString()}`;
         }
-      }
 
-      // 4. บันทึก/อัปเดตข้อมูลลง Supabase 2
-      const { error: upsertErr } = await supabase
-        .from("user_points")
-        .upsert(
-          {
-            discord_id: targetUser.id,
-            points: newPoints,
-            cakes: newCakes,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "discord_id" }
-        );
+        const { error: upsertErr } = await supabase
+          .from("user_points")
+          .upsert(
+            {
+              discord_id: targetUser.id,
+              points: newPoints,
+              cakes: newCakes,
+              gacha_coins: newGachaCoins,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "discord_id" }
+          );
 
-      if (upsertErr) {
-        console.error("[managePoints] Upsert error:", upsertErr.message);
+        if (upsertErr) {
+          console.error("[managePoints] Upsert error:", upsertErr.message);
+          return interaction.editReply({
+            content: `❌ เกิดข้อผิดพลาดในการบันทึกข้อมูลลง Supabase 2: ${upsertErr.message}`,
+          });
+        }
+      } else if (type === "gacha_coin" || type === "coin" || type === "gacha_coins") {
+        typeLabel = "🪙 แต้มกาชา (gacha_coin)";
+        unit = "เหรียญ";
+        if (action === "add") {
+          newGachaCoins = currentGachaCoins + amount;
+          changeText = `+${amount.toLocaleString()}`;
+        } else {
+          newGachaCoins = Math.max(0, currentGachaCoins - amount);
+          changeText = `-${amount.toLocaleString()}`;
+        }
+
+        const { error: upsertErr } = await supabase
+          .from("user_points")
+          .upsert(
+            {
+              discord_id: targetUser.id,
+              points: newPoints,
+              cakes: newCakes,
+              gacha_coins: newGachaCoins,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "discord_id" }
+          );
+
+        if (upsertErr) {
+          console.error("[managePoints] Upsert error:", upsertErr.message);
+          return interaction.editReply({
+            content: `❌ เกิดข้อผิดพลาดในการบันทึกข้อมูลลง Supabase 2: ${upsertErr.message}`,
+          });
+        }
+      } else {
         return interaction.editReply({
-          content: `❌ เกิดข้อผิดพลาดในการบันทึกข้อมูลลง Supabase 2: ${upsertErr.message}`,
+          content: "⚠️ ประเภทที่เลือกไม่ถูกต้อง (ต้องเป็น point, cake หรือ gacha_coin)",
         });
       }
 
       // 5. สร้างการ์ดผลลัพธ์แบบ Ephemeral
       const isAdd = action === "add";
-      const oldVal = type === "point" ? currentPoints : currentCakes;
-      const newVal = type === "point" ? newPoints : newCakes;
+      let oldVal = currentPoints;
+      let newVal = newPoints;
+      if (type === "cake") {
+        oldVal = currentCakes;
+        newVal = newCakes;
+      } else if (type === "gacha_coin" || type === "coin" || type === "gacha_coins") {
+        oldVal = currentGachaCoins;
+        newVal = newGachaCoins;
+      }
 
       const isOwner = (interaction.user?.id === (process.env.OWNER_ID || "944920660759707658")) ||
                       (Boolean(interaction.guild?.ownerId) && interaction.user?.id === interaction.guild?.ownerId);

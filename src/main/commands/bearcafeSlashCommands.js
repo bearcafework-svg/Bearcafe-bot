@@ -490,7 +490,7 @@ const BEARCAFE_SLASH_COMMANDS = [
   // 23. /จัดการแต้ม (Manage Points - Owner & Staff)
   {
     name: "จัดการแต้ม",
-    description: "จัดการแต้มหรือเค้กของสมาชิก (เฉพาะทีมงานและผู้ดูแล)",
+    description: "จัดการแต้ม, เค้ก หรือแต้มกาชาของสมาชิก (เฉพาะทีมงานและผู้ดูแล)",
     options: [
       {
         name: "user",
@@ -510,12 +510,13 @@ const BEARCAFE_SLASH_COMMANDS = [
       },
       {
         name: "type",
-        description: "เลือกประเภทที่ต้องการจัดการ (แต้ม / เค้ก)",
+        description: "เลือกประเภทที่ต้องการจัดการ (แต้ม / เค้ก / แต้มกาชา)",
         type: ApplicationCommandOptionType.String,
         required: true,
         choices: [
           { name: "🍵 แต้ม (point)", value: "point" },
           { name: "🍰 เค้ก (cake)", value: "cake" },
+          { name: "🪙 แต้มกาชา (gacha_coin)", value: "gacha_coin" },
         ],
       },
       {
